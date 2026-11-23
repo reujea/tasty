@@ -285,16 +285,15 @@ fn a_timeout_applied_first_rejects_a_late_response_before_the_write() {
     // 워커를 회수(join)하지 못한다. 실패할 때는 잠금을 먼저 놓는다. 임시 디렉터리는 워커가
     // 사본을 가져가므로 워커가 끝날 때까지 남는다.
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
-    loop {
-        match approvals.get(&id).map(|r| r.state) {
-            Some(ApprovalState::TimedOut { .. }) => break,
-            Some(_) if std::time::Instant::now() < deadline => {}
-            state => {
-                drop(held);
-                panic!("the waiter did not apply the timeout within 10s: {state:?}");
-            }
-        }
-        std::thread::sleep(Duration::from_millis(1));
+    // 기록이 사라지면 원래처럼 기한을 기다리지 않고 바로 실패로 넘긴다.
+    let mut state = None;
+    tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(1), |_| {
+        state = approvals.get(&id).map(|r| r.state);
+        !matches!(state, Some(ref s) if !matches!(s, ApprovalState::TimedOut { .. }))
+    });
+    if !matches!(state, Some(ApprovalState::TimedOut { .. })) {
+        drop(held);
+        panic!("the waiter did not apply the timeout within 10s: {state:?}");
     }
     let late = approvals.respond(&id, "approve".into(), Responder::User, None);
     let version_at_late = held.get(&Scope::Global, &key).map(|e| e.map(|e| e.version));

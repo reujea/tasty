@@ -64,6 +64,8 @@ fn new_gui_key_uses_worker_receipts_and_duplicate_failure_never_replaces_its_sec
     assert_eq!(counts.commands.known_failure, 1);
     assert!(files::poll(&ticket).is_none());
     let deadline = Instant::now() + HANG_LIMIT;
+    // holds_by 로 바꾸지 않는다. poll_file_writer_shutdown 은 child cleanup 제출과 webhook 처리를 함께
+    // 진행해 기한 뒤 관측에서 부를 수 없고, 그것 없이 종료 완료를 볼 길이 없다.
     while core.poll_file_writer_shutdown() != 0 {
         assert!(Instant::now() < deadline);
         std::thread::yield_now();

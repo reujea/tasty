@@ -97,6 +97,8 @@ pub(crate) fn run_case(
         started.recv_timeout(Duration::from_secs(5)).unwrap();
         assert_ne!(app.services.poll_file_writer_shutdown(), 0);
     } else {
+        // holds_by 로 바꾸지 않는다. poll_file_writer_shutdown 은 child cleanup 제출과 webhook 처리를 함께
+        // 진행해 기한 뒤 관측에서 부를 수 없고, 그것 없이 종료 완료를 볼 길이 없다.
         let end = Instant::now() + Duration::from_secs(5);
         while app.services.poll_file_writer_shutdown() != 0 {
             assert!(Instant::now() < end, "gated file writer failed to join");
@@ -134,6 +136,8 @@ pub(crate) fn run_case(
         "completion collection must not admit a new capture"
     );
     gate.release();
+    // holds_by 로 바꾸지 않는다. poll_file_writer_shutdown 은 child cleanup 제출과 webhook 처리를 함께
+    // 진행해 기한 뒤 관측에서 부를 수 없고, 그것 없이 종료 완료를 볼 길이 없다.
     let end = Instant::now() + Duration::from_secs(5);
     while app.services.poll_file_writer_shutdown() != 0 {
         assert!(Instant::now() < end);
@@ -165,16 +169,13 @@ pub(crate) fn make_headless() -> App {
 }
 
 fn drain_other_writers(app: &mut App, end: Instant) {
-    loop {
+    // 두 poll 은 끝난 writer worker 를 join 할 뿐 새 작업을 만들지 않는다.
+    assert!(tasty_utils::test_wait::holds_by(end, || {
         let memory = app.services.poll_memory_writer_shutdown();
         #[cfg(feature = "gui")]
         let state = app.services.poll_state_writer_shutdown();
         #[cfg(not(feature = "gui"))]
         let state = 0;
-        if memory == 0 && state == 0 {
-            break;
-        }
-        assert!(Instant::now() < end);
-        std::thread::yield_now();
-    }
+        memory == 0 && state == 0
+    }));
 }

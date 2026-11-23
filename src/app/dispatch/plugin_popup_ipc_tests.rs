@@ -197,15 +197,25 @@ mod app_level {
             .queue_plugin_call_for_test(PLUGIN, call_id, method, params);
         app.process_plugin_ipc_calls();
         // plugin 호출은 cap 조회 결과를 기다리며 게이트에 선다. 호스트 루프처럼 결과가 나올 때까지 진행한다.
+        // 첫 진행 앞에도 기한을 본다. 기한 뒤 마지막 확인은 advance 없이 게이트만 본다.
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-        while !app.gate_queue.is_empty() {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "{method}: a gated plugin call never finished"
-            );
-            std::thread::sleep(std::time::Duration::from_millis(1));
-            app.advance_request_gates(&mut crate::app::ipc::StepTally::default());
-        }
+        let mut started = false;
+        assert!(
+            tasty_utils::test_wait::holds_by_every(deadline, std::time::Duration::ZERO, |last| {
+                if app.gate_queue.is_empty() {
+                    return true;
+                }
+                if !last
+                    && (std::mem::replace(&mut started, true)
+                        || std::time::Instant::now() < deadline)
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                    app.advance_request_gates(&mut crate::app::ipc::StepTally::default());
+                }
+                app.gate_queue.is_empty()
+            }),
+            "{method}: a gated plugin call never finished"
+        );
         let replies: Vec<_> = stub
             .drain_requests()
             .into_iter()

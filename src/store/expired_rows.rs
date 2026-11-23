@@ -61,11 +61,22 @@ mod tests {
         );
         core.submit_periodic_prune(0);
         let deadline = Instant::now() + Duration::from_secs(10);
-        while core.memory_access().detached_len() > 0 {
-            assert!(Instant::now() < deadline, "정리 요청이 끝나지 않았다");
-            std::thread::sleep(Duration::from_millis(10));
-            core.memory_access().reap_detached();
-        }
+        // reap_detached 는 끝난 요청을 거둘 뿐이라 기한 뒤 마지막 읽기 앞에서도 부른다.
+        assert!(
+            tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |last| {
+                if last {
+                    core.memory_access().reap_detached();
+                }
+                core.memory_access().detached_len() == 0 || {
+                    if !last {
+                        std::thread::sleep(Duration::from_millis(10));
+                        core.memory_access().reap_detached();
+                    }
+                    false
+                }
+            }),
+            "정리 요청이 끝나지 않았다"
+        );
 
         let mut s = store.lock().unwrap();
         let left = s.purge_expired().unwrap();

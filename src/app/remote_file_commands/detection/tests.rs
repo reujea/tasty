@@ -32,13 +32,10 @@ impl Writer {
     }
     fn finish(mut self) {
         let deadline = Instant::now() + HANG_LIMIT;
-        while self.0.writer.poll_shutdown() != 0 {
-            assert!(
-                Instant::now() < deadline,
-                "ordered detection writer did not drain"
-            );
-            std::thread::yield_now();
-        }
+        assert!(
+            tasty_utils::test_wait::holds_by(deadline, || self.0.writer.poll_shutdown() == 0),
+            "ordered detection writer did not drain"
+        );
     }
 }
 fn accepted(sink: &Submit, request: Request) -> Box<dyn Receipt> {

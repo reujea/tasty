@@ -21,13 +21,12 @@ fn request(path: PathBuf, text: &str) -> SettingsFileRequest {
 }
 fn collect(pending: &PendingExport) -> SettingsFileResult {
     let end = Instant::now() + Duration::from_secs(5);
-    loop {
-        if let Some(result) = pending.poll() {
-            return result;
-        }
-        assert!(Instant::now() < end);
-        std::thread::yield_now();
-    }
+    let mut result = None;
+    assert!(tasty_utils::test_wait::holds_by(end, || {
+        result = pending.poll();
+        result.is_some()
+    }));
+    result.expect("the wait held")
 }
 fn success(result: SettingsFileResult) {
     assert!(matches!(
@@ -185,17 +184,15 @@ fn completed_unconsumed_receipt_still_accounts_for_owned_output_path() {
         .ok()
         .unwrap();
     let end = Instant::now() + Duration::from_secs(5);
-    while parts.writer.stats().completed_ok == 0 {
-        assert!(Instant::now() < end);
-        std::thread::yield_now();
-    }
+    assert!(tasty_utils::test_wait::holds_by(end, || {
+        parts.writer.stats().completed_ok != 0
+    }));
     assert_eq!(parts.writer.stats().held_items, 1);
     assert!(parts.writer.stats().held_bytes >= capacity);
     success(collect(&pending));
     assert_eq!(parts.writer.stats().held_items, 0);
     parts.writer.begin_shutdown();
-    while parts.writer.poll_shutdown() != 0 {
-        assert!(Instant::now() < end);
-        std::thread::yield_now();
-    }
+    assert!(tasty_utils::test_wait::holds_by(end, || {
+        parts.writer.poll_shutdown() == 0
+    }));
 }

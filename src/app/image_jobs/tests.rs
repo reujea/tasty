@@ -3,6 +3,7 @@ use super::{ImageJobRejected, ImageWorker, MAX_HELD_BYTES, MAX_JOBS};
 use crate::runtime::surface_binding::SurfaceBinding;
 use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
+use tasty_utils::test_wait::{holds_by, holds_by_every};
 
 fn worker<T: Send + 'static>() -> (ImageWorker<T>, mpsc::Receiver<()>) {
     let (wake_tx, wake_rx) = mpsc::channel();
@@ -17,14 +18,21 @@ fn worker<T: Send + 'static>() -> (ImageWorker<T>, mpsc::Receiver<()>) {
 fn wait_results<T: Send + 'static>(worker: &mut ImageWorker<T>, count: usize) -> Vec<T> {
     let deadline = Instant::now() + Duration::from_secs(10);
     let mut done = Vec::new();
-    while done.len() < count {
-        assert!(
-            Instant::now() < deadline,
-            "image job results did not arrive"
-        );
-        done.extend(worker.take_results());
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    // take_results 는 끝난 결과만 꺼내므로 기한 뒤 관측에서도 꺼낸 뒤 읽는다.
+    assert!(
+        holds_by_every(deadline, Duration::from_millis(1), |last| {
+            if last {
+                done.extend(worker.take_results());
+            }
+            done.len() >= count || {
+                if !last {
+                    done.extend(worker.take_results());
+                }
+                false
+            }
+        }),
+        "image job results did not arrive"
+    );
     done
 }
 
@@ -129,10 +137,11 @@ fn shutdown_skips_queued_jobs_and_joins_the_worker() {
 
     release.send(()).expect("job waits");
     let deadline = Instant::now() + Duration::from_secs(10);
-    while jobs.poll_shutdown() != 0 {
-        assert!(Instant::now() < deadline, "worker did not finish");
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    // poll_shutdown 은 남은 결과를 버리고 끝난 worker 를 join 할 뿐 새 작업을 만들지 않는다.
+    assert!(
+        holds_by(deadline, || jobs.poll_shutdown() == 0),
+        "worker did not finish"
+    );
     assert_eq!(ran.load(std::sync::atomic::Ordering::SeqCst), 0);
 }
 
@@ -160,10 +169,11 @@ fn a_discarded_saved_file_is_removed() {
         .recv_timeout(Duration::from_secs(10))
         .expect("job ran");
     let deadline = Instant::now() + Duration::from_secs(10);
-    while jobs.poll_shutdown() != 0 {
-        assert!(Instant::now() < deadline, "worker did not finish");
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    // poll_shutdown 은 남은 결과를 버리고 끝난 worker 를 join 할 뿐 새 작업을 만들지 않는다.
+    assert!(
+        holds_by(deadline, || jobs.poll_shutdown() == 0),
+        "worker did not finish"
+    );
     assert!(!path.exists(), "shutdown discards results and their files");
 }
 

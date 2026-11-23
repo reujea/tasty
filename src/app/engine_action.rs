@@ -520,32 +520,29 @@ mod tests {
 
     fn wait_favorites(registries: &crate::runtime::registries::RuntimeRegistries) {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        loop {
-            assert!(registries.explorer_favorites.poll().is_empty());
-            assert!(registries.port_favorites.poll().is_empty());
-            let ready = [
-                registries.explorer_favorites.save_status(),
-                registries.port_favorites.save_status(),
-            ]
-            .into_iter()
-            .all(|(visible, committed, pending)| visible == committed && pending == 0);
-            if ready {
-                return;
-            }
-            assert!(std::time::Instant::now() < deadline, "favorites not saved");
-            std::thread::yield_now();
-        }
+        // poll 은 끝난 저장 영수증만 거두므로 기한 뒤 관측에서도 거둔 뒤 읽는다.
+        assert!(
+            tasty_utils::test_wait::holds_by_every(deadline, std::time::Duration::ZERO, |_| {
+                assert!(registries.explorer_favorites.poll().is_empty());
+                assert!(registries.port_favorites.poll().is_empty());
+                [
+                    registries.explorer_favorites.save_status(),
+                    registries.port_favorites.save_status(),
+                ]
+                .into_iter()
+                .all(|(visible, committed, pending)| visible == committed && pending == 0)
+            }),
+            "favorites not saved"
+        );
     }
 
     fn stop_favorites_writer(writer: &mut crate::app::file_writer::FileWriterParts) {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while writer.writer.poll_shutdown() != 0 {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "favorites writer not drained"
-            );
-            std::thread::yield_now();
-        }
+        // writer 의 poll_shutdown 은 끝난 worker 를 join 할 뿐 새 작업을 만들지 않는다.
+        assert!(
+            tasty_utils::test_wait::holds_by(deadline, || writer.writer.poll_shutdown() == 0),
+            "favorites writer not drained"
+        );
     }
 
     /// 윈도우마다 engine 이 있어도 즐겨찾기 추가가 서로를 지우지 않고, 다른 윈도우의 사본도 맞춰진다.

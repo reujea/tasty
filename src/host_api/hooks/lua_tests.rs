@@ -14,10 +14,10 @@ fn tree_of(len: usize) -> LuaSnapshot {
 
 fn settle(engine: &LuaEngine) {
     let end = Instant::now() + Duration::from_secs(5);
-    while engine.pending_jobs() > 0 {
-        assert!(Instant::now() < end, "job이 시간 안에 끝난다");
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(end, || engine.pending_jobs() == 0),
+        "job이 시간 안에 끝난다"
+    );
 }
 
 /// job들이 `tasty.run_cli`로 남긴 첫 인자.

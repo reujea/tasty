@@ -98,16 +98,22 @@ fn a_plugin_call_resumed_from_the_request_gate_reaches_the_redraw_decision() {
     // process_ipc를 게이트가 빌 때까지 부른다. 그 회차들의 재개 표지는 이 시험이 판정하지 않으므로 소비만 한다.
     // 기한은 회차를 돈 뒤에도 게이트가 남았을 때만 판정한다. 결과가 나온 뒤 시험 스레드가 늦게 깨어나도
     // 그 회차가 결과를 거둔다.
+    // 기한 뒤 마지막 확인은 process_ipc 없이 게이트만 본다. process_ipc 는 호출을 다시 dispatch 한다.
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-    while !app.gate_queue.is_empty() {
-        std::thread::sleep(std::time::Duration::from_millis(1));
-        app.process_ipc();
-        app.plugin_calls_resumed = false;
-        assert!(
-            app.gate_queue.is_empty() || std::time::Instant::now() < deadline,
-            "a gated plugin call never finished"
-        );
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, std::time::Duration::ZERO, |last| {
+            if app.gate_queue.is_empty() {
+                return true;
+            }
+            if !last {
+                std::thread::sleep(std::time::Duration::from_millis(1));
+                app.process_ipc();
+                app.plugin_calls_resumed = false;
+            }
+            app.gate_queue.is_empty()
+        }),
+        "a gated plugin call never finished"
+    );
     let replies: Vec<_> = caller
         .drain_requests()
         .into_iter()

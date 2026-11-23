@@ -250,6 +250,8 @@ mod tests {
         let mut owner = crate::app::local_reads::LocalReads::default();
         let mut settle = |state: &mut crate::state::MainViewState| {
             let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            // holds_by 로 바꾸지 않는다. drive 는 새 읽기 worker 를 제출하는 진행이라 기한 뒤 관측에서
+            // 부를 수 없고, 그것 없이는 끝난 결과가 view 에 들어오지 않는다.
             loop {
                 owner.reap();
                 owner.drive(|requests| {

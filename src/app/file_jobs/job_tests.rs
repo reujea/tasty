@@ -2,6 +2,7 @@
 
 use super::*;
 use std::sync::{Arc, OnceLock, Weak};
+use tasty_utils::test_wait::holds_by_every;
 
 fn read(path: &Path) -> String {
     std::fs::read_to_string(path).expect("read a test file")
@@ -24,13 +25,15 @@ fn names(dir: &Path) -> Vec<String> {
 /// 질문이 올라올 때까지 기다린다.
 fn wait_ask(shared: &Shared) -> Ask {
     let deadline = Instant::now() + Duration::from_secs(10);
-    loop {
-        if let Some(ask) = shared.pending_ask() {
-            return ask;
-        }
-        assert!(Instant::now() < deadline, "no conflict question arrived");
-        std::thread::sleep(Duration::from_millis(5));
-    }
+    let mut ask = None;
+    assert!(
+        holds_by_every(deadline, Duration::from_millis(5), |_| {
+            ask = shared.pending_ask();
+            ask.is_some()
+        }),
+        "no conflict question arrived"
+    );
+    ask.unwrap()
 }
 
 fn spawn_transfer(
@@ -165,16 +168,15 @@ fn replace_for_all_still_asks_again_on_a_folder_conflict() {
         apply_all: true,
     });
     let deadline = Instant::now() + Duration::from_secs(10);
-    let ask = loop {
-        if let Some(ask) = shared.pending_ask().filter(|a| a.name == "assets") {
-            break ask;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "the folder conflict was not asked"
-        );
-        std::thread::sleep(Duration::from_millis(5));
-    };
+    let mut asked = None;
+    assert!(
+        holds_by_every(deadline, Duration::from_millis(5), |_| {
+            asked = shared.pending_ask().filter(|a| a.name == "assets");
+            asked.is_some()
+        }),
+        "the folder conflict was not asked"
+    );
+    let ask = asked.unwrap();
     assert!(ask.folder_conflict);
     shared.answer(Answer {
         choice: Choice::Skip,

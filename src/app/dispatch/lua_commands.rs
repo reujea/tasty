@@ -246,10 +246,10 @@ mod tests {
 
     fn wait_until(what: &str, done: impl Fn() -> bool) {
         let end = Instant::now() + Duration::from_secs(5);
-        while !done() {
-            assert!(Instant::now() < end, "시간 안에 {what}");
-            std::thread::sleep(Duration::from_millis(1));
-        }
+        assert!(
+            tasty_utils::test_wait::holds_by(end, done),
+            "시간 안에 {what}"
+        );
     }
 
     /// Given 진행 중 job이 없다, When iteration 갱신을 여러 번 한다, Then 트리를 만들지 않는다.

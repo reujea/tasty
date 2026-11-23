@@ -321,15 +321,12 @@ mod tests {
         );
 
         let deadline = Instant::now() + Duration::from_secs(10);
-        let content = loop {
-            let c = std::fs::read_to_string(&marker).unwrap_or_default();
-            if !c.trim().is_empty() || Instant::now() >= deadline {
-                break c;
-            }
-            std::thread::sleep(Duration::from_millis(25));
-        };
+        let mut content = String::new();
         assert!(
-            !content.trim().is_empty(),
+            tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(25), |_| {
+                content = std::fs::read_to_string(&marker).unwrap_or_default();
+                !content.trim().is_empty()
+            }),
             "self binary was not resolved via augmented PATH — marker empty (command not found leaves a 0-byte redirect file)"
         );
         assert!(
@@ -501,13 +498,11 @@ mod tests {
         // 파일 생성만으로는 쓰기를 마쳤다고 볼 수 없어 내용을 기다린다.
         let deadline = Instant::now() + Duration::from_secs(5);
         let mut content = String::new();
-        while Instant::now() < deadline {
+        // 결과는 아래 내용 단언이 메시지와 함께 판정한다.
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(25), |_| {
             content = std::fs::read_to_string(&marker).unwrap_or_default();
-            if !content.trim().is_empty() {
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(25));
-        }
+            !content.trim().is_empty()
+        });
         assert_eq!(
             content.trim(),
             "1",

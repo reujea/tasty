@@ -134,6 +134,8 @@ fn gated_round(ack_first: bool) -> (bool, (u64, u64, usize), (u64, u64)) {
     }
     let status = services.registries.port_favorites.save_status();
     let counts = wake.counts();
+    // holds_by 로 바꾸지 않는다. poll_file_writer_shutdown 은 child cleanup 제출과 webhook 처리를 함께
+    // 진행해 기한 뒤 관측에서 부를 수 없고, 그것 없이 종료 완료를 볼 길이 없다.
     let deadline = Instant::now() + Duration::from_secs(5);
     while services.poll_file_writer_shutdown() != 0 {
         assert!(Instant::now() < deadline);

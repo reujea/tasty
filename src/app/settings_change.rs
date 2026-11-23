@@ -428,27 +428,29 @@ mod boundary_tests {
         core.poll_file_writer(); // Another event-loop turn can run before storage is released.
         release_tx.send(()).expect("storage waits");
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while core.file_writer_stats().unwrap().1.replaced
-            + core.file_writer_stats().unwrap().1.failed
-            == 0
-        {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "writer did not finish"
-            );
-            std::thread::yield_now();
-        }
-        let outcome = loop {
-            crate::intent::headless::settle_settings_saves(&mut core);
-            if let SettingsPoll::Ready(outcome) = wait.poll() {
-                break outcome;
-            }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "receipt did not settle"
-            );
-            std::thread::yield_now();
-        };
+        assert!(
+            tasty_utils::test_wait::holds_by(deadline, || {
+                let stats = core.file_writer_stats().unwrap().1;
+                stats.replaced + stats.failed != 0
+            }),
+            "writer did not finish"
+        );
+        // settle_settings_saves 는 끝난 저장 영수증을 거둘 뿐 새 저장을 만들지 않는다.
+        let mut settled = None;
+        assert!(
+            tasty_utils::test_wait::holds_by(deadline, || {
+                crate::intent::headless::settle_settings_saves(&mut core);
+                match wait.poll() {
+                    SettingsPoll::Ready(outcome) => {
+                        settled = Some(outcome);
+                        true
+                    }
+                    _ => false,
+                }
+            }),
+            "receipt did not settle"
+        );
+        let outcome = settled.expect("the wait held");
 
         assert_eq!(
             engine.runtime.settings.remote_transfer.max_mb, 4242,

@@ -354,35 +354,40 @@ impl LocalReads {
     #[cfg(test)]
     pub(crate) fn wait_idle(&mut self) {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        loop {
-            self.reap();
-            if self.jobs.is_empty() {
-                return;
-            }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "local reads did not finish"
-            );
-            std::thread::yield_now();
-        }
+        // reap 은 끝난 worker 를 join 할 뿐 새 작업을 만들지 않는다.
+        assert!(
+            tasty_utils::test_wait::holds_by(deadline, || {
+                self.reap();
+                self.jobs.is_empty()
+            }),
+            "local reads did not finish"
+        );
     }
     #[cfg(test)]
     pub(crate) fn finish<T>(&mut self, query: &mut Query<T>) -> io::Result<T> {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        loop {
-            self.reap();
-            let mut requests = self.requests();
-            let result = query.poll(&mut requests);
-            self.run_requests(requests);
-            if let Some(result) = result {
-                return result;
-            }
-            assert!(
-                std::time::Instant::now() < deadline,
-                "local query did not complete"
-            );
-            std::thread::yield_now();
-        }
+        let mut result = None;
+        // 기한 뒤 마지막 확인은 용량 0 요청 상자로 결과 채널만 읽는다. 새 읽기 worker 는 띄우지 않는다.
+        assert!(
+            tasty_utils::test_wait::holds_by_every(deadline, std::time::Duration::ZERO, |last| {
+                self.reap();
+                let mut requests = if last {
+                    ReadRequests {
+                        pending: Vec::new(),
+                        available: 0,
+                    }
+                } else {
+                    self.requests()
+                };
+                result = query.poll(&mut requests);
+                if !last {
+                    self.run_requests(requests);
+                }
+                result.is_some()
+            }),
+            "local query did not complete"
+        );
+        result.expect("the wait held")
     }
 }
 impl Drop for LocalReads {

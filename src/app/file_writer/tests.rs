@@ -1,6 +1,7 @@
 use super::*;
 use std::sync::{Mutex, mpsc};
 use std::time::{Duration, Instant};
+use tasty_utils::test_wait::{holds_by, holds_by_every};
 
 struct Gated {
     entered: mpsc::Sender<u64>,
@@ -31,11 +32,21 @@ fn settings(value: u64) -> Settings {
 fn wait_saves(saves: &mut SettingsSaves, n: usize) -> Vec<SettledSave> {
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut results = Vec::new();
-    while results.len() < n {
-        results.extend(saves.reap());
-        assert!(Instant::now() < deadline, "receipt missing");
-        std::thread::yield_now();
-    }
+    // reap 은 끝난 영수증만 거두므로 기한 뒤 관측에서도 거둔 뒤 읽는다.
+    assert!(
+        holds_by_every(deadline, Duration::ZERO, |last| {
+            if last {
+                results.extend(saves.reap());
+            }
+            results.len() >= n || {
+                if !last {
+                    results.extend(saves.reap());
+                }
+                false
+            }
+        }),
+        "receipt missing"
+    );
     results
 }
 #[test]
@@ -70,10 +81,7 @@ fn older_completion_does_not_clear_newer_dirty_and_failure_keeps_it() {
     assert!(wait_saves(&mut saves, 1)[0].saved.is_ok());
     assert_eq!(saves.unsaved(), None);
     let deadline = Instant::now() + Duration::from_secs(5);
-    while parts.writer.poll_shutdown() != 0 {
-        assert!(Instant::now() < deadline);
-        std::thread::yield_now();
-    }
+    assert!(holds_by(deadline, || parts.writer.poll_shutdown() == 0));
     assert_eq!(parts.stats.snapshot().replaced, 2);
     assert_eq!(parts.stats.snapshot().failed, 1);
 }
@@ -129,23 +137,31 @@ fn boot_receipt_waits_without_blocking_and_new_window_uses_latest_snapshot() {
     assert!(matches!(waiting.poll(), SettingsPoll::Pending));
     release.send(true).unwrap();
     let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
+    // settle_settings_saves 는 끝난 저장 결과만 거둔다. poll 은 Ready 를 한 번만 주므로 결과를 붙잡는다.
+    let mut outcome = None;
+    assert!(holds_by_every(deadline, Duration::ZERO, |_| {
         crate::intent::headless::settle_settings_saves(&mut core);
         match waiting.poll() {
-            SettingsPoll::Pending => assert!(Instant::now() < deadline),
-            SettingsPoll::Ready(SettingsOutcome::Applied {
-                saved, settings, ..
-            }) => {
-                assert!(saved.is_ok());
-                assert_eq!(settings.general.shell, "/confirmed-shell");
-                assert_eq!(settings.appearance.theme, "latte");
-                break;
+            SettingsPoll::Pending => false,
+            other => {
+                outcome = Some(other);
+                true
             }
-            _ => panic!("missing boot save outcome"),
         }
-        std::thread::yield_now();
+    }));
+    match outcome.unwrap() {
+        SettingsPoll::Ready(SettingsOutcome::Applied {
+            saved, settings, ..
+        }) => {
+            assert!(saved.is_ok());
+            assert_eq!(settings.general.shell, "/confirmed-shell");
+            assert_eq!(settings.appearance.theme, "latte");
+        }
+        _ => panic!("missing boot save outcome"),
     }
     assert!(matches!(waiting.poll(), SettingsPoll::Dropped));
+    // holds_by 로 바꾸지 않는다. poll_file_writer_shutdown 은 child cleanup 제출과 webhook 처리를 함께
+    // 진행해 기한 뒤 관측에서 부를 수 없고, 그것 없이 종료 완료를 볼 길이 없다.
     while core.poll_file_writer_shutdown() != 0 {
         assert!(Instant::now() < deadline);
         std::thread::yield_now();

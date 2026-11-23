@@ -544,14 +544,12 @@ fn a_check_in_flight_survives_a_tab_switch_and_a_closed_view_leaks_no_worker() {
         true
     });
     store.views.remove(&1);
-    let started = Instant::now();
-    while owner.poll_shutdown() != 0 {
-        assert!(
-            started.elapsed() < Duration::from_secs(10),
-            "worker 가 남았다"
-        );
-        std::thread::yield_now();
-    }
+    // poll_shutdown 은 끝난 job 을 거둘 뿐 새 읽기를 제출하지 않아 마지막 읽기로 쓴다.
+    let deadline = Instant::now() + Duration::from_secs(10);
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || owner.poll_shutdown() == 0),
+        "worker 가 남았다"
+    );
 }
 
 /// 설정을 끄면 파일 내용만 바뀐 변경은 다시 읽지 않고, 켜면 다음 회차에 보이던 목록을 둔 채 다시 읽어

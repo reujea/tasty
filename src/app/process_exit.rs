@@ -85,23 +85,23 @@ mod tests {
             .replace_terminal_by_id(surface, process(surface, "exit 7"))
             .unwrap();
         let deadline = Instant::now() + Duration::from_secs(10);
-        let generation = loop {
-            let output = core.process_pty_output(&mut engine, surface);
-            if let Some(generation) = output.events.into_iter().find_map(|event| match event {
-                CoreEvent::TerminalProcessExited {
-                    surface_id,
-                    generation,
-                } if surface_id == surface => Some(generation),
-                _ => None,
-            }) {
-                break generation;
-            }
-            assert!(
-                Instant::now() < deadline,
-                "real child exit was not observed"
-            );
-            std::thread::sleep(Duration::from_millis(5));
-        };
+        // process_pty_output 은 이미 나온 출력과 자식 종료를 거둬 사건으로 꺼낼 뿐 새 요청을 만들지 않는다.
+        let mut exited = None;
+        assert!(
+            tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(5), |_| {
+                let output = core.process_pty_output(&mut engine, surface);
+                exited = output.events.into_iter().find_map(|event| match event {
+                    CoreEvent::TerminalProcessExited {
+                        surface_id,
+                        generation,
+                    } if surface_id == surface => Some(generation),
+                    _ => None,
+                });
+                exited.is_some()
+            }),
+            "real child exit was not observed"
+        );
+        let generation = exited.expect("the wait held");
         let replacement = process(surface, "exec sleep 60");
         let new_pid = replacement.1.process_id().expect("live replacement PID");
         let new_generation = replacement.1.generation();

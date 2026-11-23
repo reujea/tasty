@@ -21,14 +21,21 @@ fn writer() -> (
 
 fn poll_until_settled(runtime: &mut TutorialRuntime) {
     let deadline = Instant::now() + Duration::from_secs(10);
-    while !runtime.pending_progress_is_empty() {
-        assert!(
-            Instant::now() < deadline,
-            "tutorial receipts never completed"
-        );
-        runtime.poll_progress();
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    // poll_progress 는 끝난 영수증을 거둘 뿐이라 기한 뒤 마지막 읽기 앞에서도 부른다.
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(1), |last| {
+            if last {
+                runtime.poll_progress();
+            }
+            runtime.pending_progress_is_empty() || {
+                if !last {
+                    runtime.poll_progress();
+                }
+                false
+            }
+        }),
+        "tutorial receipts never completed"
+    );
 }
 
 /// state.db가 없는 실행에서는 접수부터 거절하고 View는 저장 오류를 표시한다.

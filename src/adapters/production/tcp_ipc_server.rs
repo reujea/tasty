@@ -2104,6 +2104,8 @@ mod handshake_tests {
     /// 서버가 `within` 안에 연결을 닫는지 본다. 그 사이에 오는 Ping 등 프레임은 건너뛴다.
     fn closed_within(client: &mut std::net::TcpStream, within: Duration) -> bool {
         let deadline = std::time::Instant::now() + within;
+        // holds_by 로 바꾸지 않는다. 읽기가 남은 시간만큼 막혀 기한까지 기다리므로, 기한 뒤에 다시
+        // 읽으면 `within` 보다 늦게 닫힌 연결을 통과시킨다.
         loop {
             let left = deadline.saturating_duration_since(std::time::Instant::now());
             if left.is_zero() {

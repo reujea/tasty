@@ -142,16 +142,17 @@ fn run_case(proxy: winit::event_loop::EventLoopProxy<crate::AppEvent>, timeout: 
 }
 
 fn join_file(app: &mut App, end: Instant) {
+    // holds_by 로 바꾸지 않는다. poll_file_writer_shutdown 은 child cleanup 제출과 webhook 처리를 함께
+    // 진행해 기한 뒤 관측에서 부를 수 없고, 그것 없이 종료 완료를 볼 길이 없다.
     while app.services.poll_file_writer_shutdown() != 0 {
         assert!(Instant::now() < end);
         std::thread::yield_now();
     }
 }
 fn join_other(app: &mut App, end: Instant) {
-    while app.services.poll_memory_writer_shutdown() != 0
-        || app.services.poll_state_writer_shutdown() != 0
-    {
-        assert!(Instant::now() < end);
-        std::thread::yield_now();
-    }
+    // 두 poll 은 끝난 writer 스레드를 거둘 뿐 새 작업을 만들지 않아 마지막 읽기로 쓴다.
+    assert!(tasty_utils::test_wait::holds_by(end, || {
+        app.services.poll_memory_writer_shutdown() == 0
+            && app.services.poll_state_writer_shutdown() == 0
+    }));
 }

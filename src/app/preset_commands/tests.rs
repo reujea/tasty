@@ -5,6 +5,7 @@ use tasty_presets::{
     PresetPane, PresetPaneNode, PresetSurface, PresetSurfaceLayout, PresetTab, WorkspacePreset,
 };
 use tasty_utils::batch_writer::{Limits, SystemClock};
+use tasty_utils::test_wait::{holds_by, holds_by_every};
 
 pub(crate) fn value(subtitle: &str) -> OwnedPreset {
     OwnedPreset::Workspace(WorkspacePreset {
@@ -66,26 +67,29 @@ impl Fixture {
     }
     fn collect<T>(&self, ticket: &Ticket<T>) -> Result<T, PresetMutationError> {
         let deadline = Instant::now() + Duration::from_secs(5);
-        loop {
-            self.commands.poll();
-            if let Some(result) = ticket.poll() {
-                return result;
-            }
-            assert!(Instant::now() < deadline, "command receipt missing");
-            std::thread::yield_now();
-        }
+        // commands.poll 은 끝난 항목만 거두므로 기한 뒤 관측에서도 거둔 뒤 읽는다.
+        let mut result = None;
+        assert!(
+            holds_by_every(deadline, Duration::ZERO, |_| {
+                self.commands.poll();
+                result = ticket.poll();
+                result.is_some()
+            }),
+            "command receipt missing"
+        );
+        result.expect("the wait held")
     }
     fn drain(&mut self) {
         let deadline = Instant::now() + Duration::from_secs(5);
         self.parts.writer.close();
-        loop {
-            self.commands.poll();
-            if self.parts.writer.poll_shutdown() == 0 {
-                break;
-            }
-            assert!(Instant::now() < deadline, "writer failed to stop");
-            std::thread::yield_now();
-        }
+        // commands.poll 은 거두기, writer poll_shutdown 은 끝난 worker join 이라 새 작업이 없다.
+        assert!(
+            holds_by_every(deadline, Duration::ZERO, |_| {
+                self.commands.poll();
+                self.parts.writer.poll_shutdown() == 0
+            }),
+            "writer failed to stop"
+        );
         self.commands.poll();
     }
 }
@@ -353,14 +357,12 @@ fn opaque_successful_output_is_unclassified_until_backend_supplies_a_classifier(
     )
     .unwrap();
     let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
-        if let Some(result) = ticket.poll() {
-            assert!(!result.unwrap());
-            break;
-        }
-        assert!(Instant::now() < deadline);
-        std::thread::yield_now();
-    }
+    let mut result = None;
+    assert!(holds_by(deadline, || {
+        result = ticket.poll();
+        result.is_some()
+    }));
+    assert!(!result.unwrap().unwrap());
     f.drain();
     let stats = f.parts.stats.snapshot();
     assert_eq!(stats.operations.replace.succeeded, 1);

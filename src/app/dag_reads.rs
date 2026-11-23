@@ -277,6 +277,7 @@ mod tests {
     use super::*;
     use crate::runtime::dag_query::DagReadQueue;
     use std::sync::Mutex;
+    use tasty_utils::test_wait::{holds_by, holds_by_every};
     type Store = Arc<Mutex<dyn tasty_memory::MemoryStorage>>;
     fn memory() -> Store {
         Arc::new(Mutex::new(
@@ -304,23 +305,18 @@ mod tests {
     }
     fn await_busy(waiting: &AtomicBool) {
         let deadline = std::time::Instant::now() + Duration::from_secs(3);
-        while !waiting.load(Ordering::Acquire) {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "worker never observed the held store lock"
-            );
-            std::thread::yield_now();
-        }
+        assert!(
+            holds_by(deadline, || waiting.load(Ordering::Acquire)),
+            "worker never observed the held store lock"
+        );
     }
     fn join(owner: &mut DagReads) {
         let deadline = std::time::Instant::now() + Duration::from_secs(3);
-        while owner.poll_shutdown() != 0 {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "DAG workers did not join"
-            );
-            std::thread::yield_now();
-        }
+        // poll_shutdown 은 끝난 결과를 게시하고 끝난 worker 를 join 할 뿐 새 작업을 만들지 않는다.
+        assert!(
+            holds_by(deadline, || owner.poll_shutdown() == 0),
+            "DAG workers did not join"
+        );
     }
     #[test]
     fn a_locked_store_leaves_display_polling_free_and_shutdown_joins_without_unlocking_it() {
@@ -370,11 +366,18 @@ mod tests {
         await_busy(&waiting);
         drop(query);
         let deadline = std::time::Instant::now() + Duration::from_secs(3);
-        while !owner.jobs.is_empty() {
-            owner.reap(|_| Some((false, false)));
-            assert!(std::time::Instant::now() < deadline);
-            std::thread::yield_now();
-        }
+        // reap 은 끝난 결과 게시와 join 만 하므로 기한 뒤 관측에서도 거둔 뒤 읽는다.
+        assert!(holds_by_every(deadline, Duration::ZERO, |last| {
+            if last {
+                owner.reap(|_| Some((false, false)));
+            }
+            owner.jobs.is_empty() || {
+                if !last {
+                    owner.reap(|_| Some((false, false)));
+                }
+                false
+            }
+        }));
         assert!(!owner.stopping.load(Ordering::Acquire));
         drop(held);
         let mut next = queue.source(None).request(vec![2]);
@@ -385,14 +388,14 @@ mod tests {
             Arc::new(AtomicU64::new(0)),
             Vec::new(),
         );
-        let result = loop {
+        // reap 은 게시·join, next.poll 은 수신 채널 읽기다(대기 요청이 없어 다시 넣지 않는다).
+        let mut result = None;
+        assert!(holds_by_every(deadline, Duration::ZERO, |_| {
             owner.reap(|_| Some((false, false)));
-            if let Some(result) = next.poll(queue.source(None)) {
-                break result.unwrap();
-            }
-            assert!(std::time::Instant::now() < deadline);
-            std::thread::yield_now();
-        };
+            result = next.poll(queue.source(None));
+            result.is_some()
+        }));
+        let result = result.unwrap().unwrap();
         assert_eq!(result[0].id, 2);
         join(&mut owner);
         drop(writer);
@@ -453,10 +456,7 @@ mod tests {
             );
             // Wait for the worker, then change the ownership observation before App publishes.
             let deadline = std::time::Instant::now() + Duration::from_secs(3);
-            while !owner.jobs[0].handle.is_finished() {
-                assert!(std::time::Instant::now() < deadline);
-                std::thread::yield_now();
-            }
+            assert!(holds_by(deadline, || owner.jobs[0].handle.is_finished()));
             if retired {
                 assert!(registry.begin_retiring_pending(destination_id));
                 assert!(registry.finish_retiring(destination_id).is_some());

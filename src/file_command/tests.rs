@@ -53,10 +53,10 @@ fn injected_port_and_app_handle_share_one_ordered_worker_and_consuming_receipts(
     assert!(executed.lock().unwrap().is_none());
     release.send(()).unwrap();
     let end = Instant::now() + Duration::from_secs(5);
-    while writer.writer.poll_shutdown() != 0 {
-        assert!(Instant::now() < end, "shared writer drain");
-        std::thread::yield_now();
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(end, || writer.writer.poll_shutdown() == 0),
+        "shared writer drain"
+    );
     assert_eq!(first.poll().unwrap().unwrap(), 1);
     assert_eq!(second.poll().unwrap().unwrap(), 2);
     assert!(first.poll().is_none());

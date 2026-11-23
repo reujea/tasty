@@ -607,14 +607,28 @@ mod app_layer_reply_tests {
 
     fn answer(app: &crate::app::App, rx: &mpsc::Receiver<JsonRpcResponse>) -> JsonRpcResponse {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-        loop {
-            if let Ok(answer) = rx.try_recv() {
-                return answer;
-            }
-            assert!(std::time::Instant::now() < deadline, "no reply");
-            app.services.poll_memory_replies(None);
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        }
+        // poll_memory_replies 는 끝난 응답을 거둘 뿐이라 기한 뒤 마지막 읽기 앞에서도 부른다.
+        let mut reply = None;
+        assert!(
+            tasty_utils::test_wait::holds_by_every(
+                deadline,
+                std::time::Duration::from_millis(1),
+                |last| {
+                    if last {
+                        app.services.poll_memory_replies(None);
+                    }
+                    reply = rx.try_recv().ok();
+                    reply.is_some() || {
+                        if !last {
+                            app.services.poll_memory_replies(None);
+                        }
+                        false
+                    }
+                }
+            ),
+            "no reply"
+        );
+        reply.expect("the wait held")
     }
 
     #[test]

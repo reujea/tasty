@@ -80,6 +80,8 @@ impl Fixture {
             self.outcome = Some(outcome);
             events.exit();
         }
+        // holds_by 로 바꾸지 않는다. 다음 poll 은 이벤트 루프의 다음 콜백에서만 돌 수 있어 이 자리에서
+        // 기한 뒤 한 번 더 읽을 길이 없다.
         assert!(
             Instant::now() < self.deadline,
             "fixture deadline: held={} moves={} released={}",
@@ -166,6 +168,8 @@ fn receiver(
         let mut source = 0;
         let mut received = Vec::new();
         let mut incremental = false;
+        // holds_by 로 바꾸지 않는다. 이벤트를 꺼내면 소비되고 각 이벤트에 응답을 보내는 진행이라,
+        // 기한 뒤 관측만 하는 읽기를 둘 수 없다.
         while Instant::now() < deadline {
             let Some(event) = conn.poll_for_event().unwrap() else {
                 std::thread::sleep(Duration::from_millis(2));

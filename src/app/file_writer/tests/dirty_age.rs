@@ -3,10 +3,7 @@ use batch_writer::{FlushPoint, ManualClock, SystemClock};
 
 fn finish(parts: &mut FileWriterParts) {
     let deadline = Instant::now() + Duration::from_secs(5);
-    while parts.writer.poll_shutdown() != 0 {
-        assert!(Instant::now() < deadline);
-        std::thread::yield_now();
-    }
+    assert!(holds_by(deadline, || parts.writer.poll_shutdown() == 0));
 }
 
 #[test]
@@ -82,10 +79,7 @@ fn snapshot_does_not_consume_a_ready_success_receipt() {
     release.send(true).unwrap();
     let barrier = parts.writer.handle().flush(FlushPoint::START).unwrap();
     let deadline = Instant::now() + Duration::from_secs(5);
-    while barrier.try_take().is_none() {
-        assert!(Instant::now() < deadline);
-        std::thread::yield_now();
-    }
+    assert!(holds_by(deadline, || barrier.try_take().is_some()));
     clock.advance(Duration::from_micros(123));
     let ready = saves.snapshot();
     let repeated = saves.snapshot();

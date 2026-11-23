@@ -110,6 +110,8 @@ fn files() -> Files {
 fn open(path: &Path) -> (EventStore, WriterEpoch) {
     let mut store = EventStore::open(path, JOURNAL).expect("open journal");
     let deadline = Instant::now() + Duration::from_secs(10);
+    // holds_by 로 바꾸지 않는다. acquire_writer 는 잠금을 새로 잡고 writer 세대를 올리는 작업이라
+    // 기한 뒤 관측에서 부를 수 없고, 그것 없이 잠금이 풀렸는지 볼 길이 없다.
     loop {
         match store.acquire_writer() {
             Ok(epoch) => return (store, epoch),

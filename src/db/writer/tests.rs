@@ -53,44 +53,46 @@ fn release(clock: &ManualClock) {
 /// `kind`의 확정 revision이 `target`이 될 때까지 결과를 거둔다.
 fn settle_to(f: &mut Fixture, kind: &str, target: u64) {
     let deadline = Instant::now() + WAIT;
-    while f.shared.recent.revisions(kind).committed < target {
-        assert!(
-            Instant::now() < deadline,
-            "{kind} never reached revision {target}"
-        );
-        f.parts.poll();
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    // parts.poll 은 끝난 쓰기 결과를 거둘 뿐이라 기한 뒤 마지막 읽기 앞에서도 부른다.
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(1), |last| {
+            if last {
+                f.parts.poll();
+            }
+            f.shared.recent.revisions(kind).committed >= target || {
+                if !last {
+                    f.parts.poll();
+                }
+                false
+            }
+        }),
+        "{kind} never reached revision {target}"
+    );
 }
 
 /// 쓰기 결과가 모두 거둬질 때까지 기다린다(성공 여부와 무관).
 fn settle_all(f: &mut Fixture) {
     let deadline = Instant::now() + WAIT;
-    loop {
-        f.parts.poll();
-        if f.shared.recent.pending() == 0 {
-            return;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "recent results were never reaped"
-        );
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(1), |_| {
+            f.parts.poll();
+            f.shared.recent.pending() == 0
+        }),
+        "recent results were never reaped"
+    );
 }
 
 fn wait(receipt: &TutorialReceipt) -> Result<Reply, String> {
     let deadline = Instant::now() + WAIT;
-    loop {
-        if let Some(result) = receipt.try_take() {
-            return result;
-        }
-        assert!(
-            Instant::now() < deadline,
-            "tutorial receipt never completed"
-        );
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    let mut taken = None;
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || {
+            taken = receipt.try_take();
+            taken.is_some()
+        }),
+        "tutorial receipt never completed"
+    );
+    taken.expect("the wait held")
 }
 
 fn saved(result: Result<Reply, String>) -> (Record, bool) {
@@ -102,10 +104,10 @@ fn saved(result: Result<Reply, String>) -> (Record, bool) {
 
 fn shutdown(f: &mut Fixture) {
     let deadline = Instant::now() + WAIT;
-    while f.parts.poll_shutdown() != 0 {
-        assert!(Instant::now() < deadline, "state writer did not join");
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || f.parts.poll_shutdown() == 0),
+        "state writer did not join"
+    );
 }
 
 /// 디스크의 행을 저장한 목록 순서(순서 정보가 없으면 최신순)로 읽는다. writer가 살아 있어도 된다.
@@ -253,10 +255,10 @@ fn entries(list: &[(&str, i64)]) -> Vec<Entry> {
 
 fn stop(mut parts: StateWriterParts) {
     let deadline = Instant::now() + WAIT;
-    while parts.poll_shutdown() != 0 {
-        assert!(Instant::now() < deadline, "state writer did not join");
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, || parts.poll_shutdown() == 0),
+        "state writer did not join"
+    );
 }
 
 /// 같은 초에 연 항목을 저장·재실행·순서 변경·추가로 여러 번 돌려도 목록 순서가 그대로이다. 디스크에는
@@ -302,11 +304,20 @@ fn reopening_many_times_keeps_the_order_and_the_open_times() {
         recent.add("markdown", opened.clone());
         let after = wall_secs();
         let deadline = Instant::now() + WAIT;
-        while shared.recent.revisions("markdown").committed < 1 {
-            assert!(Instant::now() < deadline, "round {round} never committed");
-            parts.poll();
-            std::thread::sleep(Duration::from_millis(1));
-        }
+        assert!(
+            tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(1), |last| {
+                if last {
+                    parts.poll();
+                }
+                shared.recent.revisions("markdown").committed >= 1 || {
+                    if !last {
+                        parts.poll();
+                    }
+                    false
+                }
+            }),
+            "round {round} never committed"
+        );
         expected = recent.get("markdown");
         let on_disk: std::collections::HashMap<String, i64> =
             disk(&path, "markdown").into_iter().collect();

@@ -22,11 +22,22 @@ fn actual_sqlite_commit_unknown_keeps_dirty_age_until_a_later_confirmed_snapshot
     );
     recent.add("markdown", "/unknown.md".into());
     let deadline = Instant::now() + WAIT;
-    while recent.pending() != 0 {
-        recent.settle();
-        assert!(Instant::now() < deadline);
-        std::thread::yield_now();
-    }
+    // settle 은 끝난 쓰기 결과를 거둘 뿐이라 기한 뒤 마지막 읽기 앞에서도 부른다.
+    assert!(tasty_utils::test_wait::holds_by_every(
+        deadline,
+        Duration::ZERO,
+        |last| {
+            if last {
+                recent.settle();
+            }
+            recent.pending() == 0 || {
+                if !last {
+                    recent.settle();
+                }
+                false
+            }
+        }
+    ));
     clock.advance(Duration::from_micros(31));
     let unknown = recent.save_snapshot();
     let unknown_count = f.parts.writer.stats().completed_unknown;
@@ -37,11 +48,22 @@ fn actual_sqlite_commit_unknown_keeps_dirty_age_until_a_later_confirmed_snapshot
         .unwrap();
     recent.add("markdown", "/confirmed.md".into());
     let age_before_confirmation = recent.save_snapshot();
-    while recent.pending() != 0 {
-        recent.settle();
-        assert!(Instant::now() < deadline);
-        std::thread::yield_now();
-    }
+    // settle 은 끝난 쓰기 결과를 거둘 뿐이라 기한 뒤 마지막 읽기 앞에서도 부른다.
+    assert!(tasty_utils::test_wait::holds_by_every(
+        deadline,
+        Duration::ZERO,
+        |last| {
+            if last {
+                recent.settle();
+            }
+            recent.pending() == 0 || {
+                if !last {
+                    recent.settle();
+                }
+                false
+            }
+        }
+    ));
     let confirmed = recent.save_snapshot();
     shutdown(&mut f);
     assert_eq!(

@@ -231,8 +231,13 @@ fn a_restart_running_swap_of_a_connecting_restart_restores_it_on_validation_fail
 
     mgr(&mut app).begin_shutdown_all();
     let give_up = Instant::now() + std::time::Duration::from_secs(10);
-    while !mgr(&mut app).poll_shutdown_all() {
-        assert!(Instant::now() < give_up, "종료가 10 초 안에 안 끝났다");
-        std::thread::sleep(std::time::Duration::from_millis(20));
-    }
+    // poll 은 끝난 자식을 거두고 원래도 받던 기한 지난 강제 종료만 해 새 시도가 없다. 마지막 읽기로 쓴다.
+    assert!(
+        tasty_utils::test_wait::holds_by_every(
+            give_up,
+            std::time::Duration::from_millis(20),
+            |_| mgr(&mut app).poll_shutdown_all()
+        ),
+        "종료가 10 초 안에 안 끝났다"
+    );
 }

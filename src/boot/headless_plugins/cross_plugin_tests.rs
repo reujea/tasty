@@ -78,20 +78,30 @@ impl Fixture {
             &mut self.state,
             &mut self.session.borrow_mut(),
         );
+        // 첫 진행 앞에도 기한을 본다. 기한 뒤 마지막 확인은 advance 없이 게이트만 본다.
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-        while !self.app.gate_queue.is_empty() {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "a gated plugin call never finished"
-            );
-            std::thread::sleep(std::time::Duration::from_millis(1));
-            let flow = crate::boot::headless_dispatch::advance_request_gates(
-                &mut self.app,
-                &mut self.state,
-                &mut self.session,
-            );
-            assert!(flow.is_continue());
-        }
+        let mut started = false;
+        assert!(
+            tasty_utils::test_wait::holds_by_every(deadline, std::time::Duration::ZERO, |last| {
+                if self.app.gate_queue.is_empty() {
+                    return true;
+                }
+                if !last
+                    && (std::mem::replace(&mut started, true)
+                        || std::time::Instant::now() < deadline)
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                    let flow = crate::boot::headless_dispatch::advance_request_gates(
+                        &mut self.app,
+                        &mut self.state,
+                        &mut self.session,
+                    );
+                    assert!(flow.is_continue());
+                }
+                self.app.gate_queue.is_empty()
+            }),
+            "a gated plugin call never finished"
+        );
     }
 
     fn manager(&mut self) -> &mut crate::plugin::PluginManager {

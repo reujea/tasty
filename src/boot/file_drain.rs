@@ -105,14 +105,18 @@ mod webhook_tests {
             )
         });
         let until = Instant::now() + Duration::from_secs(5);
-        while !job.is_finished() {
-            super::reject_new_calls(Some(&server));
-            assert!(
-                Instant::now() < until,
-                "HTTP producer was left waiting during drain"
-            );
-            std::thread::yield_now();
-        }
+        // reject_new_calls 는 새 호출에 거절 응답을 보내는 진행이라 기한 뒤 마지막 읽기에서는 부르지 않는다.
+        assert!(
+            tasty_utils::test_wait::holds_by_every(until, Duration::ZERO, |last| {
+                job.is_finished() || {
+                    if !last {
+                        super::reject_new_calls(Some(&server));
+                    }
+                    false
+                }
+            }),
+            "HTTP producer was left waiting during drain"
+        );
         assert!(
             matches!(job.join().unwrap(),Err(tasty_ipc::host_call::InjectError::Rpc {code:-32000,message}) if message=="host is shutting down")
         );

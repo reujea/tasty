@@ -275,8 +275,8 @@ fn a_slow_consumer_gets_every_event_in_order_under_backpressure() {
     };
     let mut seen = Vec::new();
     let deadline = Instant::now() + Duration::from_secs(3);
-    while !receipt.terminal_seen {
-        assert!(Instant::now() < deadline);
+    // 용량 0 요청 상자로 poll 하므로 이미 보낸 사건만 꺼낸다. 기한 뒤 관측에서도 꺼낸 뒤 읽는다.
+    let mut collect = |receipt: &mut SearchQuery| {
         let batch = receipt.poll(&mut requests);
         assert!(batch.len() <= SEARCH_EVENT_CAPACITY);
         for event in batch {
@@ -284,8 +284,22 @@ fn a_slow_consumer_gets_every_event_in_order_under_backpressure() {
                 seen.push(path);
             }
         }
-        std::thread::sleep(Duration::from_millis(1));
-    }
+    };
+    assert!(tasty_utils::test_wait::holds_by_every(
+        deadline,
+        Duration::from_millis(1),
+        |last| {
+            if last {
+                collect(&mut receipt);
+            }
+            receipt.terminal_seen || {
+                if !last {
+                    collect(&mut receipt);
+                }
+                false
+            }
+        }
+    ));
     worker.join().unwrap();
     assert_eq!(
         seen,

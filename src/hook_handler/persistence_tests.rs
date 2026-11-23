@@ -20,10 +20,7 @@ fn writer(items: usize) -> file_writer::FileWriterParts {
 }
 fn wait(mut ready: impl FnMut() -> bool) {
     let end = Instant::now() + Duration::from_secs(5);
-    while !ready() {
-        assert!(Instant::now() < end);
-        std::thread::yield_now();
-    }
+    assert!(tasty_utils::test_wait::holds_by(end, ready));
 }
 fn patch_with(reg: &HookHandlerRegistry, priority: i32, params: serde_json::Value) {
     reg.upsert_user_handler(UserHookHandlerUpsertDecl {

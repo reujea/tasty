@@ -401,10 +401,10 @@ fn shutdown_reports_a_running_worker_until_its_actual_join() {
     assert!(owner.stopping);
     send.send(()).unwrap();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-    while owner.poll_shutdown() != 0 {
-        assert!(std::time::Instant::now() < deadline);
-        std::thread::yield_now();
-    }
+    // poll_shutdown 은 취소 표지(멱등)와 끝난 worker join 만 한다.
+    assert!(tasty_utils::test_wait::holds_by(deadline, || owner
+        .poll_shutdown()
+        == 0));
     assert!(!owner.has_pending());
 }
 
@@ -464,13 +464,14 @@ fn a_worker_left_behind_after_the_shutdown_deadline_still_cleans_its_staging() {
     drop(owner);
     pause.release.send(()).unwrap();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    while Arc::strong_count(&pause.shared) > 1 {
-        assert!(
-            std::time::Instant::now() < deadline,
-            "the detached worker ends"
-        );
-        std::thread::sleep(std::time::Duration::from_millis(5));
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by_every(
+            deadline,
+            std::time::Duration::from_millis(5),
+            |_| Arc::strong_count(&pause.shared) <= 1
+        ),
+        "the detached worker ends"
+    );
     assert_eq!(std::fs::read_dir(&dest).unwrap().count(), 0);
     assert_eq!(std::fs::read(src.join("large.bin")).unwrap(), original);
 }

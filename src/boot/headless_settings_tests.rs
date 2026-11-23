@@ -37,6 +37,8 @@ fn invalid_file_boot_uses_and_persists_one_normalized_snapshot() {
         );
     }
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    // holds_by 로 바꾸지 않는다. poll_file_writer 는 child cleanup 제출과 webhook 처리를 함께 진행해
+    // 기한 뒤 관측에서 부를 수 없고, 그것 없이 저장 완료를 볼 길이 없다.
     loop {
         app.services.poll_file_writer();
         let persisted: crate::settings::Settings =

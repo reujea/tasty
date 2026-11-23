@@ -15,10 +15,10 @@ fn writer() -> file_writer::FileWriterParts {
 }
 fn wait(mut ready: impl FnMut() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(5);
-    while !ready() {
-        assert!(Instant::now() < deadline, "file receipt not completed");
-        std::thread::yield_now();
-    }
+    assert!(
+        tasty_utils::test_wait::holds_by(deadline, ready),
+        "file receipt not completed"
+    );
 }
 fn add(source: &SharedList<PortFavorites>, port: u16) {
     source.update(|list| list.add("127.0.0.1".parse().unwrap(), port, port.to_string()));
