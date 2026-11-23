@@ -143,6 +143,18 @@ mod outbox {
     fn is_sound(event: &MirrorEvent) -> bool {
         matches!(event, MirrorEvent::NotificationSound(_))
     }
+    /// 앞에서부터 알림음을 상한까지만 남기고 남긴 수를 돌려준다.
+    fn cap_sounds(events: &mut Vec<MirrorEvent>) -> usize {
+        let mut kept = 0;
+        events.retain(|event| {
+            if !is_sound(event) {
+                return true;
+            }
+            kept += 1;
+            kept <= MAX_PENDING_SOUNDS
+        });
+        kept.min(MAX_PENDING_SOUNDS)
+    }
     #[derive(Clone)]
     pub struct MirrorOutbox {
         epoch: crate::connection::ConnectionEpoch,
@@ -204,14 +216,14 @@ mod outbox {
                 super::MIRROR_OUTBOX_WHAT,
                 &super::MIRROR_OUTBOX_POISONED,
             );
-            let sounds = events.iter().filter(|event| is_sound(event)).count();
             let bytes = events
                 .iter()
                 .filter(|event| !is_sound(event))
                 .fold(0usize, |sum, event| {
                     sum.saturating_add(event.retained_bytes())
                 });
-            let counted = (events.len() - sounds) + (pending.events.len() - pending.sounds);
+            let counted = events.iter().filter(|event| !is_sound(event)).count()
+                + (pending.events.len() - pending.sounds);
             if counted > 1024
                 || bytes.saturating_add(pending.bytes) > tasty_ipc::admission::QUEUED_BYTES_LIMIT
             {
@@ -223,8 +235,8 @@ mod outbox {
                 pending.bytes = std::mem::size_of::<MirrorEvent>();
             } else {
                 events.append(&mut pending.events);
+                pending.sounds = cap_sounds(&mut events);
                 pending.events = events;
-                pending.sounds += sounds;
                 pending.bytes += bytes;
             }
         }
@@ -769,5 +781,39 @@ mod outbox_tests {
             count(|e| matches!(e, MirrorEvent::NotificationSound(_))),
             64
         );
+    }
+
+    /// Given 되돌려 넣을 묶음과 그사이 도착한 것이 각각 알림음 상한만큼 있다, When 되돌려 넣는다, Then 합친
+    /// 큐도 상한을 넘지 않고 앞(먼저 받은) 알림음과 출력 순서를 남긴다.
+    #[test]
+    fn restoring_the_front_keeps_the_sound_limit() {
+        let (sender, _queue) = crate::connection::channel();
+        let outbox = MirrorOutbox::new(sender.epoch());
+        let mut front = vec![MirrorEvent::Data(1, b"a".to_vec())];
+        front.extend((0..64).map(|_| MirrorEvent::NotificationSound(1)));
+        for _ in 0..64 {
+            assert!(outbox.push(MirrorEvent::NotificationSound(2)));
+        }
+        assert!(outbox.push(MirrorEvent::Data(1, b"b".to_vec())));
+        outbox.restore_front(front);
+        // 상한이 다시 차 있으므로 새 알림음은 버려진다.
+        assert!(outbox.push(MirrorEvent::NotificationSound(3)));
+        let drained = outbox.drain();
+        let sounds: Vec<u32> = drained
+            .iter()
+            .filter_map(|e| match e {
+                MirrorEvent::NotificationSound(id) => Some(*id),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(sounds, vec![1; 64]);
+        let data: Vec<&[u8]> = drained
+            .iter()
+            .filter_map(|e| match e {
+                MirrorEvent::Data(_, bytes) => Some(bytes.as_slice()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(data, vec![b"a".as_slice(), b"b".as_slice()]);
     }
 }
