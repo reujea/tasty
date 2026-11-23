@@ -66,6 +66,16 @@ macro_rules! fill_icon {
 // ── Actions ──
 stroke_icon!(PLUS, "plus", r#"<path d="M12 5v14M5 12h14"/>"#);
 stroke_icon!(CLOSE, "close", r#"<path d="M18 6 6 18M6 6l12 12"/>"#);
+stroke_icon!(
+    WINDOW_MINIMIZE,
+    "window_minimize",
+    r#"<path d="M6 12h12"/>"#
+);
+stroke_icon!(
+    WINDOW_MAXIMIZE,
+    "window_maximize",
+    r#"<path d="M6.5 6.5h11v11h-11z"/>"#
+);
 stroke_icon!(CHECK, "check", r#"<path d="m20 6-11 11-5-5"/>"#);
 stroke_icon!(
     REFRESH,

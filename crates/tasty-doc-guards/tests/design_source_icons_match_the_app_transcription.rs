@@ -21,6 +21,8 @@ use tasty_doc_guards::floored_walk::{CountedOn, Descend, Floor, Walked, walk_wit
 const PAIRS: &[(&str, &str)] = &[
     ("plus", "plus"),
     ("close", "close"),
+    ("windowMinimize", "window_minimize"),
+    ("windowMaximize", "window_maximize"),
     ("refresh", "refresh"),
     ("edit", "edit"),
     ("trash", "trash"),

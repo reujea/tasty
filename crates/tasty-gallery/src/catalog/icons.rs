@@ -18,6 +18,16 @@ type Entry = (MockGlyph, &'static str, &'static str);
 const ACTIONS: &[Entry] = &[
     (PLUS, "plus", "create / add"),
     (CLOSE, "close", "dismiss overlay (header X)"),
+    (
+        WINDOW_MINIMIZE,
+        "window_minimize",
+        "window minimize glyph (title bar)",
+    ),
+    (
+        WINDOW_MAXIMIZE,
+        "window_maximize",
+        "window maximize glyph (title bar)",
+    ),
     (REFRESH, "refresh", "re-scan / reload"),
     (EDIT, "edit", "edit a row / value"),
     (TRASH, "trash", "delete / remove"),
