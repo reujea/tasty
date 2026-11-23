@@ -18,11 +18,11 @@ Tasty가 그리는 메뉴·컨트롤의 비활성 모양은 [테마 시스템](.
 
 메뉴별로 어떤 행이 비활성으로 남는지만 적는다. 켜고 끄는 조건과 이유 문구는 괄호 안의 함수와 그 시험이 정본이다.
 
-- 도구 메뉴의 `surface` 범위 플러그인 항목([도구 메뉴](../../features/tools-menu/index.md)의 "항목 실행").
+- 도구 메뉴의 `surface` 범위 플러그인 항목(`tool_action_blocked`, `src/adapters/ui/tools_menu.rs`).
 - Explorer 우클릭 메뉴의 쓰기 행(붙여넣기·잘라내기·새 항목·이름 바꾸기·휴지통), 로컬 전용 행(시스템에서 열기·파일 관리자에서 보기·새 탭으로 열기)과 붙여넣기 행(`build_explorer_context_menu`, 붙여넣기 출처는 `explorer_paste_row`).
-- Explorer 즐겨찾기 행 메뉴의 새 탭으로 열기(`local_only_row`, `src/view/main/redraw.rs`).
+- Explorer 즐겨찾기 행 메뉴의 새 탭으로 열기(`handle_explorer_favorite_native_menu`, `src/view/main/redraw.rs`).
 - Explorer 빈 영역 메뉴의 Undo·Redo(`push_explorer_history_items`, `src/view/main/explorer_history.rs`).
-- Explorer 툴바와 More 메뉴의 create 묶음([탐색기](../../surfaces/explorer/index.md)의 툴바 명령 묶음 설명).
+- Explorer 툴바와 More 메뉴의 create 묶음(툴바는 `commands_view`·`cannot_write_tip`, `src/adapters/ui/surface/explorer/commands.rs`, More 메뉴는 `handle_explorer_more_native_menu`, `src/view/main/explorer_create.rs`).
 - Explorer의 들어 있는 폴더에서 보기(`show_in_folder_row`, `src/view/main/explorer_show_in_folder.rs`).
 - 터미널 우클릭 메뉴의 복사·줄바꿈 없이 복사(`terminal_selection_items`).
 - 로컬 workspace 메뉴의 강제 끊기(`force_detach_items`). 저장된 원격 행·에이전트 mirror는 다른 client가 점유할 수 없어 종류 기준으로 숨긴다.
