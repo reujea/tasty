@@ -685,7 +685,15 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
                     .frame(egui::Frame::NONE.fill(th.bg_sidebar().to_egui()))
                     .show_inside(ui, |ui| draw_l1_tab_band(ui, &th, ui_state));
                 let hr = header.response.rect;
-                ui.painter().hline(hr.x_range(), hr.bottom() - 0.5, sep);
+                // L1 띠는 mantle(bg-sidebar) 위라 아래 선은 그 바탕의 구분선 역할인 separator다.
+                ui.painter().hline(
+                    hr.x_range(),
+                    hr.bottom() - 0.5,
+                    egui::Stroke::new(
+                        th.border_width.value(),
+                        th.separator.to_egui_premultiplied(),
+                    ),
+                );
 
                 // ── L2 영속 사이드바 (디자인 width200 / bg-sidebar / border-right) ──
                 let sections = build_l2_sections(ui_state);
