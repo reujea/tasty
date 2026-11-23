@@ -28,7 +28,7 @@ surface hook 은 셸 명령 문자열 대신 **공유 훅 핸들러 레지스트
 | `OutputMatch(pattern)` | PTY 출력이 정규식 매칭(등록 시 사전 컴파일) — **완성된 라인 단위로만** 매칭 |
 | `Bell` | BEL 수신 |
 | `Notification` | OSC 알림 수신 |
-| `IdleTimeout(secs)` | N초간 PTY 출력 없음 — **1Hz 해상도**(`Tick::Busy`) |
+| `IdleTimeout(secs)` | N초간 PTY 출력 없음(OS 크기 통지 뒤 재그리기 출력은 출력으로 세지 않음) — **1Hz 해상도**(`Tick::Busy`) |
 | `CommandCompleted(Option<i32>)` | OSC 133 D phase — 셸 통합이 개별 명령(`docker build`, `just run` 등)의 종료 + exit code 를 보고 |
 | `Custom(string)` | 코어가 모르는 임의 이벤트 식별자. 정확 문자열 일치로 매칭. 플러그인 소유 이벤트(예: claude plugin 이 fire 하는 `claude-idle` / `needs-input` / `claude-stop-failure` / `claude-error`)는 모두 이 변형으로 처리된다 — 코어에 에이전트 고유 이벤트명을 박지 않는다. |
 
@@ -42,11 +42,11 @@ surface hook 은 셸 명령 문자열 대신 **공유 훅 핸들러 레지스트
 
 #### IdleTimeout — 1Hz 폴링 + epoch 기반 anti-spam
 
-`IdleTimeout` 은 별도 타이머/watcher 가 아니라 기존 `Tick::Busy`(1Hz) tick 에 얹혀 동작한다. tick 마다 `Terminal::last_output_at()` 로 마지막 출력 시각과의 경과초를 계산해 임계값과 비교한다.
+`IdleTimeout` 은 별도 타이머/watcher 가 아니라 기존 `Tick::Busy`(1Hz) tick 에 얹혀 동작한다. tick 마다 `Terminal::silence_since()` 로 마지막 출력 시각과의 경과초를 계산해 임계값과 비교한다. 이 시각은 OS 크기 통지 뒤 재그리기 출력을 빼고 센 마지막 출력이다.
 
 - 최대 1 초 지연: PTY 출력 정지 시점과 훅 발생 시점 사이에 최대 1 초의 오차가 있다(Global hook 의 `file:` 조건과 동일한 해상도).
-- **epoch 기반 anti-spam**: 한 번 발생하면 그 시점의 `last_output_at` 값(epoch)을 기록해, 같은 epoch 동안은 재발생하지 않는다(persistent 훅이 매 tick 마다 스팸처럼 재발생하는 것을 막음). 새 출력이 들어와 `last_output_at` 이 갱신되면 다시 알릴 수 있다.
-- 숨은 터미널이 보이게 될 때 Tasty가 미뤄 둔 크기 변경을 적용하면서 생긴 앱의 다시 그리기 출력은 '출력 없음'을 깨지 않도록 정했다. 진행 중이던 침묵 시간은 그 출력과 관계없이 이어서 센다. 아직 구현되지 않아 지금은 그 출력도 침묵 시간을 다시 시작시킨다. 규칙은 [그릴 때 적용](../../design/policies/render-on-draw.md#적용이-일으킨-출력)에 있다.
+- **epoch 기반 anti-spam**: 한 번 발생하면 그 시점의 `silence_since` 값(epoch)을 기록해, 같은 epoch 동안은 재발생하지 않는다(persistent 훅이 매 tick 마다 스팸처럼 재발생하는 것을 막음). 새 출력이 들어와 그 값이 갱신되면 다시 알릴 수 있다.
+- Tasty가 OS PTY 크기를 바꾼 뒤(창 크기 변경, 숨은 터미널이 보이게 될 때의 적용, 절전 복귀) 앱이 다시 그리는 출력은 '출력 없음'을 깨지 않는다. 진행 중이던 침묵 시간은 그 출력과 관계없이 이어서 세고, 이미 발화한 훅은 그 출력으로 다시 무장되지 않는다. 규칙은 [그릴 때 적용](../../design/policies/render-on-draw.md#적용이-일으킨-출력)에 있다.
 - `once` 훅은 발생 후 즉시 제거된다(Global hook 의 `once:SECS` 와 동일한 동작).
 
 #### CommandCompleted — OSC 133 명령 완료(exit code)
@@ -176,7 +176,7 @@ surface 훅의 `sh -c`/`cmd /C` 실행과 수동 dispatch의 직접 실행(`hook
 | (전 이벤트 공통) | `surface_id` | `TASTY_HOOK_SURFACE_ID` | 발생한 surface id |
 | `OutputMatch` | `matched_text` | `TASTY_HOOK_MATCHED_TEXT` | 매칭된 **완성 라인 전문**(정규식이 소비한 부분만이 아니다) |
 | `CommandCompleted` | `exit_code` | `TASTY_HOOK_EXIT_CODE` | OSC 133 D phase 가 보고한 관측 exit code. D phase 가 코드를 안 실었거나 정수로 파싱되지 않으면 payload 는 JSON `null` 이고 셸은 문자열 `null` 을 받는다(`command-completed` 와일드카드 등록이 이 경우와도 매치된다) |
-| `IdleTimeout` | `idle_elapsed_secs` | `TASTY_HOOK_IDLE_ELAPSED_SECS` | 마지막 PTY 출력 이후 경과초(1Hz 해상도라 등록 임계값 이상) |
+| `IdleTimeout` | `idle_elapsed_secs` | `TASTY_HOOK_IDLE_ELAPSED_SECS` | 마지막 PTY 출력 이후 경과초(OS 크기 통지 뒤 재그리기 출력 제외, 1Hz 해상도라 등록 임계값 이상) |
 | `Custom` | `custom_event` | `TASTY_HOOK_CUSTOM_EVENT` | 발생한 커스텀 이벤트 식별자 |
 | `ProcessExit` / `Bell` / `Notification` | 공통 key 뿐 | — | 이벤트 고유 값 없음 |
 

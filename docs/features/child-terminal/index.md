@@ -145,6 +145,7 @@ Unix epoch 밀리초로 저장한다. 관측 조합은 registry 밖의 순수 �
   이 조건만으로 deferred와 mirror를 구별하지 않는다.
 - 6은 마지막 전경 조회의 이름을 사용한다. 현재 프로세스를 다시 조회하거나
   에이전트의 종료 상태를 OS에서 기다린 결과가 아니다.
+- 무출력 시간은 Tasty가 OS PTY 크기를 바꾼 뒤 앱이 다시 그리는 출력을 세지 않는다(`Terminal::silence_since`, [그릴 때 적용](../../design/policies/render-on-draw.md#적용이-일으킨-출력)). 그래서 부모가 자식 workspace를 열어 보기만 해서는 `recent_output` 근거의 `active`가 켜지거나 늘어나지 않는다.
 - 임계값은 무출력 `CHILD_OUTPUT_SILENCE` = 120s, hook 침묵 `CHILD_HOOK_SILENCE` = 300s다.
   busy의 짧은 출력 구간인 `BUSY_OUTPUT_WINDOW`(2s)와 용도가 다르다.
 - hook 보고 기준 시각이 없으면 침묵으로 간주한다. 무출력 시간도 이미 임계값을 넘겼고

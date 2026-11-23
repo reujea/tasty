@@ -10,14 +10,14 @@ busy는 이전에 확인한 상태를 기억한다. 입력 직후 에코만 있�
 
 1. PTY 전경 프로세스가 셸 자체이거나 알려진 셸 이름(`is_known_shell_name`)이면 idle.
 2. 마지막 활동 출력이 `BUSY_OUTPUT_WINDOW`(2초)보다 오래됐으면 idle.
-3. 같은 전경 프로세스의 직전 판정이 busy가 아니고, 마지막 활동 출력이 입력 에코 구간(`last_input_at <= last_activity_at <= last_input_at + INPUT_ECHO_WINDOW`, 200ms)에 있으면 idle.
+3. 같은 전경 프로세스의 직전 판정이 busy가 아니고, 마지막 활동 출력이 입력 에코 구간(`last_input_at <= last_activity_at <= last_input_at + INPUT_ECHO_WINDOW`, 200ms)에 있거나 OS 크기 통지 뒤 재그리기 구간(700ms, [그릴 때 적용](render-on-draw.md#적용이-일으킨-출력))에 있으면 idle.
 4. 나머지는 busy.
 
 **활동 출력**은 터미널 제목만 바꾸는 시퀀스 말고 다른 시퀀스나 글자가 하나라도 든 PTY 출력이다. 제목 시퀀스는 OSC 0·1·2, Sun 형식 OSC `l`·`L`, XTWINOPS 제목 스택 push·pop(`CSI 22;Ps t`·`CSI 23;Ps t`)이다. 문자열 종결자(ST, `ESC \`)는 어떤 문자열을 끝내든 항상 뺀다. ST 로 끝나는 제목이 아닌 문자열(OSC 8·52·133, DCS 등)은 그 문자열의 action 이 따로 활동으로 세어진다. termwiz 가 action 으로 내지 않는 APC·PM·SOS 문자열(kitty 그래픽 APC 는 제외)은 ST 만 남으므로 활동이 아니다. 판정은 바이트 수나 읽기 단위가 아니라 파싱된 action 종류로 하므로, 제목 OSC 가 두 번에 나뉘어 와도 결과가 같다. 제목 시퀀스와 다른 시퀀스(동기화 출력 `CSI ?2026 h/l`, 커서 이동, 질의 등)가 함께 오면 활동이다. 제목 변경 자체(탭 제목 갱신)는 그대로 처리한다.
 
-활동 출력 시각(`last_activity_at`)은 busy 판정만 쓴다. idle-timeout 훅과 자식 Claude·Codex 출력 침묵 판정이 읽는 `last_output_at` 은 제목만 있는 출력을 포함한 모든 출력에 갱신한다. 그래서 hook 보고 없이 입력을 기다리며 제목만 바꾸는 자식의 상태는 `active` 그대로지만, 근거가 `pty_busy`(확신도 `confirmed`)에서 `recent_output`(확신도 `heuristic`)으로 바뀐다.
+활동 출력 시각(`last_activity_at`)은 busy 판정만 쓴다. idle-timeout 훅과 자식 Claude·Codex 출력 침묵 판정은 제목만 있는 출력을 포함한 모든 출력의 시각을 쓰되, OS 크기 통지 뒤 재그리기 출력은 빼고 그 전 출력부터 센다(`Terminal::silence_since`). 그래서 hook 보고 없이 입력을 기다리며 제목만 바꾸는 자식의 상태는 `active` 그대로지만, 근거가 `pty_busy`(확신도 `confirmed`)에서 `recent_output`(확신도 `heuristic`)으로 바뀐다.
 
-숨은 대상에 미뤄 둔 크기 변경을 보이게 될 때 적용하면서 생긴 다시 그리기 출력은 (3)의 입력 에코처럼 idle을 busy로 바꾸지 않고 이미 busy인 상태는 유지하도록 정했다. 같은 출력은 `last_output_at`을 읽는 자식 상태의 출력 침묵 판정과 idle-timeout 훅 타이머도 다시 시작시키지 않는다. 아직 구현되지 않아 지금은 그 출력도 활동 출력으로 센다. 규칙은 [그릴 때 적용](render-on-draw.md#적용이-일으킨-출력)에 있다.
+(3)의 재그리기 구간은 Tasty가 OS PTY 크기를 바꾼 뒤의 출력이다. 창 크기 변경, 숨은 터미널이 보이게 될 때의 적용, 절전 복귀가 해당한다. 입력 에코처럼 idle을 busy로 바꾸지 않고 이미 busy인 상태는 유지한다. 구간 길이 700ms는 사용자 결정(2026-11-24)이며 Codex의 약 500ms resize debounce 측정이 근거다. 규칙과 구현 위치는 [그릴 때 적용](render-on-draw.md#적용이-일으킨-출력)에 있다.
 
 (3)의 입력 에코 구간은 화면 다시 그리기 상한도 쓴다. 이 구간의 출력이 일으킨 다시 그리기는 출력 상한이 아니라 입력 상한을 따른다. 판정 함수는 하나다(`crates/tasty-terminal/src/accessors.rs` `is_input_echo`). 규칙은 [GPU 렌더링 — 유발원과 상한 적용](../../dev-guide/gpu-rendering.md#유발원과-상한-적용)에 있다.
 
@@ -36,6 +36,8 @@ busy를 해제하는 조건은 (1)과 (2)다. 입력은 해제 조건이 아니�
 | `vim` 화면이 멈춰 있거나 `claude`가 입력 대기 | (2)에 따라 idle |
 | 입력을 기다리며 제목만 약 1초마다 바꾸는 프로그램(Codex의 `Action Required`) | 제목만 있는 출력은 활동이 아니므로 (2)에 따라 idle |
 | idle인 `vim`·`claude`에 타이핑 시작 | 에코만 발생하면 (3)에 따라 idle |
+| idle인 `claude`·`codex`가 보이는 창의 크기 변경 | 다시 그리는 출력은 재그리기 구간이라 (3)에 따라 idle |
+| idle인 `claude`가 있는 숨은 탭으로 전환(숨은 동안 창 크기가 바뀜) | 보일 때 한 번 적용한 크기의 재그리기라 (3)에 따라 idle |
 | `claude` 응답 중 다음 질문 입력 | 직전이 busy여서 (3)을 적용하지 않음. 출력이 멈춘 뒤 2초가 지나면 idle |
 | `cargo build` 또는 `claude`가 계속 출력 | busy |
 | idle인 마우스 트래킹 TUI에서 마우스 이동 | 마우스 보고도 입력이므로 (3)에 따라 idle. 직전이 busy라면 출력이 이어지는 동안 busy 유지 |
@@ -52,6 +54,7 @@ PTY로 보내는 데이터는 같은 채널을 사용하지만, `last_input_at`�
 | 키 입력 / `send_key` / `send_bytes` (에이전트 IPC 포함) | 갱신 | `TerminalState::write_input` |
 | 마우스 보고(`encode_mouse_report`) | 갱신 | 위와 동일 |
 | 터미널 자체 응답 — DSR(커서 위치/상태) · DA/DA2 · DECRPTUI · XTVERSION · OSC 4/10/11 색상 · XTWINOPS 18/19 | 갱신하지 않음 | `TerminalState::send_terminal_response` |
+| OS PTY 크기 통지(write가 아님) | 갱신하지 않음. 대신 재그리기 구간을 연다 | `tasty_terminal::flush_os_resize` |
 
 터미널 자체 응답까지 입력으로 기록하면 200ms보다 짧게 질의를 반복하는 TUI가 계속 에코 구간에 머무른다. 출력이 있어도 `busy == false`가 되는 오류를 피하려고 두 경우를 구분한다. 실제 전송 경로와 `enqueued_count`·`WriteAck` 규칙은 같다.
 

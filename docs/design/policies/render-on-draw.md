@@ -59,7 +59,9 @@ dirty를 적용하는 시점(보이게 될 때의 grid reflow와 PTY 크기 통�
   - [idle-timeout 훅](../../features/hooks/index.md)의 출력 침묵 타이머. 이 출력은 훅이 세는 '출력 없음'을 깨지 않는다.
 - 출력 침묵을 세는 두 경로(자식 상태, idle-timeout 훅)는 적용 전부터 세던 침묵을 이어서 센다. 침묵 시간은 적용 전 마지막 출력부터 계속 늘어나며, 이 출력 때문에 0으로 돌아가지 않는다.
 
-이 규칙은 아직 구현되지 않았다. 현재 busy 판정(`Terminal`의 busy 조회, `crates/tasty-terminal/src/accessors.rs`)은 resize 시각을 기록하지 않으므로, 창 크기 변경 뒤 앱이 다시 그리는 출력은 일반 활동 출력으로 세어 idle이던 터미널을 busy로 바꾼다. 같은 출력이 `last_output_at`도 갱신하므로 자식 상태는 `recent_output` 근거의 `active`가 되고, idle-timeout 훅의 침묵 시간도 그 출력에서 다시 시작한다. 화면에 보이는 터미널의 resize도 같다.
+이 규칙은 dirty 적용만이 아니라 Tasty가 OS PTY 크기를 바꾸는 모든 경우에 같다. 보이는 터미널의 창 크기 변경, 보이게 될 때의 적용, Windows 절전 복귀의 깨우기 통지가 여기에 든다. OS 크기를 실제로 바꾼 적용(같은 크기 재적용과 실패는 제외)이 그 터미널에 재그리기 구간을 열고, 구간 안의 출력은 세 경로에서 재그리기로 본다. 끊어서 이어지는 통지는 앞 구간을 이어받는다. 구간 길이는 700ms(`RESIZE_REDRAW_WINDOW`)다. 사용자 결정(2026-11-24)이며, Codex가 크기 변경을 약 500ms 모았다가 다시 그리는 것을 측정한 값에 PTY throttle과 여유를 더했다. 구간 안에서 시작해 구간 안에서 끝난 진짜 출력은 실행 중으로 잡히지 않는다(입력 에코 규칙과 같은 종류의 한계다).
+
+구현은 `crates/tasty-terminal/src/resize_redraw.rs`에 있다. OS 적용은 `flush_os_resize`가 하며 구간은 OS 호출 직전에 열고 성공하면 확정, 실패하면 되돌린다. busy 판정은 입력 에코 자리에서 `last_activity_is_resize_redraw`를 함께 보고, 자식 상태 관측(`src/runtime/child_observation.rs`)과 idle-timeout 훅(`src/hook_runtime/engine.rs`)은 `Terminal::silence_since`를 읽는다. attach client의 mirror는 서버의 `Resize` 응답으로 grid가 바뀔 때 같은 구간을 연다(busy는 서버 판정을 그대로 쓴다). 판정 조건은 `resize_redraw_tests.rs`의 시험이 정본이다.
 
 ## 예외
 
