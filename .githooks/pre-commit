@@ -461,6 +461,25 @@ check_todo_citation() {
     fi
 }
 
+# ─
+# L.1  로컬 확장 훅
+# 저장소에 두지 않는 이 컴퓨터 전용 검사를 부르는 확장점이다. 공용 git 디렉터리의
+# hooks/pre-commit.local이 실행 가능할 때만 실행하고, 없으면 아무것도 하지 않는다.
+check_local_extension() {
+    local common hook rc
+    common=$(git rev-parse --git-common-dir 2>/dev/null) || return 0
+    hook="$common/hooks/pre-commit.local"
+    [ -x "$hook" ] || return 0
+    set +e
+    "$hook"
+    rc=$?
+    set -e
+    if [ "$rc" -ne 0 ]; then
+        red "▸ [L.1] 로컬 확장 훅이 커밋을 막았습니다 (종료 코드 $rc): $hook"
+        FAIL=1
+    fi
+}
+
 CHECKS=(
     check_mod_use_order
     check_cargo_fmt
@@ -474,6 +493,7 @@ CHECKS=(
     check_todo_citation
     check_changelog_reminder
     check_new_file_judges
+    check_local_extension
 )
 
 defined=$(grep -cE '^check_[a-z_]+\(\) \{' "$0" || true)
