@@ -60,6 +60,8 @@ for c in $(git rev-list --reverse <기준>..HEAD); do
 done
 ```
 
+rebase 중 `Cargo.toml`·`tasty-plugin.toml`·`Cargo.lock`의 플러그인 버전 줄이 충돌하면 기준 쪽 값으로 푼다. 기준에는 먼저 반영된 lane의 증가가 들어 있고, 이 커밋에 필요한 증가는 이어서 도는 fixup 스크립트가 다시 붙인다.
+
 exec 에는 fixup 스크립트만 넣는다. 커밋별 시험은 exec 밖에서 실행한다. 이유와 방법은 [자체 검증](self-verification.md#커밋별로-검사할-때)에 있다.
 
 lane 작업 트리에 `deferred`가 있어도 된다. amend 때 P.1은 건너뛰지만 fixup이 합친 뒤 같은 범위를 다시 검사하고, 이어지는 커밋별 검사가 반영 범위를 확인한다. 설정이 없는 작업 트리에서 rebase해도 결과는 같다.
