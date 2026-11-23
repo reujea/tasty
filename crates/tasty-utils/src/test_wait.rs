@@ -184,7 +184,7 @@ mod tests {
         );
     }
 
-    /// 간격이 0 이어도 회차마다 멈춤을 부른다. 기본 멈춤은 그때 스레드를 양보한다.
+    /// 간격이 0 이어도 기한 전 거짓 읽기 뒤에는 멈춤을 부른다. 멈춤이 무엇을 하는지는 보지 않는다.
     #[test]
     fn a_zero_interval_still_pauses_every_round() {
         let (_, steps) = run(Duration::ZERO, |n| (n == 1, false), false);
