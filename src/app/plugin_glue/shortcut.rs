@@ -412,6 +412,10 @@ pub(crate) fn draft_bytes(draft: &Draft) -> usize {
 }
 
 #[cfg(test)]
+#[path = "shortcut_state_tests.rs"]
+mod state_tests;
+
+#[cfg(test)]
 mod action_tests {
     use super::run_shortcut_action;
     use crate::plugin::manifest::ToolAction;

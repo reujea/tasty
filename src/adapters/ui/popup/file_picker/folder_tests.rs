@@ -290,3 +290,63 @@ fn alt_up_with_a_dropdown_open_does_nothing() {
         None
     );
 }
+
+/// T-12b-14 [폴더 피커 + Alt+↑]: Given 폴더 피커가 포커스이고 Alt+↑ 가 탐색기 상위 폴더 단축키(`explorer_go_up`)이기도
+/// 할 때, When 창이 Alt+↑ 를 받으면, Then 창 키 경로가 그 키를 피커에 싣고 그 몫을 그린 피커가 상위 폴더로 간다.
+#[test]
+fn a_window_alt_up_on_the_folder_picker_goes_to_the_parent_folder() {
+    use crate::adapters::ui::popup::window_input_test_support::{WindowInput, layer_frame};
+    crate::i18n::init("en");
+    let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+    for def in crate::adapters::ui::popup::defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let child = dir.path().join("child");
+    std::fs::create_dir(&child).unwrap();
+    {
+        let mut engine = session.borrow_mut();
+        assert!(
+            engine
+                .runtime
+                .settings
+                .keybindings
+                .explorer_go_up
+                .iter()
+                .any(|b| b == "alt+up")
+        );
+        open_folder_picker(&mut state, &mut engine, &child);
+    }
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    state.normalize_focus(&read);
+    let ctx = egui::Context::default();
+    layer_frame(&ctx, &mut state, &read, Vec::new());
+    let before = crate::adapters::ui::popup::file_picker::instances::current(&mut state)
+        .unwrap()
+        .current_dir
+        .clone();
+    let mut input = WindowInput::default();
+    let up = egui::Event::Key {
+        key: egui::Key::ArrowUp,
+        physical_key: Some(egui::Key::ArrowUp),
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::ALT,
+    };
+    assert!(
+        input.key(&mut state, &read, false, up).is_some(),
+        "Alt+↑ 는 피커에 실린다"
+    );
+    let events = input.take_pass(&mut state, &ctx);
+    layer_frame(&ctx, &mut state, &read, events);
+    let after = crate::adapters::ui::popup::file_picker::instances::current(&mut state)
+        .unwrap()
+        .current_dir
+        .clone();
+    assert_ne!(after, before, "상위 폴더로 갔다");
+    assert_eq!(
+        std::path::Path::new(&after).canonicalize().unwrap(),
+        dir.path().canonicalize().unwrap()
+    );
+}

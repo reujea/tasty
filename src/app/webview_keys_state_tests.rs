@@ -405,3 +405,45 @@ fn a_plugin_popup_opened_by_a_forwarded_key_leaves_the_next_key_to_the_received_
         FocusNode::Popup(PopupNode::Plugin(opened[0]))
     );
 }
+
+/// T-12b-7 래치 갈래. Given 설정 열기 요청을 아직 그리지 않은 창(래치), When 받은 WebView 가 Ctrl+B(sidebar 접기)를
+/// 넘기면, Then 창 전체 차단에 막혀(`Gated`) sidebar 가 그대로이고 페이지로 다시 넣지 않는다.
+#[test]
+fn a_settings_open_request_gates_a_forwarded_shortcut() {
+    if crate::test_support::rerun_alone(
+        module_path!(),
+        "a_settings_open_request_gates_a_forwarded_shortcut",
+    ) {
+        return;
+    }
+    let _home = crate::test_support::IsolatedHome::new();
+    let event_loop = event_loop();
+    let mut w = Window::new(event_loop.create_proxy());
+    assert_default_bindings(&mut w);
+    w.state.settings_open_requested = true;
+    let collapsed = w.state.sidebar_collapsed;
+    let batch = vec![w.key(1, "b", ModifiersState::CONTROL)];
+    assert_eq!(w.consume(batch), [ForwardedKeyOutcome::Gated]);
+    assert_eq!(w.state.sidebar_collapsed, collapsed, "sidebar 를 바꿨다");
+    assert_eq!(w.resent(), [(1, false)], "Gated 를 페이지로 다시 넣었다");
+}
+
+/// T-12b-7 래치 대조. Given 래치·모달·무대가 없는 같은 창, When 같은 Ctrl+B 가 들면, Then 처리되어 sidebar 가 바뀐다.
+#[test]
+fn a_forwarded_shortcut_without_a_window_block_runs() {
+    if crate::test_support::rerun_alone(
+        module_path!(),
+        "a_forwarded_shortcut_without_a_window_block_runs",
+    ) {
+        return;
+    }
+    let _home = crate::test_support::IsolatedHome::new();
+    let event_loop = event_loop();
+    let mut w = Window::new(event_loop.create_proxy());
+    assert_default_bindings(&mut w);
+    let collapsed = w.state.sidebar_collapsed;
+    let batch = vec![w.key(1, "b", ModifiersState::CONTROL)];
+    assert_eq!(w.consume(batch), [ForwardedKeyOutcome::Handled]);
+    assert_eq!(w.state.sidebar_collapsed, !collapsed);
+    assert_eq!(w.resent(), [(1, false)]);
+}

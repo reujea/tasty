@@ -884,6 +884,69 @@ fn a_letter_after_a_popup_press_and_a_terminal_press_goes_to_the_terminal() {
     );
 }
 
+/// T-12b-5 [편집 바인딩 없는 새로고침 F5]: Given 기본 새로고침(F5)이고 편집 바인딩에 F5 가 없는 설정에서 L 주소 띠가
+/// 포커스일 때, When F5 가 오면, Then 창 키 경로가 그 누름을 주소 띠 몫의 egui 큐에 한 번 싣는다(새로고침은 MainView
+/// 키 단계가 한다).
+#[test]
+fn a_refresh_key_on_the_address_band_stays_in_the_egui_queue_once() {
+    let mut s = open_scene(|_| {});
+    let mut navs = Vec::new();
+    let mut bodies = Bodies::Address(&mut navs);
+    let mut input = WindowInput::default();
+    focus_address(&mut s, &mut input, &mut bodies);
+    drain(&mut s, &mut input, &mut bodies);
+    let f5 = Event::Key {
+        key: egui::Key::F5,
+        physical_key: Some(egui::Key::F5),
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    {
+        let engine = s.session.borrow_mut();
+        let kb = &engine.read().settings.keybindings;
+        assert!(kb.refresh.iter().any(|b| b == "f5"));
+        assert!(
+            crate::adapters::ui::input::shortcuts::edit_binding_for_key(
+                kb,
+                &winit::keyboard::Key::Named(winit::keyboard::NamedKey::F5),
+                winit::keyboard::ModifiersState::empty()
+            )
+            .is_none()
+        );
+        assert!(
+            input
+                .key(&mut s.state, &engine.read(), false, f5.clone())
+                .is_some()
+        );
+    }
+    assert_eq!(
+        input.queue_mut().iter().filter(|e| **e == f5).count(),
+        1,
+        "F5 누름이 egui 큐에 한 번"
+    );
+}
+
+/// T-12b-5 대조: 같은 주소 띠 + 글자 → 입력칸 몫의 egui 큐에 한 번.
+#[test]
+fn a_letter_on_the_address_band_stays_in_the_egui_queue_once() {
+    let mut s = open_scene(|_| {});
+    let mut navs = Vec::new();
+    let mut bodies = Bodies::Address(&mut navs);
+    let mut input = WindowInput::default();
+    focus_address(&mut s, &mut input, &mut bodies);
+    drain(&mut s, &mut input, &mut bodies);
+    assert_eq!(type_text(&mut s, &mut input, false, "q"), Some(false));
+    assert_eq!(
+        input
+            .queue_mut()
+            .iter()
+            .filter(|e| matches!(e, Event::Text(t) if t == "q"))
+            .count(),
+        1
+    );
+}
+
 #[path = "pass_focus_release_tests.rs"]
 mod release;
 
