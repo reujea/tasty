@@ -9,8 +9,8 @@ pub struct TerminalEvent {
     pub surface_id: u32,
     pub generation: crate::ResourceGeneration,
     pub kind: TerminalEventKind,
-    /// 이 사건을 만든 바이트를 같은 parser lock 안에서 살아 있는 attach 스트림이 하나라도 받았다.
-    /// 참이면 원격 attach client가 같은 바이트를 받았으므로 그 사용자 쪽 효과는 client가 처리한다.
+    /// 이 사건을 만든 바이트를 같은 parser lock 안에서 효과를 맡은(`set_effects_owner`) 살아 있는
+    /// attach 스트림이 넘겨받았다. 참이면 그 사용자 쪽 효과는 원격 attach client가 처리한다.
     pub attach_streamed: bool,
 }
 

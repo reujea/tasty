@@ -72,6 +72,7 @@ impl App {
                         sid,
                         generation,
                         result,
+                        true,
                     );
                 }
             }
@@ -86,6 +87,7 @@ impl App {
                         sid,
                         generation,
                         result,
+                        true,
                     );
                 }
             }

@@ -137,6 +137,15 @@ impl App {
                 DisconnectDisposition::None => {}
             }
         }
+        // 손실로 재동기화하는 mirror의 옛 스트림 질의에는 늦게 답하지 않는다.
+        let resync_surfaces: Vec<u32> = self
+            .remote
+            .sessions
+            .iter()
+            .filter(|sess| sess.state.resync_pending.is_some())
+            .flat_map(|sess| sess.state.remote_to_local.values().copied())
+            .collect();
+        self.services.discard_clipboard_reads(&resync_surfaces);
         for &idx in &resyncing {
             if !self.resync_session(idx) {
                 if self.remote.sessions[idx].state.saved_row.is_some() {

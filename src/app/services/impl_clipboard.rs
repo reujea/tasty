@@ -25,7 +25,7 @@ impl AppServices {
         }
         match self.clipboard.begin_read_text() {
             Ok(result) => {
-                Self::reply_clipboard_query(engine, sid, generation, result);
+                Self::reply_clipboard_query(engine, sid, generation, result, false);
             }
             #[cfg(feature = "gui")]
             Err(token) => {
@@ -39,6 +39,17 @@ impl AppServices {
             #[cfg(not(feature = "gui"))]
             Err(_) => tracing::warn!("OSC 52 clipboard read deferred without an event loop"),
         }
+    }
+
+    /// 이 surface들의 기다리는 읽기를 버린다. attach mirror가 손실로 재동기화하면 옛 스트림의
+    /// 질의에 늦게 답하지 않는다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn discard_clipboard_reads(&mut self, surfaces: &[u32]) {
+        if surfaces.is_empty() {
+            return;
+        }
+        self.pending_clipboard_reads
+            .retain(|read| !surfaces.contains(&read.surface_id));
     }
 
     /// 끝난 읽기를 `(surface, 세대, 결과)`로 꺼낸다. 기다리는 읽기는 남긴다.
@@ -63,13 +74,15 @@ impl AppServices {
         finished
     }
 
-    /// 질의한 터미널이 같은 세대이고 설정이 아직 허용하며 attach client가 출력을 받지 않을 때만 답한다.
-    /// 읽기 실패는 무응답이다.
+    /// 질의한 터미널이 같은 세대이고 설정이 아직 허용할 때만 답한다. 읽기 실패는 무응답이다.
+    /// `deferred`(결과를 기다린 읽기)는 그동안 효과를 맡은 attach client가 붙었으면 버린다. 그 뒤의
+    /// 효과는 client 몫이다. 바로 읽은 결과는 질의 사건의 처리권 판정을 이미 거쳤다.
     pub(crate) fn reply_clipboard_query(
         engine: &mut EngineMut<'_>,
         sid: u32,
         generation: tasty_terminal::ResourceGeneration,
         result: anyhow::Result<String>,
+        deferred: bool,
     ) {
         let allow = engine.runtime.settings.general.allow_clipboard_read;
         let clip = match result {
@@ -79,11 +92,10 @@ impl AppServices {
                 None
             }
         };
-        // 읽는 동안 attach client가 붙었으면 이 응답은 client 몫이라 버린다.
         if engine.runtime.terminals.matches_generation(sid, generation)
-            && !engine.attach_output_delivered(sid)
             && let Some(reply) = osc52_clipboard_read_reply(allow, clip.as_deref())
             && let Some(terminal) = engine.find_terminal_by_id_mut(sid)
+            && !(deferred && terminal.has_effects_owner_stream())
         {
             terminal.send_response_for(generation, &reply);
         }

@@ -486,10 +486,12 @@ pub enum StreamControl {
     /// 서버 지원 여부는 system.info의 ipc.stream.loss-notify로 확인한다.
     /// STREAM_PROTO는 동등 비교이므로 이 추가 기능 때문에 버전을 올리지 않는다.
     ClientLossNotify {},
-    /// 클라이언트→서버: 점유한 대상의 서버 알림음을 `NotificationSound`로 넘겨받아 자기 설정대로
-    /// 재생하겠다고 선언한다. 선언한 연결에만 넘기고 서버는 그 소리를 내지 않는다. 선언하지 않은
-    /// 구 client의 대상은 서버가 지금처럼 소리를 낸다. 구 서버는 이 variant를 무시한다.
-    ClientNotificationSound {},
+    /// 클라이언트→서버: 이 연결이 받는 터미널 바이트의 사용자 쪽 효과(OSC 52 클립보드 쓰기·읽기)를
+    /// 스스로 처리하고, 점유한 대상의 서버 알림음을 `NotificationSound`로 넘겨받아 자기 설정대로
+    /// 재생하겠다고 선언한다. 선언한 연결이 받는 동안 서버는 그 효과와 소리를 내지 않는다. 선언하지
+    /// 않은 연결(CLI attach, 구 client)의 대상은 서버가 지금처럼 처리한다. 구 서버는 이 variant를
+    /// 무시한다.
+    ClientTerminalEffects {},
 }
 
 /// The concrete structural operation carried by [`StreamControl::StructuralOp`].

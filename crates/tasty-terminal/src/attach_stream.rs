@@ -37,6 +37,8 @@ struct QueueState {
     bytes: AtomicUsize,
     lost: AtomicBool,
     receiver_closed: AtomicBool,
+    /// The subscriber has taken over the user-facing effects of the bytes it receives.
+    effects_owner: AtomicBool,
 }
 
 /// Single consumer. Dropping it releases queued bytes and disables the producer without
@@ -83,6 +85,13 @@ impl AttachEventReceiver {
         }
     }
 }
+impl AttachEventReceiver {
+    /// Records whether the subscriber handles the user-facing effects (clipboard, sound) of
+    /// the bytes this subscription carries. The terminal reads it at each ingest.
+    pub fn set_effects_owner(&self, owner: bool) {
+        self.state.effects_owner.store(owner, Ordering::Release);
+    }
+}
 impl Drop for AttachEventReceiver {
     fn drop(&mut self) {
         self.state.receiver_closed.store(true, Ordering::Release);
@@ -104,6 +113,10 @@ pub(crate) struct AttachStreamTap {
 impl AttachStreamTap {
     fn is_live(&self) -> bool {
         !self.state.receiver_closed.load(Ordering::Acquire)
+    }
+
+    fn owns_effects(&self) -> bool {
+        self.is_live() && self.state.effects_owner.load(Ordering::Acquire)
     }
 
     /// Called only under the terminal's parser lock. There is one producer per subscription;
@@ -149,15 +162,18 @@ impl AttachStreamTap {
 }
 
 impl TerminalState {
-    /// 살아 있는 스트림 하나라도 바이트를 받았으면 true다.
+    /// 효과를 맡은 살아 있는 스트림이 있었으면 true다. 큐가 넘쳐 그 스트림이 바이트를 잃어도
+    /// 효과는 그 subscriber 몫으로 남는다(손실 뒤 재동기화가 화면만 복구한다).
     pub(crate) fn fan_out_attach_output(&mut self, bytes: &[u8]) -> bool {
-        let mut delivered = false;
-        self.attach_streams.retain(|tap| {
-            let sent = tap.send(Some(bytes), 0, 0);
-            delivered |= sent;
-            sent
-        });
-        delivered
+        let owned = self.has_effects_owner_stream();
+        self.attach_streams
+            .retain(|tap| tap.send(Some(bytes), 0, 0));
+        owned
+    }
+    pub(crate) fn has_effects_owner_stream(&self) -> bool {
+        self.attach_streams
+            .iter()
+            .any(AttachStreamTap::owns_effects)
     }
     pub(crate) fn fan_out_attach_resize(&mut self, cols: usize, rows: usize) {
         self.attach_streams.retain(|tap| tap.send(None, cols, rows));
@@ -188,6 +204,11 @@ impl Terminal {
     /// execution capability: immutable terminal display access cannot create subscriptions.
     pub fn snapshot_and_stream(&mut self) -> AttachStreamSubscription {
         self.lock_state().snapshot_and_stream()
+    }
+
+    /// A subscriber that declared it handles terminal effects is attached now.
+    pub fn has_effects_owner_stream(&self) -> bool {
+        self.lock_state().has_effects_owner_stream()
     }
 }
 

@@ -69,6 +69,7 @@ impl EngineMut<'_> {
             rows,
             events,
         } = terminal.snapshot_and_stream();
+        events.set_effects_owner(hub.accepts_terminal_effects(client));
         if announce {
             let descriptor = serde_json::json!({"event":"attached","surface_id":surface,"cols":cols,"rows":rows});
             if hub.push_bound(
@@ -122,6 +123,12 @@ impl EngineMut<'_> {
             if !current {
                 continue;
             }
+            // 처리권은 여기서만 바뀐다. 선언 전 구간과 구독이 끊긴 뒤에는 서버가 효과를 낸다.
+            subscription.events.set_effects_owner(
+                subscription
+                    .hub
+                    .accepts_terminal_effects(subscription.client),
+            );
             let mut keep = true;
             while budget != 0 && byte_budget != 0 {
                 let event = match subscription.events.try_recv() {
@@ -192,22 +199,5 @@ impl EngineMut<'_> {
         if needs_poll {
             (self.runtime.waker)();
         }
-    }
-}
-
-impl EngineMut<'_> {
-    /// 이 터미널의 raw 출력을 지금 attach client가 받고 있는지. 참이면 그 바이트로 생기는
-    /// 클립보드 쓰기·읽기·알림 소리는 client가 처리하고 서버는 같은 효과를 내지 않는다.
-    /// 구독이 아직 없거나 끊긴 동안은 거짓이라 서버가 그대로 처리한다.
-    pub(crate) fn attach_output_delivered(&self, surface: u32) -> bool {
-        let Some(lock) = self.live.occupancy.surface_lock(surface) else {
-            return false;
-        };
-        self.remote
-            .attach_subscriptions
-            .get(&(surface, lock.holder))
-            .is_some_and(|subscription| {
-                subscription.is_current(Some(&lock), &self.runtime.terminals)
-            })
     }
 }

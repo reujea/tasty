@@ -248,7 +248,7 @@ fn a_mirror_matches_the_visible_screen_but_not_the_output_ring_or_scrollback() {
 /// Given 같은 터미널, When 바이트가 attach 스트림에 넘어가기 전·넘어가는 동안·수신자가 닫힌 뒤
 /// 사건을 만든다, Then 그 바이트를 받은 스트림이 있을 때만 사건에 attach 표지가 붙는다.
 #[test]
-fn only_events_from_bytes_an_attach_stream_received_are_marked() {
+fn only_events_from_bytes_an_effects_owner_stream_carried_are_marked() {
     let bell = |terminal: &mut Terminal| {
         terminal.feed_bytes(b"\x07");
         let events = terminal.try_take_events().expect("unlocked");
@@ -258,7 +258,18 @@ fn only_events_from_bytes_an_attach_stream_received_are_marked() {
     let mut terminal = Terminal::new_detached(80, 24);
     assert!(!bell(&mut terminal), "구독 전");
     let subscription = terminal.snapshot_and_stream();
-    assert!(bell(&mut terminal), "구독 중");
+    assert!(!bell(&mut terminal), "효과를 맡지 않은 구독");
+    subscription.events.set_effects_owner(true);
+    assert!(terminal.has_effects_owner_stream());
+    assert!(bell(&mut terminal), "효과를 맡은 구독");
+    // 큐가 넘쳐 바이트를 잃어도 처리권은 subscriber에 남는다.
+    let filler = vec![b'x'; ATTACH_STREAM_MAX_BYTES];
+    terminal.feed_bytes(&filler);
+    assert!(bell(&mut terminal), "넘친 큐");
+    subscription.events.set_effects_owner(false);
+    assert!(!bell(&mut terminal), "처리권을 거둔 뒤");
+    subscription.events.set_effects_owner(true);
     drop(subscription);
     assert!(!bell(&mut terminal), "수신자가 닫힌 뒤");
+    assert!(!terminal.has_effects_owner_stream());
 }

@@ -25,7 +25,7 @@ impl EngineMut<'_> {
         let Some(hub) = self.remote.notifier() else {
             return false;
         };
-        if !hub.accepts_notification_sound(holder) {
+        if !hub.accepts_terminal_effects(holder) {
             return false;
         }
         let frame = StreamFrame::new(
@@ -98,7 +98,7 @@ mod tests {
             "선언하지 않은 구 client"
         );
         assert_eq!(sounds(&rx), 0);
-        hub.enable_notification_sound(client);
+        hub.enable_terminal_effects(client);
         assert!(engine.hand_notification_sound_to_attach_client(ws, sid, true));
         assert_eq!(sounds(&rx), 0, "client가 바이트로 스스로 내는 알림");
         assert!(engine.hand_notification_sound_to_attach_client(ws, sid, false));

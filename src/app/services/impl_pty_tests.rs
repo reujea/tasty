@@ -372,8 +372,9 @@ impl crate::ports::clipboard::ClipboardSystem for CountingClipboard {
     }
 }
 
-/// Given attach 스트림이 바이트를 받는 터미널, When 프로그램이 OSC 52로 쓰거나 읽는다,
-/// Then 서버 클립보드는 쓰지도 읽지도 않고 서버 쪽 결과 사건도 없다. 구독이 끝나면 서버가 다시 처리한다.
+/// Given 터미널 효과를 맡겠다고 선언한 attach client가 바이트를 받는 터미널, When 프로그램이 OSC 52로
+/// 쓰거나 읽는다, Then 서버 클립보드는 쓰지도 읽지도 않고 서버 쪽 결과 사건도 없다. 선언하지 않은
+/// client(CLI attach)의 구독이거나 구독이 끝나면 서버가 처리한다.
 #[test]
 fn osc52_on_a_terminal_delivered_to_an_attach_client_leaves_the_server_clipboard_alone() {
     use std::sync::atomic::Ordering::SeqCst;
@@ -390,7 +391,12 @@ fn osc52_on_a_terminal_delivered_to_an_attach_client_leaves_the_server_clipboard
     let client = hub.alloc_id();
     let _rx = hub.register(client);
     engine.attach_surface_for_stream(sid, client, &hub);
-    assert!(engine.attach_output_delivered(sid), "구독이 만들어졌다");
+    let owned = |engine: &crate::runtime::engine_access::EngineMut<'_>| {
+        engine
+            .find_terminal_by_id(sid)
+            .is_some_and(|t| t.has_effects_owner_stream())
+    };
+    assert!(!owned(&engine), "선언 전 구독");
 
     let mut run = |engine: &mut crate::runtime::engine_access::EngineMut<'_>| {
         engine
@@ -403,15 +409,26 @@ fn osc52_on_a_terminal_delivered_to_an_attach_client_leaves_the_server_clipboard
             .filter(|e| matches!(e, CoreEvent::TerminalClipboardSet { .. }))
             .count()
     };
-    assert_eq!(run(&mut engine), 0, "서버 토스트 사건");
-    assert_eq!(clipboard.writes.load(SeqCst), 0, "서버 클립보드 쓰기");
-    assert_eq!(clipboard.reads.load(SeqCst), 0, "서버 클립보드 읽기");
-
-    // 점유를 풀면 다음 구독 점검이 수신자를 닫아 이후 바이트는 client에 가지 않는다.
-    engine.live.occupancy.release(sid, client).expect("holder");
-    engine.poll_attach_subscriptions();
-    assert!(!engine.attach_output_delivered(sid));
-    assert_eq!(run(&mut engine), 1);
+    assert_eq!(
+        run(&mut engine),
+        1,
+        "선언하지 않은 client는 서버가 처리한다"
+    );
     assert_eq!(clipboard.writes.load(SeqCst), 1);
     assert_eq!(clipboard.reads.load(SeqCst), 1);
+
+    hub.enable_terminal_effects(client);
+    engine.poll_attach_subscriptions();
+    assert!(owned(&engine), "선언 뒤 구독 점검");
+    assert_eq!(run(&mut engine), 0, "서버 토스트 사건");
+    assert_eq!(clipboard.writes.load(SeqCst), 1, "서버 클립보드 쓰기");
+    assert_eq!(clipboard.reads.load(SeqCst), 1, "서버 클립보드 읽기");
+
+    // 점유를 풀면 다음 구독 점검이 수신자를 닫아 이후 바이트는 서버가 처리한다.
+    engine.live.occupancy.release(sid, client).expect("holder");
+    engine.poll_attach_subscriptions();
+    assert!(!owned(&engine));
+    assert_eq!(run(&mut engine), 1);
+    assert_eq!(clipboard.writes.load(SeqCst), 2);
+    assert_eq!(clipboard.reads.load(SeqCst), 2);
 }
