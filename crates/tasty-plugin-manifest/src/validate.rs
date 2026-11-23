@@ -52,6 +52,7 @@ impl Manifest {
                 HOST_API_VERSION
             );
         }
+        self.validate_min_tasty_version()?;
         if !is_valid_plugin_id(&self.id) {
             anyhow::bail!(
                 "invalid plugin id: '{}' (must be lowercase reverse-domain like com.example.x)",

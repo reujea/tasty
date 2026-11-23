@@ -90,6 +90,7 @@ fn manifest(
         description: String::new(),
         homepage: String::new(),
         api_version: "1".to_string(),
+        min_tasty_version: None,
         entry: tasty_plugin_manifest::Entry::Process {
             command: "x".to_string(),
             args: vec![],

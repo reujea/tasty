@@ -309,6 +309,7 @@ mod palette_commands_tests {
             description: String::new(),
             homepage: String::new(),
             api_version: "1".to_string(),
+            min_tasty_version: None,
             entry: Entry::Process {
                 command: "x".to_string(),
                 args: vec![],

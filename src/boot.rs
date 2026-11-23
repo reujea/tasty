@@ -103,6 +103,8 @@ pub fn run() -> anyhow::Result<std::process::ExitCode> {
     single_instance::evidence::capture_and_clear_env();
     os::attach_windows_console_if_needed();
     os::init_crash_report();
+    // 플러그인 매니페스트의 min_tasty_version을 비교할 본체 버전. CLI 라우팅이 매니페스트를 읽기 전에 정한다.
+    tasty_plugin_manifest::set_host_tasty_version(env!("CARGO_PKG_VERSION"))?;
 
     match cli_routing::parse_or_route()? {
         cli_routing::Routed::AlreadyHandled => Ok(()),

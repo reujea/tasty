@@ -31,6 +31,9 @@ pub struct Manifest {
     #[serde(default)]
     pub homepage: String,
     pub api_version: String,
+    /// 이 플러그인을 받아들일 가장 낮은 Tasty 본체 버전(`MAJOR.MINOR.PATCH`). 없으면 제약이 없다.
+    #[serde(default)]
+    pub min_tasty_version: Option<String>,
     pub entry: Entry,
     #[serde(default)]
     pub surface_kinds: Vec<SurfaceKindDecl>,

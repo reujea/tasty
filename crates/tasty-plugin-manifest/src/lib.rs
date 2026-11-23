@@ -5,6 +5,7 @@
 
 pub mod caller_context;
 pub mod host_actions;
+pub mod host_version;
 pub mod kind_capabilities;
 pub mod package;
 pub mod popup;
@@ -14,10 +15,13 @@ pub mod validate;
 pub mod validators;
 
 #[cfg(test)]
+mod min_tasty_version_tests;
+#[cfg(test)]
 mod tests;
 
 pub use caller_context::{CallerContextDecl, CallerIdFormat, CallerPathEnvDecl};
 pub use host_actions::{INHERITABLE_HOST_ACTIONS, is_inheritable};
+pub use host_version::{TastyVersionTooOld, host_tasty_version, set_host_tasty_version};
 pub use kind_capabilities::SurfaceKindCapabilityDecl;
 pub use package::PluginPackage;
 pub use popup::{DEFAULT_POPUP_SIZE, PopupLayout, is_valid_popup_id, validate_popup_decl};
