@@ -125,7 +125,7 @@ fn a_discarded_resync_of_an_agent_mirror_cleans_it_up() {
     app.apply_attach_client_output();
     let (ticket, target) = queued_resync(&app, AGENT_WS);
     assert_eq!(target.engine, first, "the attempt targets the first engine");
-    let (state, other) = crate::state::tests::test_state();
+    let (state, mut other) = crate::state::tests::test_state();
     let moved = app
         .engines
         .get_mut(first)

@@ -53,7 +53,7 @@ pub(super) fn resyncing_agent_mirror(
         app.engines
             .attach_window(winit::window::WindowId::from(u64::MAX - 1), pending);
     }
-    let (state, engine) = crate::state::tests::test_state();
+    let (state, mut engine) = crate::state::tests::test_state();
     let mut mirror = crate::model::Workspace::new_with_terminal_marker(
         AGENT_WS,
         "agent".to_string(),
