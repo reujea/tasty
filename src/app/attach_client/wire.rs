@@ -7,6 +7,7 @@ mod tests;
 use crate::ipc::stream::{StreamControl, StreamTag};
 use list_dir::parse_list_dir_result;
 use serde_json::Value;
+use std::time::Instant;
 use tasty_remote::client_session::{MirrorEvent, OutFrame, SharedFrameSender};
 
 /// 제어 프레임을 mirror 이벤트로 변환한다. 어느 파서에서도 인식하지 못하면 무시한다.
@@ -16,12 +17,7 @@ pub(super) fn mirror_event_from_control(payload: &[u8]) -> Option<MirrorEvent> {
             surface_id,
             cols,
             rows,
-        }) => Some(MirrorEvent::Resize(
-            surface_id,
-            cols,
-            rows,
-            std::time::Instant::now(),
-        )),
+        }) => Some(MirrorEvent::Resize(surface_id, cols, rows, Instant::now())),
         Ok(StreamControl::ResizeRejected {
             surface_id,
             cols,
