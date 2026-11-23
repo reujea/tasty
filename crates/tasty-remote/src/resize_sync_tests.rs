@@ -270,14 +270,14 @@ fn a_hidden_mirror_deadline_is_abandoned_without_resend_or_failure() {
 
     let t1 = t0 + RESIZE_ACK_TIMEOUT * 4;
     sync.note_sent(S, 80, 24, t1);
-    sync.abandon_due(t1 + RESIZE_ACK_TIMEOUT / 2, |_| true);
+    sync.abandon_due(t1 + RESIZE_ACK_TIMEOUT / 2, |_, _| true);
     assert_eq!(
         sync.next_deadline(),
         Some(t1 + RESIZE_ACK_TIMEOUT),
         "마감 전 대기는 남는다"
     );
 
-    sync.abandon_due(t1 + RESIZE_ACK_TIMEOUT, |id| id == S);
+    sync.abandon_due(t1 + RESIZE_ACK_TIMEOUT, |id, _| id == S);
     assert!(sync.take_due(t1 + RESIZE_ACK_TIMEOUT * 3).is_empty());
     assert_eq!(
         failed(&sync),
@@ -307,4 +307,16 @@ fn a_hidden_late_rejection_of_an_earlier_size_keeps_the_latest_wait() {
     assert_eq!(sync.next_deadline(), None);
     assert!(sync.should_send(S, 100, 30));
     assert!(failed(&sync).is_empty());
+}
+
+/// 마감 판정 술어는 그 대기의 요청 크기를 받는다. 지금 목표와 다른 요청만 버릴 수 있다.
+#[test]
+fn the_abandon_predicate_sees_the_requested_size() {
+    let (mut sync, t0) = acked();
+    sync.note_sent(S, 100, 30, t0);
+    sync.abandon_due(t0 + RESIZE_ACK_TIMEOUT, |_, target| target == (80, 24));
+    assert_eq!(sync.next_deadline(), Some(t0 + RESIZE_ACK_TIMEOUT));
+    sync.abandon_due(t0 + RESIZE_ACK_TIMEOUT, |_, target| target == (100, 30));
+    assert_eq!(sync.next_deadline(), None);
+    assert!(sync.take_due(t0 + RESIZE_ACK_TIMEOUT * 3).is_empty());
 }

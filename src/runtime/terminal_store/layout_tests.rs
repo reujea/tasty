@@ -148,3 +148,15 @@ fn server_size_reaching_the_target_settles_the_record() {
     store.settle_deferred_size(1);
     assert_eq!(store.deferred_size(1), None);
 }
+
+/// 숨었든 보이든 마지막 스윕 목표를 남긴다. mirror의 늦은 자동 재전송이 이 값과 대조한다.
+#[test]
+fn every_sweep_keeps_the_latest_layout_target() {
+    let mut store = store();
+    store.insert(1, Terminal::new_detached(80, 24), None);
+    assert_eq!(store.layout_target(1), None);
+    store.apply_layout_size(1, 100, 30, false);
+    assert_eq!(store.layout_target(1), Some((100, 30)));
+    store.apply_layout_size(1, 80, 24, true);
+    assert_eq!(store.layout_target(1), Some((80, 24)));
+}

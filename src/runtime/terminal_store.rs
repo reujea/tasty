@@ -56,6 +56,9 @@ pub(crate) struct TerminalEntry {
     deferred_size: Option<(usize, usize)>,
     /// 레이아웃 목표를 한 번이라도 받았는가. PTY가 있는 항목의 첫 목표는 숨어 있어도 적용한다(첫 배치 예외).
     placed: bool,
+    /// 마지막 스윕이 정한 목표 크기. mirror의 늦은 자동 재전송이 지금 목표와 맞는지 대조한다.
+    #[cfg(feature = "gui")]
+    layout_target: Option<(usize, usize)>,
 }
 
 impl TerminalEntry {
@@ -65,6 +68,8 @@ impl TerminalEntry {
             pty,
             deferred_size: None,
             placed: false,
+            #[cfg(feature = "gui")]
+            layout_target: None,
         }
     }
     fn into_parts(self) -> (Terminal, Option<Pty>) {
@@ -222,6 +227,7 @@ impl TerminalStore {
         let Some(entry) = self.terminals.get_mut(&id) else {
             return LayoutSizeOutcome::Missing;
         };
+        entry.layout_target = Some((cols, rows));
         let first_placement = entry.pty.is_some() && !entry.placed;
         if !drawn && !first_placement {
             entry.deferred_size =
@@ -241,6 +247,12 @@ impl TerminalStore {
             pty.schedule_resize(entry.terminal.resource_generation(), cols, rows);
         }
         LayoutSizeOutcome::Applied
+    }
+
+    /// 마지막 레이아웃 스윕이 정한 목표 크기. 스윕을 받은 적이 없으면 `None`이다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn layout_target(&self, id: u32) -> Option<(usize, usize)> {
+        self.terminals.get(&id)?.layout_target
     }
 
     /// 숨은 동안 기록한 목표 크기. 기록이 없으면 `None`이다.

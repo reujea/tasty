@@ -2,7 +2,7 @@
 //! (docs/design/policies/render-on-draw.md). 판정은 보낼 때의 창 상태를 직접 읽는다.
 
 use crate::app::App;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 impl App {
     /// 지금 그려지는 mirror의 로컬 surface ID. 창이 최소화·숨김이거나 무대가 덮으면 그 창의 mirror는
@@ -34,6 +34,21 @@ impl App {
         drawn
     }
 
+    /// 마감 처리가 볼 mirror 상태: 지금 그려지는 mirror와 각 mirror의 최신 레이아웃 목표.
+    pub(super) fn mirror_view(&self) -> MirrorView {
+        let drawn = self.drawn_mirror_surfaces();
+        // 그려지는 mirror는 창이 있는 engine에만 있다.
+        let mut targets = HashMap::new();
+        for (_, _, engine) in self.engines().window_pairs() {
+            for &sid in &drawn {
+                if let Some(target) = engine.runtime.terminals.layout_target(sid) {
+                    targets.insert(sid, target);
+                }
+            }
+        }
+        MirrorView { drawn, targets }
+    }
+
     /// 보낼 resize 요청을 큐에서 꺼낸다. 큐에 넣은 뒤 같은 프레임에서 숨겨진 mirror와
     /// grid가 이미 목표인 항목은 버린다. 다시 보이면 레이아웃 스윕이 큐에 다시 넣는다.
     pub(super) fn take_resize_forwards(&mut self) -> Vec<(u32, usize, usize)> {
@@ -61,5 +76,45 @@ impl App {
                 main.state.window_drawn = false;
             }
         }
+    }
+}
+
+/// 마감 처리 시점의 mirror 상태. [`App::mirror_view`]가 만든다.
+pub(super) struct MirrorView {
+    drawn: HashSet<u32>,
+    targets: HashMap<u32, (usize, usize)>,
+}
+
+impl MirrorView {
+    /// 마감이 지난 크기 요청을 다시 보내지 않고 버릴까. 숨은 mirror의 요청이거나 최신 레이아웃 목표와
+    /// 다른 요청이면 버린다. 목표가 바뀐 요청을 다시 보내면 이미 맞춘 grid를 옛 크기로 되돌린다.
+    pub(super) fn abandons_request(&self, local: Option<u32>, target: (usize, usize)) -> bool {
+        let Some(local) = local else {
+            return true;
+        };
+        !self.drawn.contains(&local) || self.targets.get(&local).is_some_and(|t| *t != target)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Given grid A인 mirror가 B를 요청한 뒤 숨었다가 목표 A로 다시 보일 때, When B의 마감이 오면,
+    /// Then B를 다시 보내지 않는다. 목표와 같은 요청은 다시 보내고, 숨은 mirror와 모르는 surface는 버린다.
+    #[test]
+    fn a_due_request_is_resent_only_for_a_drawn_mirror_whose_target_still_matches() {
+        let view = MirrorView {
+            drawn: HashSet::from([1, 2]),
+            targets: HashMap::from([(1, (80, 24))]),
+        };
+        assert!(
+            view.abandons_request(Some(1), (100, 30)),
+            "목표가 바뀐 요청"
+        );
+        assert!(!view.abandons_request(Some(1), (80, 24)));
+        assert!(!view.abandons_request(Some(2), (100, 30)), "목표 기록 없음");
+        assert!(view.abandons_request(Some(3), (80, 24)), "숨은 mirror");
+        assert!(view.abandons_request(None, (80, 24)));
     }
 }

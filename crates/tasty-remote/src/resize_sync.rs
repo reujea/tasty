@@ -175,14 +175,19 @@ impl ResizeSync {
         resend
     }
 
-    /// 마감이 지난 대기 중 `hidden`이 참인 surface의 것을 재전송·실패 이동 없이 버린다.
-    /// 숨은 mirror는 보이게 될 때 새 요청을 받으므로 이 대기는 더 이상 쓸모가 없다.
+    /// 마감이 지난 대기 중 `stale(surface, 요청 크기)`가 참인 것을 재전송·실패 이동 없이 버린다.
+    /// 숨은 mirror나 최신 레이아웃 목표와 다른 요청이 그렇다. 숨은 mirror는 보이게 될 때 새 요청을 받고,
+    /// 목표가 바뀐 요청은 다시 보내면 맞춰 둔 grid를 옛 크기로 되돌린다.
     /// 마감 전 대기와 이미 확정된 실패는 그대로 둔다. [`ResizeSync::take_due`]보다 먼저 부른다.
-    pub fn abandon_due(&mut self, now: Instant, mut hidden: impl FnMut(u32) -> bool) {
+    pub fn abandon_due(
+        &mut self,
+        now: Instant,
+        mut stale: impl FnMut(u32, (usize, usize)) -> bool,
+    ) {
         let due: Vec<u32> = self
             .pending
             .iter()
-            .filter(|(id, p)| p.deadline <= now && hidden(**id))
+            .filter(|(id, p)| p.deadline <= now && stale(**id, p.target))
             .map(|(&id, _)| id)
             .collect();
         for id in due {
