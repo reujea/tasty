@@ -2,6 +2,7 @@
 //! (docs/design/policies/render-on-draw.md). 판정은 보낼 때의 창 상태를 직접 읽는다.
 
 use crate::app::App;
+use crate::runtime::terminal_store::TerminalStore;
 use std::collections::{HashMap, HashSet};
 
 impl App {
@@ -38,15 +39,11 @@ impl App {
     pub(super) fn mirror_view(&self) -> MirrorView {
         let drawn = self.drawn_mirror_surfaces();
         // 그려지는 mirror는 창이 있는 engine에만 있다.
-        let mut targets = HashMap::new();
-        for (_, _, engine) in self.engines().window_pairs() {
-            for &sid in &drawn {
-                if let Some(target) = engine.runtime.terminals.layout_target(sid) {
-                    targets.insert(sid, target);
-                }
-            }
-        }
-        MirrorView { drawn, targets }
+        let stores = self
+            .engines()
+            .window_pairs()
+            .map(|(_, _, engine)| &engine.runtime.terminals);
+        MirrorView::read(drawn, stores)
     }
 
     /// 보낼 resize 요청을 큐에서 꺼낸다. 큐에 넣은 뒤 같은 프레임에서 숨겨진 mirror와
@@ -86,6 +83,19 @@ pub(super) struct MirrorView {
 }
 
 impl MirrorView {
+    /// 그려지는 mirror마다 터미널 store가 기록한 최신 레이아웃 목표를 읽는다.
+    fn read<'a>(drawn: HashSet<u32>, stores: impl Iterator<Item = &'a TerminalStore>) -> Self {
+        let mut targets = HashMap::new();
+        for store in stores {
+            for &sid in &drawn {
+                if let Some(target) = store.layout_target(sid) {
+                    targets.insert(sid, target);
+                }
+            }
+        }
+        MirrorView { drawn, targets }
+    }
+
     /// 이 요청의 mirror가 숨었는가(모르는 surface 포함). 숨은 mirror의 마감 요청은 시도 종류와 관계없이 버린다.
     pub(super) fn hides(&self, local: Option<u32>) -> bool {
         local.is_none_or(|local| !self.drawn.contains(&local))
@@ -103,6 +113,9 @@ impl MirrorView {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::terminal_store::PTY_ID_BASE;
+    use std::sync::{Arc, atomic::AtomicU32};
+    use tasty_terminal::Terminal;
 
     /// Given grid A인 mirror가 B를 요청한 뒤 숨었다가 목표 A로 다시 보일 때, When B의 마감이 오면,
     /// Then 목표가 바뀐 요청이다. 목표와 같은 요청과 목표 기록이 없는 요청은 아니고, 숨은 mirror와 모르는
@@ -119,5 +132,20 @@ mod tests {
         assert!(!view.hides(Some(1)));
         assert!(view.hides(Some(3)), "숨은 mirror");
         assert!(view.hides(None));
+    }
+
+    /// Given 레이아웃 스윕이 mirror의 목표를 B로 기록한 store, When 마감 처리가 볼 상태를 읽으면, Then 그
+    /// mirror의 A 요청은 목표가 바뀐 요청이고 B 요청은 아니다. 숨은 mirror의 목표는 읽지 않는다.
+    #[test]
+    fn the_view_reads_the_layout_target_recorded_by_the_store() {
+        let mut store = TerminalStore::new(Arc::new(AtomicU32::new(PTY_ID_BASE)));
+        store.insert(1, Terminal::new_detached(80, 24), None);
+        store.insert(2, Terminal::new_detached(80, 24), None);
+        store.apply_layout_size(1, 100, 30, true);
+        store.apply_layout_size(2, 100, 30, false);
+        let view = MirrorView::read(HashSet::from([1]), std::iter::once(&store));
+        assert!(view.retargets(Some(1), (80, 24)));
+        assert!(!view.retargets(Some(1), (100, 30)));
+        assert!(view.targets.get(&2).is_none());
     }
 }
