@@ -164,8 +164,8 @@ impl PendingIndicator<'_> {
                 format!("{} · {}", self.label, self.time),
             )
         });
-        // A forced bubble is drawn only while the chip and the bubble both fit the clip: the bubble Area is not clipped by a
-        // scroll area and would be pulled to the screen edge.
+        // A forced bubble is drawn only while the chip and the bubble both fit the clip: the bubble layer is not clipped
+        // by a scroll area and the bubble would be pulled to the screen edge.
         let open = self.open
             && ui
                 .clip_rect()
