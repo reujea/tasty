@@ -212,8 +212,8 @@ fn route_session_end(
                 observed => observed,
             }
         };
-    // 재연결 중인 세션은 옛 전송을 놓을 때(재연결 진입) 이미 결과 불명을 알렸다. 그 세션의 멈춤은
-    // 안내 없이 끊긴 행으로 두거나 미룬 명시 연결로 넘긴다.
+    // 결과 불명은 Connected 세션의 끝을 처리하는 이 자리에서 알리고 그 요청에 알렸다고 기록한다. 재연결
+    // 중인 세션의 멈춤과 그 뒤의 사용자 끊기는 기록을 보고 다시 알리지 않는다.
     let unknown = phase == SessionState::Connected
         && matches!(
             disposition,
@@ -223,7 +223,7 @@ fn route_session_end(
                 | DisconnectDisposition::StopThenConnect
                 | DisconnectDisposition::Cleanup
         )
-        && super::workspace_close::close_result_unknown(sess);
+        && super::workspace_close::take_unknown_close_notice(sess);
     (disposition, unknown)
 }
 

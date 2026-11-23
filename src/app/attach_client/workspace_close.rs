@@ -50,7 +50,9 @@ pub(super) fn refusal_of(session: &AttachClientSession) -> Option<CloseRefusal> 
     }
     match session.state.workspace_close {
         WorkspaceClose::Idle => None,
-        WorkspaceClose::Pending(_) | WorkspaceClose::Closed => Some(CloseRefusal::Pending),
+        WorkspaceClose::Pending(_) | WorkspaceClose::Unanswered(_) | WorkspaceClose::Closed => {
+            Some(CloseRefusal::Pending)
+        }
     }
 }
 
@@ -59,7 +61,9 @@ pub(super) fn refusal_of(session: &AttachClientSession) -> Option<CloseRefusal> 
 pub(crate) fn send_refusal(session: &AttachClientSession) -> Option<CloseRefusal> {
     match session.state.workspace_close {
         WorkspaceClose::Idle => None,
-        WorkspaceClose::Pending(_) | WorkspaceClose::Closed => Some(CloseRefusal::Pending),
+        WorkspaceClose::Pending(_) | WorkspaceClose::Unanswered(_) | WorkspaceClose::Closed => {
+            Some(CloseRefusal::Pending)
+        }
     }
 }
 
@@ -68,9 +72,17 @@ pub(crate) fn note_sent(session: &mut AttachClientSession, op_id: u64) {
     session.state.workspace_close = WorkspaceClose::Pending(op_id);
 }
 
-/// 회신을 받지 못한 채 연결이 끝난 닫기. 서버가 닫았는지 알 수 없다.
-pub(super) fn close_result_unknown(session: &AttachClientSession) -> bool {
-    matches!(session.state.workspace_close, WorkspaceClose::Pending(_))
+/// 회신을 받지 못한 채 연결이 끝난 닫기의 결과 불명을 지금 알릴지. 아직 알리지 않은 요청이면 알린
+/// 것으로 기록하고(`Unanswered`) 참을 돌려준다. 같은 요청은 다시 참이 되지 않는다. 처리 단계와 사용자
+/// 끊기가 같은 기록을 본다.
+pub(super) fn take_unknown_close_notice(session: &mut AttachClientSession) -> bool {
+    match session.state.workspace_close {
+        WorkspaceClose::Pending(op_id) => {
+            session.state.workspace_close = WorkspaceClose::Unanswered(op_id);
+            true
+        }
+        WorkspaceClose::Idle | WorkspaceClose::Unanswered(_) | WorkspaceClose::Closed => false,
+    }
 }
 
 /// 이 mirror의 재연결을 위해 진행 중인 endpoint·connection 시도를 취소한다. 다른 mirror의 시도는 유지한다.
@@ -300,7 +312,7 @@ impl App {
             &mut self.remote,
             workspace_id,
         );
-        if close_result_unknown(&self.remote.sessions[index]) {
+        if take_unknown_close_notice(&mut self.remote.sessions[index]) {
             self.toast_mirror_window(
                 workspace_id,
                 "attach.toast.workspace_close_unknown",
@@ -344,15 +356,15 @@ impl App {
             .iter()
             .position(|session| session.state.local_workspace == row)
         {
-            if close_result_unknown(&self.remote.sessions[index]) {
+            if take_unknown_close_notice(&mut self.remote.sessions[index]) {
                 self.toast_mirror_window(
                     row,
                     "attach.toast.workspace_close_unknown",
                     crate::adapters::ui::ToastKind::Warning,
                 );
             }
-            // 사용자가 놓은 전송의 닫기 결과는 방금 알렸고, 그 전송에 정한 멈춤도 여기서 끝난다. 다음 회차가
-            // 같은 안내를 다시 내거나 끊긴 행에 멈춤을 다시 적용하지 않는다.
+            // 사용자가 놓은 전송의 닫기 결과는 방금 알렸거나 처리 단계가 이미 알렸고, 그 전송에 정한 멈춤도
+            // 여기서 끝난다. 다음 회차가 같은 안내를 다시 내거나 끊긴 행에 멈춤을 다시 적용하지 않는다.
             let state = &mut self.remote.sessions[index].state;
             state.workspace_close = Default::default();
             state.stop_after_events = None;
@@ -486,6 +498,8 @@ impl App {
         key: &'static str,
         kind: crate::adapters::ui::ToastKind,
     ) {
+        #[cfg(test)]
+        notice_log::record(local_workspace, key);
         for (_, main, engine) in self.engines_mut().window_pairs() {
             if engine
                 .workspaces()
@@ -502,5 +516,30 @@ impl App {
             }
         }
         tracing::info!("mirror {local_workspace}: no window for notice {key}");
+    }
+}
+
+/// 시험 전용: 이 스레드에서 `toast_mirror_window`가 받은 안내. App 시험 장치는 창 View가 없어 토스트를
+/// 직접 볼 수 없으므로 안내 경로의 호출을 센다.
+#[cfg(test)]
+pub(crate) mod notice_log {
+    use std::cell::RefCell;
+
+    thread_local! {
+        static NOTICES: RefCell<Vec<(u32, &'static str)>> = const { RefCell::new(Vec::new()) };
+    }
+
+    pub(super) fn record(local_workspace: u32, key: &'static str) {
+        NOTICES.with(|log| log.borrow_mut().push((local_workspace, key)));
+    }
+
+    /// `local_workspace`에 낸 `key` 안내의 수.
+    pub(crate) fn count(local_workspace: u32, key: &str) -> usize {
+        NOTICES.with(|log| {
+            log.borrow()
+                .iter()
+                .filter(|(workspace, k)| *workspace == local_workspace && *k == key)
+                .count()
+        })
     }
 }

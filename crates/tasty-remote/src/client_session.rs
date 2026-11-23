@@ -457,6 +457,9 @@ pub enum WorkspaceClose {
     Idle,
     /// 보낸 op_id의 회신을 기다린다.
     Pending(u64),
+    /// 보낸 op_id의 회신을 기다리던 전송이 끝나 결과를 모른다고 이미 알렸다. 같은 요청을 다시 알리지
+    /// 않는다. 늦게 적용되는 그 op의 회신은 `Pending`처럼 반영한다. 새 전송을 설치하면 `Idle`이 된다.
+    Unanswered(u64),
     /// 서버가 workspace를 닫았다고 회신했다. 이 mirror는 재연결하지 않고 정리한다.
     Closed,
 }
@@ -464,7 +467,8 @@ pub enum WorkspaceClose {
 impl WorkspaceClose {
     /// 구조 변경 회신을 반영한다. 기다리던 op가 아니면 바뀌지 않는다.
     pub fn settle(&mut self, op_id: u64, ok: bool) {
-        if *self == WorkspaceClose::Pending(op_id) {
+        if matches!(*self, WorkspaceClose::Pending(id) | WorkspaceClose::Unanswered(id) if id == op_id)
+        {
             *self = if ok {
                 WorkspaceClose::Closed
             } else {

@@ -41,10 +41,11 @@ fn a_close_is_sent_only_over_a_live_capable_idle_connection() {
 
     session.state.workspace_close = WorkspaceClose::Pending(4);
     assert_eq!(refusal_of(&session), Some(CloseRefusal::Pending));
-    assert!(close_result_unknown(&session));
+    session.state.workspace_close = WorkspaceClose::Unanswered(4);
+    assert_eq!(refusal_of(&session), Some(CloseRefusal::Pending));
+    assert_eq!(send_refusal(&session), Some(CloseRefusal::Pending));
     session.state.workspace_close = WorkspaceClose::Closed;
     assert_eq!(refusal_of(&session), Some(CloseRefusal::Pending));
-    assert!(!close_result_unknown(&session));
     session.state.workspace_close = WorkspaceClose::Idle;
 
     session.state.phase = SessionState::Reconnecting;
@@ -70,6 +71,32 @@ fn only_the_awaited_success_marks_the_mirror_closed() {
     let mut idle = WorkspaceClose::Idle;
     idle.settle(3, true);
     assert_eq!(idle, WorkspaceClose::Idle);
+
+    // 결과 불명을 알린 뒤 늦게 적용되는 그 op의 회신도 같다.
+    let mut told = WorkspaceClose::Unanswered(3);
+    told.settle(2, true);
+    assert_eq!(told, WorkspaceClose::Unanswered(3));
+    told.settle(3, true);
+    assert_eq!(told, WorkspaceClose::Closed);
+    let mut told = WorkspaceClose::Unanswered(3);
+    told.settle(3, false);
+    assert_eq!(told, WorkspaceClose::Idle);
+}
+
+/// 결과 불명 안내는 회신을 기다리던 요청마다 한 번이다. 알린 기록은 그 요청의 op를 유지한다.
+#[test]
+fn an_unknown_close_is_told_once_per_request() {
+    let mut session = test_session(1, HashMap::from([(10, 100)]));
+    for close in [WorkspaceClose::Idle, WorkspaceClose::Closed] {
+        session.state.workspace_close = close;
+        assert!(!take_unknown_close_notice(&mut session));
+        assert_eq!(session.state.workspace_close, close);
+    }
+    session.state.workspace_close = WorkspaceClose::Pending(4);
+    assert!(take_unknown_close_notice(&mut session));
+    assert_eq!(session.state.workspace_close, WorkspaceClose::Unanswered(4));
+    assert!(!take_unknown_close_notice(&mut session), "told once");
+    assert_eq!(session.state.workspace_close, WorkspaceClose::Unanswered(4));
 }
 
 /// 연결 끊기는 그 mirror의 재연결 endpoint·connection 시도만 취소하고 다른 mirror의 시도는 남긴다.

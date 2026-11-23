@@ -393,7 +393,6 @@ impl App {
         adopt_reconnected_transport(sess, transport);
         sess.state.client_id = client_id;
         sess.state.bulk_port = port;
-        sess.state.op_seq = 0;
         sess.state.pending_op_focus.clear();
         sess.state.agent_requests.clear();
         sess.state.next_delta_focus = None;
@@ -403,8 +402,6 @@ impl App {
         let abandoned_captures = std::mem::take(&mut sess.state.capture_uploads);
         sess.state.resync_pending = None;
         sess.state.resync_awaiting_window = false;
-        // 옛 연결의 닫기 회신은 오지 않는다. 결과를 모르는 요청은 enter_reconnecting이 이미 알렸다.
-        sess.state.workspace_close = Default::default();
         sess.state.phase = SessionState::Connected;
         sess.state.remote_label = format!("127.0.0.1:{port}");
         // 원문은 바로 다시 받지 않는다. 변경 신호를 보내 플러그인이 재요청이나 stale 표시를 선택하게 한다.
@@ -622,8 +619,8 @@ impl App {
     }
 }
 
-/// 재연결 설치가 새 전송을 세션에 넘긴다. 옛 전송을 여기서 확정하고 소켓을 닫는다. 옛 전송의 관측 기록과
-/// 그 전송에 정한 멈춤은 새 전송의 몫이 아니라 함께 끝낸다.
+/// 재연결 설치가 새 전송을 세션에 넘긴다. 옛 전송을 여기서 확정하고 소켓을 닫는다. 옛 전송의 관측 기록,
+/// 그 전송에 정한 멈춤, op 번호와 서버 닫기 진행은 새 전송의 몫이 아니라 함께 끝낸다.
 pub(crate) fn adopt_reconnected_transport(
     sess: &mut AttachClientSession,
     transport: tasty_remote::client_session::InstallGuard,
@@ -632,6 +629,10 @@ pub(crate) fn adopt_reconnected_transport(
     sess.transport = transport.into_installed();
     sess.state.observed_end = None;
     sess.state.stop_after_events = None;
+    // op 번호는 전송마다 새로 센다. 옛 전송의 닫기 회신은 오지 않고, 결과를 모르는 요청은 옛 끝을 처리한
+    // 단계가 이미 알렸다. 기록도 옛 요청의 것이라 새 전송의 같은 번호 닫기에 남기지 않는다.
+    sess.state.op_seq = 0;
+    sess.state.workspace_close = Default::default();
 }
 
 /// 재연결(재동기화 포함) 설치를 마친 mirror 를 View 에 알린다. 옛 연결의 목록 요청은 응답하지

@@ -439,3 +439,71 @@ fn a_close_reply_wins_over_a_forced_or_lost_end_in_the_same_batch() {
         );
     }
 }
+
+/// Given 닫기 회신을 기다리던 연결된 세션의 끝, When 처리 단계가 재연결·재동기화로 분류하면, Then 결과 불명을
+/// 한 번 알리고 그 요청에 알렸다고 기록한다. 같은 요청은 다음 처리에서 다시 알리지 않는다.
+#[test]
+fn routing_the_end_records_the_unknown_close_it_tells() {
+    for resync in [false, true] {
+        let mut sess = test_session(9_000, HashMap::from([(42, 9_003)]));
+        sess.state.saved_row = Some(5);
+        sess.state.workspace_close = WorkspaceClose::Pending(3);
+        if resync {
+            sess.state.resync_pending = Some(1);
+        }
+        observe_end(&mut sess, EndReason::Lost, false);
+        let expected = if resync {
+            DisconnectDisposition::Resync
+        } else {
+            DisconnectDisposition::Reconnect
+        };
+        assert_eq!(
+            route_session_end(&mut sess, SessionState::Connected, false, false),
+            (expected, true),
+            "resync {resync}"
+        );
+        assert_eq!(
+            sess.state.workspace_close,
+            WorkspaceClose::Unanswered(3),
+            "resync {resync}"
+        );
+        // 같은 전송에 정한 멈춤을 Connected 단계로 다시 처리해도 같은 요청은 알리지 않는다.
+        sess.state.stop_after_events = Some(tasty_remote::client_session::DeferredStop::new(
+            sess.transport.frame_tx.epoch(),
+        ));
+        assert_eq!(
+            route_session_end(&mut sess, SessionState::Connected, false, false),
+            (DisconnectDisposition::Stop, false),
+            "resync {resync}"
+        );
+    }
+}
+
+/// Given 옛 전송에서 op 1 의 결과 불명을 알렸다, When 재연결 설치가 새 전송을 넘기면
+/// (`adopt_reconnected_transport`), Then op 번호와 닫기 진행이 새로 시작해 같은 번호의 새 닫기를 보낼 수 있고
+/// 그 닫기가 결과 불명이 되면 다시 한 번 알린다.
+#[test]
+fn a_new_transport_tells_the_same_op_number_again() {
+    use crate::app::attach_client::workspace_close::{
+        note_sent, refusal_of, take_unknown_close_notice,
+    };
+    let mut sess = test_session(9_000, HashMap::from([(42, 9_003)]));
+    sess.state.op_seq = 7;
+    sess.state.workspace_close = WorkspaceClose::Unanswered(1);
+    let fresh = test_session(9_000, HashMap::new()).transport;
+
+    crate::app::attach_client::adopt_reconnected_transport(
+        &mut sess,
+        tasty_remote::client_session::InstallGuard::new(fresh),
+    );
+
+    assert_eq!(sess.state.op_seq, 0);
+    assert_eq!(sess.state.workspace_close, WorkspaceClose::Idle);
+    assert_eq!(refusal_of(&sess), None, "a close can be sent again");
+    note_sent(&mut sess, 1);
+    assert!(
+        take_unknown_close_notice(&mut sess),
+        "told on the new transport"
+    );
+    assert!(!take_unknown_close_notice(&mut sess));
+}

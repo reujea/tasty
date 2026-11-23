@@ -14,6 +14,8 @@ mod force_detach_result_tests;
 #[cfg(all(test, target_os = "linux"))]
 mod force_detach_round_tests;
 mod notice;
+#[cfg(all(test, target_os = "linux"))]
+mod unknown_close_notice_tests;
 // X11 이벤트 루프로 App 을 만드는 시험이라 Linux 에서만 컴파일한다(preset_shutdown_tests 와 같다).
 #[cfg(all(test, target_os = "linux"))]
 mod reconnect_window_tests;
