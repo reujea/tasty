@@ -24,6 +24,8 @@ pub(crate) struct FrameKeys {
     pub(crate) owner: Option<PopupKeyOwner>,
     /// 키 주인이 host 팝업이면 그 인스턴스. 창이 묶은 인스턴스는 닫혔거나 숨었어도 그대로다.
     pub(crate) host: Option<PopupInstanceId>,
+    /// 창 키 경로가 이번 몫의 키를 이 주인에 묶었는지(묶지 않은 프레임은 그리기가 정한 주인이다).
+    pub(crate) bound: bool,
 }
 
 impl FrameKeys {
@@ -267,6 +269,7 @@ impl PopupManager {
                 FrameKeys {
                     owner: Some(PopupKeyOwner::Host),
                     host: Some(iid),
+                    bound: true,
                 }
             }
             Some(Bound::Popup(PopupNode::Plugin(id))) => {
@@ -274,6 +277,7 @@ impl PopupManager {
                 FrameKeys {
                     owner: Some(PopupKeyOwner::Plugin(id)),
                     host: None,
+                    bound: true,
                 }
             }
             Some(Bound::NoPopup) => {
@@ -288,6 +292,7 @@ impl PopupManager {
                         Some(PopupKeyOwner::Host) => self.host_key_owner().map(|p| p.instance),
                         _ => None,
                     },
+                    bound: false,
                 }
             }
         };
@@ -303,6 +308,7 @@ impl PopupManager {
         self.keys.frame = Some(FrameKeys {
             owner: host.map(|_| PopupKeyOwner::Host),
             host,
+            bound: false,
         });
     }
 

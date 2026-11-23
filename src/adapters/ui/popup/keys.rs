@@ -144,6 +144,8 @@ pub(crate) struct PopupKeys {
     escape_marks: Option<super::body_keys::EscapeMarks>,
     /// 이 인스턴스가 펼친 묶음 안이라 본문이 쓰지 않은 Esc 를 중앙 단계가 다시 접는다(`refolding`).
     refolds: bool,
+    /// 창 키 경로가 이번 몫의 키를 이 인스턴스에 묶었는지(`FrameKeys::bound`).
+    routed: bool,
 }
 
 /// 판정한 키 누름 하나와 그 판정에 쓴 수식키.
@@ -187,6 +189,7 @@ impl PopupKeys {
             consumed: Vec::new(),
             escape_marks: None,
             refolds: false,
+            routed: false,
         }
     }
 
@@ -202,6 +205,17 @@ impl PopupKeys {
     }
 
     /// 이 인스턴스가 펼친 묶음 안인지 싣는다. 관리자가 본문을 부르기 전에 정한다.
+    pub(crate) fn with_window_route(mut self, routed: bool) -> Self {
+        self.routed = routed;
+        self
+    }
+
+    /// 창 키 경로가 이번 몫의 키를 이 인스턴스에 묶었는지. 본문 위젯이 아직 egui 포커스를 얻기 전(연 뒤 첫 그리기)에도
+    /// 이 몫의 키는 이 본문 것이다.
+    pub(crate) fn routed_by_window(&self) -> bool {
+        self.routed
+    }
+
     pub(crate) fn refolding(mut self, expanded: bool) -> Self {
         self.refolds = expanded;
         self

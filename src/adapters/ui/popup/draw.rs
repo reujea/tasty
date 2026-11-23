@@ -261,6 +261,7 @@ impl PopupManager {
         // 값을 쓰고, 포커스 플래그가 남은 다른 범위 팝업은 키를 받지 않는다.
         let frame_keys = self.take_frame_keys();
         let keys_at_start: Option<PopupInstanceId> = frame_keys.host;
+        let routed_host = keys_at_start.filter(|_| frame_keys.bound);
         // 키 주인이 없는 프레임에는 포커스를 받지 않는 팝업(복원 안내 등)의 본문이 자기 위젯 키 포커스로 키를 읽는다.
         // 창이 묶은 주인이 그사이 닫혔으면 그 키는 처리한 노드에서 멈춘 것이므로 키 주인이 있는 프레임이다.
         let frame_has_key_owner = frame_keys.held();
@@ -889,7 +890,8 @@ impl PopupManager {
                                 let takes_keys = cx.focused
                                     || (!frame_has_key_owner && !popup.arrange.takes_focus);
                                 let keys = PopupKeys::new(ctx, takes_keys, popup.keyboard, edits)
-                                    .refolding(refolds);
+                                    .refolding(refolds)
+                                    .with_window_route(routed_host == Some(popup.instance));
                                 bodies.push(text_focus::BodyKeys {
                                     area: layer_id.id,
                                     instance: popup.instance,
