@@ -280,13 +280,30 @@ fn forwarded_webview_keys_go_through_the_window_steps_the_state_test_calls() {
     );
     let gate = at(
         &steps,
-        "if!forwarded_key_gate_open(state,engine,modal_active){returnSome(ForwardedKeyOutcome::Gated);}",
+        "if!forwarded_key_gate_open(state,engine,modal_active,class,ev.surface_id){returnSome(ForwardedKeyOutcome::Gated);}",
         "게이트",
+    );
+    // 경로 분류는 게이트 앞에서 한 번 정하고 두 게이트가 같은 값을 받는다.
+    let class = at(
+        &steps,
+        "letclass=crate::adapters::ui::input::key_nodes::forwarded_key_class(&engine.runtime.settings.keybindings,&ev.key,ev.mods,);",
+        "전달 키 분류",
+    );
+    assert!(class < gate, "분류가 게이트 뒤에 있다");
+    assert_eq!(
+        steps.matches("forwarded_key_class(").count(),
+        1,
+        "분류가 한 번이 아니다"
     );
     let shortcut = at(
         &steps,
         "crate::app::plugin_glue::shortcut::plugin_shortcut_in_window(state,",
         "plugin 창 단계",
+    );
+    at(
+        &steps,
+        "Some(ev.surface_id),crate::app::plugin_glue::shortcut::PluginKeyGate::Forwarded(class),)",
+        "plugin 게이트가 받는 분류",
     );
     assert!(gate < shortcut, "게이트 → plugin 단축키 순서가 아니다");
     let plugin = read("src/app/plugin_glue/shortcut.rs");

@@ -538,6 +538,13 @@ impl super::MainViewState {
         }
     }
 
+    /// 이 surface 를 덮는 보이는 팝업이 있는지(그 surface 에서 시작한 키 경로가 덮였는지).
+    #[cfg(feature = "gui")]
+    pub(crate) fn surface_is_covered(&self, core: &CoreState, sid: u32) -> bool {
+        self.top_cover_over(&path_of_scope(core, &PopupScope::Surface(sid)), None)
+            .is_some()
+    }
+
     /// `path` 위의 범위를 덮는 보이는 팝업 중 순번이 가장 큰 것. `above` 를 주면 그보다 순번이 큰 것만 본다.
     fn top_cover_over(&self, path: &ScopePath, above: Option<u64>) -> Option<PopupNode> {
         let host = self.popups.covering_nodes().filter_map(|(iid, scope, z)| {

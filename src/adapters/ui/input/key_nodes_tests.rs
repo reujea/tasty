@@ -457,3 +457,66 @@ fn a_bound_key_owner_is_the_start_node() {
         KeyReceiver::Popup(iid)
     );
 }
+
+/// T-12b-7: 전달 키 분류. 보통 단축키 키는 경로 키, bare Esc·클립보드 조합·편집 바인딩 키는 지금 경로다.
+#[test]
+fn forwarded_keys_are_classified_like_window_keys() {
+    let (_state, mut session) = scene();
+    bind(&mut session, "copy", "ctrl+f9");
+    let engine = session.borrow_mut();
+    let kb = &engine.read().settings.keybindings;
+    let class = |key: Key, mods| forwarded_key_class(kb, &key, mods);
+    assert_eq!(class(Key::Character("b".into()), CTRL), ForwardedKey::Path);
+    assert_eq!(class(f_key(6).0, CTRL), ForwardedKey::Path);
+    assert_eq!(class(escape().0, NONE), ForwardedKey::Current);
+    assert_eq!(class(escape().0, ModifiersState::SHIFT), ForwardedKey::Path);
+    assert_eq!(
+        class(f_key(9).0, CTRL),
+        ForwardedKey::Current,
+        "편집 바인딩 키"
+    );
+    let command = if cfg!(target_os = "macos") {
+        ModifiersState::SUPER
+    } else {
+        CTRL
+    };
+    assert_eq!(
+        class(Key::Character("c".into()), command),
+        ForwardedKey::Current,
+        "클립보드 조합"
+    );
+}
+
+/// T-12b-7: 받은 surface 경로. 다른 곳(Window 범위)에 덮지 않는 팝업이 포커스여도 받은 surface 의 경로 키는 막히지
+/// 않는다(지금 게이트는 막는다). 받은 surface 를 덮는 팝업이 있으면 막힌다. 지금 경로로 남는 키는 지금 게이트다.
+#[test]
+fn a_forwarded_path_key_is_blocked_only_when_its_surface_is_covered() {
+    let (mut state, mut session) = scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let sid = state.focused_surface_id(&read).expect("surface");
+    assert!(!received_key_blocked(
+        &state,
+        &read,
+        ForwardedKey::Path,
+        sid
+    ));
+    open_focused(&mut state, "notifications");
+    assert!(state.window_keys_to_overlay(), "지금 게이트는 막는다");
+    assert!(!received_key_blocked(
+        &state,
+        &read,
+        ForwardedKey::Path,
+        sid
+    ));
+    assert!(received_key_blocked(
+        &state,
+        &read,
+        ForwardedKey::Current,
+        sid
+    ));
+    state.popups.close("notifications");
+    let palette = open_focused(&mut state, "command_palette");
+    assert!(state.popups.instance(palette).unwrap().covers());
+    assert!(received_key_blocked(&state, &read, ForwardedKey::Path, sid));
+}

@@ -349,14 +349,15 @@ fn plugin_manager() -> (PluginManager, tasty_host_plugin::manager::CallerStub) {
     (mgr, stub)
 }
 
-/// plugin 갈래. Given plugin 전역 명령이 창 범위 팝업을 여는 창, When [그 명령의 조합, Ctrl+B] 가 들면, Then 첫 키는
-/// plugin 단축키로 처리되고 그 자리에서 plugin 팝업이 열려 포커스 노드가 된다. 둘째 키는 그 팝업의 게이트에 막힌다.
-/// 그 조합은 WebView 가 호스트로 넘기는 plugin 전역 조합에 든다(`webview_command_bindings`).
+/// plugin 갈래. Given plugin 전역 명령이 창 범위 팝업(덮지 않음)을 여는 창, When [그 명령의 조합, Ctrl+B] 가 들면,
+/// Then 첫 키는 plugin 단축키로 처리되고 그 자리에서 plugin 팝업이 열려 포커스 노드가 된다. 둘째 키는 받은 surface 에서
+/// 시작한 경로가 덮이지 않았으므로 그 surface 의 단축키(sidebar 접기)로 처리된다. 그 조합은 WebView 가 호스트로 넘기는
+/// plugin 전역 조합에 든다(`webview_command_bindings`).
 #[test]
-fn a_plugin_popup_opened_by_a_forwarded_key_gates_the_next_key_in_the_window_state() {
+fn a_plugin_popup_opened_by_a_forwarded_key_leaves_the_next_key_to_the_received_surface() {
     if crate::test_support::rerun_alone(
         module_path!(),
-        "a_plugin_popup_opened_by_a_forwarded_key_gates_the_next_key_in_the_window_state",
+        "a_plugin_popup_opened_by_a_forwarded_key_leaves_the_next_key_to_the_received_surface",
     ) {
         return;
     }
@@ -384,11 +385,11 @@ fn a_plugin_popup_opened_by_a_forwarded_key_gates_the_next_key_in_the_window_sta
     let outcomes = w.consume(batch);
     assert_eq!(
         outcomes,
-        [ForwardedKeyOutcome::Handled, ForwardedKeyOutcome::Gated]
+        [ForwardedKeyOutcome::Handled, ForwardedKeyOutcome::Handled]
     );
-    assert_eq!(
+    assert_ne!(
         w.state.sidebar_collapsed, collapsed,
-        "둘째 키가 sidebar 를 바꿨다"
+        "둘째 키가 sidebar 를 바꾸지 않았다"
     );
     assert_eq!(w.resent(), [(1, false), (2, false)]);
     let opened: Vec<u64> = w
