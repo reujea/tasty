@@ -518,3 +518,24 @@ fn a_forwarded_path_key_is_blocked_only_when_its_surface_is_covered() {
     assert!(state.popups.instance(palette).unwrap().covers());
     assert!(received_key_blocked(&state, &read, ForwardedKey::Path, sid));
 }
+
+/// T-12b-6 (라) 진입 직후: 팝업에 키를 묶은 몫에서 무대를 열면 무대가 출발 노드다. 그 몫을 그리기 전 무대 종료 키는
+/// App plugin 게이트를 닫아 무대 종료 단계로 간다(무대 노드가 결속보다 먼저다).
+#[test]
+fn a_stage_opened_over_a_bound_popup_is_the_start_node() {
+    let (mut state, mut session) = scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    open_search(&mut state, &read);
+    assert!(state.bind_window_key_owner());
+    assert!(state.open_fullscreen_stage("blank"));
+    assert_eq!(
+        crate::adapters::ui::input::key_path::key_start_node(&state, &read),
+        FocusNode::Stage
+    );
+    assert!(!gate(&state, &read, f_key(8), CTRL), "무대 종료 키");
+    assert_eq!(
+        routed(decide(&state, &read, f_key(8), CTRL)).receiver,
+        KeyReceiver::Stage
+    );
+}

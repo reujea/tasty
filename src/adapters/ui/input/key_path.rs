@@ -101,10 +101,11 @@ fn popup_scope_levels(state: &MainViewState, node: PopupNode) -> Vec<KeyLevel> {
 
 /// 키 사건의 출발 노드. 포커스 노드이고, 창이 지금 받는 키를 팝업 키 주인에 묶었으면(입력 시점 결속) 그 팝업이다.
 /// 결속은 그 주인의 포커스를 풀었거나 닫았어도 그 몫을 그리기 전까지 남는다(`keyboard_overlay_open_besides_html_address`
-/// 와 같은 규칙). 설정 열기 요청 래치가 먼저다.
+/// 와 같은 규칙). 포커스 노드 순위에서 팝업보다 위인 무대와 설정 열기 요청 래치는 결속보다 먼저다(무대를 연 몫을
+/// 그리기 전에도 무대 종료 키가 무대에 간다).
 pub(crate) fn key_start_node(state: &MainViewState, core: &CoreState) -> FocusNode {
     let node = state.focus_node(core);
-    if node == FocusNode::SettingsRequest {
+    if matches!(node, FocusNode::SettingsRequest | FocusNode::Stage) {
         return node;
     }
     match state.popups.bound_input_key_owner() {
