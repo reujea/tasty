@@ -13,6 +13,8 @@ Windows, macOS, Linux를 1급 지원한다. macOS는 Apple Silicon만 지원한�
 
 검증 환경이 부족하다는 이유로 Windows ARM을 낮은 지원 등급으로 분류하거나 릴리스에서 제외하지 않는다. 지원 방향과 각 릴리스에서 실제로 확인한 범위는 구분해 설명한다. 현재 배포 산출물은 [릴리스 가이드](../dev-guide/release.md)에 있다.
 
+Windows의 로컬 터미널 셸은 Git Bash만 지원한다. zsh·cmd·PowerShell·nu 등 다른 Windows 셸은 지원하지 않으며, 그 셸에서만 나는 결함은 고치지 않는다. 판정 기준은 [터미널 surface](../surfaces/terminal/index.md)의 "실행할 셸"에 있다. 원격 호스트에서 쓰는 셸은 이 범위가 아니다.
+
 모바일은 별도 제품 원칙을 추후 새로 세운다. 이번 원칙의 지원·기능 배치 판단에 포함하지 않는다.
 
 ## 호환성과 버전 부여
