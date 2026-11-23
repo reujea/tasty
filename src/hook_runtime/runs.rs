@@ -83,6 +83,13 @@ pub(crate) fn shell_event(id: u64, event: ShellEvent) {
             };
             request_runs::amend(id, Some(result), json!({ "exit_code": code }));
         }
+        ShellEvent::WaitFailed(error) => {
+            request_runs::overrule(
+                id,
+                RunState::Failed,
+                format!("process started but its exit could not be confirmed: {error}"),
+            );
+        }
     }
 }
 
@@ -135,5 +142,23 @@ mod tests {
         assert_eq!(lookup(bad).unwrap()["state"], "failed");
         forget(bad);
         assert!(lookup(bad).is_none());
+    }
+
+    /// 종료를 확인하지 못한 셸 run은 시작 성공을 뒤집어 실패로 끝나고, 코드 없는 종료로 보이지 않는다.
+    #[test]
+    fn a_shell_run_whose_exit_is_unconfirmed_fails() {
+        let id = begin("user/s", ACTION_SHELL);
+        shell_event(id, ShellEvent::Started);
+        shell_event(id, ShellEvent::WaitFailed("Interrupted".into()));
+        let got = lookup(id).unwrap();
+        assert_eq!(got["state"], "failed");
+        assert!(
+            got["result"]
+                .as_str()
+                .unwrap()
+                .contains("exit could not be confirmed"),
+            "{got}"
+        );
+        assert_eq!(got["exit_code"], Value::Null);
     }
 }

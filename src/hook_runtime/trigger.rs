@@ -320,7 +320,10 @@ mod tests {
                 "test",
                 move || hook_shell_command(&cmd, env, Vec::new()),
                 move |event| {
-                    if let ShellEvent::Exited(_) | ShellEvent::NotStarted(_) = event {
+                    if let ShellEvent::Exited(_)
+                    | ShellEvent::NotStarted(_)
+                    | ShellEvent::WaitFailed(_) = event
+                    {
                         tx.send(event).expect("report the end");
                     }
                 },

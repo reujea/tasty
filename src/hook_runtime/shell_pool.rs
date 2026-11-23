@@ -95,12 +95,8 @@ impl ShellPool {
         let mut state = self.lock();
         if state.running < self.running_limit {
             // 스레드를 먼저 만들어, 만들지 못하면 작업을 만들지 않고 거절한다.
-            let (tx, rx) = mpsc::channel::<ShellJob>();
-            let pool = Arc::clone(self);
-            std::thread::Builder::new()
-                .name("hook-shell".into())
-                .spawn(move || work(&pool, rx))
-                .map_err(|e| ShellNotQueued::WorkerUnavailable(e.to_string()))?;
+            let tx =
+                spawn_worker(self).map_err(|e| ShellNotQueued::WorkerUnavailable(e.to_string()))?;
             state.running += 1;
             if tx.send(make()).is_err() {
                 tracing::error!("hook shell thread stopped before its first job");
@@ -113,21 +109,117 @@ impl ShellPool {
         state.waiting.push_back(make());
         Ok(())
     }
+
+    /// 작업을 맡은 슬롯 수. 시험이 슬롯 반납을 관측할 때 쓴다.
+    #[cfg(test)]
+    fn running(&self) -> usize {
+        self.lock().running
+    }
+
+    /// 대기열의 작업 수. 시험이 미실행을 관측할 때 쓴다.
+    #[cfg(test)]
+    fn waiting(&self) -> usize {
+        self.lock().waiting.len()
+    }
+}
+
+/// 첫 작업을 받을 채널과 함께 실행기 스레드를 만든다. 호출자가 슬롯 수를 센다.
+fn spawn_worker(pool: &Arc<ShellPool>) -> std::io::Result<mpsc::Sender<ShellJob>> {
+    let (tx, rx) = mpsc::channel::<ShellJob>();
+    let pool = Arc::clone(pool);
+    std::thread::Builder::new()
+        .name("hook-shell".into())
+        .spawn(move || work(&pool, rx))?;
+    Ok(tx)
+}
+
+/// 실행기 스레드가 슬롯을 반납하지 못한 채 풀려 나가면(unwind) 대신 반납하고,
+/// 대기열이 남아 있으면 그 작업을 맡을 스레드를 새로 세운다.
+struct SlotGuard<'a> {
+    pool: &'a Arc<ShellPool>,
+    held: bool,
+}
+
+impl Drop for SlotGuard<'_> {
+    fn drop(&mut self) {
+        if !self.held {
+            return;
+        }
+        tracing::error!("hook shell thread is unwinding; returning its slot");
+        let mut state = self.pool.lock();
+        let Some(mut job) = state.waiting.pop_front() else {
+            state.running -= 1;
+            return;
+        };
+        match spawn_worker(self.pool) {
+            Ok(tx) => {
+                if let Err(mpsc::SendError(mut job)) = tx.send(job) {
+                    state.running -= 1;
+                    (job.report)(ShellEvent::NotStarted(
+                        "the hook shell thread stopped before the job".into(),
+                    ));
+                }
+            }
+            Err(e) => {
+                state.running -= 1;
+                tracing::error!("hook shell thread could not be replaced: {e}");
+                (job.report)(ShellEvent::NotStarted(e.to_string()));
+            }
+        }
+    }
 }
 
 fn work(pool: &Arc<ShellPool>, first: mpsc::Receiver<ShellJob>) {
+    let mut guard = SlotGuard { pool, held: true };
     let mut next = first.recv().ok();
     loop {
         if let Some(job) = next.take() {
-            run(job);
+            run_caught(job);
         }
         let mut state = pool.lock();
         match state.waiting.pop_front() {
             Some(job) => next = Some(job),
             None => {
                 state.running -= 1;
+                guard.held = false;
                 return;
             }
+        }
+    }
+}
+
+/// 작업 하나의 패닉(빌더·보고 콜백)이 슬롯을 잃게 하지 않는다. 이미 띄운 자식은
+/// [`ChildGuard`]가 끝내고 회수한 뒤 같은 스레드가 다음 작업으로 넘어간다.
+fn run_caught(job: ShellJob) {
+    let label = job.label.clone();
+    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(job))).is_err() {
+        tracing::error!("hook command '{label}' panicked; its slot moves to the next job");
+    }
+}
+
+/// 패닉으로 풀려 나가는 동안 자식이 남지 않게 끝내고 회수한다.
+struct ChildGuard<'a> {
+    child: Option<std::process::Child>,
+    label: &'a str,
+}
+
+impl Drop for ChildGuard<'_> {
+    fn drop(&mut self) {
+        let Some(mut child) = self.child.take() else {
+            return;
+        };
+        if let Err(e) = child.kill() {
+            tracing::warn!("hook command '{}' could not be killed: {e}", self.label);
+        }
+        match child.wait() {
+            Ok(_) => tracing::error!(
+                "hook command '{}' was killed because its job panicked",
+                self.label
+            ),
+            Err(e) => tracing::error!(
+                "hook command '{}' was not reaped after its job panicked: {e}",
+                self.label
+            ),
         }
     }
 }
@@ -135,21 +227,62 @@ fn work(pool: &Arc<ShellPool>, first: mpsc::Receiver<ShellJob>) {
 fn run(mut job: ShellJob) {
     let mut command = (job.build)();
     match tasty_utils::process::hide_console(&mut command).spawn() {
-        Ok(mut child) => {
-            (job.report)(ShellEvent::Started);
-            let code = match child.wait() {
-                Ok(status) => status.code(),
-                Err(e) => {
-                    tracing::warn!("hook command '{}' wait failed: {e}", job.label);
-                    None
-                }
+        Ok(child) => {
+            let mut guard = ChildGuard {
+                child: Some(child),
+                label: &job.label,
             };
-            tracing::debug!("hook command '{}' exited with {code:?}", job.label);
-            (job.report)(ShellEvent::Exited(code));
+            (job.report)(ShellEvent::Started);
+            let Some(child) = guard.child.as_mut() else {
+                return;
+            };
+            let event = settle(&job.label, child);
+            guard.child = None;
+            (job.report)(event);
         }
         Err(e) => {
             tracing::warn!("hook command '{}' spawn failed: {e}", job.label);
             (job.report)(ShellEvent::NotStarted(e.to_string()));
+        }
+    }
+}
+
+/// 종료를 기다리고 끝낼 수 있는 자식. 시험이 대기 실패를 흉내 낼 때 바꿔 끼운다.
+trait Reap {
+    fn wait(&mut self) -> std::io::Result<std::process::ExitStatus>;
+    fn kill(&mut self) -> std::io::Result<()>;
+}
+
+impl Reap for std::process::Child {
+    fn wait(&mut self) -> std::io::Result<std::process::ExitStatus> {
+        std::process::Child::wait(self)
+    }
+    fn kill(&mut self) -> std::io::Result<()> {
+        std::process::Child::kill(self)
+    }
+}
+
+/// 자식의 종료를 확인한다. 기다리지 못하면 끝내기를 시도한 뒤 한 번 더 기다리고,
+/// 그래도 확인하지 못하면 [`ShellEvent::WaitFailed`]다. 어느 경우든 슬롯은 다음 작업으로 넘어간다.
+fn settle(label: &str, child: &mut impl Reap) -> ShellEvent {
+    let first = match child.wait() {
+        Ok(status) => {
+            tracing::debug!("hook command '{label}' exited with {:?}", status.code());
+            return ShellEvent::Exited(status.code());
+        }
+        Err(e) => e,
+    };
+    tracing::warn!("hook command '{label}' wait failed: {first}; killing it");
+    if let Err(e) = child.kill() {
+        tracing::warn!("hook command '{label}' could not be killed: {e}");
+    }
+    match child.wait() {
+        Ok(status) => ShellEvent::Exited(status.code()),
+        Err(e) => {
+            tracing::error!(
+                "hook command '{label}' exit could not be confirmed: {e}; its slot moves on"
+            );
+            ShellEvent::WaitFailed(e.to_string())
         }
     }
 }
@@ -163,32 +296,47 @@ pub(crate) fn shared() -> &'static Arc<ShellPool> {
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::{Duration, Instant};
 
+    /// 시험 작업이 보고한 (작업 이름, 결과 종류).
+    type Report = (String, &'static str);
+
+    fn kind(event: &ShellEvent) -> &'static str {
+        match event {
+            ShellEvent::Started => "started",
+            ShellEvent::NotStarted(_) => "not_started",
+            ShellEvent::Exited(_) => "exited",
+            ShellEvent::WaitFailed(_) => "wait_failed",
+        }
+    }
+
+    fn reporter(name: &str, tx: mpsc::Sender<Report>) -> impl FnMut(ShellEvent) + Send + 'static {
+        let name = name.to_string();
+        move |event| {
+            let _ignored = tx.send((name.clone(), kind(&event)));
+        }
+    }
+
     /// 해제 파일이 생길 때까지 도는 자식. 시작할 때 살아 있는 자식 수를 `peaks`에 남기고
     /// 시작 순서를 `order`에 남긴다. 시험이 실패해 임시 폴더가 지워지거나 60초가 지나면 스스로 끝난다.
-    fn held_job(dir: &Path, name: &str, done: mpsc::Sender<String>) -> ShellJob {
+    fn held_job(dir: &Path, name: &str, tx: mpsc::Sender<Report>) -> ShellJob {
         let script = format!(
             "touch alive/{name}; ls alive | wc -l >> peaks; echo {name} >> order; i=0; \
              while [ ! -e release ] && [ -d alive ] && [ $i -lt 6000 ]; do sleep 0.01; i=$((i+1)); done; \
              rm -f alive/{name}"
         );
         let dir = dir.to_path_buf();
-        let name = name.to_string();
         ShellJob::new(
-            name.clone(),
+            name,
             move || {
                 let mut c = std::process::Command::new("sh");
                 c.args(["-c", &script]).current_dir(dir);
                 c
             },
-            move |event| {
-                if let ShellEvent::Exited(_) | ShellEvent::NotStarted(_) = event {
-                    let _ignored = done.send(name.clone());
-                }
-            },
+            reporter(name, tx),
         )
     }
 
@@ -213,6 +361,11 @@ mod tests {
         (Held(Some(tmp)), dir)
     }
 
+    fn release(dir: &Path) {
+        std::fs::write(dir.join("release"), "").expect("release");
+    }
+
+    /// 파일에 `n`줄이 생길 때까지 기다리고 정확히 `n`줄인지 단언한다.
     fn wait_lines(path: &Path, n: usize) -> Vec<String> {
         let deadline = Instant::now() + Duration::from_secs(20);
         loop {
@@ -222,20 +375,45 @@ mod tests {
                 .map(str::to_string)
                 .collect();
             if lines.len() >= n || Instant::now() >= deadline {
+                assert_eq!(lines.len(), n, "{}: {lines:?}", path.display());
                 return lines;
             }
             std::thread::sleep(Duration::from_millis(10));
         }
     }
 
-    fn collect(rx: &mpsc::Receiver<String>, n: usize) -> Vec<String> {
-        (0..n)
-            .map(|_| rx.recv_timeout(Duration::from_secs(20)).expect("job ends"))
+    /// 모든 슬롯이 반납될 때까지 기다린다. 반납은 마지막 보고 뒤에 일어나므로, 이 뒤에는 더 올 보고가 없다.
+    fn wait_idle(pool: &Arc<ShellPool>, within: Duration) {
+        let deadline = Instant::now() + within;
+        while pool.running() > 0 {
+            assert!(
+                Instant::now() < deadline,
+                "{} slots still held after {within:?}",
+                pool.running()
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    /// 슬롯 반납 뒤 채널에 남은 보고를 작업별로 모은다.
+    fn reports(rx: &mpsc::Receiver<Report>) -> BTreeMap<String, Vec<&'static str>> {
+        let mut by_job: BTreeMap<String, Vec<&'static str>> = BTreeMap::new();
+        for (name, kind) in rx.try_iter() {
+            by_job.entry(name).or_default().push(kind);
+        }
+        by_job
+    }
+
+    fn started_and_exited(names: &[&str]) -> BTreeMap<String, Vec<&'static str>> {
+        names
+            .iter()
+            .map(|n| (n.to_string(), vec!["started", "exited"]))
             .collect()
     }
 
     /// 슬롯 2·대기 3에 붙잡힌 자식 5개를 넣고 10개를 더 넣으면, 정확히 10개가 거절되고 실행되지 않는다.
-    /// 살아 있는 자식은 어느 순간에도 2개를 넘지 않고, 해제하면 접수한 5개가 한 번씩 실행된다.
+    /// 두 슬롯이 붙잡힌 동안 나머지 셋은 대기열에 남아 있다. 살아 있는 자식은 어느 순간에도 2개를 넘지
+    /// 않고, 해제하면 접수한 5개가 각각 한 번 시작하고 끝난다.
     #[test]
     fn jobs_beyond_the_slots_wait_and_jobs_beyond_the_queue_are_refused() {
         let (_tmp, dir) = setup();
@@ -254,25 +432,22 @@ mod tests {
             }
         }
         assert_eq!(refused, 10, "the ten jobs past the queue must be refused");
+        wait_lines(&dir.join("order"), 2);
         assert_eq!(
-            wait_lines(&dir.join("order"), 2).len(),
-            2,
-            "two slots start"
+            (pool.running(), pool.waiting()),
+            (2, 3),
+            "while both slots are held the other three stay queued"
         );
-        std::thread::sleep(Duration::from_millis(300));
+        release(&dir);
+        wait_idle(&pool, Duration::from_secs(20));
         assert_eq!(
-            wait_lines(&dir.join("order"), 0).len(),
-            2,
-            "a queued job started while both slots were held"
+            reports(&rx),
+            started_and_exited(&["a0", "a1", "a2", "a3", "a4"]),
+            "each accepted job starts and exits once and no refused job runs"
         );
-        std::fs::write(dir.join("release"), "").expect("release");
-        let mut ended = collect(&rx, 5);
-        ended.sort();
-        assert_eq!(ended, ["a0", "a1", "a2", "a3", "a4"]);
-        assert!(
-            rx.recv_timeout(Duration::from_millis(300)).is_err(),
-            "a refused job ran"
-        );
+        let mut order = wait_lines(&dir.join("order"), 5);
+        order.sort();
+        assert_eq!(order, ["a0", "a1", "a2", "a3", "a4"]);
         let peaks = wait_lines(&dir.join("peaks"), 5);
         let max: usize = peaks
             .iter()
@@ -283,25 +458,21 @@ mod tests {
             max <= 2,
             "{max} children were alive at once (peaks {peaks:?})"
         );
-        assert_eq!(
-            pool.lock().running,
-            0,
-            "slots are returned once the queue is empty"
-        );
     }
 
     /// 슬롯 안에서 넣으면 모두 바로 실행되고 거절은 없다.
     #[test]
     fn jobs_within_the_slots_all_run_without_refusal() {
         let (_tmp, dir) = setup();
-        std::fs::write(dir.join("release"), "").expect("release");
+        release(&dir);
         let pool = ShellPool::new(4, 0);
         let (tx, rx) = mpsc::channel();
         for i in 0..4 {
             pool.submit(|| held_job(&dir, &format!("a{i}"), tx.clone()))
                 .expect("accepted");
         }
-        assert_eq!(collect(&rx, 4).len(), 4);
+        wait_idle(&pool, Duration::from_secs(20));
+        assert_eq!(reports(&rx), started_and_exited(&["a0", "a1", "a2", "a3"]));
     }
 
     /// 슬롯 하나면 꺼낸 순서가 곧 시작 순서라, 대기열이 접수 순서로 꺼내는지 볼 수 있다.
@@ -315,9 +486,10 @@ mod tests {
             pool.submit(|| held_job(&dir, name, tx.clone()))
                 .expect("accepted");
         }
-        assert_eq!(wait_lines(&dir.join("order"), 1).len(), 1);
-        std::fs::write(dir.join("release"), "").expect("release");
-        collect(&rx, names.len());
+        wait_lines(&dir.join("order"), 1);
+        release(&dir);
+        wait_idle(&pool, Duration::from_secs(20));
+        assert_eq!(reports(&rx), started_and_exited(&names));
         assert_eq!(wait_lines(&dir.join("order"), names.len()), names);
     }
 
@@ -342,8 +514,123 @@ mod tests {
         assert_eq!(made.load(Ordering::SeqCst), 1);
         assert_eq!(pool.submit(make("refused")), Err(ShellNotQueued::Full));
         assert_eq!(made.load(Ordering::SeqCst), 1, "a refused job was built");
-        std::fs::write(dir.join("release"), "").expect("release");
-        assert_eq!(collect(&rx, 1), ["held"]);
+        release(&dir);
+        wait_idle(&pool, Duration::from_secs(20));
+        assert_eq!(reports(&rx), started_and_exited(&["held"]));
+    }
+
+    /// Command 빌더가 패닉해도 슬롯이 돌아오고 같은 실행기가 다음 작업을 실행한다.
+    #[test]
+    fn a_job_whose_builder_panics_returns_its_slot() {
+        let (_tmp, dir) = setup();
+        release(&dir);
+        let pool = ShellPool::new(1, 1);
+        let (tx, rx) = mpsc::channel();
+        pool.submit(|| {
+            ShellJob::new(
+                "boom",
+                || panic!("test builder panic"),
+                reporter("boom", tx.clone()),
+            )
+        })
+        .expect("accepted");
+        pool.submit(|| held_job(&dir, "after", tx.clone()))
+            .expect("accepted");
+        wait_idle(&pool, Duration::from_secs(20));
+        assert_eq!(reports(&rx), started_and_exited(&["after"]));
+    }
+
+    /// Started 보고가 패닉하면 이미 띄운 자식을 끝내고 회수한 뒤 슬롯을 돌려준다.
+    /// 자식은 30초를 자므로, 끝내지 않았다면 슬롯이 10초 안에 돌아오지 않거나 그 pid가 살아 있다.
+    #[test]
+    fn a_job_whose_report_panics_after_start_leaves_no_child() {
+        let (_tmp, dir) = setup();
+        let pool = ShellPool::new(1, 0);
+        let pid_file = dir.join("pid");
+        let script = format!("echo $$ > {}; exec sleep 30", pid_file.display());
+        pool.submit(|| {
+            ShellJob::new(
+                "panicky",
+                move || {
+                    let mut c = std::process::Command::new("sh");
+                    c.args(["-c", &script]);
+                    c
+                },
+                |event| {
+                    if let ShellEvent::Started = event {
+                        panic!("test report panic");
+                    }
+                },
+            )
+        })
+        .expect("accepted");
+        wait_idle(&pool, Duration::from_secs(10));
+        // 자식이 pid를 쓰기 전에 끝났으면 파일이 없다. 썼다면 그 프로세스는 없어야 한다.
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !pid_file.exists() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        if let Ok(pid) = std::fs::read_to_string(&pid_file) {
+            let pid = pid.trim();
+            if !pid.is_empty() {
+                let alive = std::process::Command::new("kill")
+                    .args(["-0", pid])
+                    .status()
+                    .expect("kill -0")
+                    .success();
+                assert!(!alive, "the child {pid} outlived its panicked job");
+            }
+        }
+    }
+
+    /// 종료를 기다리지 못하는 자식을 흉내 낸다. 대기 결과를 차례로 돌려준다.
+    struct FakeChild {
+        waits: VecDeque<std::io::Result<std::process::ExitStatus>>,
+        killed: bool,
+    }
+
+    impl Reap for FakeChild {
+        fn wait(&mut self) -> std::io::Result<std::process::ExitStatus> {
+            self.waits
+                .pop_front()
+                .unwrap_or_else(|| Err(std::io::Error::other("no more waits")))
+        }
+        fn kill(&mut self) -> std::io::Result<()> {
+            self.killed = true;
+            Ok(())
+        }
+    }
+
+    fn exit_ok() -> std::process::ExitStatus {
+        use std::os::unix::process::ExitStatusExt;
+        std::process::ExitStatus::from_raw(0)
+    }
+
+    /// 대기에 실패하면 끝내기를 시도하고 다시 기다린다. 그래도 실패하면 종료 확인 실패로 보고하고,
+    /// 두 번째 대기가 성공하면 그 종료로 보고한다.
+    #[test]
+    fn a_failed_wait_kills_and_reports_an_unconfirmed_exit() {
+        let mut stuck = FakeChild {
+            waits: VecDeque::from([
+                Err(std::io::Error::other("first")),
+                Err(std::io::Error::other("second")),
+            ]),
+            killed: false,
+        };
+        assert_eq!(
+            settle("stuck", &mut stuck),
+            ShellEvent::WaitFailed("second".into())
+        );
+        assert!(stuck.killed);
+        let mut recovered = FakeChild {
+            waits: VecDeque::from([Err(std::io::Error::other("first")), Ok(exit_ok())]),
+            killed: false,
+        };
+        assert_eq!(
+            settle("recovered", &mut recovered),
+            ShellEvent::Exited(Some(0))
+        );
+        assert!(recovered.killed);
     }
 
     /// surface 훅 셸·전역 훅·수동 dispatch가 한 실행기의 슬롯과 대기열을 함께 쓴다.
@@ -355,9 +642,10 @@ mod tests {
         let (tx, rx) = mpsc::channel();
         pool.submit(|| held_job(&dir, "held", tx.clone()))
             .expect("accepted");
-        assert_eq!(wait_lines(&dir.join("order"), 1).len(), 1);
+        wait_lines(&dir.join("order"), 1);
         let mark = |name: &str| format!("touch {}", dir.join(name).display());
         super::super::global::submit_command_in(&pool, &mark("global"));
+        assert_eq!(pool.waiting(), 1, "the global hook takes the queue place");
         super::super::trigger::submit_hook_shell(
             &pool,
             mark("surface"),
@@ -374,19 +662,14 @@ mod tests {
             }
         });
         assert_eq!(dispatched, Err(ShellNotQueued::Full));
-        std::fs::write(dir.join("release"), "").expect("release");
-        assert_eq!(collect(&rx, 1), ["held"]);
-        let deadline = Instant::now() + Duration::from_secs(20);
-        while !dir.join("global").exists() && Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(10));
-        }
+        assert_eq!(pool.waiting(), 1, "a refused job entered the queue");
+        release(&dir);
+        wait_idle(&pool, Duration::from_secs(20));
+        assert_eq!(reports(&rx), started_and_exited(&["held"]));
         assert!(
             dir.join("global").exists(),
             "the queued global hook did not run"
         );
-        while pool.lock().running > 0 && Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(10));
-        }
         assert!(!dir.join("surface").exists(), "a refused surface hook ran");
         assert!(!dir.join("dispatch").exists(), "a refused dispatch ran");
     }

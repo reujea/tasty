@@ -1,6 +1,7 @@
 //! 접수 응답 뒤에 끝나는 요청의 최종 결과. 접수 응답의 `run` 값으로 `run.result`가 조회한다.
 //! 결과를 쓰는 쪽(메인 루프·작업 스레드)과 읽는 IPC 처리가 다르므로 프로세스 전역 잠금 안에 둔다.
 //! 최근 [`KEEP`]건만 보관한다. 처음 기록한 최종 결과만 남고 뒤의 기록은 무시한다.
+//! 예외는 [`overrule`]이며 시작 성공으로 판정한 뒤 그 판정이 틀렸음이 드러난 경우에만 쓴다.
 
 use std::collections::VecDeque;
 #[cfg(feature = "gui")]
@@ -148,6 +149,15 @@ pub(crate) fn fail_unapplied(id: u64, applied: &anyhow::Result<()>) {
         Ok(()) => "the request was not applied".to_string(),
     };
     finish(id, RunState::Failed, reason, Value::Null);
+}
+
+/// 이미 기록한 최종 결과를 실패로 바꾼다. 셸 핸들러가 시작 성공으로 끝난 뒤 종료를 확인하지
+/// 못한 경우처럼, 앞선 판정의 전제가 무너졌을 때만 쓴다.
+pub(crate) fn overrule(id: u64, state: RunState, result: impl Into<String>) {
+    if let Some(run) = runs().iter_mut().find(|r| r.id == id) {
+        run.state = Some(state);
+        run.result = result.into();
+    }
 }
 
 /// 끝난 뒤에도 정보 필드와 결과 문장을 덧붙인다. 상태는 바꾸지 않는다(셸 종료 코드 등).

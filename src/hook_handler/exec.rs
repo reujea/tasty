@@ -169,6 +169,8 @@ pub enum ShellEvent {
     NotStarted(String),
     /// 종료 코드. 시그널 종료처럼 코드가 없으면 None이다.
     Exited(Option<i32>),
+    /// 프로세스를 띄웠지만 종료를 확인하지 못했다. 실행기는 끝내기를 시도한 뒤 슬롯을 다음 작업에 넘긴다.
+    WaitFailed(String),
 }
 
 /// 수동 dispatch의 셸 핸들러 Command. 셸을 자동으로 거치지 않고 command·args로 직접 실행한다.
@@ -222,7 +224,10 @@ mod tests {
                 "test",
                 move || dispatch_command(&command, &args, env),
                 move |event| {
-                    if let ShellEvent::Exited(_) | ShellEvent::NotStarted(_) = event {
+                    if let ShellEvent::Exited(_)
+                    | ShellEvent::NotStarted(_)
+                    | ShellEvent::WaitFailed(_) = event
+                    {
                         tx.send(event).expect("report the end");
                     }
                 },
