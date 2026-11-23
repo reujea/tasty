@@ -53,18 +53,18 @@ fn release(clock: &ManualClock) {
 /// `kind`의 확정 revision이 `target`이 될 때까지 결과를 거둔다.
 fn settle_to(f: &mut Fixture, kind: &str, target: u64) {
     let deadline = Instant::now() + WAIT;
-    // parts.poll 은 끝난 쓰기 결과를 거둘 뿐이라 기한 뒤 마지막 읽기 앞에서도 부른다.
+    // 원래 순서는 읽기 → 기한 검사 → 거두기 → 쉼이다. 거두기는 검사를 통과한 뒤에만 돌리고,
+    // 기한 뒤 관측 읽기에서는 끝난 결과만 거둔 뒤 한 번 더 읽는다.
+    let mut started = false;
     assert!(
-        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(1), |last| {
-            if last {
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |last| {
+            if last || std::mem::replace(&mut started, true) {
                 f.parts.poll();
-            }
-            f.shared.recent.revisions(kind).committed >= target || {
                 if !last {
-                    f.parts.poll();
+                    std::thread::sleep(Duration::from_millis(1));
                 }
-                false
             }
+            f.shared.recent.revisions(kind).committed >= target
         }),
         "{kind} never reached revision {target}"
     );
@@ -304,17 +304,18 @@ fn reopening_many_times_keeps_the_order_and_the_open_times() {
         recent.add("markdown", opened.clone());
         let after = wall_secs();
         let deadline = Instant::now() + WAIT;
+        // 원래 순서는 읽기 → 기한 검사 → 거두기 → 쉼이다. 거두기는 검사를 통과한 뒤에만 돌리고,
+        // 기한 뒤 관측 읽기에서는 끝난 결과만 거둔 뒤 한 번 더 읽는다.
+        let mut started = false;
         assert!(
-            tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(1), |last| {
-                if last {
+            tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |last| {
+                if last || std::mem::replace(&mut started, true) {
                     parts.poll();
-                }
-                shared.recent.revisions("markdown").committed >= 1 || {
                     if !last {
-                        parts.poll();
+                        std::thread::sleep(Duration::from_millis(1));
                     }
-                    false
                 }
+                shared.recent.revisions("markdown").committed >= 1
             }),
             "round {round} never committed"
         );

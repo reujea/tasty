@@ -61,19 +61,18 @@ mod tests {
         );
         core.submit_periodic_prune(0);
         let deadline = Instant::now() + Duration::from_secs(10);
-        // reap_detached 는 끝난 요청을 거둘 뿐이라 기한 뒤 마지막 읽기 앞에서도 부른다.
+        // 원래 순서는 읽기 → 기한 검사 → 쉼 → 요청 거두기다. 쉼과 거두기는 검사를 통과한 뒤에만 돌리고, 기한 뒤
+        // 관측 읽기에서는 끝난 요청만 거둔 뒤 한 번 더 읽는다.
+        let mut started = false;
         assert!(
             tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |last| {
-                if last {
-                    core.memory_access().reap_detached();
-                }
-                core.memory_access().detached_len() == 0 || {
+                if last || std::mem::replace(&mut started, true) {
                     if !last {
                         std::thread::sleep(Duration::from_millis(10));
-                        core.memory_access().reap_detached();
                     }
-                    false
+                    core.memory_access().reap_detached();
                 }
+                core.memory_access().detached_len() == 0
             }),
             "정리 요청이 끝나지 않았다"
         );

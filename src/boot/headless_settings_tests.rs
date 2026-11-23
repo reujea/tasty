@@ -37,21 +37,19 @@ fn invalid_file_boot_uses_and_persists_one_normalized_snapshot() {
         );
     }
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-    // holds_by 로 바꾸지 않는다. poll_file_writer 는 child cleanup 제출과 webhook 처리를 함께 진행해
-    // 기한 뒤 관측에서 부를 수 없고, 그것 없이 저장 완료를 볼 길이 없다.
-    loop {
-        app.services.poll_file_writer();
-        let persisted: crate::settings::Settings =
-            toml::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-        if persisted.anomaly_detection == settings.anomaly_detection {
-            break;
-        }
-        assert!(
-            std::time::Instant::now() < deadline,
-            "normalized file was not saved"
-        );
-        std::thread::yield_now();
-    }
+    // poll_file_writer 는 child cleanup 제출과 webhook 처리도 진행하므로 기한 뒤 관측 읽기에서는
+    // 부르지 않는다. 저장 결과는 파일을 다시 읽어 poll 없이 볼 수 있다.
+    assert!(
+        tasty_utils::test_wait::holds_by_every(deadline, std::time::Duration::ZERO, |last| {
+            if !last {
+                app.services.poll_file_writer();
+            }
+            let persisted: crate::settings::Settings =
+                toml::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            persisted.anomaly_detection == settings.anomaly_detection
+        }),
+        "normalized file was not saved"
+    );
     let mut next = session.runtime.settings.clone();
     next.general.language = "ko".into();
     assert!(

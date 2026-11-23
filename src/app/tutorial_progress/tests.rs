@@ -21,18 +21,18 @@ fn writer() -> (
 
 fn poll_until_settled(runtime: &mut TutorialRuntime) {
     let deadline = Instant::now() + Duration::from_secs(10);
-    // poll_progress 는 끝난 영수증을 거둘 뿐이라 기한 뒤 마지막 읽기 앞에서도 부른다.
+    // 원래 순서는 읽기 → 기한 검사 → 거두기 → 쉼이다. 거두기는 검사를 통과한 뒤에만 돌리고,
+    // 기한 뒤 관측 읽기에서는 끝난 결과만 거둔 뒤 한 번 더 읽는다.
+    let mut started = false;
     assert!(
-        tasty_utils::test_wait::holds_by_every(deadline, Duration::from_millis(1), |last| {
-            if last {
+        tasty_utils::test_wait::holds_by_every(deadline, Duration::ZERO, |last| {
+            if last || std::mem::replace(&mut started, true) {
                 runtime.poll_progress();
-            }
-            runtime.pending_progress_is_empty() || {
                 if !last {
-                    runtime.poll_progress();
+                    std::thread::sleep(Duration::from_millis(1));
                 }
-                false
             }
+            runtime.pending_progress_is_empty()
         }),
         "tutorial receipts never completed"
     );

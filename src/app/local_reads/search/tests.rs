@@ -285,19 +285,20 @@ fn a_slow_consumer_gets_every_event_in_order_under_backpressure() {
             }
         }
     };
+    // 원래 순서는 읽기 → 기한 검사 → 큐 소비 → 쉼이다. 소비는 backpressure 를 풀므로 검사를 통과한
+    // 뒤에만 돌리고, 기한 뒤 관측 읽기에서는 이미 큐에 든 사건만 꺼낸 뒤 한 번 더 읽는다.
+    let mut started = false;
     assert!(tasty_utils::test_wait::holds_by_every(
         deadline,
-        Duration::from_millis(1),
+        Duration::ZERO,
         |last| {
-            if last {
+            if last || std::mem::replace(&mut started, true) {
                 collect(&mut receipt);
-            }
-            receipt.terminal_seen || {
                 if !last {
-                    collect(&mut receipt);
+                    std::thread::sleep(Duration::from_millis(1));
                 }
-                false
             }
+            receipt.terminal_seen
         }
     ));
     worker.join().unwrap();

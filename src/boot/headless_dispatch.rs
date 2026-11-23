@@ -607,25 +607,21 @@ mod app_layer_reply_tests {
 
     fn answer(app: &crate::app::App, rx: &mpsc::Receiver<JsonRpcResponse>) -> JsonRpcResponse {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-        // poll_memory_replies 는 끝난 응답을 거둘 뿐이라 기한 뒤 마지막 읽기 앞에서도 부른다.
+        // 원래 순서는 받기 → 기한 검사 → 응답 거두기 → 쉼이다. 거두기는 검사를 통과한 뒤에만 돌리고,
+        // 기한 뒤 관측 읽기에서는 이미 나온 응답만 거둔 뒤 한 번 더 받는다.
+        let mut started = false;
         let mut reply = None;
         assert!(
-            tasty_utils::test_wait::holds_by_every(
-                deadline,
-                std::time::Duration::from_millis(1),
-                |last| {
-                    if last {
-                        app.services.poll_memory_replies(None);
-                    }
-                    reply = rx.try_recv().ok();
-                    reply.is_some() || {
-                        if !last {
-                            app.services.poll_memory_replies(None);
-                        }
-                        false
+            tasty_utils::test_wait::holds_by_every(deadline, std::time::Duration::ZERO, |last| {
+                if last || std::mem::replace(&mut started, true) {
+                    app.services.poll_memory_replies(None);
+                    if !last {
+                        std::thread::sleep(std::time::Duration::from_millis(1));
                     }
                 }
-            ),
+                reply = rx.try_recv().ok();
+                reply.is_some()
+            }),
             "no reply"
         );
         reply.expect("the wait held")

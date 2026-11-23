@@ -18,18 +18,18 @@ fn worker<T: Send + 'static>() -> (ImageWorker<T>, mpsc::Receiver<()>) {
 fn wait_results<T: Send + 'static>(worker: &mut ImageWorker<T>, count: usize) -> Vec<T> {
     let deadline = Instant::now() + Duration::from_secs(10);
     let mut done = Vec::new();
-    // take_results 는 끝난 결과만 꺼내므로 기한 뒤 관측에서도 꺼낸 뒤 읽는다.
+    // 원래 순서는 읽기 → 기한 검사 → 거두기 → 쉼이다. 거두기는 검사를 통과한 뒤에만 돌리고,
+    // 기한 뒤 관측 읽기에서는 끝난 결과만 거둔 뒤 한 번 더 읽는다.
+    let mut started = false;
     assert!(
-        holds_by_every(deadline, Duration::from_millis(1), |last| {
-            if last {
+        holds_by_every(deadline, Duration::ZERO, |last| {
+            if last || std::mem::replace(&mut started, true) {
                 done.extend(worker.take_results());
-            }
-            done.len() >= count || {
                 if !last {
-                    done.extend(worker.take_results());
+                    std::thread::sleep(Duration::from_millis(1));
                 }
-                false
             }
+            done.len() >= count
         }),
         "image job results did not arrive"
     );
