@@ -337,7 +337,7 @@ pub(super) fn notice_window(
             egui::vec2(lnb.width(), h.value()),
         );
         sidebar::paint_ws_row(ui, th, card, spec_row);
-        top = top + h;
+        top += h;
     }
     let body = egui::Rect::from_min_max(egui::pos2(lnb.right(), frame.top()), frame.max);
     let strip =
