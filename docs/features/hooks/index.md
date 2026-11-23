@@ -72,7 +72,7 @@ surface hook 은 셸 명령 문자열 대신 **공유 훅 핸들러 레지스트
 - 내장도 아니고 활성 플러그인이 선언하지도 않은 키(오타·미존재 이벤트)는 **등록 거부**(`invalid_params`, 에러 메시지에 내장 + 활성 선언 목록 안내). 실행될 수 없는 훅 등록을 막는다.
 - 따라서 **플러그인이 비활성이면 그 플러그인의 이벤트 hook 등록도 거부**된다(예: claude plugin 비활성 시 `claude-idle` hook 등록 불가 — 동작하지 않는 설정 방지). claude plugin 이 선언하는 키는 `tasty-official-plugins/crates/tasty-plugin-claude/tasty-plugin.toml` 의 `[[contributes.hook_events]]` 가 정본이다.
 
-- **once**는 첫 매칭 이벤트에서 등록을 제거하고 실행 접수를 시도한다. 핸들러가 없거나 실행기 대기열이 차서(아래 [셸 명령 실행 상한](#셸-명령-실행-상한)) 실행되지 않아도 등록은 이미 소진됐다. 한 번의 판정에 이벤트가 여러 개 들어와도 같은 once 등록을 다시 실행하지 않는다. 기본값인 persistent는 맞는 이벤트마다 실행한다. 검증 방법은 [guard-verification](../../dev-guide/guard-verification.md)을 따른다.
+- **once**는 첫 매칭 이벤트에서 등록을 제거하고 실행 접수를 시도한다. 핸들러가 없거나 실행기 대기열이 차서(아래 [셸 명령 실행 상한](#셸-명령-실행-상한)) 실행되지 않아도 등록은 이미 소진됐다. 한 번의 판정에 이벤트가 여러 개 들어와도 같은 once 등록을 다시 실행하지 않는다. 기본값인 persistent는 맞는 이벤트마다 실행을 제출한다. 발화는 제출 시도이고, 실행기가 포화면 그 제출은 거절돼 실행되지 않는다. 검증 방법은 [guard-verification](../../dev-guide/guard-verification.md)을 따른다.
 - **비동기 실행**: 훅 동작은 백그라운드에서(메인 루프 블로킹 없음 — 셸은 아래 [셸 명령 실행 상한](#셸-명령-실행-상한)의 공유 실행기, `IpcSequence` 는 아래 "바인딩" 절의 실행기 스레드). 각 이벤트의 발생 surface ID 를 추적해 올바른 surface 에서 실행.
 - ProcessExit은 GUI/headless 모두에서 surface 자동 닫기까지 수행한다(surface→tab→pane→workspace 계층 정리, 마지막이면 새 셸 spawn). 두 빌드 모두 공용 PTY 종료 처리(`src/app/process_exit.rs`)에서 종료 hook의 binding 실행을 시작하고 `HookFired`를 쌓은 뒤 surface를 닫는다.
 - 자연 발생 이벤트는 모두 `HookRuntimeState::fire` 한 경로로 발화해 `HookFired`를 쌓는다. GUI는 process-exit · bell · notification · output-match · idle-timeout · command-completed를, headless는 그중 process-exit · output-match · idle-timeout을 관측한다. `HookFired`와 `surface.fire_hook` 응답의 발화 수는 훅이 발화했다는 뜻이며, 바인딩의 셸 작업이 끝났거나 실행기에 접수됐다는 뜻이 아니다(포화로 거절돼도 발화로 센다).
@@ -104,13 +104,14 @@ webhook은 요청별 스레드에서 실행하므로 이 순서에 포함되지 
 
 surface 훅 셸(`InlineShell`, `Handler` → `ShellCommand`), 수동 `hook_handler.dispatch`의 `ShellCommand`, 전역 훅 명령은 프로세스에 하나 있는 공유 실행기(`src/hook_runtime/shell_pool.rs`)를 함께 쓴다. 이벤트 스레드는 작업을 넣기만 하고 기다리지 않는다.
 
-- 작업을 맡는 슬롯은 최대 32개(`RUNNING_LIMIT`)다. 슬롯 하나는 `hook-shell` 스레드 하나가 자식을 띄우고 그 자식이 끝날 때까지 기다린다. 한 건의 끝은 직접 자식의 종료다. 셸이 띄운 후손이 남아 있어도 셸이 끝나면 그 슬롯은 다음 작업으로 넘어간다. 그래서 살아 있는 직접 자식은 최대 32개다. 대기열이 비면 스레드는 끝난다.
+- 작업을 맡는 슬롯은 최대 32개(`RUNNING_LIMIT`)다. 슬롯 하나는 `hook-shell` 스레드 하나가 자식을 띄우고 그 자식이 끝날 때까지 기다린다. 한 건의 끝은 직접 자식의 종료다. 셸이 띄운 후손이 남아 있어도 셸이 끝나면 그 슬롯은 다음 작업으로 넘어간다. 예외로 자식의 종료를 기다리지 못하면 그 자식을 끝내고 한 번 더 기다리며, 그래도 확인하지 못하면 오류 로그를 남기고 슬롯을 넘긴다. 이때 자식이 살아 있을 수 있어 직접 자식 32개 상한을 보장하지 못한다. 작업의 Command 빌더나 결과 보고가 패닉해도 슬롯은 돌아온다. 이미 띄운 자식은 끝내고 회수한다. 그래서 살아 있는 직접 자식은 최대 32개다. 대기열이 비면 스레드는 끝난다.
 - 슬롯이 모두 찼을 때만 대기열(256개, `WAITING_LIMIT` = `INJECTED_DEPTH_LIMIT`)에 넣는다. 대기열은 접수 순서로 꺼낸다. 여러 슬롯이 꺼낸 뒤 실제 프로세스가 시작·종료되는 순서는 보장하지 않는다.
 - 슬롯 32개와 대기 256개가 모두 찼거나 실행기 스레드를 만들지 못하면 그 작업은 실행하지 않는다. 자동 재시도나 다른 스레드에서의 대신 실행은 없다. surface 훅과 전역 훅은 아래 [자동 실행 실패 알림](#자동-실행-실패-알림)을 남기고, 수동 dispatch는 run을 만들지 않고 `-32603`으로 거절한다.
 - 발화 판정의 기록은 접수 전에 끝난다. 거절돼도 surface 훅 once 등록과 전역 훅 once는 소진되고, 전역 훅 interval의 마지막 시각과 file의 mtime 기준도 갱신된 상태다. interval 훅은 이전 실행이 아직 돌고 있어도 주기가 지난 틱에 다시 제출한다.
 - Command(상속 환경 제거, PATH 보강, Windows 콘솔 숨김)는 대기열에 넣을 때가 아니라 실행 직전에 만든다. 대기 중에 플러그인 활성 상태가 바뀌면 바뀐 제거 규칙을 쓴다. 명령·인자·`TASTY_HOOK_*` 값은 발화 시점 값이다.
 - 32는 fd 여유로 정했다. 훅 작업 하나는 `spawn()` 동안 부모에 fd를 잠깐 약 5개(null stdio 3개, exec 통지 2개. Rust std 구현을 읽은 추정) 더 열고, 기다리는 동안에는 남기지 않는다. Tasty는 `RLIMIT_NOFILE`을 올리지 않으며 macOS의 초기 soft 한도는 256이다. 64개가 한꺼번에 spawn 중이면 추가분 추정(약 320개)이 그 한도를 넘으므로 범위(32~64)의 아래 끝을 쓴다. 32에서도 호스트가 이미 연 fd에 따라 여유가 없을 수 있다(데스크톱 실측 없음).
 - 수동 셸 dispatch의 run은 실행기가 받은 뒤 만든다. 대기 중에는 `running`이고 시작하면 `succeeded`다. run 저장소는 다른 요청과 함께 최근 128건만 두므로, 대기열에서 오래 기다린 run은 시작하기 전에 밀려나 `hook_handler.result`가 `-32602`를 돌려줄 수 있다. 그 작업은 나중에 실행되지만 결과는 남지 않는다. CLI는 접수 뒤 결과 조회에 10초 읽기 예산을 쓴다(조회 요청을 쓰는 시간은 들지 않는다). 그 안에 시작했다는 결과를 받지 못하면 마지막 조회 응답(`running`)이나 `timed_out` 줄, 또는 밀려난 run의 `-32602`로 종료 코드 1이 되며 작업은 나중에 실행될 수 있다. 실행기 스레드를 만들지 못한 셸 dispatch는 run 없이 `-32603`으로 거절된다.
+- 실행기는 종료 처리에서 멈추지 않는다. 종료 처리 중에도 실행기 스레드가 대기열의 작업을 꺼내 시작할 수 있다. 프로세스가 끝나면 대기열에 남은 요청은 알림 없이 사라지고, 이미 시작한 자식은 기다리거나 끝내지 않는다. 다른 분리된 백그라운드 스레드와 같은 처리다.
 
 로그의 출처는 `SequenceOrigin`에 따라 `webhook`, `surface hook`, `hook_handler.dispatch`로 구분한다.
 로컬 실행에 필요한 injector가 없으면 warning을 남기고 실행을 건너뛴다.
@@ -122,7 +123,7 @@ surface 훅 셸(`InlineShell`, `Handler` → `ShellCommand`), 수동 `hook_handl
 - 응답: `{run, id, action, done, state, result, steps?, exit_code?}`. `done`이 false면 `state: "running"`이다.
 - `state`: `IpcSequence`는 `SequenceOutcome::verdict`로 정한다. 모든 step이 `ok`면 `succeeded`, 성공한 step이 없으면 `failed`, 일부만 성공하면 `partial`, 실패는 없지만 결과 불명 step이 있으면 `unknown`이다. 결과 불명은 성공으로 보고하지 않는다.
 - `result`: 표시 언어와 관계없는 영어 한 줄. 예: `1 of 2 steps succeeded; step 2 (nosuch.method) failed: rpc error -32601: ...`. `steps`는 step별 `{step, method, status(ok|failed|not_run|unknown), error}`다.
-- `ShellCommand`는 프로세스를 띄웠으면 `succeeded`("process started"), 띄우지 못했으면 `failed`("process could not start: <원인>")다. 종료 코드는 끝난 뒤 `exit_code`와 `result`에 정보로 실으며 판정에 쓰지 않는다.
+- `ShellCommand`는 프로세스를 띄웠으면 `succeeded`("process started"), 띄우지 못했으면 `failed`("process could not start: <원인>")다. 종료 코드는 끝난 뒤 `exit_code`와 `result`에 정보로 실으며 판정에 쓰지 않는다. 예외로 띄운 뒤 종료를 확인하지 못하면 `succeeded`였던 run을 `failed`("process started but its exit could not be confirmed: <원인>")로 바꾼다.
 - 실행 기록은 `file_handler.dispatch`·`markdown.navigate`와 같은 저장소(`src/request_runs.rs`)에 있으며, 합쳐서 최근 128건(`request_runs::KEEP`)만 보관한다. 그보다 오래되었거나 알 수 없는 `run`은 `-32602`다. 큐 포화·실행기 부재로 동기 거절된 dispatch는 기록을 남기지 않는다. 셸 dispatch가 대기열에서 기다리는 동안 밀려나는 경우는 [셸 명령 실행 상한](#셸-명령-실행-상한)에 있다.
 - CLI `tasty hook-handler dispatch`는 접수 줄을 출력한 뒤 200ms 간격으로 조회해 최종 결과 줄을 출력한다. 기다리는 상한은 10초 × (step 수 + 1)이다. 최종 상태가 `succeeded`가 아니거나 상한 안에 끝나지 않으면 종료 코드 1이다. 결과 조회 응답도 남은 시간까지만 읽는다(소켓 읽기 timeout). 상한 안에 응답이 오지 않으면 `{run, done: false, state: "running", timed_out: true, result: "no answer to hook_handler.result within <N> ms; the final result is unknown"}`를 마지막 줄로 출력하고 종료 코드 1로 끝난다. `--no-wait`는 접수 줄만 출력하고, 결과는 `tasty hook-handler result --run <N>`으로 조회한다.
 - 기다리는 dispatch는 요청을 여러 번 보내는 client-driven 명령(`crates/tasty-cli/src/dispatch.rs`의 `ClientDriven`)이다. 요청 하나에 싣는 루트 옵션 `--response-timeout-ms`를 주면 `Envelope::refuse_if_set`이 아무것도 보내지 않고 종료 코드 2로 끝낸다. `--no-wait`는 요청 하나라 일반 경로로 보내고 이 옵션을 그 요청에 싣는다. CLI에는 멱등 키 옵션이 없으며, 결과 조회 요청은 항상 멱등 키 없이 보낸다(`hook_handler.result`는 `Read`라 키를 보존하지 않는다).
@@ -187,8 +188,8 @@ surface 훅의 `sh -c`/`cmd /C` 실행과 수동 dispatch의 직접 실행(`hook
 
 surface 무관 — `condition` 으로 트리거:
 
-- `interval:SECS` — 매 N초 반복
-- `once:SECS` — N초 후 1 회 실행 후 자동 삭제
+- `interval:SECS` — 매 N초 실행을 제출한다. 실행기가 포화면 그 회차는 거절돼 실행되지 않고 다음 주기에 다시 제출한다
+- `once:SECS` — N초 후 1 회 실행을 제출하고 자동 삭제한다. 등록은 제출 전에 소진되므로 실행기가 포화면 한 번도 실행되지 않을 수 있다
 - `file:/path` — 파일 mtime 변경 감지 시(다른 조건과 동일한 1Hz 폴링 — 별도 watcher
   없음, 파일 저장 즉시가 아니라 최대 1 초 지연 후 감지). 등록 시점의 mtime을
   기준선으로 기록하므로 등록 직후엔 발생하지 않는다. 파일이 없는 상태로 등록했다가
@@ -196,7 +197,7 @@ surface 무관 — `condition` 으로 트리거:
   자동 삭제되지 않고, 다시 생기면 재감지한다. 파일 하나만 지원 — 디렉토리 경로도
   `metadata`가 mtime을 반환하므로 동작은 하지만 공식 지원 범위 밖이다.
 
-전역 훅 명령은 조건을 만족한 Busy 틱(1초)에 [셸 명령 실행 상한](#셸-명령-실행-상한)의 공유 실행기에 들어가고, 실행기가 셸이 끝날 때까지 기다린다. 전역 훅 명령(`sh -c` / `cmd /C`)도 surface 훅과 같은 판정으로 상속한 `CMUX_*` 와 활성 플러그인이 선언한 제품 세션 변수, 바깥 인스턴스의 신원 변수(`TASTY_SESSION_TOKEN`·`TASTY_SURFACE_ID`·`TASTY_PARENT_HOME`·`TASTY_AGENT_ID`)를 지운다([터미널 자식 셸 환경변수](../../surfaces/terminal/index.md#pty-셸)).
+전역 훅 명령은 조건을 만족한 Busy 틱(1초)에 [셸 명령 실행 상한](#셸-명령-실행-상한)의 공유 실행기에 제출된다. 접수되면 실행기가 셸이 끝날 때까지 기다린다. 전역 훅 명령(`sh -c` / `cmd /C`)도 surface 훅과 같은 판정으로 상속한 `CMUX_*` 와 활성 플러그인이 선언한 제품 세션 변수, 바깥 인스턴스의 신원 변수(`TASTY_SESSION_TOKEN`·`TASTY_SURFACE_ID`·`TASTY_PARENT_HOME`·`TASTY_AGENT_ID`)를 지운다([터미널 자식 셸 환경변수](../../surfaces/terminal/index.md#pty-셸)).
 
 ## 인터페이스
 
