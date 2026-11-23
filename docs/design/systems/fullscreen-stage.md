@@ -242,7 +242,7 @@ wgpu 렌더 표면 **위**에 있다. 그리지 않아도 화면에 남으므로
   판정이 오염된다.
 - 종료 키 판정은 `stage_exit_key_matches` **한 곳**에만 있고, 값은
   `KeybindingSettings.fullscreen_stage_exit`(4 프리셋 공통 기본값 `escape`)에서 읽는다 —
-  코드에 키 리터럴이 없다(CLAUDE.md 단축키 정책).
+  코드에 키 리터럴이 없다([키 매핑](../policies/key-mapping.md) "규칙 (필수)").
 - **그 조회는 무대 게이트 안에만 있다.** `stage_key_decision` 이 무대 비활성이면 판정 전에
   `PassThrough` 로 빠지므로, modifier 없는 기본값 ESC 가 평상시 ESC 동작(settings 모달·
   notifications 팝업 닫기, 터미널 `\x1b` 전달)을 훔칠 경로가 구조적으로 없다. 조회를 게이트

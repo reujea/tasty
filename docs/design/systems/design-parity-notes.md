@@ -313,7 +313,7 @@ State 셀은 `status_dot`(점 `status_dot_size` 8 + `space-xs` 4 + caption 11px 
 
 - **증상**: 갤러리 specimen 에 `t()` 를 적용하려다 의존성/관례 충돌.
 - **원인**: `tasty-gallery` 는 `tasty-i18n` 에 의존하지 않는다(Cargo.toml). 모든 specimen 이
-  하드코딩 mock 영문 라벨을 쓴다(Storybook 류 격리 시각 카탈로그). CLAUDE.md 의 `t()` 규칙은 *본체 shipping UI* 대상이며 갤러리
+  하드코딩 mock 영문 라벨을 쓴다(Storybook 류 격리 시각 카탈로그). [i18n](../../dev-guide/i18n.md) 의 `t()` 규칙은 *본체 shipping UI* 대상이며 갤러리
   specimen 은 범위 밖.
 - **처방**: 갤러리 specimen 라벨은 대상 디자인 jsx 의 영문 라벨을 그대로 미러(하드코딩). i18n
   의존 추가는 단일 specimen 작업 범위 밖.

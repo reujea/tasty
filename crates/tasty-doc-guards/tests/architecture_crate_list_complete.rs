@@ -1,4 +1,4 @@
-//! 아키텍처 문서에 실제 크레이트가 모두 나오는지, CLAUDE.md의 개수가 맞는지 확인한다.
+//! 아키텍처 문서에 실제 크레이트가 모두 나오는지, 적힌 개수가 맞는지 확인한다.
 //! 문서에만 있는 이름은 검사하지 않는다. 바이너리 이름도 설명에 나올 수 있기 때문이다.
 //! 계층 소속과 의존 방향은 architecture_layer_order_holds에서 별도로 검사한다.
 
@@ -61,27 +61,5 @@ fn stated_crate_count_matches_directories() {
     assert!(
         doc.contains(&overview),
         "{DOC}: the overview sentence must say `{overview}` ({CRATES_DIR}/ holds {actual} crates)"
-    );
-}
-
-/// `CLAUDE.md` 의 복제본은 정본과 문장 형태가 다르다 — 정본은 "N 개 크레이트(`crates/*`)"
-/// 이고 여기는 어순이 뒤집힌 "`crates/*` N 개" 다. 그래서 같은 술어로 못 찾는다.
-const CLAUDE_MD: &str = "CLAUDE.md";
-
-#[test]
-fn claude_md_crate_count_matches_directories() {
-    let actual = crate_dir_names().len();
-    let expected = format!("`crates/*` {actual} 개");
-    let contents = read(CLAUDE_MD);
-    assert!(
-        contents.contains(&expected),
-        "{CLAUDE_MD} 의 \"빌드\" 절이 `{expected}` 라고 말해야 한다 ({CRATES_DIR}/ 실측 \
-         {actual}). 지금 그 형태로 적힌 줄:\n{}",
-        contents
-            .lines()
-            .filter(|l| l.contains("`crates/*`"))
-            .map(|l| format!("      {}", l.trim()))
-            .collect::<Vec<_>>()
-            .join("\n")
     );
 }

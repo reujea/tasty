@@ -251,7 +251,7 @@ ports-and-adapters 배치:
 | 사용자/에이전트 행동 분리 | release 빌드 IPC 노출 | review + `#[cfg(debug_assertions)]` 격리 — [debug-ipc](../dev-guide/debug-ipc.md) |
 | Intent 디스패치 규율 | 호스트 내부 동작 | `check-intent-discipline.sh` 소스 검사 — [action-dispatch](../design/flows/action-dispatch.md) |
 
-> 새 invariant 는 *위반이 조용히 통과하면 큰 회귀* 인 약속만 등재한다. 일반 코딩 규칙은 [CLAUDE.md](../../CLAUDE.md)/dev-guide 로.
+> 새 invariant 는 *위반이 조용히 통과하면 큰 회귀* 인 약속만 등재한다. 일반 코딩 규칙은 [작업 규칙](../dev-guide/working-rules.md)과 dev-guide 로.
 
 결정의 *근거/대안/재검토 조건*(보류 결정 포함)은 [ADR](../adr/index.md).
 

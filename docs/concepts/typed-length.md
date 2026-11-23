@@ -2,7 +2,7 @@
 
 길이에는 `PhysicalPx` 또는 `LogicalPx`를 사용한다. 두 타입은 좌표계가 다른 값을 섞는 실수를 막는다. 원시 `f32`를 잘못 감싸거나 변환을 생략한 것까지 컴파일러가 확인해 주지는 않는다.
 
-정의는 `crates/tasty-type-geometry/src/length.rs`, 프로젝트 규칙은 [CLAUDE.md](../../CLAUDE.md)의 길이 타입 절에 있다.
+정의는 `crates/tasty-type-geometry/src/length.rs`, 프로젝트 규칙은 아래 "규칙"이다.
 
 ## 규칙 (필수)
 

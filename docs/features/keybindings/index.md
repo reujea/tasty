@@ -8,7 +8,7 @@
 
 ## 목적
 
-ESC·Enter처럼 당연하게 쓰이는 기본 조작을 제외한 Tasty 자체 **단축키는 `KeybindingSettings` 한 곳에서 정의**되며 코드에 하드코딩되지 않는다([CLAUDE.md](../../../CLAUDE.md) "단축키" 필수 정책). 사용자가 Settings 의 Keybindings 탭에서 액션별 키 조합을 추가/삭제/변경한다. OS 메뉴(macOS NSMenu / Windows AcceleratorTable)의 key equivalent 도 이 binding 을 따라간다.
+ESC·Enter처럼 당연하게 쓰이는 기본 조작을 제외한 Tasty 자체 **단축키는 `KeybindingSettings` 한 곳에서 정의**되며 코드에 하드코딩되지 않는다([키 매핑](../../design/policies/key-mapping.md) "규칙 (필수)"). 사용자가 Settings 의 Keybindings 탭에서 액션별 키 조합을 추가/삭제/변경한다. OS 메뉴(macOS NSMenu / Windows AcceleratorTable)의 key equivalent 도 이 binding 을 따라간다.
 
 ## 내부 동작
 

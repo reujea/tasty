@@ -1,12 +1,12 @@
 # 빌드 가이드
 
-tasty 의 워크스페이스 구조, 빌드 프로필, 빌드 시간 최적화. 강제 정책(어떤 프로필을 언제 쓰는지)은 [`../../CLAUDE.md`](../../CLAUDE.md) "빌드".
+tasty 의 워크스페이스 구조, 빌드 프로필, 빌드 시간 최적화. 강제 정책(어떤 프로필을 언제 쓰는지)은 아래 "빌드 프로필 (3종)", 검사 명령은 "검증 명령"이다.
 
 ## 워크스페이스 구조
 
 workspace는 본 바이너리(`src/`)와 `crates/*`로 구성한다. 전체 목록과 수는
 [아키텍처](../architecture/index.md)에서 관리한다. `architecture_crate_list_complete`와
-`readme_badge_parity`는 그 목록, 루트 지침, README의 수를 같은
+`readme_badge_parity`는 그 목록과 두 README의 수를 같은
 `crate_dir_names` 함수로 대조한다. 여기에는 역할별 예시만 적는다.
 
 | 레이어 | 예 | 성격 |

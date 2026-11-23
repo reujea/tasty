@@ -19,12 +19,11 @@
 use std::path::{Path, PathBuf};
 
 /// (저장소 상대 경로, 허용할 패턴 ID). 파일 전체가 아니라 필요한 패턴만 면제한다.
-/// CLAUDE.md는 규칙의 번호·디자인 slug 예시, .gitignore는 제외 경로 자체가 필요하다.
+/// .gitignore는 제외 경로 자체가 필요하다.
 /// 이 검사는 패턴 설명과 합성 입력, check-allow-reason은 빈 사유 금지 규칙을 설명한다.
 /// vendor 사본의 상류 할 일 표시는 외부 원문을 유지하기 위해 예외로 둔다.
 /// 면제되지 않은 패턴의 합성 입력은 fx!로 조립한다.
 const ALLOWLIST: &[(&str, &[&str])] = &[
-    ("CLAUDE.md", &["P1", "P4"]),
     (".gitignore", &["P6"]),
     (
         "crates/tasty-doc-guards/tests/no_todo_file_citation.rs",
@@ -1060,17 +1059,18 @@ fn prunes_build_outputs_and_local_dirs_but_not_assets() {
 #[test]
 fn allowlist_exempts_only_the_named_pattern_not_the_whole_file() {
     let planted = fx!("claude", "-workspace/todo", "/3.md");
-    let found = violations_in_line("CLAUDE.md", planted);
+    let found = violations_in_line(".gitignore", planted);
     assert!(
         found.iter().any(|v| v.starts_with("P3")),
         "면제 파일에 심은 비면제 패턴이 통과했다: {found:?}"
     );
 
-    assert!(violations_in_line("CLAUDE.md", fx!("see TODO", " 40")).is_empty());
+    let local_dir = fx!(".", "claude", "-workspace");
+    assert!(violations_in_line(".gitignore", local_dir).is_empty());
     assert!(
-        violations_in_line("src/main.rs", fx!("see TODO", " 40"))
+        violations_in_line("src/main.rs", local_dir)
             .iter()
-            .any(|v| v.starts_with("P1"))
+            .any(|v| v.starts_with("P6"))
     );
 
     let script = "scripts/check-allow-reason.sh";
@@ -1083,13 +1083,13 @@ fn allowlist_exempts_only_the_named_pattern_not_the_whole_file() {
 
 #[test]
 fn allowlist_paths_match_exactly_not_by_prefix_or_suffix() {
-    assert!(allowed_patterns("CLAUDE.md").contains(&"P1"));
-    assert!(allowed_patterns("docs/CLAUDE.md").is_empty());
-    assert!(allowed_patterns("CLAUDE.md.bak").is_empty());
-    assert!(allowed_patterns("crates/x/CLAUDE.md").is_empty());
+    assert!(allowed_patterns(".gitignore").contains(&"P6"));
+    assert!(allowed_patterns("docs/.gitignore").is_empty());
+    assert!(allowed_patterns(".gitignore.bak").is_empty());
+    assert!(allowed_patterns("crates/x/.gitignore").is_empty());
     assert!(allowed_patterns("").is_empty());
-    assert!(!allowed_patterns("CLAUDE.md").contains(&"P3"));
-    assert!(!allowed_patterns("CLAUDE.md").contains(&"P6"));
+    assert!(!allowed_patterns(".gitignore").contains(&"P1"));
+    assert!(!allowed_patterns(".gitignore").contains(&"P3"));
 }
 
 /// 예외의 파일·패턴 ID 존재만 확인한다. 예외가 아직 필요한지는 별도 검토해야 한다.

@@ -574,7 +574,7 @@ fn no_hardcoded_user_facing_strings() {
     }
     assert!(
         violations.is_empty(),
-        "user-facing string literals must go through t() (CLAUDE.md 국제화). Move each to \
+        "user-facing string literals must go through t() (docs/dev-guide/i18n.md). Move each to \
          lang/{{en,ko,ja,zh-Hans}}.toml, or if it is a fixed identifier register it in \
          LITERAL_TOKEN_ALLOWLIST / ALLOWLIST_PATH_PREFIXES with a reason \
          (docs/dev-guide/i18n.md 강제 테스트):\n{}",

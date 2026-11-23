@@ -1,6 +1,6 @@
 # 커밋 컨벤션
 
-tasty 는 [Conventional Commits](https://www.conventionalcommits.org/) 를 따른다. 강제 정책은 [`../../CLAUDE.md`](../../CLAUDE.md) "커밋 정책" — 이 문서는 형식·type·단위 기준의 상세다.
+tasty 는 [Conventional Commits](https://www.conventionalcommits.org/) 를 따른다. 강제 정책은 아래 "커밋 정책"이고, 나머지 절은 형식·type·단위 기준의 상세다.
 
 ## 커밋 정책
 
@@ -74,7 +74,7 @@ ADR([`../adr/index.md`](../adr/index.md)) 관련은 `docs(adr)` scope 권장.
 
 ## 버전 bump 커밋
 
-릴리스 버전 bump 의 형식·절차는 [`release.md`](release.md). 본체/plugin 패치 자동 +1 규칙은 [`../../CLAUDE.md`](../../CLAUDE.md) "버전 정책".
+릴리스 버전 bump 의 형식·절차는 [`release.md`](release.md). 본체/plugin 패치 자동 +1 규칙은 [`release.md`](release.md) "버전 정책".
 
 ## 예시
 

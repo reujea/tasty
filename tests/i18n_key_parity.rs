@@ -475,7 +475,7 @@ fn key_sets_match_english() {
     }
     assert!(
         problems.is_empty(),
-        "translation catalogs diverge from en (CLAUDE.md 국제화: add every key to all three files):\n{}",
+        "translation catalogs diverge from en (docs/dev-guide/i18n.md: add every key to all three files):\n{}",
         problems.join("\n")
     );
 }
