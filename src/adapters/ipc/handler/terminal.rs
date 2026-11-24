@@ -1944,19 +1944,25 @@ mod tests {
         assert!(path.is_some(), "isolated test home");
         let hub = crate::runtime::child_terminal::Hub::new(path);
         hub.test_attach_writer();
-        e.runtime.child_terminals =
-            crate::runtime::child_terminal::ChildTerminalRegistry::from_hub(&hub);
         let mut other = crate::runtime::child_terminal::ChildTerminalRegistry::from_hub(&hub);
         other.register_child(external("codex:w"), child(7777, 0));
         let ticket = other.submit().expect("other window save admitted");
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while ticket.poll().is_none() {
+        let saved = loop {
+            if let Some(result) = ticket.poll() {
+                break result;
+            }
             assert!(
                 std::time::Instant::now() < deadline,
                 "other window save missing"
             );
             std::thread::yield_now();
-        }
+        };
+        assert!(saved.is_ok(), "{saved:?}");
+        // 이미 떠 있는 client 는 다른 client 의 저장을 자기 저장 결과로만 받는다. 저장 뒤에 붙인 client 는
+        // 그 파일 상태로 시작하므로, 다른 창이 기록한 자식을 이 창이 보는 모양이 된다.
+        e.runtime.child_terminals =
+            crate::runtime::child_terminal::ChildTerminalRegistry::from_hub(&hub);
         let resp = handle_set_nickname(
             &mut e,
             json!(1),
