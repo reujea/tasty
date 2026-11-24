@@ -22,6 +22,10 @@ impl App {
         window_id: WindowId,
         kind: ModalKind,
     ) {
+        // 모달 중 뗌은 단계 0·1 에서 막히므로 모달 전 눌림은 지금 푼다.
+        for main in self.main_windows_iter_mut() {
+            main.release_held_keys_on_modal_entry();
+        }
         self.view.views.insert(window_id, modal);
         self.view.set_active_modal(window_id, kind);
     }

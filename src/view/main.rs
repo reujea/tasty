@@ -499,6 +499,8 @@ impl MainView {
         let fed = self
             .state
             .window_feeds_key(self.key_decision, egui_surface, binds);
+        // 뗌은 짝 누름의 수신자에게 간다(`state::held_keys`).
+        let fed = self.pair_key_release(event, fed);
         // egui 수신자로 간 bare Esc 는 그 몫을 끝낸다(뒤 경계).
         let bare_escape = matches!(
             event,
@@ -528,9 +530,34 @@ impl MainView {
     fn note_unfed_key(&mut self, event: &WindowEvent) {
         if let WindowEvent::KeyboardInput { event, .. } = event
             && event.state == winit::event::ElementState::Released
-            && event.logical_key == winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape)
+            && crate::adapters::ui::input::key_class::egui_key(
+                &event.logical_key,
+                event.physical_key,
+            ) == Some(egui::Key::Escape)
         {
             self.state.popups.note_unfed_escape_release();
+            self.mark_dirty();
+        }
+    }
+
+    /// egui 게이트 결과를 짝 누름 기준으로 고친다(`MainViewState::pair_key_release`). 키 사건의 egui 키는 egui-winit 과
+    /// 같은 판정(`key_class::egui_key`)이고, 받는 plugin 팝업은 편집 대상과 같은 값이다.
+    fn pair_key_release(&mut self, event: &WindowEvent, fed: Option<bool>) -> Option<bool> {
+        let WindowEvent::KeyboardInput { event: key, .. } = event else {
+            return fed;
+        };
+        let egui_key =
+            crate::adapters::ui::input::key_class::egui_key(&key.logical_key, key.physical_key)
+                .map(|k| (k, key.state == winit::event::ElementState::Pressed));
+        let plugin = self.plugin_popup_edit_target();
+        self.state.pair_key_release(egui_key, plugin, fed)
+    }
+
+    /// 모달이 열릴 때 남은 눌림을 그 자리에서 푼다(`MainViewState::release_on_modal_entry`).
+    pub(crate) fn release_held_keys_on_modal_entry(&mut self) {
+        let releases = self.state.release_on_modal_entry();
+        if !releases.is_empty() {
+            self.base.gpu.egui_input_events_mut().extend(releases);
             self.mark_dirty();
         }
     }
@@ -713,6 +740,8 @@ impl MainView {
             WindowEvent::Focused(focused) => {
                 // 포커스가 바뀌면 누름·뗌 짝이 끊길 수 있어 double-tap 추적을 초기화한다.
                 self.double_tap.reset();
+                let releases = self.state.release_on_window_focus(focused);
+                self.base.gpu.egui_input_events_mut().extend(releases);
                 if !focused {
                     if self.ime_preedit.is_some() {
                         self.flush_ime_preedit(engine);

@@ -432,6 +432,9 @@ fn draw_plugin_popups_with_keys(
             &mut state.plugin_popup_edit_requests,
             snap.instance_id,
         ));
+        // 이 팝업이 받은 누름의 뗌(남는 눌림, `state::held_keys`)은 이 프레임 입력 앞에 둔다.
+        let releases = take_key_releases(&mut state.plugin_popup_key_releases, snap.instance_id);
+        raw_input.events.splice(0..0, releases);
 
         // 첫 프레임을 받기 전 context를 반복 요청하면 폰트 atlas가 포함된
         // 프레임이 후속 프레임에 대체될 수 있어 초기 요청은 한 번만 보낸다.
@@ -527,6 +530,8 @@ fn draw_plugin_popups_with_keys(
         );
         apply_escape(state, snap.instance_id, escape);
     }
+    // 그리지 않은(접힘·닫힘) 팝업 몫의 뗌은 버린다. 그 팝업은 다음에 다시 키를 받을 때 새 누름부터 받는다.
+    state.plugin_popup_key_releases.clear();
 
     // egui는 누른 영역(덮는 범위를 막는 레이어)을 맨 위로 올린다. 모든 레이어를 함께 올려 막는 레이어가 팝업
     // 아래에 남게 한다. 함께 올린 레이어끼리는 egui가 기존 순서를 유지한다.
@@ -753,6 +758,25 @@ fn sends_edit(raw: &RawInputWire) -> bool {
 }
 
 /// App 이 `instance`에 보내려고 줄 세운 편집 요청을 넣은 순서대로 꺼낸다. 다른 팝업의 요청은 남긴다.
+/// `instance` 몫의 뗌을 꺼내 wire 키 뗌으로 바꾼다. 다른 팝업 몫은 남긴다.
+fn take_key_releases(queued: &mut Vec<(u64, egui::Key)>, instance: u64) -> Vec<RawInputEventWire> {
+    let mut taken = Vec::new();
+    queued.retain(|(id, key)| {
+        if *id == instance {
+            taken.push(RawInputEventWire::Key {
+                key: key.name().to_string(),
+                pressed: false,
+                repeat: false,
+                modifiers: Default::default(),
+            });
+            false
+        } else {
+            true
+        }
+    });
+    taken
+}
+
 fn take_edit_requests(
     queued: &mut Vec<(u64, RawInputEventWire)>,
     instance: u64,

@@ -441,6 +441,10 @@ mod pending;
 mod press_cut;
 
 #[cfg(feature = "gui")]
+#[path = "held_key_tests.rs"]
+mod held_key;
+
+#[cfg(feature = "gui")]
 #[path = "escape_cut_tests.rs"]
 mod escape_cut;
 

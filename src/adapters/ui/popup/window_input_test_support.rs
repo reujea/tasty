@@ -332,6 +332,16 @@ impl WindowInput {
         };
         self.last_decision = decision;
         let fed = state.window_feeds_key(decision, egui_surface, true);
+        // 창처럼 뗌은 짝 누름의 수신자에게 보낸다(`MainView::pair_key_release`).
+        let key = match events.first() {
+            Some(egui::Event::Key { key, pressed, .. }) => Some((*key, *pressed)),
+            _ => None,
+        };
+        let plugin = crate::adapters::ui::input::edit_target::plugin_popup_edit_target(
+            decision,
+            state.plugin_popup_key_target(),
+        );
+        let fed = state.pair_key_release(key, plugin, fed);
         state.mark_escape_segment(
             fed.is_some(),
             events

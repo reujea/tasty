@@ -36,6 +36,8 @@ mod fullscreen_stage_tests;
 #[cfg(feature = "gui")]
 mod handler_recent;
 #[cfg(feature = "gui")]
+pub(crate) mod held_keys;
+#[cfg(feature = "gui")]
 pub(crate) mod input_destination;
 #[cfg(feature = "gui")]
 pub(crate) mod key_focus;
@@ -360,6 +362,10 @@ impl RequestContext {
             explorer_views: Default::default(),
             #[cfg(feature = "gui")]
             key_event_dragging: false,
+            #[cfg(feature = "gui")]
+            egui_held_keys: Vec::new(),
+            #[cfg(feature = "gui")]
+            plugin_popup_key_releases: Vec::new(),
             #[cfg(feature = "gui")]
             explorer_clipboard: Default::default(),
             #[cfg(feature = "gui")]

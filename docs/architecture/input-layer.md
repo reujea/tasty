@@ -317,7 +317,14 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 대조한다. 클립보드 조합(Ctrl/⌘+C·X·V)과 편집 바인딩 키도 경로 키이고, 편집 대상은 그 수신자다
 (`edit_target`: 단계 6 의 host egui 편집 판정·plugin 팝업 편집 요청·plugin surface 편집 요청, 단계 8 의 plugin 붙여넣기
 대상). 그래서 `Keys` 팝업이 포커스여도 편집 키는 그 팝업이 쓰지 않아 경로를 올라간다. 보류했다 재생하는 원래 키는 보류 때
-판정한 편집으로 경로를 정한다(`EditBindings::with_judged`). 재생 사이에 설정이 바뀌어도 그 판정을 쓴다. 경로 키가 아닌 사건은 키 경로 이전의
+판정한 편집으로 경로를 정한다(`EditBindings::with_judged`). 재생 사이에 설정이 바뀌어도 그 판정을 쓴다.
+
+뗌은 짝 누름의 수신자에게 간다(`state::held_keys`). 창이 egui 에 실은 누름은 뗌이 올 때까지 기록하고, 그 뗌은 지금
+게이트와 관계없이 egui 로 보낸다. 그 누름을 plugin 팝업이 받았으면 그 팝업 입력 앞에도 뗌을 붙인다(키 주인이 아니어도).
+egui 에 싣지 않은 누름(터미널·egui-mesh 는 누름만 받는다)의 뗌은 egui 로 보내지 않는다. 그래서 단축키가 포커스를 옮긴
+뒤의 뗌이 원래 수신자의 눌림을 푼다. OS 포커스를 잃을 때(`WindowEvent::Focused(false)`, X11·Windows 의 합성 짝뗌은 App 이
+거른다)와 모달이 열릴 때(`App::open_modal`, 모달 중 뗌은 단계 0·1 에서 막힌다)는 뗌 사건을 기다리지 않고 기록한 눌림을
+그 자리에서 모두 푼다. 다음 첫 누름은 새 누름이다. Escape 뗌은 Esc 몫 기록(`note_unfed_escape_release`)이 맡는다. 경로 키가 아닌 사건은 키 경로 이전의
 게이트(`window_feeds_egui`·`window_holds_terminal_keys`·`window_keys_to_overlay`)를 그대로 지난다. 수식키 없는 Esc 도
 경로 키다. 그 판정은 `RouteKey::bare_escape` 하나이고(논리 키가 없으면 물리 키) 편집 바인딩보다
 먼저 본다. 수신자는 `key_route::route_escape`가 정하고, 그 결과는 단계 11 `MainViewState::apply_escape_key`가 적용한다.

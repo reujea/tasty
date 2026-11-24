@@ -301,6 +301,15 @@ pub struct MainViewState {
     #[cfg(feature = "gui")]
     pub(crate) key_event_dragging: bool,
 
+    /// 창이 egui 에 실은 누름 가운데 뗌이 오지 않은 키(`state::held_keys`).
+    #[cfg(feature = "gui")]
+    pub(crate) egui_held_keys: Vec<crate::state::held_keys::HeldKey>,
+
+    /// 다음 렌더에 plugin 팝업 입력 앞에 붙일 뗌(instance id, 키). 그 팝업이 받은 누름의 뗌이 다른 수신자 몫에 왔거나
+    /// 창이 눌림을 직접 풀 때 넣는다(`state::held_keys`).
+    #[cfg(feature = "gui")]
+    pub(crate) plugin_popup_key_releases: Vec<(u64, egui::Key)>,
+
     /// Explorer의 파일 복사·잘라내기 목록. 앱의 모든 창이 같은 슬롯을 쓰며 로컬 경로는 OS 파일 클립보드에도 올린다. 저장하지 않는다.
     #[cfg(feature = "gui")]
     pub(crate) explorer_clipboard: super::explorer_clipboard_slot::ExplorerClipboardSlot,
