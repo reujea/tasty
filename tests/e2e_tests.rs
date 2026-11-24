@@ -2993,43 +2993,45 @@ fn webview_fills_its_surface_and_leaves_host_input_bands_to_the_host() {
     std::thread::sleep(Duration::from_millis(500));
     let c = x11_capture_webview(&display, window).unwrap().unwrap();
     let top = assert_webview_fills_surface(&tasty, html, &c);
-    // 포커스가 html에서 터미널로 옮겨도 페이지 위 끝은 그대로다. 띠 행은 포커스와 관계없이 예약한다.
+    // html 띠 행을 눌러 html에 포커스를 주고, 터미널을 눌러 포커스를 옮긴다. 두 상태 모두 페이지 위 끝은 그대로다.
+    // 띠 행은 포커스와 관계없이 예약한다. 띠 행은 host가 받으므로 누르면 포커스만 옮긴다.
     let focused =
         |t: &TastyInstance| t.call("debug.focused_surface", json!({}))["surface_id"].clone();
-    assert_eq!(
-        focused(&tasty),
-        json!(html),
-        "시험 전제: 분할한 html 이 포커스다"
-    );
-    let term = tasty.call("debug.surface_rect", json!({ "surface_id": sid }))["rect"].clone();
-    let [tx, ty, tw, th] =
-        ["x", "y", "width", "height"].map(|k| term[k].as_f64().expect("terminal rect") as i32);
-    let (origin_x, origin_y) = (c.child_root.0 - c.child.0, c.child_root.1 - c.child.1);
-    x11_pointer(
-        &display,
-        &[
-            Pointer::Move(origin_x + tx + tw / 2, origin_y + ty + th / 2),
-            Pointer::Press,
-            Pointer::Release,
-        ],
-    )
-    .expect("terminal click");
-    let deadline = std::time::Instant::now() + Duration::from_secs(10);
-    while focused(&tasty) != json!(sid) && std::time::Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(100));
-    }
-    assert_eq!(
-        focused(&tasty),
-        json!(sid),
-        "터미널 클릭이 포커스를 옮기지 않았다"
-    );
-    std::thread::sleep(Duration::from_millis(500));
-    let c = x11_capture_webview(&display, window).unwrap().unwrap();
-    assert_eq!(
-        assert_webview_fills_surface(&tasty, html, &c),
-        top,
-        "포커스를 옮긴 뒤 WebView 창 위 끝이 바뀌었다"
-    );
+    let origin = (c.child_root.0 - c.child.0, c.child_root.1 - c.child.1);
+    let click_into = |target: u64, row: Option<i32>| {
+        let r = tasty.call("debug.surface_rect", json!({ "surface_id": target }))["rect"].clone();
+        let [x, y, w, h] =
+            ["x", "y", "width", "height"].map(|k| r[k].as_f64().expect("surface rect") as i32);
+        let py = row.map_or(y + h / 2, |row| y + row);
+        x11_pointer(
+            &display,
+            &[
+                Pointer::Move(origin.0 + x + w / 2, origin.1 + py),
+                Pointer::Press,
+                Pointer::Release,
+            ],
+        )
+        .expect("click");
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while focused(&tasty) != json!(target) && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        assert_eq!(
+            focused(&tasty),
+            json!(target),
+            "surface {target} 를 눌러도 포커스가 옮지 않았다"
+        );
+        std::thread::sleep(Duration::from_millis(500));
+        let c = x11_capture_webview(&display, window).unwrap().unwrap();
+        assert_eq!(
+            assert_webview_fills_surface(&tasty, html, &c),
+            top,
+            "surface {target} 로 포커스를 옮긴 뒤 WebView 창 위 끝이 바뀌었다"
+        );
+        c
+    };
+    click_into(html, Some(1));
+    let c = click_into(sid, None);
     let (cx, _, w, h) = c.child;
     assert!(
         !webview_takes_input_at(&display, &c, 1, h / 2),
