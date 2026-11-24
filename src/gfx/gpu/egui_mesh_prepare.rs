@@ -814,11 +814,12 @@ impl GpuState {
             return;
         }
 
+        // 본문은 egui 패스 전 [`Self::prepare_mesh_popups`]가 이번 프레임에 한 번 디코드했다. 띠 구멍이 그
+        // 결과를 읽었으므로 여기서 다시 디코드하지 않는다(그 사이 plugin이 새 generation을 써도 이 프레임은 같은 본문).
         for (iid, rect) in regions {
-            if !self.decode_mesh_popup(*iid, plugin_manager) {
+            if plugin_manager.popup_mesh_frame(*iid).is_none() {
                 continue;
             }
-
             if let Some(t) = self.egui_mesh_popup_targets.get_mut(iid) {
                 composite_mesh_target(
                     &self.device,
@@ -833,9 +834,10 @@ impl GpuState {
         }
     }
 
-    /// egui 패스 전에 이 창에 그릴 plugin 팝업의 새 프레임을 디코드한다. 포커스 띠는 같은 프레임의 egui 패스에서
-    /// 이 결과([`Self::composed_popups`])로 구멍을 내고, 합성은 같은 결과를 그대로 쓴다. 그래서 첫 프레임과
-    /// clip이 바뀌는 프레임에도 띠 구멍과 합성 본문이 같은 clip이다.
+    /// egui 패스 전에 합성할 plugin 팝업의 새 프레임을 디코드한다. 한 프레임에 팝업 본문을 디코드하는 곳은 여기
+    /// 하나다. 포커스 띠는 같은 프레임의 egui 패스에서 이 결과([`Self::composed_popups`])로 구멍을 내고, 합성은
+    /// 다시 디코드하지 않고 같은 결과를 그대로 쓴다. 그래서 첫 프레임과 clip이 바뀌는 프레임에도 띠 구멍과 합성
+    /// 본문이 같은 clip이다.
     pub(super) fn prepare_mesh_popups(
         &mut self,
         instances: impl IntoIterator<Item = u64>,
@@ -846,11 +848,10 @@ impl GpuState {
         }
     }
 
-    /// 팝업 하나의 새 프레임을 디코드한다. 프레임이 없으면 `false`다. 이미 디코드한 generation이면 다시 하지
-    /// 않으므로 egui 패스 전 디코드 뒤 합성 단계에서 부르면 아무것도 바꾸지 않는다.
-    fn decode_mesh_popup(&mut self, iid: u64, plugin_manager: PluginDisplay<'_>) -> bool {
+    /// 팝업 하나의 새 프레임을 디코드한다. 프레임이 없거나 이미 디코드한 generation이면 본문을 바꾸지 않는다.
+    fn decode_mesh_popup(&mut self, iid: u64, plugin_manager: PluginDisplay<'_>) {
         let Some(frame) = plugin_manager.popup_mesh_frame(iid) else {
-            return false;
+            return;
         };
         let frame_plugin_id = frame.plugin_id.clone();
         let frame_buffer_id = frame.buffer_id;
@@ -909,7 +910,6 @@ impl GpuState {
         } else if awaiting {
             self.egui_mesh_popup_full_requests.insert(iid);
         }
-        true
     }
 
     /// host가 그린 배너 셸 위 content_rect에 플러그인 mesh를 합성한다.

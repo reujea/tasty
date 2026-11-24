@@ -63,7 +63,8 @@ fn child_scope_is_resolved_before_the_first_host_paint() {
 
 /// host 팝업이 위일 때 포커스 띠는 egui 패스 안에서 합성될 plugin 팝업 본문의 clip으로 구멍을 내고, 합성은
 /// egui 패스 뒤에 한다. 둘이 같은 프레임의 같은 clip을 쓰려면 본문 디코드가 egui 패스보다 앞이어야 한다.
-/// 디코드가 합성 단계에만 있으면 첫 프레임과 clip이 바뀌는 프레임에 띠 구멍이 한 프레임 늦는다.
+/// 디코드가 합성 단계에만 있으면 첫 프레임과 clip이 바뀌는 프레임에 띠 구멍이 한 프레임 늦는다. 합성 단계가
+/// 다시 디코드하면 그 사이 plugin이 쓴 새 프레임으로 띠 구멍과 다른 본문을 합성한다.
 #[test]
 fn the_popup_bodies_are_decoded_before_the_edge_reads_them() {
     let body = frame_body();
@@ -98,7 +99,9 @@ fn the_popup_bodies_are_decoded_before_the_edge_reads_them() {
         .or_else(|| rest.find("\n    fn "));
     let composite = &rest[..end.unwrap_or(rest.len())];
     assert!(
-        composite.contains("self.decode_mesh_popup(") && !composite.contains("decode_and_track("),
-        "팝업 합성은 egui 패스 전과 같은 디코드 함수를 거쳐야 한다(이미 디코드한 generation은 다시 디코드하지 않는다)"
+        composite.contains("composite_mesh_target(")
+            && !composite.contains("decode_mesh_popup(")
+            && !composite.contains("decode_and_track("),
+        "팝업 합성은 egui 패스 전에 디코드한 본문을 그대로 합성하고 다시 디코드하지 않는다"
     );
 }
