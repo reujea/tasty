@@ -195,11 +195,13 @@ impl MainView {
             id: surface_id,
             side: MeshSide::Local,
         };
-        self.state.mesh_press.saw(press, (x, y));
-        let (lx, ly) = self.mesh_local_point(rect, x, y);
-        let st = self.egui_mesh.entry(surface_id).or_default();
-        st.events
-            .push(RawInputEventWire::PointerMoved { x: lx, y: ly });
+        let at = self.mesh_local_point(rect, x, y);
+        let event = pointer_moved_event(&mut self.state.mesh_press, press, at);
+        self.egui_mesh
+            .entry(surface_id)
+            .or_default()
+            .events
+            .push(event);
     }
 
     /// 이전 hover 대상에 PointerGone을 누적한다.
@@ -572,13 +574,19 @@ pub(super) fn route_mesh_button(
     if !pressed && button == MouseButton::Left {
         *w.left_mouse_down = false;
     }
-    let MeshButtonRoute::Send(r, (x, y)) = route else {
-        return true;
+    let (r, (lx, ly), outside) = match route {
+        MeshButtonRoute::Send(r, at) => (r, local_point(r.rect, at, w.ppp), false),
+        MeshButtonRoute::SendLast(r, last) => (r, last, true),
+        MeshButtonRoute::Consume | MeshButtonRoute::Pass => return true,
     };
     let Some(wire) = map_button(button) else {
         return true;
     };
-    let (lx, ly) = local_point(r.rect, (x, y), w.ppp);
+    let press = MeshPress {
+        id: r.id,
+        side: r.side,
+    };
+    w.presses.sent(press, (lx, ly));
     let event = RawInputEventWire::PointerButton {
         x: lx,
         y: ly,
@@ -587,7 +595,7 @@ pub(super) fn route_mesh_button(
         modifiers: w.modifiers,
     };
     // 창 밖에서 보낸 뗌은 SDK가 그 좌표로 포인터를 안에 둔다. CursorLeft가 보낸 PointerGone을 다시 보낸다.
-    let gone = w.cursor.is_none().then_some(RawInputEventWire::PointerGone);
+    let gone = outside.then_some(RawInputEventWire::PointerGone);
     for event in std::iter::once(event).chain(gone) {
         match r.side {
             MeshSide::Local => w.local.entry(r.id).or_default().events.push(event),
@@ -595,6 +603,17 @@ pub(super) fn route_mesh_button(
         }
     }
     true
+}
+
+/// 누른 채인 leaf로 가는 포인터 이동 사건. 보낸 논리 좌표 `at`을 누름 기록에 남겨 창 밖 뗌이 같은 좌표로 간다.
+/// 로컬·attach 이동 전달이 함께 쓴다.
+pub(super) fn pointer_moved_event(
+    presses: &mut crate::state::mesh_frames::MeshPresses,
+    press: MeshPress,
+    (x, y): (f32, f32),
+) -> RawInputEventWire {
+    presses.sent(press, (x, y));
+    RawInputEventWire::PointerMoved { x, y }
 }
 
 pub(super) fn map_button(button: MouseButton) -> Option<PointerButtonWire> {

@@ -44,12 +44,13 @@ pub(crate) struct MeshPress {
 }
 
 /// 버튼마다 누른 mesh leaf. 한 버튼을 누른 채 다른 버튼을 다른 leaf에서 눌러도 각 뗌은 그 버튼을 누른
-/// leaf로 간다. 누른 leaf마다 마지막으로 받은 포인터 위치(물리 px)도 둔다. 포인터가 창 밖으로 나가 좌표가 없을
-/// 때 온 뗌을 그 위치로 보낸다.
+/// leaf로 간다. 누른 leaf마다 좌표를 실어 마지막으로 보낸 사건(이동·누름·뗌)의 논리 좌표도 둔다. 포인터가 창
+/// 밖으로 나가 좌표가 없을 때 온 뗌을 그 좌표 그대로 보낸다. 창 원점·배율이 그 사이 바뀌어도 plugin이 받은 좌표와
+/// 같다.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct MeshPresses {
     held: Vec<(winit::event::MouseButton, MeshPress)>,
-    seen: Vec<(MeshPress, (f32, f32))>,
+    sent: Vec<(MeshPress, (f32, f32))>,
 }
 
 impl MeshPresses {
@@ -66,24 +67,23 @@ impl MeshPresses {
             .map(|(_, p)| *p)
     }
 
-    /// `button`을 `press` leaf의 `at`에서 눌렀다.
-    fn record(&mut self, button: winit::event::MouseButton, press: MeshPress, at: (f32, f32)) {
+    /// `button`을 `press` leaf에서 눌렀다.
+    fn record(&mut self, button: winit::event::MouseButton, press: MeshPress) {
         self.held.push((button, press));
-        self.saw(press, at);
     }
 
-    /// 누른 채인 `press` leaf가 `at`의 포인터를 받았다. 누른 leaf가 아니면 아무것도 하지 않는다.
-    pub(crate) fn saw(&mut self, press: MeshPress, at: (f32, f32)) {
+    /// 누른 채인 `press` leaf에 논리 좌표 `at`을 실은 사건을 보냈다. 누른 leaf가 아니면 아무것도 하지 않는다.
+    pub(crate) fn sent(&mut self, press: MeshPress, at: (f32, f32)) {
         if !self.held.iter().any(|(_, p)| *p == press) {
             return;
         }
-        self.seen.retain(|(p, _)| *p != press);
-        self.seen.push((press, at));
+        self.sent.retain(|(p, _)| *p != press);
+        self.sent.push((press, at));
     }
 
-    /// `press` leaf가 마지막으로 받은 포인터 위치.
-    fn seen_at(&self, press: MeshPress) -> Option<(f32, f32)> {
-        self.seen
+    /// `press` leaf에 마지막으로 보낸 논리 좌표.
+    fn sent_at(&self, press: MeshPress) -> Option<(f32, f32)> {
+        self.sent
             .iter()
             .find(|(p, _)| *p == press)
             .map(|(_, at)| *at)
@@ -92,7 +92,7 @@ impl MeshPresses {
     fn forget(&mut self, button: winit::event::MouseButton) {
         self.held.retain(|(b, _)| *b != button);
         let held = &self.held;
-        self.seen.retain(|(p, _)| held.iter().any(|(_, h)| h == p));
+        self.sent.retain(|(p, _)| held.iter().any(|(_, h)| h == p));
     }
 }
 
@@ -163,7 +163,7 @@ pub(crate) fn button_target(
             presses.forget(button);
         }
         if let Some(r) = hit {
-            presses.record(button, MeshPress { id: r.id, side }, (x, y));
+            presses.record(button, MeshPress { id: r.id, side });
         }
         return hit;
     }
@@ -191,6 +191,8 @@ pub(crate) enum MeshButtonStage {
 pub(crate) enum MeshButtonRoute {
     /// 이 leaf에 이 위치(물리 px)로 보낸다.
     Send(MeshFrameRegion, (f32, f32)),
+    /// 창 밖이라 좌표가 없다. 이 leaf에 마지막으로 보낸 논리 좌표로 보낸다.
+    SendLast(MeshFrameRegion, (f32, f32)),
     /// mesh가 가져가되 보내지 않는다(기록만 지운다).
     Consume,
     /// mesh 사건이 아니다. 창의 다른 분기로 간다.
@@ -201,7 +203,7 @@ pub(crate) enum MeshButtonRoute {
 ///
 /// `Recorded` 단계는 기록된 버튼의 뗌을 기록한 leaf로 보내고 기록을 지운다. 이 단계가 다른 분기보다 앞이라
 /// mesh에서 누른 버튼의 뗌은 분할선 드래그 중이든 위 층이 사건을 가져가든 사라지지 않는다. 좌표가 없으면 그
-/// leaf가 마지막으로 받은 포인터 위치로 보내고, 그 위치도 없으면 기록만 지운다(`Consume`). 그 leaf가 배치에서
+/// leaf에 마지막으로 보낸 논리 좌표로 보내고(`SendLast`), 그 좌표도 없으면 기록만 지운다(`Consume`). 그 leaf가 배치에서
 /// 사라졌어도 기록을 지우고 뗌을 가져간다(`Consume`). 포인터 아래 다른 mesh가 짝 없는 뗌을 받지 않는다.
 /// `Below` 단계는 좌표가 있을 때 로컬, 그다음 attach 순서로 [`button_target`]을 쓴다.
 pub(crate) fn mesh_button_target(
@@ -217,16 +219,18 @@ pub(crate) fn mesh_button_target(
             let Some(p) = presses.of(button).filter(|_| !pressed) else {
                 return MeshButtonRoute::Pass;
             };
-            let at = at.or_else(|| presses.seen_at(p));
+            let last = presses.sent_at(p);
             presses.forget(button);
             let Some(region) = regions.iter().find(|r| r.id == p.id && r.side == p.side) else {
                 // 누른 leaf가 배치에서 빠졌다. 아래 단계가 기록 없는 사건으로 다시 찾으면 포인터 아래 다른 mesh에
                 // 짝 없는 뗌이 간다.
                 return MeshButtonRoute::Consume;
             };
-            at.map_or(MeshButtonRoute::Consume, |at| {
-                MeshButtonRoute::Send(*region, at)
-            })
+            match (at, last) {
+                (Some(at), _) => MeshButtonRoute::Send(*region, at),
+                (None, Some(last)) => MeshButtonRoute::SendLast(*region, last),
+                (None, None) => MeshButtonRoute::Consume,
+            }
         }
         MeshButtonStage::Below { dragging_divider } => {
             let Some((x, y)) = at else {
@@ -485,7 +489,7 @@ mod tests {
             pressed,
         );
         match recorded {
-            MeshButtonRoute::Send(r, _) => return Some(r),
+            MeshButtonRoute::Send(r, _) | MeshButtonRoute::SendLast(r, _) => return Some(r),
             MeshButtonRoute::Consume => return None,
             MeshButtonRoute::Pass if above => return None,
             MeshButtonRoute::Pass => {}
@@ -548,7 +552,7 @@ mod tests {
             region(3, 70.0, MeshSide::Local),
         ];
         let mut presses = MeshPresses::default();
-        presses.record(Left, pressed(1, MeshSide::Local), (5.0, 20.0));
+        presses.record(Left, pressed(1, MeshSide::Local));
         let down = button_target(
             &regions,
             &mut presses,

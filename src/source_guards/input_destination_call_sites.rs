@@ -174,3 +174,30 @@ fn the_window_mesh_button_methods_hand_off_without_conditions() {
         "공용 전달은 가져간 사건에 다시 그리기만 더한다: {body}"
     );
 }
+
+/// 로컬·attach 포인터 이동 전달은 `view::main::egui_mesh::pointer_moved_event`로 사건을 만든다. 그 함수가 보낸 좌표를 누름 기록에
+/// 남기므로 창 밖 뗌이 같은 좌표로 간다. 기록 갱신은 그 함수를 부르는 `view::main::egui_mesh::button_tests`가
+/// 재고, 두 전달 본문이 그 함수를 거치는지는 여기서 고정한다.
+#[test]
+fn the_window_pointer_moves_go_through_the_recording_event() {
+    for (file, name) in [
+        (
+            "src/view/main/egui_mesh.rs",
+            "fn egui_mesh_push_pointer_moved(",
+        ),
+        (
+            "src/view/main/attach_mesh_input.rs",
+            "fn attach_mesh_push_pointer_moved(",
+        ),
+    ] {
+        let src = read(file);
+        let body = squeeze(&fn_body(&src, name).expect(name));
+        assert!(
+            body.matches("pointer_moved_event(&mutself.state.mesh_press,press,at)")
+                .count()
+                == 1
+                && !body.contains("PointerMoved"),
+            "{file} {name} 은 기록을 남기는 이동 사건 함수로 사건을 만든다: {body}"
+        );
+    }
+}

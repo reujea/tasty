@@ -7,9 +7,12 @@ use std::collections::HashMap;
 use tasty_plugin_protocol::{ModifiersWire, PointerButtonWire, RawInputEventWire};
 use winit::event::MouseButton::{self, Left, Right};
 
-use super::{MeshButtonWindow, MeshForwardState, MeshPass, route_mesh_button};
+use super::{
+    MeshButtonWindow, MeshForwardState, MeshPass, local_point, pointer_moved_event,
+    route_mesh_button,
+};
 use crate::model::{PhysicalPx, PhysicalRect};
-use crate::state::mesh_frames::{MeshFrameRegion, MeshPresses, MeshSide};
+use crate::state::mesh_frames::{MeshFrameRegion, MeshPress, MeshPresses, MeshSide};
 use crate::view::main::attach_mesh_input::AttachMeshForwardState;
 
 /// `id` leaf. 세로 `y`부터 높이 50, 너비 100(물리 px).
@@ -57,6 +60,19 @@ impl Window {
             modifiers: ModifiersWire::default(),
         };
         route_mesh_button(w, pass, button, pressed)
+    }
+
+    /// 창의 포인터 이동 전달 한 번(`r` leaf로, 물리 `at`). 창처럼 [`pointer_moved_event`]로 사건을 만든다.
+    pub(super) fn moved(&mut self, r: MeshFrameRegion, at: (f32, f32)) {
+        let press = MeshPress {
+            id: r.id,
+            side: r.side,
+        };
+        let event = pointer_moved_event(&mut self.presses, press, local_point(r.rect, at, 1.0));
+        match r.side {
+            MeshSide::Local => self.local.entry(r.id).or_default().events.push(event),
+            MeshSide::Attach => self.attach.entry(r.id).or_default().push_event(event),
+        }
     }
 
     /// 창의 버튼 처리 순서: 기록된 뗌 단계가 먼저다. 그 단계가 가져가지 않았고 위 층(`above`)이 가져가지
@@ -196,34 +212,31 @@ fn an_extra_button_does_not_move_the_held_target() {
     }
 }
 
-/// 누른 뒤 포인터가 창 밖으로 나가 좌표가 비고 뗌이 오면, 기록을 지우고 뗌을 그 leaf가 마지막으로 받은 포인터
-/// 위치로 그 leaf에 보낸다. 누른 뒤 받은 이동이 있으면 그 위치, 없으면 누른 위치다. 창 밖 뗌의 좌표로 SDK가
+/// 누른 뒤 포인터가 창 밖으로 나가 좌표가 비고 뗌이 오면, 기록을 지우고 뗌을 그 leaf에 마지막으로 보낸 논리
+/// 좌표로 보낸다. 누른 뒤 창의 이동 전달로 보낸 이동이 있으면 그 좌표, 없으면 누른 좌표다. 창 밖 뗌의 좌표로 SDK가
 /// 포인터를 안에 두지 않도록 뗌 바로 뒤에 `PointerGone`이 다시 간다. 로컬과 attach가 같다.
 #[test]
 fn a_release_without_a_cursor_reaches_the_pressed_leaf_at_its_last_point() {
-    use crate::state::mesh_frames::MeshPress;
     for side in [MeshSide::Local, MeshSide::Attach] {
         for moved in [None, Some((5.0, 40.0))] {
             let regions = [region(1, 10.0, side)];
             let mut w = Window::default();
             assert!(w.button(&regions, Some((5.0, 20.0)), (Right, true), false));
             if let Some(at) = moved {
-                w.presses.saw(MeshPress { id: 1, side }, at);
+                w.moved(regions[0], at);
             }
             assert!(
                 w.button(&regions, None, (Right, false), false),
                 "{side:?} the release is taken"
             );
             let y = moved.map_or(20.0, |(_, y)| y) - 10.0;
-            assert_eq!(
-                w.events(side, 1),
-                vec![
-                    Seen::Button(PointerButtonWire::Secondary, true, 10.0),
-                    Seen::Button(PointerButtonWire::Secondary, false, y),
-                    Seen::Gone
-                ],
-                "{side:?} moved={moved:?}"
-            );
+            let mut expected = vec![Seen::Button(PointerButtonWire::Secondary, true, 10.0)];
+            expected.extend(moved.map(|(x, y)| Seen::Moved(x, y - 10.0)));
+            expected.extend([
+                Seen::Button(PointerButtonWire::Secondary, false, y),
+                Seen::Gone,
+            ]);
+            assert_eq!(w.events(side, 1), expected, "{side:?} moved={moved:?}");
             assert_eq!(w.presses, MeshPresses::default(), "{side:?} record cleared");
         }
     }
@@ -279,4 +292,43 @@ fn only_a_left_mesh_release_ends_the_window_left_press() {
     };
     assert!(w.button(&regions, Some((5.0, 20.0)), (Left, false), false));
     assert!(!w.left_mouse_down, "a left release ends it");
+}
+
+/// 창 밖 뗌의 좌표는 그 leaf에 좌표를 실어 마지막으로 보낸 사건(이동·누름·뗌)의 좌표다. 로컬 A를 왼쪽·가운데로
+/// 누르고 attach B를 오른쪽으로 누른 뒤 이동하면 이동은 B로 간다. 창 안에서 왼쪽을 떼고 창 밖에서 가운데를 떼면
+/// A의 가운데 뗌은 앞선 왼쪽 뗌 좌표로 가고, 그 뒤 A에 `PointerGone`이 간다.
+#[test]
+fn a_release_outside_the_window_uses_the_last_point_sent_to_its_leaf() {
+    let a = region(1, 10.0, MeshSide::Local);
+    let b = region(3, 70.0, MeshSide::Attach);
+    let regions = [a, b];
+    let mut w = Window::default();
+    assert!(w.button(&regions, Some((5.0, 20.0)), (Left, true), false));
+    assert!(w.button(
+        &regions,
+        Some((5.0, 25.0)),
+        (MouseButton::Middle, true),
+        false
+    ));
+    assert!(w.button(&regions, Some((5.0, 80.0)), (Right, true), false));
+    w.moved(b, (5.0, 90.0));
+    assert!(w.button(&regions, Some((5.0, 35.0)), (Left, false), false));
+    assert!(w.button(&regions, None, (MouseButton::Middle, false), false));
+    assert_eq!(
+        w.events(MeshSide::Local, 1),
+        vec![
+            Seen::Button(PointerButtonWire::Primary, true, 10.0),
+            Seen::Button(PointerButtonWire::Middle, true, 15.0),
+            Seen::Button(PointerButtonWire::Primary, false, 25.0),
+            Seen::Button(PointerButtonWire::Middle, false, 25.0),
+            Seen::Gone,
+        ]
+    );
+    assert_eq!(
+        w.events(MeshSide::Attach, 3),
+        vec![
+            Seen::Button(PointerButtonWire::Secondary, true, 10.0),
+            Seen::Moved(5.0, 20.0),
+        ]
+    );
 }

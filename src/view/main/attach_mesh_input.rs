@@ -65,12 +65,12 @@ impl MainView {
             id: surface_id,
             side: MeshSide::Attach,
         };
-        self.state.mesh_press.saw(press, (x, y));
-        let (lx, ly) = self.mesh_local_point(rect, x, y);
-        let st = self.attach_mesh_input.entry(surface_id).or_default();
-        st.admitted.get_or_insert_with(std::time::Instant::now);
-        st.events
-            .push(RawInputEventWire::PointerMoved { x: lx, y: ly });
+        let at = self.mesh_local_point(rect, x, y);
+        let event = super::egui_mesh::pointer_moved_event(&mut self.state.mesh_press, press, at);
+        self.attach_mesh_input
+            .entry(surface_id)
+            .or_default()
+            .push_event(event);
     }
 
     /// 포인터가 대상 밖으로 나갔음을 다음 전송에 넣는다.
