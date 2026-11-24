@@ -146,6 +146,6 @@ mod tests {
         let view = MirrorView::read(HashSet::from([1]), std::iter::once(&store));
         assert!(view.retargets(Some(1), (80, 24)));
         assert!(!view.retargets(Some(1), (100, 30)));
-        assert!(view.targets.get(&2).is_none());
+        assert!(!view.targets.contains_key(&2));
     }
 }
