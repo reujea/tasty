@@ -154,7 +154,7 @@ forward/tap 도 동반 — file picker 뿐 아니라 mirror 연결 자체가 끊
 ### 창 구성 — 헤더는 하나다
 
 본체 file picker popup 은 셸 타이틀바 없이(`headless`) 뷰가 그린 헤더 한 줄로 시작한다. 헤더는
-파일 글리프 · 제목 · 원격이면 host 배지 · 닫기 ✕ 다. 이 헤더 줄이 이동 손잡이다 — 뷰가 그린 헤더
+파일 글리프 · 제목 · 원격이면 host 배지 · 닫기 ✕ 다. host 배지는 연결의 호스트 글자(attach 프로필 이름, mono)이고, 프로필 이름이 없는 attach(빈 호스트)는 `attach.mirror_pill_label` 낱말을 font-label 로 쓴다. 채움·잉크·글리프는 같다. 이 헤더 줄이 이동 손잡이다 — 뷰가 그린 헤더
 사각형을 매니저에 보고하고(`DragHandle::Region`), 빈 곳을 끌면 popup 이 움직인다. 헤더 안의 ✕ 는
 드래그보다 먼저 입력을 받는다. 닫는 길은 헤더 ✕ · Cancel · Esc 이고 셋 다 `Cancelled` 를 남긴다.
 
