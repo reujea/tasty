@@ -880,7 +880,7 @@ mod tests {
     fn the_bubble_is_drawn_under_the_tooltip_order_painters_for_any_id() {
         let theme = theme();
         let anchor = egui::Rect::from_min_size(egui::pos2(100.0, 100.0), egui::vec2(80.0, 24.0));
-        let marker = egui::Color32::from_rgb(1, 2, 3);
+        let marker = theme.accent_primary().to_egui();
         let painters = ["toast_layer", "drop_overlay", "tab_drag_overlay"];
         for source in 0..40 {
             let ctx = egui::Context::default();
