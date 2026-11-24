@@ -1022,13 +1022,18 @@ fn body(ui: &mut egui::Ui, theme: &Theme, v: Variant, body_h: LogicalPx) {
                 })))
                 .action(crate::i18n::t("filepicker.error_conn.reconnect"), Some(icons::REFRESH)),
         ),
-        FpState::Loading => center(
-            ui,
-            theme,
-            v.w,
-            body_h,
-            CenterState::loading("Loading folder…").sub_line(Some(if matches!(v.mode, Mode::Folder { .. }) { crate::i18n::t("filepicker.loading_body_local") } else { "Reading the directory over SSH." })),
-        ),
+        // 이름 있는 원격의 로딩·연결 끊김 본문은 정본 b670109 overlay-frames.jsx 처럼 호스트 이름을 넣은 갤러리 전용
+        // 영어 문장이다(앱 키에는 호스트가 없다 — Meta 'remote sentences').
+        FpState::Loading => {
+            let remote_body = format!("Reading {} over SSH.", v.host);
+            center(
+                ui,
+                theme,
+                v.w,
+                body_h,
+                CenterState::loading("Loading folder…").sub_line(Some(if matches!(v.mode, Mode::Folder { .. }) { crate::i18n::t("filepicker.loading_body_local") } else if v.remote { &remote_body } else { "Reading the directory over SSH." })),
+            )
+        }
         FpState::Empty => center(
             ui,
             theme,
@@ -1047,17 +1052,21 @@ fn body(ui: &mut egui::Ui, theme: &Theme, v: Variant, body_h: LogicalPx) {
                 ))
                 .action("Retry", Some(icons::REFRESH)),
         ),
-        FpState::ErrorConn | FpState::ErrorConnTimeout => center(
-            ui,
-            theme,
-            v.w,
-            body_h,
-            CenterState::error("Remote connection lost")
-                .sub_line(Some(
-                    "The SSH tunnel dropped. Reconnect to resume browsing from the last folder.",
-                ))
-                .action("Reconnect", Some(icons::REFRESH)),
-        ),
+        FpState::ErrorConn | FpState::ErrorConnTimeout => {
+            let body = format!(
+                "The SSH tunnel to {} dropped. Reconnect to resume browsing from the last folder.",
+                v.host
+            );
+            center(
+                ui,
+                theme,
+                v.w,
+                body_h,
+                CenterState::error("Remote connection lost")
+                    .sub_line(Some(&body))
+                    .action("Reconnect", Some(icons::REFRESH)),
+            )
+        }
     }
 }
 
