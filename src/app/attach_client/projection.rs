@@ -405,4 +405,6 @@ pub(super) struct MirrorMeshInfo {
     pub(super) kind: String,
     pub(super) plugin_id: String,
     pub(super) display_name: String,
+    /// 서버가 실은 `bed_focus`. 싣지 않는 옛 서버면 거짓(띠)이다.
+    pub(super) bed_focus: bool,
 }

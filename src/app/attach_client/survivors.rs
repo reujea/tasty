@@ -187,6 +187,7 @@ pub(super) fn merge_survivor_mapping(
                     display_name,
                     kind,
                     plugin_id,
+                    bed_focus: s.get("bed_focus").and_then(Value::as_bool).unwrap_or(false),
                 },
             );
         } else if role == Some("explorer") {
@@ -221,6 +222,7 @@ pub(super) fn merge_survivor_mapping(
                     &info.kind,
                     info.plugin_id.clone(),
                     info.display_name.clone(),
+                    info.bed_focus,
                 )),
             );
         } else if let Some(root) = explorer_locals.get(&local_id) {

@@ -14,15 +14,25 @@ pub struct AttachMeshSurface {
     /// 원격 plugin_id. 로컬 PluginManager 조회에 사용하지 않는다.
     pub plugin_id: String,
     pub display_name: String,
+    /// 서버의 소유 plugin이 이 kind의 바탕을 host 테마 값으로 칠한다고 선언했는지(`bed_focus`).
+    /// 거짓이면 client는 포커스를 leaf 위 띠로 보인다. 이 값을 싣지 않는 옛 서버도 거짓이다.
+    pub bed_focus: bool,
 }
 
 impl AttachMeshSurface {
-    pub fn new(id: SurfaceId, kind: &str, plugin_id: String, display_name: String) -> Self {
+    pub fn new(
+        id: SurfaceId,
+        kind: &str,
+        plugin_id: String,
+        display_name: String,
+        bed_focus: bool,
+    ) -> Self {
         Self {
             id,
             kind_static: intern_known_kind(kind),
             plugin_id,
             display_name,
+            bed_focus,
         }
     }
 }
@@ -80,7 +90,13 @@ mod tests {
 
     #[test]
     fn surface_basics() {
-        let s = AttachMeshSurface::new(7, "markdown", "com.tasty.markdown".into(), "Readme".into());
+        let s = AttachMeshSurface::new(
+            7,
+            "markdown",
+            "com.tasty.markdown".into(),
+            "Readme".into(),
+            false,
+        );
         assert_eq!(s.kind(), "markdown");
         assert_eq!(s.type_name(), "AttachMesh");
         assert_eq!(s.surface_id(), Some(7));
@@ -90,13 +106,19 @@ mod tests {
 
     #[test]
     fn unknown_kind_falls_back_without_panicking() {
-        let s = AttachMeshSurface::new(1, "future_kind", "com.tasty.future".into(), "X".into());
+        let s = AttachMeshSurface::new(
+            1,
+            "future_kind",
+            "com.tasty.future".into(),
+            "X".into(),
+            false,
+        );
         assert_eq!(s.kind(), "mesh");
     }
 
     #[test]
     fn tree_json_shape() {
-        let s = AttachMeshSurface::new(3, "image", "com.tasty.image".into(), "Pic".into());
+        let s = AttachMeshSurface::new(3, "image", "com.tasty.image".into(), "Pic".into(), true);
         let j = s.to_tree_json();
         assert_eq!(j["kind"], "image");
         assert_eq!(j["type"], "AttachMesh");

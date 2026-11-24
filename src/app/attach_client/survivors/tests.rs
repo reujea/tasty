@@ -48,6 +48,50 @@ fn merge_survivor_mapping_prefers_server_display_name_and_falls_back_to_kind() {
     );
 }
 
+/// mirror mesh는 서버가 실은 `bed_focus`를 보관한다. 값이 없는 옛 서버의 descriptor와 모르는 값은 거짓(띠)이다.
+#[test]
+fn merge_survivor_mapping_keeps_the_server_bed_focus_and_reads_its_absence_as_edge() {
+    let ids = test_ids();
+    let (_, mut engine_session) = crate::state::tests::test_state();
+    let mut engine = engine_session.borrow_mut();
+    supply_ids(&engine);
+    let (tx, _rx) = tasty_remote::connection::channel();
+    let frame_tx: SharedFrameSender = tx;
+    let mesh = |id: u32, bed: Value| {
+        let mut d = serde_json::json!({
+            "remote_id": id,
+            "role": "mesh",
+            "kind": "future_kind",
+            "plugin_id": "com.example.future",
+        });
+        if !bed.is_null() {
+            d["bed_focus"] = bed;
+        }
+        d
+    };
+    let surfaces = vec![
+        mesh(20, Value::Bool(true)),
+        mesh(21, Value::Bool(false)),
+        mesh(22, Value::Null),
+        mesh(23, Value::String("yes".into())),
+    ];
+    let mapping = merge_survivor_mapping(&HashMap::new(), &surfaces, &ids, &frame_tx, &mut engine)
+        .expect("fixture construction");
+    let bed = |remote: u32| {
+        let local = mapping.remote_to_local[&remote];
+        let surface = engine.runtime.surfaces.get(&local).expect("mirror surface");
+        let mesh = surface
+            .as_any()
+            .downcast_ref::<crate::model::AttachMeshSurface>()
+            .expect("attach mesh surface");
+        (mapping.mesh[&local].bed_focus, mesh.bed_focus)
+    };
+    assert_eq!(bed(20), (true, true));
+    assert_eq!(bed(21), (false, false));
+    assert_eq!(bed(22), (false, false), "old server without the field");
+    assert_eq!(bed(23), (false, false), "a value that is not a boolean");
+}
+
 #[test]
 fn merge_survivor_mapping_cleans_up_stale_terminal_on_convert_to_mesh() {
     let mut navigation = crate::state::navigation::NavigationState::default();

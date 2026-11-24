@@ -606,6 +606,8 @@ impl EngineRef<'_> {
                 "kind": kind,
                 "plugin_id": plugin_id,
                 "display_name": display_name,
+                // 소유 plugin의 선언. client는 이 값으로 포커스를 바탕과 띠 중 어느 쪽으로 보일지 정한다.
+                "bed_focus": self.runtime.surface_registry.owner_capabilities(kind, plugin_id).bed_focus,
             }));
         }
         // explorer는 root만 보낸다. client는 이를 초기 cwd로도 사용한다.
@@ -962,6 +964,32 @@ mod mesh_descriptor_display_name_tests {
                 mesh.get("display_name").and_then(|v| v.as_str()),
                 Some(name),
                 "{kind} mesh 디스크립터도 display_name 을 실어야 한다"
+            );
+        }
+    }
+
+    /// 서버는 소유 plugin이 선언한 `bed_focus`를 싣는다. client는 미지 kind를 `mesh`로 접어 자기
+    /// 레지스트리로 이 값을 알 수 없다.
+    #[test]
+    fn mesh_descriptors_carry_the_owner_bed_focus() {
+        for (kind, plugin_id, want) in [
+            ("image", "com.tasty.image", true),
+            ("mesh_demo", "com.tasty.mesh-demo", false),
+            ("widget", "com.example.widget", false),
+        ] {
+            let (mut engine_session, idx) = engine_with_mesh_surface(kind, plugin_id, "x");
+            let engine = engine_session.borrow_mut();
+            let id = engine.workspace_at(idx).expect("workspace").id;
+            let class = engine.classify_attach_surfaces(id);
+            let (_tree, surfaces) = engine.build_workspace_tree_surfaces(idx, &class);
+            let mesh = surfaces
+                .iter()
+                .find(|s| s.get("role").and_then(|v| v.as_str()) == Some("mesh"))
+                .unwrap_or_else(|| panic!("{kind} mesh descriptor"));
+            assert_eq!(
+                mesh.get("bed_focus").and_then(|v| v.as_bool()),
+                Some(want),
+                "{kind}"
             );
         }
     }

@@ -37,6 +37,7 @@
 - **토스트 위에 포인터를 올려 두면 토스트가 사라지지 않는다.** 포인터를 치우면 그때부터 Toast duration(`overlay.toast_duration_ms`)만큼 보인 뒤 사라지고, 흐려지던 토스트도 포인터를 올리면 다시 또렷해진다. 토스트는 여전히 클릭·드래그·포커스를 받지 않아 아래 대상에 그대로 간다.
 - **`tasty claude quiet --surface <N> [--task <id>] (--secs <초> | --clear)`와 IPC `claude.quiet`로 child의 예상 무출력 기간을 선언한다.** 양수 초는 그동안의 무출력 알림(`[warning]`)을 쌓았다가 선언이 끝날 때(만료·작업 종료·`--clear`) 한 줄로 묶어 보내고, `-1`은 작업이 끝나거나 `--clear`할 때까지 버린다. 상태 변경 알림은 그대로 나가고, 오류 알림은 그 surface의 선언을 모두 끝내며 쌓인 것을 같은 줄 끝에 붙인다. `0`과 `-1`이 아닌 음수는 거절한다. 내부 명령 `tasty claude notify-quiet-release`, 훅 이벤트 `claude-quiet-released`, surface meta `claude-quiet`·`claude-quiet-release`가 더해진다. 선언은 플러그인을 다시 시작해도 이어지지만 Tasty를 다시 시작하면 사라진다.
 - **IPC `workspace.create`에 선택 인자 `inherit_cwd`가 생긴다.** `{"surface": N}`이면 surface N의 cwd를 첫 터미널이 잇고, `"none"`이면 상속하지 않는다. 생략하면 전처럼 `surface_id` 또는 창의 포커스 surface와 이 인스턴스의 `general.inherit_cwd` 설정을 쓴다. 명시한 원본은 이 인스턴스의 설정으로 막지 않고 어느 창(숨긴 창 포함)에 있어도 된다. 어디에도 없거나 모르는 값이면 `-32602`로 거절한다. 원본의 위치는 로컬 상속과 같은 규칙이라 explorer는 root, 파일을 연 surface는 그 파일의 폴더다.
+- **원격 attach 서버가 mesh surface descriptor에 `bed_focus`를 싣는다.** 소유 plugin이 그 kind에 선언한 값이고, client는 이 값으로 mirror mesh의 포커스를 바탕과 leaf 위 띠 중 어느 쪽으로 보일지 정한다. 값이 없는 이전 서버의 mirror mesh는 띠로 보인다. stream 프로토콜 번호는 그대로다.
 - **원격 attach 서버가 descriptor의 stream capability에 `ipc.stream.inherit-cwd`를 싣는다.** 생성 요청의 `inherit_cwd` 값을 이해하는 서버라는 표지다. stream 프로토콜 번호는 그대로다.
 
 ### Changed
