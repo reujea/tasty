@@ -262,7 +262,7 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 
 사건 하나의 출발 노드는 한 번 정한다(`MainView::settle_key_event`: 정규화 → 입력 몫 끊기 → 수신자, 결과는
 `MainView::key_decision`). winit 키는 App 입구(`App::route_window_input`)가 plugin 명령 판정(`try_plugin_shortcut`) 앞에서
-정하고, MainView 입구(`MainView::handle_engine_event`)는 같은 사건에서 다시 정하지 않는다(`ViewCtx::key_settled`). 그 밖의
+정하고, MainView 입구(`MainView::handle_engine_event`)는 같은 사건에서 다시 정하지 않는다(`MainView::key_settled`). 그 밖의
 사건과 편집 보류 재생은 view 의 단계(`MainKeySteps::settle_key_node`)가 같은 함수로 정한다. plugin 명령 판정, egui
 적재(`feed_egui_keyboard`), 키 처리(`handle_keyboard_input`)가 그 결과를 함께 읽는다. 단계 순서의 정본은
 `run_key_event`(`src/view/key_event.rs`)와 메인 창 단계 구현 `MainKeySteps`(`src/view/main/key_event_steps.rs`)이고

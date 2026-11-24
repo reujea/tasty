@@ -51,6 +51,12 @@ fn a_window_press_moves_the_focus_node_through_the_press_snapshot() {
         "crate::view::key_event::run_key_event(&mutsteps,event)",
         "E0 함수 호출",
     );
+    // App 이 적은 표지는 사건 입구에서 꺼내 그 사건에만 쓴다(다음 사건에 남지 않는다).
+    at(
+        &handle,
+        "letkey_settled=std::mem::take(&mutself.key_settled);",
+        "출발 노드 표지 꺼내기",
+    );
     let order = squeeze(
         &fn_body(&read("src/view/key_event.rs"), "fn run_key_event<").expect("run_key_event"),
     );
@@ -67,7 +73,7 @@ fn a_window_press_moves_the_focus_node_through_the_press_snapshot() {
     );
     let steps = read("src/view/main/key_event_steps.rs");
     let step = |name: &str| squeeze(&fn_body(&steps, name).unwrap_or_else(|| panic!("{name}")));
-    // 단계 3~5 는 사건마다 한 번이다. App 이 plugin 단축키 단계 앞에서 정했으면(`ViewCtx::key_settled`) 창은 그 결과를
+    // 단계 3~5 는 사건마다 한 번이다. App 이 plugin 단축키 단계 앞에서 정했으면(`MainView::key_settled`) 창은 그 결과를
     // 읽고, 아니면 같은 함수(`MainView::settle_key_event`)로 정한다. 그 함수는 정규화 → 끊기 → 수신자 순서다.
     at(
         &step("fn settle_key_node("),
@@ -602,11 +608,17 @@ fn a_key_that_opens_a_focused_popup_applies_the_open_before_the_next_event() {
         "letkey=matches!(event,WindowEvent::KeyboardInput{..}|WindowEvent::Ime(_));",
         "키 사건 판정",
     );
+    let mark = at(
+        &to_view,
+        "main.key_settled=key_settled;",
+        "출발 노드를 정했는지 적기",
+    );
     let dispatch = at(
         &to_view,
-        "self.dispatch_window_event_to_view(id,event,key_settled);",
+        "self.dispatch_window_event_to_view(id,event);",
         "view 넘김",
     );
+    assert!(mark < dispatch, "view 로 넘긴 뒤에 적는다");
     let apply = at(
         &to_view,
         "ifkey{self.apply_user_focus_opens(id);}",

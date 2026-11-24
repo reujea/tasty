@@ -110,7 +110,7 @@ fn synthetic_gate_precedes_every_mode_branch() {
         .expect("dispatch_key_to_view body end")];
     only_at(
         to_view_body,
-        "self.dispatch_window_event_to_view(id, event, key_settled);",
+        "self.dispatch_window_event_to_view(id, event);",
         "View 전달 함수의 View 이벤트 전달",
     );
 

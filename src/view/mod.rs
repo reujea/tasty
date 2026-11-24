@@ -79,9 +79,6 @@ pub(crate) struct ViewCtx<'a> {
     pub(crate) modal_active: bool,
     /// 이 창에 연결된 engine. App의 engine registry가 창 ID로 찾아 넘긴다. 모달 View는 None이다.
     pub(crate) engine: Option<crate::runtime::engine_read::EngineRead<'a>>,
-    /// App 이 이 키 사건의 출발 노드를 plugin 단축키 단계 앞에서 이미 정했는지(`MainView::settle_key_event`). 참이면
-    /// 메인 창은 같은 사건에서 다시 정하지 않고 그 결과를 읽는다.
-    pub(crate) key_settled: bool,
 }
 
 /// 열린 모달의 종류. 창을 열 때 기록해 debug 조회에서 모달을 구분한다.

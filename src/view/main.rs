@@ -74,6 +74,10 @@ pub struct MainView {
     /// 지금 키 사건의 단계 4 결과(경로 키의 수신자). 사건마다 포커스 정규화 뒤에 정하고 egui 적재(K9)와 단축키·
     /// 끝 목적지 단계가 읽는다.
     pub(crate) key_decision: crate::adapters::ui::input::key_nodes::KeyDecision,
+    /// App 이 다음에 넘길 사건의 출발 노드를 plugin 단축키 단계 앞에서 이미 정했는지(`settle_key_event`). App 이 사건을
+    /// 넘기기 직전에 적고(`App::dispatch_key_to_view`), 창은 그 사건 입구에서 꺼낸다(`handle_engine_event`). 참이면 창은
+    /// 같은 사건에서 다시 정하지 않고 그 결과를 읽는다.
+    pub(crate) key_settled: bool,
     /// An edit key a plugin popup's field should try (`plugin_popup_keys.rs`). App takes it right
     /// after the event and holds the original key until the plugin replies.
     pub(crate) plugin_edit_ask: Option<plugin_popup_keys::PluginEditAsk>,
@@ -258,6 +262,7 @@ impl MainView {
             edit_replay: None,
             escape_loaded_from: None,
             key_decision: Default::default(),
+            key_settled: false,
             plugin_edit_ask: None,
             ime_preedit: None,
             #[cfg(target_os = "linux")]
@@ -513,7 +518,7 @@ impl MainView {
     /// 단계 3~5: 사건 하나의 출발 노드를 한 번 정한다. 포커스를 정규화하고, 사건 시점의 노드로 입력 몫을 끊은 뒤, 끊긴
     /// 새 몫에서 단계 4 수신자를 정한다. winit 키는 App 이 plugin 단축키 단계 앞에서 부르고
     /// (`App::route_window_input`), 그 밖의 사건과 편집 보류 재생은 창의 단계 3~5(`MainKeySteps::settle_key_node`)가
-    /// 부른다. 두 단계는 같은 결과(포커스 노드·끊긴 몫·`key_decision`)를 읽는다.
+    /// 부른다(App 이 정했으면 `key_settled`). 두 단계는 같은 결과(포커스 노드·끊긴 몫·`key_decision`)를 읽는다.
     pub(crate) fn settle_key_event(&mut self, engine: &EngineRead<'_>, event: &WindowEvent) {
         self.normalize_focus_on_key(engine, event);
         self.cut_input_segment(engine, event);
@@ -609,8 +614,9 @@ impl MainView {
         ctx: &mut ViewCtx<'_>,
     ) -> ViewAction {
         self.sync_window_drawn();
+        let key_settled = std::mem::take(&mut self.key_settled);
         let mut steps =
-            key_event_steps::MainKeySteps::new(self, engine, ctx.modal_active, ctx.key_settled);
+            key_event_steps::MainKeySteps::new(self, engine, ctx.modal_active, key_settled);
         crate::view::key_event::run_key_event(&mut steps, event)
     }
 

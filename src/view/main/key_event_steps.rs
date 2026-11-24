@@ -14,7 +14,7 @@ pub(super) struct MainKeySteps<'a, 'e> {
     view: &'a mut MainView,
     engine: &'a EngineRead<'e>,
     modal_active: bool,
-    /// App 이 이 사건의 출발 노드를 이미 정했는지(`ViewCtx::key_settled`).
+    /// App 이 이 사건의 출발 노드를 이미 정했는지(`MainView::key_settled`).
     key_settled: bool,
     menu_dismiss_swallow: bool,
     os_resize_press: bool,

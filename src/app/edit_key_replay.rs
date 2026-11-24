@@ -132,13 +132,16 @@ impl App {
 
     /// 사건을 창 view 로 넘기고, 키·IME 사건이면 그 사건이 포커스를 주며 연 팝업을 그 자리에서 적용한다. 창 입력과
     /// 편집 보류 재생(원래 키·view 로 가는 줄 선 입력)이 이 길을 함께 쓴다. `key_settled` 는 App 이 그 사건의 출발
-    /// 노드를 이미 정했는지다(`settle_window_key`).
+    /// 노드를 이미 정했는지다(`settle_window_key`). 넘기기 직전에 메인 창에 적어 그 사건이 읽게 한다.
     fn dispatch_key_to_view(&mut self, id: WindowId, event: WindowEvent, key_settled: bool) {
         let key = matches!(
             event,
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
         );
-        self.dispatch_window_event_to_view(id, event, key_settled);
+        if let Some(main) = self.view.views.get_mut(&id).and_then(|w| w.as_main_mut()) {
+            main.key_settled = key_settled;
+        }
+        self.dispatch_window_event_to_view(id, event);
         if key {
             self.apply_user_focus_opens(id);
         }

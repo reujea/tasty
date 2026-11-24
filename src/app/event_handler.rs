@@ -1212,7 +1212,6 @@ impl App {
             let mut ctx = ViewCtx {
                 modal_active: false,
                 engine: None,
-                key_settled: false,
             };
             modal.handle_event(event, &mut ctx)
         } else {
@@ -1258,12 +1257,7 @@ impl App {
         }
     }
 
-    pub(super) fn dispatch_window_event_to_view(
-        &mut self,
-        id: WindowId,
-        event: WindowEvent,
-        key_settled: bool,
-    ) {
+    pub(super) fn dispatch_window_event_to_view(&mut self, id: WindowId, event: WindowEvent) {
         if matches!(event, WindowEvent::RedrawRequested)
             && self
                 .view
@@ -1285,7 +1279,6 @@ impl App {
                 let mut ctx = ViewCtx {
                     modal_active,
                     engine,
-                    key_settled,
                 };
                 // modeless PresetView의 닫기는 여기서 처리하며 모달은 앞의 전용 경로가 처리한다.
                 w.handle_event(event, &mut ctx)
