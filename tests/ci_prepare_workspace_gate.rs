@@ -169,8 +169,19 @@ fn run_stubbed(
     stubs: &[(&str, String)],
     envs: &[(&str, &str)],
 ) -> (i32, String) {
+    run_stubbed_in(root, root, min_free_gb, stubs, envs)
+}
+
+/// `cwd`에서 준비 스크립트를 돌린다. 스텁 폴더는 `root` 옆에 둔다. `envs`의 PWD로 bash의 논리 경로를 정할 수 있다.
+fn run_stubbed_in(
+    cwd: &Path,
+    root: &Path,
+    min_free_gb: &str,
+    stubs: &[(&str, String)],
+    envs: &[(&str, &str)],
+) -> (i32, String) {
     let mut cmd = command("bash");
-    cmd.current_dir(root)
+    cmd.current_dir(cwd)
         .arg(SCRIPT)
         .env("TASTY_CI_CACHE_MIN_FREE_GB", min_free_gb)
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
@@ -545,6 +556,38 @@ fn a_mount_point_inside_target_is_refused() {
     // 스텁은 준비 스크립트와 같은 작업 폴더에서 돌므로 target의 실제 경로를 실행 중에 읽는다.
     let mount = "#!/bin/sh\nprintf '%s\\n' '/dev/root on / type ext4 (rw)' \"tmpfs on $(cd target && pwd -P)/debug type tmpfs (rw)\"\n".to_string();
     assert_mount_boundary_is_refused(&[("mount", mount)]);
+}
+
+/// 작업 트리 경로의 마지막 요소가 링크여도 장치 비교는 실제 경로로 한다. 링크 자체는 다른 장치에 있는 것으로
+/// stat 스텁이 답하고, 같은 장치의 일반 target은 그대로 남아야 한다.
+#[test]
+fn a_symlinked_work_tree_keeps_a_target_on_the_same_device() {
+    let r = repo();
+    let root = &r.root;
+    let link = r.dir.path().join("link");
+    std::os::unix::fs::symlink(root, &link).expect("작업 트리 링크");
+    let day = today();
+    put(root, "target/debug/deps/libfoo.rlib");
+    fs::write(root.join(MARKER), format!("{day}\n")).expect("표지");
+    let stat = format!(
+        "#!/bin/sh\nfor last; do :; done\ncase \"$last\" in */link) echo 2 ;; *) exec {} \"$@\" ;; esac\n",
+        real_command("stat")
+    );
+    // bash는 PWD가 작업 폴더와 같은 곳을 가리키면 논리 경로(링크 이름)를 유지한다.
+    let link_s = link.display().to_string();
+    let (code, log) = run_stubbed_in(
+        &link,
+        root,
+        "0",
+        &[("stat", stat)],
+        &[("PWD", link_s.as_str())],
+    );
+    if today() != day {
+        return a_symlinked_work_tree_keeps_a_target_on_the_same_device();
+    }
+    assert_eq!(code, 0, "{log}");
+    assert!(log.contains("action=keep reason=cached"), "{log}");
+    assert!(root.join("target/debug/deps/libfoo.rlib").exists(), "{log}");
 }
 
 /// macOS(Darwin)로 보이게 하는 uname 스텁.

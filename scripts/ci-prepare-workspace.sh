@@ -60,7 +60,8 @@ fi
 min_free_gb=$(( 10#$min_free_gb ))
 threshold_kib=$(( min_free_gb * 1000000000 / 1024 ))
 
-root="$(cd "$(dirname "$0")/.." && pwd)"
+# 실제 경로로 읽는다. 작업 트리 경로의 마지막 요소가 링크면 논리 경로의 stat은 링크 자체의 장치를 읽어 아래 장치 비교가 틀린다.
+root="$(cd "$(dirname "$0")/.." && pwd -P)"
 cd "$root"
 
 # target이 링크면 표지·삭제가 작업 트리 밖을 가리킨다. 이 스크립트는 링크를 따라가지 않는다.
