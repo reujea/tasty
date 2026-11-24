@@ -14,6 +14,8 @@
 use utf8parse::Parser as Utf8Parser;
 mod enums;
 use crate::enums::*;
+// tasty patch: expose the parser state so a caller can tell where a sequence ends.
+pub use crate::enums::State;
 mod transitions;
 
 use transitions::{ENTRY, EXIT, TRANSITIONS};
@@ -436,6 +438,12 @@ impl VTParser {
     /// i.e. there is no pending state held by the state machine.
     pub fn is_ground(&self) -> bool {
         self.state == State::Ground
+    }
+
+    // tasty patch: read-only state query.
+    /// Returns the current state of the state machine.
+    pub fn state(&self) -> State {
+        self.state
     }
 
     fn as_integer_params(&self) -> [i64; MAX_PARAMS] {

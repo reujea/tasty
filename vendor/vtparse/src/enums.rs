@@ -55,8 +55,9 @@ pub enum State {
 }
 
 impl State {
+    // tasty patch: crate-private, since State is now public and this transmute is unchecked.
     #[inline(always)]
-    pub fn from_u16(v: u16) -> Self {
+    pub(crate) fn from_u16(v: u16) -> Self {
         unsafe { std::mem::transmute(v) }
     }
 }

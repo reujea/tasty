@@ -3,7 +3,7 @@ members = ["crates/*"]
 # WASM 실험 SDK는 자체 Cargo.lock으로 관리해 기본 빌드의 의존성 해석에서 제외한다.
 # 보류 이유: docs/dev-guide/plugin-permissions.md
 # vendor 사본은 workspace lint·fmt 대상에 포함하지 않는다.
-exclude = ["crates/tasty-plugin-sdk-wasm", "vendor/tiny_http", "vendor/epaint"]
+exclude = ["crates/tasty-plugin-sdk-wasm", "vendor/tiny_http", "vendor/epaint", "vendor/vtparse"]
 resolver = "2"
 
 # 각 패키지가 [lints] workspace = true로 공통 규칙을 사용한다.
@@ -435,6 +435,9 @@ tiny_http = { path = "vendor/tiny_http" }
 # 글리프가 글꼴 atlas보다 크면 패닉하는 대신 그 글자를 비우도록 패치한 사본이다.
 # 패치 범위와 상류 버전으로 돌아갈 조건: vendor/epaint/PATCHES.md
 epaint = { path = "vendor/epaint" }
+# 파서 상태를 읽는 함수를 더한 사본이다. attach 효과 소유자의 시퀀스 끝을 판정한다.
+# 패치 범위와 상류 버전으로 돌아갈 조건: vendor/vtparse/PATCHES.md
+vtparse = { path = "vendor/vtparse" }
 
 [lints]
 workspace = true
