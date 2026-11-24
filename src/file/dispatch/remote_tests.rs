@@ -1265,3 +1265,38 @@ fn the_drawn_remote_mark_follows_the_location_while_the_picker_is_open() {
     assert!(texts.iter().any(|t| t == "build-eu"), "{texts:?}");
     assert!(texts.iter().any(|t| t == word), "{texts:?}");
 }
+
+/// 출처 surface 의 workspace 를 찾지 못하면 연 workspace 가 없다. 연 때의 활성 workspace(재연결 중인 다른
+/// mirror)로 남지 않아 그 상태를 그리지 않는다.
+#[test]
+fn a_picker_whose_origin_surface_is_gone_reads_no_mirror_state() {
+    use crate::remote::state::MirrorLocation;
+    crate::i18n::init("en");
+    let word = crate::i18n::t("status_bar.remote_reconnecting");
+    let host = "work-laptop-attach";
+    let (mut state, mut engine_session, mut payload, _ws) =
+        open_user_remote_picker(Some(MirrorLocation {
+            host: host.into(),
+            reconnecting: false,
+        }));
+    let other = push_other_mirror(&mut engine_session);
+    {
+        let engine = engine_session.borrow_mut();
+        engine.remote.mirror_locations.insert(
+            other,
+            MirrorLocation {
+                host: host.into(),
+                reconnecting: true,
+            },
+        );
+        let picker = crate::adapters::ui::popup::file_handler_picker::picker_of_mut(&mut payload)
+            .expect("picker payload");
+        // 활성 workspace 에서 연 것처럼 시작한 picker 에 사라진 출처 surface 를 싣는다.
+        picker.opened_in = Some(other);
+        crate::file::dispatch::set_picker_origin(picker, &engine.read(), Some(777_777));
+        assert_eq!(picker.opened_in, None);
+    }
+    let texts = painted_picker(&mut state, &mut engine_session, &mut payload);
+    assert!(texts.iter().any(|t| t == host), "{texts:?}");
+    assert!(!texts.iter().any(|t| t == word), "{texts:?}");
+}

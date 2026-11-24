@@ -347,6 +347,8 @@ pub(crate) fn open_picker_adjusted(
 
 /// picker 에 요청 출처 surface 를 싣는다. 출처 surface 가 있으면 선택을 연 workspace(`opened_in`)는 그
 /// surface 의 workspace 다. IPC 요청은 사용자가 보고 있는 workspace 가 아니라 그 surface 에서 연 것이다.
+/// 출처 surface 의 workspace 를 찾지 못하면(그 사이 surface 가 닫힘 등) 연 workspace 가 없다. 활성
+/// workspace 로 남기면 다른 mirror 의 원격 상태를 이 picker 의 표지로 그리게 된다.
 #[cfg(feature = "gui")]
 pub(crate) fn set_picker_origin(
     picker: &mut crate::state::FileHandlerPickerData,
@@ -354,11 +356,11 @@ pub(crate) fn set_picker_origin(
     origin_surface_id: Option<u32>,
 ) {
     picker.origin_surface_id = origin_surface_id;
-    if let Some(workspace) = origin_surface_id
-        .and_then(|sid| engine.find_workspace_index_for_surface(sid))
-        .and_then(|(index, _)| engine.workspace_at(index))
-    {
-        picker.opened_in = Some(workspace.id);
+    if let Some(sid) = origin_surface_id {
+        picker.opened_in = engine
+            .find_workspace_index_for_surface(sid)
+            .and_then(|(index, _)| engine.workspace_at(index))
+            .map(|workspace| workspace.id);
     }
     picker.row_link =
         crate::adapters::ui::popup::remote_row::picker_row_link(engine, picker.opened_in);
