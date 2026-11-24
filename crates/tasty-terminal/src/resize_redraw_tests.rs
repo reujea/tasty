@@ -206,3 +206,30 @@ fn output_received_when_the_new_connection_began_is_not_a_redraw() {
     t.feed_bytes_at(b"new connection", began);
     assert_eq!(t.silence_since(), began);
 }
+
+/// Given 재연결로 옛 구간이 새 연결 시작 시각(`began`)에 닫혔고 그 시각에 새 연결 출력을 받았을 때, When
+/// 같은 시각의 `Resize`가 구간을 열면, Then 옛 구간을 이어받지 않아 침묵 기준은 그 출력이다.
+#[test]
+fn a_resize_at_the_reconnect_instant_does_not_inherit_the_old_window() {
+    let mut t = idle_terminal();
+    let resized = Instant::now() - Duration::from_millis(100);
+    t.note_resize_redraw_at(resized);
+    let began = resized + Duration::from_millis(10);
+    t.bind_external_input(std::sync::Arc::new(|_| Ok(())), Some(began));
+    t.feed_bytes_at(b"new connection", began);
+    t.note_resize_redraw_at(began);
+    assert_eq!(t.silence_since(), began);
+}
+
+/// Given 구간 끝 시각에 받은 출력, When 같은 시각의 `Resize`가 구간을 열면, Then 끝난 구간을 이어받지 않아
+/// 침묵 기준은 그 출력이다.
+#[test]
+fn a_resize_at_the_window_end_does_not_inherit_the_window() {
+    let mut t = idle_terminal();
+    let resized = Instant::now() - Duration::from_secs(2);
+    t.note_resize_redraw_at(resized);
+    let end = resized + RESIZE_REDRAW_WINDOW;
+    t.feed_bytes_at(b"work", end);
+    t.note_resize_redraw_at(end);
+    assert_eq!(t.silence_since(), end);
+}

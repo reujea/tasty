@@ -57,8 +57,9 @@ impl TerminalState {
 
     fn open_resize_window(&mut self, now: Instant) -> ResizeWindowToken {
         let prev = self.resize_redraw;
+        // 끝 시각은 구간 밖이라([`ResizeRedraw::contains`]) 그 시각의 통지는 끝난 구간을 이어받지 않는다.
         let open = |start: Instant, t: Instant| {
-            prev.is_some_and(|r| now <= r.end || ResizeRedraw::contains(start, r.end, t))
+            prev.is_some_and(|r| now < r.end || ResizeRedraw::contains(start, r.end, t))
         };
         let activity_start = match prev {
             Some(r) if open(r.activity_start, self.last_activity_chunk_at) => r.activity_start,
