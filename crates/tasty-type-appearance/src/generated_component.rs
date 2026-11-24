@@ -4947,7 +4947,7 @@ impl crate::theme::Theme {
     /// `component.settings-l1-height` → `{primitive.size-44}` = 44px
     #[inline]
     pub fn settings_l1_height(&self) -> LogicalPx {
-        LogicalPx((44.0 * self.ui_zoom).round())
+        self.settings_l1_height
     }
 
     /// `component.settings-label-gap` → `{semantic.space-lg}` = 16px

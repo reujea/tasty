@@ -31,6 +31,8 @@ enum Reason {
     StatusBar,
     /// OS 창 장식과 맞추는 타이틀바.
     Titlebar,
+    /// 고정 크기 설정창의 크롬.
+    SettingsWindow,
 }
 
 /// 각 사유에 대응하는 필드 설명 표지.
@@ -43,6 +45,7 @@ impl Reason {
             Reason::TabBar => "탭바 크롬",
             Reason::StatusBar => "상태바 크롬",
             Reason::Titlebar => "CSD 타이틀바 크롬",
+            Reason::SettingsWindow => "설정창 크롬",
         }
     }
 }
@@ -68,6 +71,7 @@ const EXEMPT: &[(&str, Reason)] = &[
     ("traffic_size", Reason::Titlebar),
     ("caption_width", Reason::Titlebar),
     ("window_button_size", Reason::Titlebar),
+    ("settings_l1_height", Reason::SettingsWindow),
 ];
 
 /// 필드 하나의 실측 결과: (이름, `zoomed()` 를 타는가).
@@ -406,6 +410,7 @@ mod tests {
             Reason::TabBar,
             Reason::StatusBar,
             Reason::Titlebar,
+            Reason::SettingsWindow,
         ];
         let stray: Vec<&String> = docs
             .iter()

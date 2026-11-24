@@ -66,6 +66,7 @@ fn sizing_value(field: &str) -> f32 {
         "traffic_size" => SIZING.traffic_size.0,
         "caption_width" => SIZING.caption_width.0,
         "window_button_size" => SIZING.window_button_size.0,
+        "settings_l1_height" => SIZING.settings_l1_height.0,
         "toast_max_width" => SIZING.toast_max_width.0,
         "toast_accent_width" => SIZING.toast_accent_width.0,
         "status_dot_size" => SIZING.status_dot_size.0,

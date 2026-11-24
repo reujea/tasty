@@ -340,6 +340,10 @@ pub struct ThemeSizing {
     pub caption_width: LogicalPx,
     /// Linux DE 버튼(min·max·close) 원형 지름.
     pub window_button_size: LogicalPx,
+    // ── 설정창 고정 치수 (host UI zoom 영향 받지 않음) ──
+    // 창 크기가 UI 배율과 독립이라 그 안의 L1 띠도 고정한다.
+    /// 설정창 L1 탭 띠 높이(아래 1px 선 포함).
+    pub settings_l1_height: LogicalPx,
     // ── 가독 폭 (Note / content / 모달 컬럼용) ──
     /// 좁은 가독 폭 (300px).
     pub measure_sm: LogicalPx,
@@ -435,6 +439,7 @@ pub const SIZING: ThemeSizing = ThemeSizing {
     traffic_size: LogicalPx(12.0),
     caption_width: LogicalPx(46.0),
     window_button_size: LogicalPx(24.0),
+    settings_l1_height: LogicalPx(44.0),
     measure_sm: LogicalPx(300.0),
     measure_md: LogicalPx(400.0),
     measure_lg: LogicalPx(460.0),
@@ -966,6 +971,10 @@ pub struct Theme {
     /// Linux DE 버튼(min·max·close) 원형 지름.
     /// CSD 타이틀바 크롬은 UI zoom 제외.
     pub window_button_size: LogicalPx,
+    // ── 설정창 고정 치수 (host UI zoom 영향 받지 않음) ──
+    /// 설정창 L1 탭 띠 높이(아래 1px 선 포함).
+    /// 설정창 크롬은 창 크기처럼 UI zoom 제외.
+    pub settings_l1_height: LogicalPx,
     // ── 가독 폭 (Note / content / 모달 컬럼용) ──
     pub measure_sm: LogicalPx,
     pub measure_md: LogicalPx,
@@ -1151,6 +1160,8 @@ impl Theme {
             traffic_size: SIZING.traffic_size,
             caption_width: SIZING.caption_width,
             window_button_size: SIZING.window_button_size,
+            // 설정창 크롬 — 창 크기와 같이 zoom 미적용.
+            settings_l1_height: SIZING.settings_l1_height,
             // 가독 폭 / form-control 폭 / 세부 치수 — host UI content, zoom 적용.
             measure_sm: zoomed(SIZING.measure_sm),
             measure_md: zoomed(SIZING.measure_md),
@@ -2243,6 +2254,7 @@ mod tests {
         assert_eq!(base.traffic_size, zoomed.traffic_size);
         assert_eq!(base.caption_width, zoomed.caption_width);
         assert_eq!(base.window_button_size, zoomed.window_button_size);
+        assert_eq!(base.settings_l1_height, zoomed.settings_l1_height);
     }
 
     #[test]

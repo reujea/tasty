@@ -69,9 +69,6 @@ use tasty_ui_widgets::{Button, ButtonVariant};
 
 /// L2 사이드바 폭. 디자인 `--tasty-settings-sidebar-width` = 200.
 const SETTINGS_SIDEBAR_WIDTH: LogicalPx = LogicalPx(200.0);
-/// L1 헤더 밴드 높이(아래 1px 선 포함). 디자인 `settings-l1-height`(44)이고 설정창 크기처럼 UI 배율 밖이다.
-/// 그 토큰의 Theme 접근자는 배율을 곱하므로 배율 없는 값을 이름 붙여 둔다.
-const SETTINGS_HEADER_HEIGHT: LogicalPx = LogicalPx(44.0);
 /// active L1 탭 하단 인디케이터 두께. 디자인 `border-bottom: 2px accent`.
 const SETTINGS_TAB_UNDERLINE: LogicalPx = LogicalPx(2.0);
 /// L1 탭 사이 간격. 디자인 header `gap: 2`.
@@ -679,7 +676,7 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
             .show(ctx, |ui| {
                 // ── L1 헤더 밴드 (디자인 header height44 / bg-sidebar / border-bottom) ──
                 let header = egui::TopBottomPanel::top("settings_header")
-                    .exact_height(SETTINGS_HEADER_HEIGHT.value())
+                    .exact_height(th.settings_l1_height.value())
                     .resizable(false)
                     .show_separator_line(false)
                     .frame(egui::Frame::NONE.fill(th.bg_sidebar().to_egui()))

@@ -97,7 +97,7 @@ fn frame(ui: &mut egui::Ui, th: &Theme, active: bool, close: Close, tip: &str) {
             ui.set_width(width);
             ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
             bar(ui, th, active, close, tip);
-            let band = th.settings_l1_height() - th.border_width;
+            let band = th.settings_l1_height - th.border_width;
             super::settings::l1_band(ui, th, band);
             kit::hsep(ui, th);
         });
