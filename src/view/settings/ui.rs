@@ -1394,12 +1394,7 @@ fn draw_l1_tab_band(ui: &mut egui::Ui, th: &Theme, ui_state: &mut SettingsUiStat
     ];
     let prev = ui_state.active_tab;
     egui::Frame::NONE
-        .inner_margin(egui::Margin {
-            left: th.spacing_md.value() as i8,
-            right: th.spacing_md.value() as i8,
-            top: 0,
-            bottom: 0,
-        })
+        .inner_margin(egui::Margin::symmetric(th.spacing_md.value() as i8, 0))
         .show(ui, |ui| {
             // 콘텐츠 높이만큼 줄지 않도록 헤더 영역을 잡고 세로 중앙에 배치한다.
             let band_h = ui.available_height();
