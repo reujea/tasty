@@ -431,7 +431,8 @@ pub struct QueueHeader<'a> {
     pub after: &'a str,
 }
 
-fn queue_header(ui: &mut egui::Ui, theme: &Theme, header: &QueueHeader<'_>) {
+/// 대기열 팝오버의 머리 줄을 그린다. 팝오버 밖(갤러리의 언어별 표본)에서도 같은 줄을 쓴다.
+pub fn op_queue_header(ui: &mut egui::Ui, theme: &Theme, header: &QueueHeader<'_>) {
     // The fixed header margins and inter-part gaps must fit before adding any children.
     if LogicalPx(ui.available_width())
         < theme.spacing_sm * 2.0 + theme.explorer_remote_queue_head_gap() * 2.0
@@ -531,7 +532,7 @@ pub fn op_queue_popover(
         .show(&mut child, |ui| {
             ui.set_width(content_width.value());
             if let Some(header) = header {
-                queue_header(ui, theme, header);
+                op_queue_header(ui, theme, header);
             }
             removed = op_queue_rows(ui, theme, rows, paint_close, paint_queued);
         })

@@ -8,13 +8,14 @@ use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     DragChipProps, DragOp, ExplorerNameEdit, ExplorerNameLayout, ExplorerNameOptions, HostMark,
     MenuItemVariant, OpStatusProps, QueueHeader, QueueRowProps, ResultCardProps, drag_chip,
-    explorer_name_row_in, menu_item, menu_separator, op_queue_popover, op_status_line, result_card,
+    explorer_name_row_in, menu_item, menu_separator, op_queue_frame, op_queue_header,
+    op_queue_popover, op_queue_width, op_status_line, result_card,
 };
 
 use super::{BODY_H, CELL_W, QUEUE_BODY_H, cell, glyph_painter};
 use crate::catalog::icons::{self, MockGlyph};
 use crate::catalog::spec::{self, StageVariant, TokenChip};
-use crate::i18n::{t, t_args, t_fmt, t_fmt2};
+use crate::i18n::{t, t_args, t_fmt, t_fmt2, t_lang, translated_languages};
 
 /// 디자인 예제의 원격 호스트 이름.
 const HOST: &str = "build-eu";
@@ -104,6 +105,45 @@ fn tip(ui: &mut egui::Ui, theme: &Theme, text: &str) {
         });
 }
 
+/// 디자인 no-profile View 의 언어 순서(en 다음 번역 언어).
+fn no_host_languages() -> impl Iterator<Item = &'static str> {
+    std::iter::once("en").chain(translated_languages())
+}
+
+/// 디자인의 숨은 View 한 묶음. 카탈로그 Spec 에 View 칸이 없어 같은 Spec 아래에 라벨을 달아 둔다.
+fn no_host_view(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    label: &str,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) {
+    spec::stage(ui, theme, StageVariant::Wrap, |ui| {
+        ui.spacing_mut().item_spacing =
+            egui::vec2(theme.spacing_lg.value(), theme.spacing_lg.value());
+        spec::cluster(ui, theme, label, add_contents);
+    });
+}
+
+/// 언어별 결과 카드 한 장.
+fn lang_card(ui: &mut egui::Ui, theme: &Theme, kind: ToastKind, title: &str, body: Option<&str>) {
+    let close = glyph_painter(icons::CLOSE);
+    result_card(
+        ui,
+        theme,
+        theme.toast_max_width().value(),
+        &ResultCardProps {
+            kind,
+            title,
+            body,
+            lines: &[],
+            more: None,
+            actions: &[],
+            dismiss_tip: t("explorer.result.dismiss"),
+        },
+        &close,
+    );
+}
+
 /// D1 — 쓸 수 없는 원격은 쓰기 행을 숨기지 않고 꺼 두며, 이유를 툴팁과 단축키 토스트로 알린다.
 pub fn draw_write_refused(ui: &mut egui::Ui, theme: &Theme) {
     let reason = t_fmt("explorer.remote.write_needs_update", HOST);
@@ -189,6 +229,35 @@ pub fn draw_write_refused(ui: &mut egui::Ui, theme: &Theme) {
             );
         });
     });
+    no_host_view(
+        ui,
+        theme,
+        "View · remote-write-reason-no-profile — no profile name (--ssh or --target-port from the CLI or IPC): the older-Tasty reason with no host, as tooltip and toast, every language",
+        |ui| {
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
+                for lang in no_host_languages() {
+                    tip(
+                        ui,
+                        theme,
+                        t_lang(lang, "explorer.remote.write_needs_update_no_host"),
+                    );
+                }
+            });
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
+                for lang in no_host_languages() {
+                    lang_card(
+                        ui,
+                        theme,
+                        ToastKind::Info,
+                        t_lang(lang, "explorer.remote.write_needs_update_no_host"),
+                        None,
+                    );
+                }
+            });
+        },
+    );
     spec::meta(
         ui,
         theme,
@@ -207,6 +276,10 @@ pub fn draw_write_refused(ui: &mut egui::Ui, theme: &Theme) {
             (
                 "reason",
                 "older Tasty on the remote → update hint with the host",
+            ),
+            (
+                "no host",
+                "no profile name (--ssh, --target-port, a profile saved with an empty name) → explorer.remote.write_needs_update_no_host() · never 127.0.0.1:<port>",
             ),
         ],
         &[
@@ -255,6 +328,39 @@ pub fn draw_remote_waiting(ui: &mut egui::Ui, theme: &Theme) {
         ui.add_space(theme.spacing_md.value());
         rename_card(ui, theme, Some(&renaming));
     });
+    no_host_view(
+        ui,
+        theme,
+        "View · remote-waiting-no-profile — no profile name (--ssh or --target-port from the CLI or IPC): the spinner tooltip and the Rename popup line with no host, every language",
+        |ui| {
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
+                for lang in no_host_languages() {
+                    tip(ui, theme, t_lang(lang, "explorer.remote.waiting_no_host"));
+                }
+            });
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
+                for lang in no_host_languages() {
+                    // 카드마다 이름 칸 ID 가 겹치지 않게 언어로 나눈다.
+                    ui.push_id(lang, |ui| {
+                        crate::catalog::components::rename_popup::card(
+                            ui,
+                            theme,
+                            crate::catalog::components::rename_popup::Card {
+                                layout: tasty_ui_widgets::RenamePopupLayout::Explorer,
+                                title: t_lang(lang, "explorer.popup.rename.title"),
+                                save: t_lang(lang, "button.save"),
+                                name: "report-final.pdf",
+                                error: None,
+                                waiting: Some(t_lang(lang, "explorer.remote.renaming_no_host")),
+                            },
+                        );
+                    });
+                }
+            });
+        },
+    );
     spec::meta(
         ui,
         theme,
@@ -273,6 +379,10 @@ pub fn draw_remote_waiting(ui: &mut egui::Ui, theme: &Theme) {
             (
                 "Rename popup",
                 "open · field readOnly · Spinner line · Cancel + Rename disabled · closes on success",
+            ),
+            (
+                "no host",
+                "no profile name (--ssh, --target-port, a profile saved with an empty name) → explorer.remote.waiting_no_host() · explorer.remote.renaming_no_host() · never 127.0.0.1:<port>",
             ),
         ],
         &[
@@ -378,12 +488,40 @@ pub fn draw_connection_lost(ui: &mut egui::Ui, theme: &Theme) {
             &close,
         );
     });
+    no_host_view(
+        ui,
+        theme,
+        "View · remote-lost-no-profile — no profile name (--ssh or --target-port from the CLI or IPC): the title with no host and the unchanged body, every language",
+        |ui| {
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
+                for lang in no_host_languages() {
+                    let body = t_lang(lang, "explorer.remote.lost_body").replacen(
+                        "{}",
+                        t_lang(lang, "explorer.remote.op_copy"),
+                        1,
+                    );
+                    lang_card(
+                        ui,
+                        theme,
+                        ToastKind::Warning,
+                        t_lang(lang, "explorer.remote.lost_title_no_host"),
+                        Some(&body),
+                    );
+                }
+            });
+        },
+    );
     spec::meta(
         ui,
         theme,
         &[
             ("tone", "warning · stays until dismissed"),
             ("title", "Connection to {host} lost · result unknown"),
+            (
+                "no host",
+                "no profile name (--ssh, --target-port, a profile saved with an empty name) → explorer.remote.lost_title_no_host() · body unchanged (its {} is the operation) · never 127.0.0.1:<port> · the card is the remote file operation's result-unknown card, kept until dismissed · whether it stays depends on the mirror's saved row, not on the name or on a saved profile: a mirror with a saved row goes to reconnect on a drop, so its card stays as usual; a mirror with no saved row is cleaned up after a drop, so its card shows only for the few frames before that cleanup, when the link fails while a result is awaited · no saved row: --ssh, --target-port, and a remote.attach whose saved profile (its name empty or not) matched no saved row and was installed by hand · an empty profile name with a matching saved row keeps that row",
+            ),
             (
                 "body",
                 "caption · text-secondary · stopped at the item · may have changed · reload on reconnect",
@@ -403,8 +541,8 @@ pub fn draw_connection_lost(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
-/// D4 — 원격 작업의 진행 줄 맨 앞과 대기열 머리에 호스트를 보인다.
-pub fn draw_remote_progress(ui: &mut egui::Ui, theme: &Theme) {
+/// 원격 작업 진행 줄과 대기열이 열린 칸 한 장. `host` 가 비면 표지가 낱말을 그린다.
+fn progress_cell(ui: &mut egui::Ui, theme: &Theme, host: &str, id: &str) {
     let close = glyph_painter(icons::CLOSE);
     let layers = glyph_painter(icons::LAYERS);
     let remote = glyph_painter(icons::REMOTE);
@@ -423,11 +561,11 @@ pub fn draw_remote_progress(ui: &mut egui::Ui, theme: &Theme) {
     let title = t("explorer.remote.queue_title");
     let (before, after) = title.split_once("{}").unwrap_or((title, ""));
     let mark = HostMark {
-        name: HOST,
+        name: host,
         empty_label: t("attach.mirror_pill_label"),
         paint_glyph: &remote,
     };
-    spec::stage(ui, theme, StageVariant::Column, |ui| {
+    ui.vertical(|ui| {
         ui.set_width(CELL_W.value());
         let (rect, status) = cell(ui, theme, QUEUE_BODY_H);
         op_status_line(
@@ -450,7 +588,7 @@ pub fn draw_remote_progress(ui: &mut egui::Ui, theme: &Theme) {
         op_queue_popover(
             ui,
             theme,
-            egui::Id::new("explorer_remote_queue_specimen"),
+            egui::Id::new(id),
             egui::pos2(
                 rect.right() - theme.spacing_sm.value(),
                 status.top() - theme.spacing_xs.value(),
@@ -478,6 +616,45 @@ pub fn draw_remote_progress(ui: &mut egui::Ui, theme: &Theme) {
             &layers,
         );
     });
+}
+
+/// D4 — 원격 작업의 진행 줄 맨 앞과 대기열 머리에 호스트를 보인다.
+pub fn draw_remote_progress(ui: &mut egui::Ui, theme: &Theme) {
+    let remote = glyph_painter(icons::REMOTE);
+    spec::stage(ui, theme, StageVariant::Column, |ui| {
+        progress_cell(ui, theme, HOST, "explorer_remote_queue_specimen");
+    });
+    no_host_view(
+        ui,
+        theme,
+        "View · explorer-remote-progress-no-profile — no profile name (--ssh or --target-port from the CLI or IPC): the word Remote in the progress line's mark and the queue header, then the header in every language",
+        |ui| {
+            progress_cell(ui, theme, "", "explorer_remote_queue_no_host_specimen");
+            op_queue_frame(theme).show(ui, |ui| {
+                ui.set_width(op_queue_width(theme).value());
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
+                    for lang in no_host_languages() {
+                        let title = t_lang(lang, "explorer.remote.queue_title");
+                        let (before, after) = title.split_once("{}").unwrap_or((title, ""));
+                        op_queue_header(
+                            ui,
+                            theme,
+                            &QueueHeader {
+                                before,
+                                host: HostMark {
+                                    name: "",
+                                    empty_label: t_lang(lang, "attach.mirror_pill_label"),
+                                    paint_glyph: &remote,
+                                },
+                                after,
+                            },
+                        );
+                    }
+                });
+            });
+        },
+    );
     spec::meta(
         ui,
         theme,
@@ -485,6 +662,14 @@ pub fn draw_remote_progress(ui: &mut egui::Ui, theme: &Theme) {
             (
                 "host mark",
                 "remote glyph (workspace-mirror-icon-size) + host · mono caption · workspace-mirror-fg · first on the line",
+            ),
+            (
+                "host text",
+                "the host text rule (Dialogs › File handler › Remote path): attach profile name (R-57) · never 127.0.0.1:<port>, the local end of the tunnel",
+            ),
+            (
+                "no host",
+                "no profile name (--ssh, --target-port, a profile saved with an empty name) → attach.mirror_pill_label in --tasty-font-label, same ink, glyph unchanged · in the progress line's mark and the queue header's mark · queue_title unchanged · the address bar holds the remote absolute path, with or without a profile name",
             ),
             ("queued", "“+n queued” = this cell's remote queue"),
             (
