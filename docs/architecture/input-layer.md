@@ -269,7 +269,7 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 (`ReplayStep::Original`·`ReplayStep::Input`)은 원래 사건 때 값을 쓰지 않고 재생 시점에 다시 정한다(`src/app/edit_key_replay.rs`). 단계 순서의 정본은
 `run_key_event`(`src/view/key_event.rs`)와 메인 창 단계 구현 `MainKeySteps`(`src/view/main/key_event_steps.rs`)이고
 `source_guards::edit_key_judgment_order`·`press_focus_call_sites`가 고정한다. egui 적재는 `MainViewState::window_feeds_key`,
-터미널로 보낼지는 `MainViewState::window_key_holds_terminal`이 정한다. vi 복사 모드는 지금 자리 그대로다.
+터미널로 보낼지는 `MainViewState::window_key_holds_terminal`이 정한다. vi 복사 모드는 그 터미널 노드의 내용이라 키가 그 터미널에서 끝날 때만 받고(`view::main::vi_key_node::vi_key_step`), 대상 터미널이 보이지 않게 되면 포커스와 무관하게 다음 키에서 끝난다.
 
 ### 보류 줄
 

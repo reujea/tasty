@@ -33,6 +33,7 @@ pub(crate) mod selection;
 mod shutdown;
 mod titlebar_press;
 pub(crate) mod vi_copy;
+mod vi_key_node;
 
 pub(crate) mod ime;
 #[cfg(target_os = "linux")]

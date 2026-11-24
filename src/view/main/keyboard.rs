@@ -130,8 +130,9 @@ impl MainView {
             return;
         }
 
-        // vi-style 키보드 복사 모드가 활성이면 키를 가로채 PTY 로 보내지 않는다.
-        if self.vi_copy.is_some() && self.try_consume_vi_key(engine, event) {
+        // vi-style 키보드 복사 모드는 그 터미널 노드의 내용이다. 키가 그 터미널에서 끝나면 가로채 PTY 로 보내지 않는다.
+        if self.vi_copy.is_some() && self.try_consume_vi_key(engine, event, receiver, overlay_open)
+        {
             return;
         }
 
@@ -360,7 +361,24 @@ impl MainView {
         &mut self,
         engine: &EngineRead<'_>,
         event: &winit::event::KeyEvent,
+        receiver: Option<crate::adapters::ui::input::key_route::KeyReceiver>,
+        overlay_open: bool,
     ) -> bool {
+        use super::vi_key_node::{ViKeyStep, vi_key_step};
+        let Some(vi_sid) = self.vi_copy.as_ref().map(|vi| vi.surface_id) else {
+            return false;
+        };
+        let visible = engine.as_ref().visible_terminal(vi_sid).is_some();
+        let focused = self.state.focused_surface_id(engine);
+        match vi_key_step(vi_sid, visible, receiver, overlay_open, focused) {
+            ViKeyStep::End => {
+                self.vi_copy = None;
+                self.mark_dirty();
+                return true;
+            }
+            ViKeyStep::Pass => return false,
+            ViKeyStep::Handle => {}
+        }
         let vi_key = if self.base.state.modifiers.control_key() {
             crate::shortcuts::physical_key_to_logical(&event.physical_key)
                 .unwrap_or_else(|| event.logical_key.clone())
