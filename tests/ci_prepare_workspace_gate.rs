@@ -223,8 +223,9 @@ fn a_cached_run_keeps_cargo_outputs_and_clears_everything_else() {
     fs::write(root.join("tracked.txt"), "modified by an earlier job\n").expect("수정");
 
     let (code, log) = run(root, "0");
-    if marker(root).as_deref() != Some(day.as_str()) || today() != day {
-        // 실행 도중 날짜가 바뀌었다. 판정 대상이 아니므로 다시 준비해 한 번 더 잰다.
+    // 실행 도중 날짜가 바뀌었으면 판정 대상이 아니므로 다시 준비해 한 번 더 잰다.
+    // 재시도는 시계로만 정한다. 스크립트가 남긴 표지로 정하면 표지를 잃는 회귀가 끝없는 재귀가 된다.
+    if today() != day {
         return a_cached_run_keeps_cargo_outputs_and_clears_everything_else();
     }
     assert_eq!(code, 0, "{log}");
@@ -283,14 +284,15 @@ fn an_absent_target_starts_a_new_day_marker() {
 fn low_free_space_wipes_target() {
     let r = repo();
     let root = &r.root;
+    let day = today();
     put(root, "target/debug/deps/libfoo.rlib");
-    fs::write(root.join(MARKER), format!("{}\n", today())).expect("표지");
+    fs::write(root.join(MARKER), format!("{day}\n")).expect("표지");
     // 어떤 볼륨의 여유도 이 값(GB)을 넘지 않는다.
     let (code, log) = run(root, "999999999");
-    assert_eq!(code, 0, "{log}");
-    if log.contains("reason=first-of-day") {
+    if today() != day {
         return low_free_space_wipes_target();
     }
+    assert_eq!(code, 0, "{log}");
     assert!(log.contains("action=wipe reason=low-disk"), "{log}");
     assert!(!root.join("target/debug").exists(), "{log}");
 }
