@@ -2029,6 +2029,50 @@ mod tests {
         );
     }
 
+    /// 접수된 저장이 쓰기 오류로 끝나면 -32603이다. 성공 응답은 값이 파일에 쓰인 뒤에 온다.
+    #[cfg(unix)]
+    #[test]
+    fn set_nickname_answers_a_failed_write_with_an_error_and_success_after_the_write() {
+        use std::os::unix::fs::PermissionsExt;
+        let mut e_session = engine_with_extra(&[5919]);
+        let mut e = e_session.borrow_mut();
+        let parent = e
+            .workspace_at(0)
+            .expect("workspace index is valid")
+            .all_surface_ids()[0];
+        let path = tasty_utils::path::tasty_home()
+            .expect("isolated test home")
+            .join("child-terminals-write-error.json");
+        let hub = crate::runtime::child_terminal::Hub::new(Some(path.clone()));
+        hub.test_attach_writer();
+        e.runtime.child_terminals =
+            crate::runtime::child_terminal::ChildTerminalRegistry::from_hub(&hub);
+        e.runtime
+            .child_terminals
+            .register_child(parent, child(5919, 0));
+        let first = ok(handle_set_nickname(
+            &mut e,
+            json!(1),
+            &json!({ "surface": parent, "child": 0, "nickname": "first" }),
+        ));
+        assert_eq!(first["nickname"], json!("first"));
+        let on_disk = std::fs::read_to_string(&path).expect("registry file");
+        assert!(on_disk.contains("\"first\""), "{on_disk}");
+
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o400)).unwrap();
+        let resp = handle_set_nickname(
+            &mut e,
+            json!(2),
+            &json!({ "surface": parent, "child": 0, "nickname": "second" }),
+        );
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let err = resp.error.expect("a failed write must not answer success");
+        assert_eq!(err.code, -32603, "{}", err.message);
+        assert!(err.message.contains("child registry"), "{}", err.message);
+        let on_disk = std::fs::read_to_string(&path).expect("registry file");
+        assert!(!on_disk.contains("\"second\""), "{on_disk}");
+    }
+
     /// 다른 창이 등록한 자식은 이 창에서 고치지 않는다. 고치면 이 창이 그 자식을 소유한 것으로 기록해
     /// 다음 reconcile 이 다른 창의 관계를 지운다.
     #[test]
