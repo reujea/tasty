@@ -397,13 +397,9 @@ pub fn draw_egui_panels(
                         ) {
                             let leaf = ui.max_rect();
                             let ppp = ui.ctx().pixels_per_point();
-                            let rows = tasty_ui_widgets::surface_focus_edge_rows(
-                                &th,
-                                leaf.top() * ppp,
-                                leaf.bottom() * ppp,
-                                ppp,
-                            );
-                            leaf.with_min_y(rows.bottom / ppp)
+                            leaf.with_min_y(tasty_ui_widgets::surface_focus_content_top(
+                                &th, leaf, ppp,
+                            ))
                         } else {
                             ui.max_rect()
                         };

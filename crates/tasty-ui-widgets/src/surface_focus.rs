@@ -3,7 +3,7 @@
 //! 값은 focus 상태만 받는다. hard 점유 판정은 호출자가 먼저 끝내고 넘긴다.
 
 use tasty_type_appearance::theme::Theme;
-use tasty_type_geometry::length::LogicalPx;
+use tasty_type_geometry::length::{LogicalPx, PhysicalPx};
 
 /// 바탕 kind의 바탕 색. 포커스를 모르면 호출자는 `false`를 넘긴다.
 #[inline]
@@ -33,14 +33,26 @@ pub fn surface_focus_edge_rows(
     leaf_bottom: f32,
     ppp: f32,
 ) -> SurfaceFocusEdgeRows {
-    let bottom = (top + theme.surface_focus_edge_width().value() * ppp)
-        .round()
-        .clamp(top, leaf_bottom.max(top));
-    let lower = (theme.border_width.value() * ppp).round().max(1.0);
+    let width = theme.surface_focus_edge_width().to_physical(ppp).value();
+    let bottom = (top + width).round().clamp(top, leaf_bottom.max(top));
+    let lower = theme.border_width.to_physical(ppp).value().round().max(1.0);
     SurfaceFocusEdgeRows {
         bottom,
         lit_top: (bottom - lower).max(top),
     }
+}
+
+/// 논리 좌표 leaf에서 [`surface_focus_edge_rows`]를 구한다. 경계는 물리 px로 정하고 논리 px로 돌려준다.
+fn logical_rows(theme: &Theme, leaf: egui::Rect, ppp: f32) -> (f32, f32) {
+    let physical = |y: f32| LogicalPx(y).to_physical(ppp).value();
+    let logical = |y: f32| PhysicalPx(y).to_logical(ppp).value();
+    let rows = surface_focus_edge_rows(theme, physical(leaf.top()), physical(leaf.bottom()), ppp);
+    (logical(rows.bottom), logical(rows.lit_top))
+}
+
+/// 띠 kind leaf에서 내용(주소 띠·페이지)이 시작하는 논리 y. 띠 행 바로 아래다.
+pub fn surface_focus_content_top(theme: &Theme, leaf: egui::Rect, ppp: f32) -> f32 {
+    logical_rows(theme, leaf, ppp.max(f32::EPSILON)).0
 }
 
 /// 띠 kind의 포커스 띠. 상태와 무관하게 같은 행을 차지하므로 포커스가 바뀌어도 내용이 움직이지 않는다.
@@ -69,8 +81,7 @@ impl SurfaceFocusEdge {
     /// 행 경계는 [`surface_focus_edge_rows`]로 `ppp`의 물리 px에 맞춘다.
     fn layers(&self, theme: &Theme, leaf: egui::Rect, ppp: f32) -> Vec<Layer> {
         let ppp = ppp.max(f32::EPSILON);
-        let rows = surface_focus_edge_rows(theme, leaf.top() * ppp, leaf.bottom() * ppp, ppp);
-        let bottom = rows.bottom / ppp;
+        let (bottom, lit_top) = logical_rows(theme, leaf, ppp);
         let full = egui::Rect::from_min_max(leaf.min, egui::pos2(leaf.right(), bottom));
         let mut layers = vec![Layer::Row {
             rect: full,
@@ -84,7 +95,7 @@ impl SurfaceFocusEdge {
             let lit = theme.surface_focus_edge_focused().to_egui();
             layers.push(if self.ring.is_some() {
                 let lower = egui::Rect::from_min_max(
-                    egui::pos2(leaf.left(), rows.lit_top / ppp),
+                    egui::pos2(leaf.left(), lit_top),
                     egui::pos2(leaf.right(), bottom),
                 );
                 Layer::Row {
@@ -220,6 +231,7 @@ mod tests {
         let layers = edge(true, true).layers(&th, leaf(), 1.25);
         let (rect, _) = row(layers[2]);
         assert_eq!(rect.bottom() * 1.25, (leaf().top() * 1.25 + 2.5).round());
+        assert_eq!(surface_focus_content_top(&th, leaf(), 1.25), rect.bottom());
     }
 
     #[test]

@@ -400,7 +400,8 @@ pub use status_bar::{
 };
 pub use status_dot::{StatusKind, status_dot};
 pub use surface_focus::{
-    SurfaceFocusEdge, SurfaceFocusEdgeRows, surface_bed, surface_focus_edge_rows,
+    SurfaceFocusEdge, SurfaceFocusEdgeRows, surface_bed, surface_focus_content_top,
+    surface_focus_edge_rows,
 };
 pub use tab_content_frame::{settings_content_column, tab_content_frame};
 pub use table::{
