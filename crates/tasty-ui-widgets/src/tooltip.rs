@@ -2,6 +2,7 @@
 //! 호버와 대기 시간은 호출자가 판단하며 egui 전역 도움말 설정은 바꾸지 않는다.
 
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 
 /// 버블이 앵커의 어느 쪽에 뜨는지 — 앵커 rect 중앙 기준.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -288,13 +289,17 @@ fn constrained_pivot_pos(
     let factor = egui::vec2(pivot.x().to_factor(), pivot.y().to_factor());
     let left_top = (pos - factor * size).round_ui();
     let window = egui::Rect::from_min_size(left_top, size).round_ui();
-    let margin_x = (window.width() - screen.width()).max(0.0);
-    let margin_y = (window.height() - screen.height()).max(0.0);
-    let mut min = window.min;
-    min.x = min.x.min(screen.right() + margin_x - window.width());
-    min.x = min.x.max(screen.left() - margin_x);
-    min.y = min.y.min(screen.bottom() + margin_y - window.height());
-    min.y = min.y.max(screen.top() - margin_y);
+    // Along one axis: keep the window inside `screen`, unless it is larger, then let it hang out
+    // by the excess on either side.
+    let along = |min: f32, len: f32, lo: f32, hi: f32| -> f32 {
+        let (min, len, lo, hi) = (LogicalPx(min), LogicalPx(len), LogicalPx(lo), LogicalPx(hi));
+        let margin = (len - (hi - lo)).max(LogicalPx(0.0));
+        min.min(hi + margin - len).max(lo - margin).value()
+    };
+    let min = egui::pos2(
+        along(window.min.x, window.width(), screen.left(), screen.right()),
+        along(window.min.y, window.height(), screen.top(), screen.bottom()),
+    );
     let min = egui::Rect::from_min_size(min, window.size()).round_ui().min;
     min + factor * size
 }
