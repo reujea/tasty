@@ -73,4 +73,24 @@ mod tests {
             .raise(tasty_remote::transport_end::EndReason::Lost);
         assert!(locations_of(std::slice::from_ref(&session))[&10].reconnecting);
     }
+
+    /// 호스트 글자는 프로필 이름이다. 프로필 이름이 없는 attach 는 빈 값을 주어 각 표지가
+    /// `attach.mirror_pill_label` 낱말을 그리게 하고, 연결의 loopback 엔드포인트(`127.0.0.1:<port>`)는
+    /// 표시 경로에 들어가지 않는다.
+    #[test]
+    fn the_host_text_is_the_profile_name_and_empty_without_one() {
+        let mut session = crate::app::attach_client::tests::test_session(10, HashMap::new());
+        session.state.remote_label = "127.0.0.1:47123".into();
+        for (profile, host) in [
+            (None, ""),
+            (Some(""), ""),
+            (Some("work-laptop-attach"), "work-laptop-attach"),
+        ] {
+            session.state.profile = profile.map(str::to_owned);
+            assert_eq!(session.state.host_text(), host, "{profile:?}");
+            let location = &locations_of(std::slice::from_ref(&session))[&10];
+            assert_eq!(location.host, host, "{profile:?}");
+            assert!(!location.host.contains("127.0.0.1"), "{profile:?}");
+        }
+    }
 }

@@ -429,7 +429,7 @@ pub struct ClientSessionState {
     pub next_delta_focus: Option<PendingOpFocus>,
     /// 원격 surface별 크기 요청의 중복 전송 방지·응답 대기·실패 목록. 재연결 때 비운다.
     pub resize_sync: crate::resize_sync::ResizeSync,
-    /// 이 연결의 loopback 엔드포인트(`127.0.0.1:<로컬 포트>`). 프로필 없이 붙은 mirror의 호스트 글자다.
+    /// 이 연결의 loopback 엔드포인트(`127.0.0.1:<로컬 포트>`). 호스트 표시에는 쓰지 않는다([`Self::host_text`]).
     pub remote_label: String,
     /// 이번 회차에 받아 아직 재생하지 않은 알림음 수. App이 출력 회차 끝에 꺼내 재생한다.
     pub notification_sounds: u32,
@@ -711,12 +711,10 @@ pub struct RetiredDocuments {
     pub html: Vec<u32>,
 }
 impl ClientSessionState {
-    /// 원격 호스트 표시(상태바·핸들러 picker·링크 툴팁·File Picker 배지·탐색기)에 쓰는 글자. 프로필 이름이고, 프로필 없이 붙은
-    /// mirror는 `remote_label`이다.
+    /// 원격 호스트 표시(상태바·핸들러 picker·링크 툴팁·File Picker 배지·탐색기)에 쓰는 글자. 프로필 이름이고, 프로필 이름이
+    /// 없는 attach는 빈 값이다. 빈 값을 받은 표지는 호스트 대신 `attach.mirror_pill_label` 낱말을 그린다.
     pub fn host_text(&self) -> String {
-        self.profile
-            .clone()
-            .unwrap_or_else(|| self.remote_label.clone())
+        self.profile.clone().unwrap_or_default()
     }
 
     /// Return retired plugin document IDs while retaining exactly the new projection's ownership.
