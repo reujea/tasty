@@ -386,3 +386,26 @@ fn ending_the_edit_keeps_the_lookup_of_the_submitted_input() {
         Some(Ok(file_url(&root().join("a.html"))))
     );
 }
+
+/// Given 원격 entry 본문이 게시돼 host 수신 화면이 비고 native가 그 본문을 싣는 중,
+/// Then 주소 띠가 로컬 문서처럼 로드 중을 보인다. 로드가 끝났거나, 아직 받는 중이거나(수신 조건이 정한다),
+/// 연결이 끊겼으면 이 구간이 아니다.
+#[test]
+fn a_published_remote_body_shows_loading_until_the_page_loads() {
+    assert!(published_body_loading(true, false, true, NavState::Loading));
+    assert!(!published_body_loading(true, false, true, NavState::Done));
+    assert!(!published_body_loading(true, false, true, NavState::Failed));
+    assert!(!published_body_loading(
+        false,
+        false,
+        true,
+        NavState::Loading
+    ));
+    assert!(!published_body_loading(true, true, true, NavState::Loading));
+    assert!(!published_body_loading(
+        true,
+        false,
+        false,
+        NavState::Loading
+    ));
+}

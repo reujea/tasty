@@ -417,7 +417,8 @@ impl HtmlAddressBands {
             loading: source
                 .received
                 .map_or(source.nav == NavState::Loading, |r| {
-                    r.receiving && r.size_notice.is_none() && !r.paused && r.connected
+                    (r.receiving && r.size_notice.is_none() && !r.paused && r.connected)
+                        || published_body_loading(r.ready, r.receiving, r.connected, source.nav)
                 }),
             disconnected: source.received.is_some_and(|r| !r.connected),
             skipped: skipped.as_deref().zip(declined.as_deref()),
@@ -494,6 +495,12 @@ impl HtmlAddressBands {
             remote_reshow: out.remote_marker_clicked,
         }
     }
+}
+
+/// 원격 entry 본문을 다 받아 게시했고 더 받는 파일이 없는데 native가 아직 그 본문을 싣는 중이다.
+/// 이 구간은 host 수신 화면도 숨긴 페이지도 그리지 않으므로 로컬 문서처럼 주소 띠가 로드 중을 보인다.
+fn published_body_loading(ready: bool, receiving: bool, connected: bool, nav: NavState) -> bool {
+    ready && !receiving && connected && nav == NavState::Loading
 }
 
 #[cfg(test)]
