@@ -190,7 +190,8 @@ pub struct GeneralSettings {
     pub shift_display_style: String,
 }
 
-/// 파싱된 링크 클릭 수식키.
+/// 파싱된 링크 클릭 수식키. `Alt`는 물리 Alt 키(macOS Option)다.
+/// 클릭 판정과 안내 조합은 `tasty_key_match::link_click_modifiers_held`·`link_click_combo`가 맡는다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LinkModifier {
     Ctrl,
@@ -205,16 +206,6 @@ impl LinkModifier {
             "alt" | "option" => Self::Alt,
             "none" | "off" | "" => Self::None,
             _ => Self::Ctrl,
-        }
-    }
-
-    /// 현재 modifier 상태가 링크 클릭 트리거 조건을 만족하는지.
-    /// 호출자가 winit/macos 등 GUI 레이어에서 추출한 boolean을 그대로 넘긴다.
-    pub fn matches(&self, ctrl: bool, alt: bool, super_key: bool) -> bool {
-        match self {
-            Self::Ctrl => ctrl && !alt && !super_key,
-            Self::Alt => alt && !ctrl && !super_key,
-            Self::None => true,
         }
     }
 }

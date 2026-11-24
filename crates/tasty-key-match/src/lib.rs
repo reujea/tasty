@@ -1,12 +1,16 @@
 //! 바인딩 문자열을 winit/egui 키 이벤트와 대조한다. 단축키와 webview 키 전달이 같은 규칙을 쓴다.
 //! 문자열 파싱은 tasty_settings::keybindings::parse가 맡고, 이 크레이트는 플랫폼별 매칭을 담당한다.
 
+mod link_click;
+
 use winit::keyboard::{Key, KeyCode, ModifiersState, NamedKey, PhysicalKey};
 
 #[cfg(feature = "egui-input")]
 use tasty_settings::keybindings::parse::ParsedBinding;
 pub use tasty_settings::keybindings::parse::bindings_equivalent;
 pub use tasty_settings::keybindings::parse::parse_binding;
+
+pub use link_click::{link_click_combo, link_click_combo_for, link_click_modifiers_held};
 
 pub fn matches_any_binding(bindings: &[String], key: &Key, mods: ModifiersState) -> bool {
     bindings.iter().any(|b| matches_binding(b, key, mods))
@@ -138,7 +142,12 @@ pub fn is_window_escape(is_escape_key: bool, mods: KeyMods) -> bool {
 /// 정한다. macOS 는 `alt` = Command(winit super), `option` = Option(winit alt)이고, 다른 OS 는
 /// `alt` = Alt, `option` = 같은 위치의 Win·Super 다.
 pub fn token_axes(mods: ModifiersState) -> (bool, bool) {
-    if cfg!(target_os = "macos") {
+    token_axes_for(mods, cfg!(target_os = "macos"))
+}
+
+/// [`token_axes`]의 OS를 인자로 받는 판. 링크 클릭 판정 시험이 다른 OS의 매핑을 확인할 때 쓴다.
+pub(crate) fn token_axes_for(mods: ModifiersState, macos: bool) -> (bool, bool) {
+    if macos {
         (mods.super_key(), mods.alt_key())
     } else {
         (mods.alt_key(), mods.super_key())

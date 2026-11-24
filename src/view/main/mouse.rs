@@ -23,8 +23,8 @@ impl MainView {
             .map(|h| (h.surface_id, h.highlight.segments.clone()));
 
         let modifier = LinkModifier::parse(&engine.settings.general.link_click_modifier);
-        let mods = &self.base.state.modifiers;
-        let matches_mods = modifier.matches(mods.control_key(), mods.alt_key(), mods.super_key());
+        let matches_mods =
+            tasty_key_match::link_click_modifiers_held(modifier, self.base.state.modifiers);
 
         // 수식키 변경 때도 호출되므로 무대 중에는 배경 링크를 조회하지 않는다.
         let new_link = if !matches_mods
@@ -799,9 +799,8 @@ impl MainView {
         button_state: ElementState,
     ) -> bool {
         let modifier = LinkModifier::parse(&engine.settings.general.link_click_modifier);
-        let mods = &self.base.state.modifiers;
         let link_mods_match = !matches!(modifier, LinkModifier::None)
-            && modifier.matches(mods.control_key(), mods.alt_key(), mods.super_key());
+            && tasty_key_match::link_click_modifiers_held(modifier, self.base.state.modifiers);
         if !(link_mods_match && button_state == ElementState::Pressed) {
             return false;
         }
