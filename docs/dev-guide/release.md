@@ -41,7 +41,7 @@
 위 "버전 정책"의 운영 형태:
 
 - **본체** (`Cargo.toml` 루트): `release` 브랜치에서 올린다. `develop`의 버전은 역병합으로 따라간다. 예외로 hotfix의 patch는 `main`에서 올리고, `release`와 `develop`은 역병합으로 따라간다.([브랜치 전략](branching.md#버전)) 사용자가 *빌드를 요청* 했고, 마지막 빌드 이후 새 커밋이 있으며, 사용자가 막지 않았으면 **patch +1**. AI 자체 검증 빌드(`cargo build`/`test`)는 올리지 않는다.
-- **Plugin** (`crates/tasty-plugin-*/Cargo.toml`, 매니페스트 id가 잠금 파일에 있는 공식 플러그인 제외): 그 plugin 의 빌드 산출물이 달라지면(판정 기준은 staged 파일이 아니라 의존 폐포의 내용 — 위 "버전 정책"의 Plugin 절) **patch +1 을 같은 커밋에** 포함. 여러 plugin 변경 시 각각 독립 적용. 본체 규칙과 독립. `tasty.pluginBump=deferred`인 lane 작업 트리에서는 lane이 버전 줄을 건드리지 않고, 병합 단계가 `scripts/plugin-bump-fixup.sh`로 커밋마다 붙인다. `develop`에 반영된 커밋이 증가를 함께 담는다는 점은 같다([git-hooks](git-hooks.md#lane-작업-트리의-p1-보류)).
+- **Plugin** (`crates/tasty-plugin-*/Cargo.toml`, 매니페스트 id가 잠금 파일에 있는 공식 플러그인 제외): 위 "버전 정책"의 Plugin 절이 정한 조건이면 **patch +1 을 같은 커밋에** 포함. 여러 plugin 변경 시 각각 독립 적용. 본체 규칙과 독립. `tasty.pluginBump=deferred`인 lane 작업 트리에서는 lane이 버전 줄을 건드리지 않고, 병합 단계가 `scripts/plugin-bump-fixup.sh`로 커밋마다 붙인다. `develop`에 반영된 커밋이 증가를 함께 담는다는 점은 같다([git-hooks](git-hooks.md#lane-작업-트리의-p1-보류)).
 - **Plugin 매니페스트 lockstep** (`crates/tasty-plugin-*/tasty-plugin.toml`): 위 patch +1 과 함께 매니페스트 `version` 을 **동일 값**으로 맞춰 같은 커밋에 포함(`.sig` 는 `.gitignore` 된 빌드 산출물이라 커밋하지 않는다). Cargo.toml 만 올리면 `plugin.list`·업그레이드 판정이 노출·비교하는 매니페스트 version 이 어긋난다(version drift). `crates/tasty-doc-guards/tests/plugin_manifest_version_parity.rs` 가 정합을 강제한다(채널은 [ci-gates](ci-gates.md)). 자동 잡은 push 된 커밋만 보므로 커밋 전에는 직접 돌린다.
 - **minor / major**: 사용자가 직접 지정. AI 가 임의로 올리지 않는다.
 

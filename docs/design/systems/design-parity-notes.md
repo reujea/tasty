@@ -309,15 +309,12 @@ State 셀은 `status_dot`(점 `status_dot_size` 8 + `space-xs` 4 + caption 11px 
   붙는다.
 - **근거**: `crates/tasty-gallery/src/catalog/widgets/layout_2depth.rs` 2026-06-24. settings_window.jsx `Row`.
 
-## gallery — tasty-gallery 는 i18n(t()) 을 쓰지 않는다 (specimen 하드코딩 라벨)
+## gallery — specimen 라벨과 본체 문구 사본
 
-- **증상**: 갤러리 specimen 에 `t()` 를 적용하려다 의존성/관례 충돌.
-- **원인**: `tasty-gallery` 는 `tasty-i18n` 에 의존하지 않는다(Cargo.toml). 모든 specimen 이
-  하드코딩 mock 영문 라벨을 쓴다(Storybook 류 격리 시각 카탈로그). [i18n](../../dev-guide/i18n.md) 의 `t()` 규칙은 *본체 shipping UI* 대상이며 갤러리
-  specimen 은 범위 밖.
-- **처방**: 갤러리 specimen 라벨은 대상 디자인 jsx 의 영문 라벨을 그대로 미러(하드코딩). i18n
-  의존 추가는 단일 specimen 작업 범위 밖.
-- **근거**: `crates/tasty-gallery/Cargo.toml`(i18n 미의존) + 30+ 기존 specimen 관례. 2026-06-24.
+- **규칙**: 갤러리 specimen 은 본체가 아니라 카탈로그라 시안의 데모 값과 짧은 라벨은 영어 리터럴로 주입한다.
+  본체 문구를 옮긴 문장·안내문은 사본을 두지 않고 `tasty_gallery::i18n::t()` 계열로 본체 번역 키를 읽는다.
+  범위와 예시는 [i18n](../../dev-guide/i18n.md) "공용 위젯의 문자열 — 호출자 주입" 절의 갤러리 specimen 문단이 정본이다.
+- **근거**: `crates/tasty-gallery/Cargo.toml`이 본체 번역 파일 문구를 사본 없이 보여주려고 `tasty-i18n` 에 의존한다.
 ## Kbd 우측정렬 — `ui.horizontal` 이 부모 RTL 을 상속해 키캡 순서 역전
 
 - **증상**: command 행에서 `Kbd`("Ctrl+Alt+G")를 `with_layout(right_to_left)` 안에서 그리면

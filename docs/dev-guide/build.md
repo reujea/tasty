@@ -5,9 +5,11 @@ tasty 의 워크스페이스 구조, 빌드 프로필, 빌드 시간 최적화. 
 ## 워크스페이스 구조
 
 workspace는 본 바이너리(`src/`)와 `crates/*`로 구성한다. 전체 목록과 수는
-[아키텍처](../architecture/index.md)에서 관리한다. `architecture_crate_list_complete`와
-`readme_badge_parity`는 그 목록과 두 README의 수를 같은
-`crate_dir_names` 함수로 대조한다. 여기에는 역할별 예시만 적는다.
+[아키텍처](../architecture/index.md)에서 관리한다. 크레이트 수는 `crates/` 바로 아래에서
+Cargo.toml을 가진 디렉터리 수다. workspace에서 제외된 크레이트도 세며 루트 패키지는 제외한다.
+크레이트를 더하거나 지우면 아키텍처 문서와 두 README(`README.md`, `README.ko.md`)의 수치를 함께 갱신한다.
+`architecture_crate_list_complete`와 `readme_badge_parity`는 그 목록과 두 README의 수를 같은
+`crate_dir_names` 함수로 실제 디렉터리 목록과 대조한다. 여기에는 역할별 예시만 적는다.
 
 | 레이어 | 예 | 성격 |
 |--------|-----|------|

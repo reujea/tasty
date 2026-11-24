@@ -17,7 +17,7 @@ Thank you for your interest in Tasty. This guide lists what a pull request needs
 
 ### Stay within Tasty's stack and environments
 
-- Tasty is a Rust application built on winit, wgpu, egui, termwiz and portable-pty, and it runs on Windows, macOS and Linux. The stack table is in [`docs/architecture/index.md`](docs/architecture/index.md).
+- Tasty is a Rust application built on winit, wgpu, egui, termwiz and portable-pty, and it runs on Windows, macOS and Linux. The stack table is in the "기술 스택" (tech stack) section of [`docs/architecture/index.md`](docs/architecture/index.md).
 - A change that depends on a new runtime, external tool or environment (a specific virtual machine, cloud or service) is declined unless it was agreed in an issue first.
 - Do not rebuild what an existing feature already does, and do not introduce a new convention the project has not decided on. A new convention brings the work of enforcing it and handling the cases that break it.
 

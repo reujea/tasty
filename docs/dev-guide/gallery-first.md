@@ -19,8 +19,6 @@
 ### 2. 본체 반영
 그 후 본체 앱에 넣는다(팝업이면 [popup-implementation](popup-implementation.md) 의 `PopupDef` 3단계).  본체와 갤러리가 **같은 view-only 함수**를 호출하도록 props 를 분리한다([model-view-split](model-view-split.md)). 새로 그리지 말고 1 단계에서 만든 함수를 본체에서 호출한다.
 
-<a id="이미-본체에만-있는-view-를-갤러리로-끌어올릴-때"></a>
-
 ## 디자인에 맞출 때
 
 디자인은 구현 세션이 정하지 않는다. 디자인 정본, 디자이너 세션의 역할, 앱이 따르는 디자인 판(`crates/tasty-design-tokens/dtcg/SOURCE`)은 [디자인 변경 워크플로](design-change-workflow.md)에 있다. 갤러리와 본체는 같은 컴포넌트 소스를 쓰므로 모양만 바꾸는 변경은 갤러리 단계에서 본체에도 반영된다.
@@ -31,6 +29,8 @@ UI를 디자인에 맞출 때는 구조와 토큰을 모두 확인한다.
 2. **토큰**: [theme.md](../design/systems/theme.md) "UI 디자인 규칙"의 토큰 규칙을 적용한다.
 
 레이아웃 구조가 맞아도 토큰이 다를 수 있으므로 두 항목을 따로 확인한다.
+
+<a id="이미-본체에만-있는-view-를-갤러리로-끌어올릴-때"></a>
 
 ## 이미 본체에만 있는 view 를 갤러리로 옮길 때
 
