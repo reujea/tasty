@@ -17,7 +17,10 @@ jobs:
     # macOS 전용 러너에서 아직 실측이 없어 이전 값을 둔다. 첫 실행 뒤 다시 정한다. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
     timeout-minutes: 180
     steps:
+      # 패키지는 처음부터 빌드한다. 이전 실행의 target을 지우도록 정리를 끄지 않는다. 기준: docs/dev-guide/ci-gates.md#러너의-빌드-캐시
       - uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Build DMG + headless tar.gz
         run: bash scripts/build-macos-dmg.sh
@@ -31,7 +34,10 @@ jobs:
     # 실측 최대 29.9분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
     timeout-minutes: 150
     steps:
+      # 패키지는 처음부터 빌드한다. 이전 실행의 target을 지우도록 정리를 끄지 않는다. 기준: docs/dev-guide/ci-gates.md#러너의-빌드-캐시
       - uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: PowerShell syntax check
         shell: pwsh
@@ -76,7 +82,10 @@ jobs:
     # 실측 최대 36.3분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
     timeout-minutes: 185
     steps:
+      # 패키지는 처음부터 빌드한다. 이전 실행의 target을 지우도록 정리를 끄지 않는다. 기준: docs/dev-guide/ci-gates.md#러너의-빌드-캐시
       - uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Build ZIP, MSI and headless ZIP (arm64)
         shell: pwsh
@@ -92,7 +101,10 @@ jobs:
     # 실측 최대 17.6분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
     timeout-minutes: 90
     steps:
+      # 패키지는 처음부터 빌드한다. 이전 실행의 target을 지우도록 정리를 끄지 않는다. 기준: docs/dev-guide/ci-gates.md#러너의-빌드-캐시
       - uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Setup PATH
         run: |
@@ -111,7 +123,10 @@ jobs:
     # 실측 최대 18.4분 × 5. 기준: docs/dev-guide/ci-gates.md#잡-시간-상한
     timeout-minutes: 95
     steps:
+      # 패키지는 처음부터 빌드한다. 이전 실행의 target을 지우도록 정리를 끄지 않는다. 기준: docs/dev-guide/ci-gates.md#러너의-빌드-캐시
       - uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Setup PATH
         run: |
