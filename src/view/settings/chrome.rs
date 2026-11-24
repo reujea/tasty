@@ -102,9 +102,7 @@ impl SettingsChrome {
                 false
             }
             WindowEvent::Resized(_) => {
-                // 다음 패스는 이 사건의 크기로 그리므로 그 자리 적용 크기를 더 기다리지 않는다.
-                self.awaited_size = None;
-                self.areas_stale = true;
+                self.note_resized();
                 false
             }
             WindowEvent::ScaleFactorChanged { .. } => {
@@ -186,6 +184,13 @@ impl SettingsChrome {
             let rect = area.rect.translate(egui::vec2(now - area.basis, 0.0));
             titlebar::physical_panel_rect(rect, area.ppp)
         })
+    }
+
+    /// 창이 `Resized`를 받았다. 다음 패스는 이 사건의 크기로 그리므로 그 자리 적용 크기를 더 기다리지 않고, 그 패스가
+    /// 영역을 다시 적을 때까지 무효로 둔다.
+    fn note_resized(&mut self) {
+        self.awaited_size = None;
+        self.areas_stale = true;
     }
 
     /// 창 크기 요청이 그 자리에서 적용됐으면 적어 둔다. 그 크기에 맞춰 영역도 다시 적어야 한다.
@@ -885,6 +890,29 @@ mod tests {
         record_empty_pass(&mut c, SIZE);
         assert_eq!(
             run(&mut c, PRESS, true, SIZE),
+            (true, Some(ResizeDirection::East))
+        );
+    }
+
+    /// Given 장식 전환으로 적용된 크기를 기다리는 중, When 다른 크기의 `Resized`가 오고 그 크기로 그린 패스가 끝나면
+    /// Then 가장자리 누름이 리사이즈를 시작한다.
+    #[test]
+    fn a_resized_event_ends_the_wait_for_the_applied_size() {
+        let resized = PhysicalSize::new(1200, 760);
+        let mut c = chrome(false);
+        c.cursor = at(1199.0, 300.0);
+        c.note_applied_size(Some(SIZE));
+        record_empty_pass(&mut c, PhysicalSize::new(1100, 736));
+        c.note_resized();
+        assert_eq!(
+            run(&mut c, PRESS, true, resized),
+            (false, None),
+            "no pass yet"
+        );
+        assert_eq!(run(&mut c, RELEASE, true, resized), (false, None));
+        record_empty_pass(&mut c, resized);
+        assert_eq!(
+            run(&mut c, PRESS, true, resized),
             (true, Some(ResizeDirection::East))
         );
     }
