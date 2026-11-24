@@ -16,7 +16,7 @@ pub(crate) fn apply_control_event_in_window(
     engine: &mut crate::runtime::engine_access::EngineMut<'_>,
     event: &Value,
 ) {
-    super::output::apply_control_event_in_window(sess, state, engine, event);
+    super::output::tests::apply_control_event_in_window(sess, state, engine, event);
 }
 
 pub(crate) fn supply_ids(engine: &crate::runtime::engine_access::EngineMut<'_>) {
