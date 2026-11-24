@@ -12,10 +12,8 @@ use crate::theme;
 use tasty_type_geometry::length::PhysicalPx;
 
 #[cfg(target_os = "linux")]
-pub use view::DRAG_AREA_ID;
-pub use view::{
-    TitlebarAction, TitlebarControls, TitlebarDrawResult, TitlebarProps, draw_titlebar_view,
-};
+pub use view::{DRAG_AREA_ID, TitlebarDrawResult};
+pub use view::{TitlebarAction, TitlebarControls, TitlebarProps, draw_titlebar_view};
 
 /// macOS 네이티브 신호등(standardWindowButton) 클러스터가 차지하는 좌측 폭
 /// (logical points). fullsize-content-view 에서 신호등은 OS 가 좌상단 고정 위치에
