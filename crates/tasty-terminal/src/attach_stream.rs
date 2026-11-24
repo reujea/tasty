@@ -195,38 +195,46 @@ impl vtparse::VTActor for SequenceEnd {
     }
 }
 
-const ESC: u8 = 0x1b;
-
-/// 효과 소유자에게 넘긴 바이트의 파서 상태. CSI·DCS·SOS·PM·APC를 ESC가 취소하면 vtparse 콜백이
-/// 오지 않으므로, 열린 시퀀스의 도입자를 ESC 뒤 원시 바이트로 기억해 그 ESC를 시퀀스의 끝으로 본다.
+/// 효과 소유자에게 넘긴 바이트의 파서 상태. 소유자가 떠난 뒤에는 바이트마다 vtparse 상태를 읽어 그가
+/// 시작한 시퀀스가 끝나는 바이트를 찾는다. CSI·DCS 머리·SOS·PM을 ESC나 C1 도입자가 취소할 때는 콜백이
+/// 오지 않으므로 dispatch만으로는 알 수 없다.
 pub(crate) struct EffectsScan {
     parser: vtparse::VTParser,
-    /// 열린 시퀀스가 ESC에 끝나는 종류(CSI·DCS·SOS·PM·APC)다.
-    ends_at_esc: bool,
-    after_esc: bool,
+    /// UTF-8 문자를 읽는 동안(`Utf8Sequence`)에는 그 문자가 속한 상태, 아니면 지금 상태.
+    settled: vtparse::State,
 }
 impl EffectsScan {
     fn new() -> Self {
         Self {
             parser: vtparse::VTParser::new(),
-            ends_at_esc: false,
-            after_esc: false,
+            settled: vtparse::State::Ground,
         }
     }
 
-    /// 한 바이트를 넣는다. 열린 시퀀스가 이 바이트에서 끝났거나(dispatch·ESC 취소) ground면 true.
+    /// 한 바이트를 넣는다. 열린 시퀀스가 이 바이트에서 끝났으면 true다. dispatch가 왔거나, ground로
+    /// 돌아왔거나, 이 바이트가 새 시퀀스를 시작했을 때다. Escape에서 도입자 상태로 가는 것은 같은
+    /// 시퀀스의 이어짐이다.
     fn step(&mut self, byte: u8) -> bool {
-        let cancelled = byte == ESC && self.ends_at_esc;
+        use vtparse::State;
+        let before = self.settled;
         let mut end = SequenceEnd::default();
         self.parser.parse_byte(byte, &mut end);
-        if self.after_esc {
-            self.ends_at_esc = matches!(byte, b'[' | b'P' | b'X' | b'^' | b'_');
+        let after = self.parser.state();
+        if after == State::Utf8Sequence {
+            return end.ended;
         }
-        self.after_esc = byte == ESC;
-        if self.after_esc || self.parser.is_ground() {
-            self.ends_at_esc = false;
-        }
-        cancelled || end.ended || self.parser.is_ground()
+        self.settled = after;
+        let starts = matches!(
+            after,
+            State::Escape
+                | State::CsiEntry
+                | State::DcsEntry
+                | State::OscString
+                | State::SosPmString
+                | State::ApcString
+        ) && after != before
+            && before != State::Escape;
+        end.ended || after == State::Ground || starts
     }
 }
 

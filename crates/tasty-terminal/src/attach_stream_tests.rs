@@ -332,7 +332,8 @@ fn a_broken_stream_drops_the_unfinished_sequence() {
 }
 
 /// Given 효과를 맡은 구독이 CSI·SOS·PM·APC·DCS 시퀀스의 앞부분만 받았다, When 수신자가 닫힌 뒤 ESC가
-/// 그 시퀀스를 dispatch 없이 취소하며 OSC 52 쓰기를 시작한다, Then 새 쓰기는 서버 몫(표지 없음)이다.
+/// 그 시퀀스를 끝내며 OSC 52 쓰기를 시작한다, Then 새 쓰기는 서버 몫(표지 없음)이다. CSI·DCS 머리·SOS·PM은
+/// ESC가 dispatch 없이 취소하고, APC·DCS 본문은 그 ESC에서 ApcEnd·Unhook 콜백으로 끝난다.
 #[test]
 fn an_owner_sequence_cancelled_by_esc_leaves_the_next_sequence_to_the_server() {
     let cases: [(&str, &[u8]); 7] = [
@@ -365,4 +366,91 @@ fn an_owner_sequence_cancelled_by_esc_leaves_the_next_sequence_to_the_server() {
         .filter(|(_, marks)| *marks != [false])
         .collect();
     assert!(wrong.is_empty(), "{wrong:?}");
+}
+
+/// 효과를 맡은 구독에 `head`를 넘기고 수신자를 닫은 뒤 `tail`을 넣는다. OSC 52 쓰기·읽기와 제목 사건의
+/// attach 표지를 순서대로 돌려준다.
+fn effect_marks_after_owner_leaves(head: &[u8], tail: &[u8]) -> Vec<bool> {
+    let mut terminal = Terminal::new_detached(80, 24);
+    let subscription = terminal.snapshot_and_stream();
+    subscription.events.set_effects_owner(true);
+    terminal.feed_bytes(head);
+    drop(subscription);
+    terminal.feed_bytes(tail);
+    terminal
+        .try_take_events()
+        .expect("unlocked")
+        .iter()
+        .filter(|event| {
+            matches!(
+                event.kind,
+                crate::TerminalEventKind::ClipboardSet(_)
+                    | crate::TerminalEventKind::ClipboardQuery
+                    | crate::TerminalEventKind::TitleChanged(_)
+            )
+        })
+        .map(|event| event.attach_streamed)
+        .collect()
+}
+
+/// Given 효과를 맡은 구독이 8비트 C1 도입자(또는 UTF-8로 인코딩한 C1 도입자)로 연 CSI·DCS·SOS·PM·APC의
+/// 앞부분만 받았다, When 수신자가 닫힌 뒤 ESC가 그 시퀀스를 취소하며 OSC 52 쓰기나 읽기를 시작한다,
+/// Then 새 OSC 52는 서버 몫이다.
+#[test]
+fn an_owner_sequence_opened_by_a_c1_introducer_ends_at_the_esc_that_cancels_it() {
+    let heads: [(&str, &[u8]); 10] = [
+        ("CSI", b"\x9b1;"),
+        ("DCS", b"\x901;"),
+        ("SOS", b"\x98abc"),
+        ("PM", b"\x9eabc"),
+        ("APC", b"\x9fabc"),
+        ("UTF-8 CSI", b"\xc2\x9b1;"),
+        ("UTF-8 DCS", b"\xc2\x901;"),
+        ("UTF-8 SOS", b"\xc2\x98abc"),
+        ("UTF-8 PM", b"\xc2\x9eabc"),
+        ("UTF-8 APC", b"\xc2\x9fabc"),
+    ];
+    let tails: [(&str, &[u8]); 2] = [
+        ("쓰기", b"\x1b]52;c;Ymll\x07"),
+        ("읽기", b"\x1b]52;c;?\x07"),
+    ];
+    let mut wrong = Vec::new();
+    for (kind, head) in heads {
+        for (op, tail) in tails {
+            let marks = effect_marks_after_owner_leaves(head, tail);
+            if marks != [false] {
+                wrong.push((kind, op, marks));
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:?}");
+}
+
+/// Given ESC와 7비트 도입자 사이에 NUL·DEL이 있는 CSI(vtparse는 그동안 Escape에 머문다), When 소유자가
+/// 그 앞부분만 받고 떠난 뒤 ESC가 CSI를 취소하며 OSC 52 쓰기를 시작한다, Then 새 쓰기는 서버 몫이다.
+/// 소유자가 첫 ESC만 받고 떠나 NUL·DEL과 도입자가 뒤에 와도 같다.
+#[test]
+fn a_control_byte_between_esc_and_the_introducer_keeps_the_cancel_boundary() {
+    let cases: [(&str, &[u8], &[u8]); 4] = [
+        ("NUL", b"\x1b\x00[1;", b"\x1b]52;c;Ymll\x07"),
+        ("DEL", b"\x1b\x7f[1;", b"\x1b]52;c;Ymll\x07"),
+        ("ESC 뒤 NUL", b"\x1b", b"\x00[1;\x1b]52;c;Ymll\x07"),
+        ("ESC 뒤 DEL", b"\x1b", b"\x7f[1;\x1b]52;c;Ymll\x07"),
+    ];
+    let wrong: Vec<_> = cases
+        .into_iter()
+        .map(|(kind, head, tail)| (kind, effect_marks_after_owner_leaves(head, tail)))
+        .filter(|(_, marks)| *marks != [false])
+        .collect();
+    assert!(wrong.is_empty(), "{wrong:?}");
+}
+
+/// Given 소유자가 C1 OSC로 CSI를 끊고 연 제목 OSC를 불완전한 UTF-8에서 받고 떠났다, When ESC와 BEL이 온다,
+/// Then vtparse가 ESC를 대체 문자로 읽어 OSC가 BEL에서 끝나므로 제목은 소유자 몫이다.
+#[test]
+fn an_esc_read_as_part_of_a_utf8_character_does_not_end_the_owner_osc() {
+    assert_eq!(
+        effect_marks_after_owner_leaves(b"\x1b[1;\x9d2;title\xc2", b"\x1b\x07"),
+        vec![true]
+    );
 }
