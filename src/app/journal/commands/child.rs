@@ -303,7 +303,8 @@ pub(super) fn resolve_respawn(
             runtime_epoch: result.binding.runtime_epoch,
             cwd: Some(cwd),
             role: optional_str(input, "role").or_else(|| entry.role.clone()),
-            // 명시한 값만 싣는다. 준비와 설치 사이의 nickname 변경을 설치가 덮지 않게 한다(apply_replacement).
+            // 명시한 값만 싣는다. 설치가 이 값을 꺼내 명시 대입으로 저장하고, 없으면 준비와 설치 사이의
+            // nickname 변경을 덮지 않는다.
             nickname: optional_str(input, "nickname"),
             has_command: command.is_some(),
             replacing: true,
@@ -436,7 +437,8 @@ mod tests {
     }
 
     /// 준비와 설치 사이에 nickname을 바꾸거나 지워도 `--nickname` 없는 `respawn --cwd`의 설치는 그 값을
-    /// 남긴다. `--nickname`을 준 respawn만 덮는다.
+    /// 남긴다. `--nickname`을 준 respawn은 설치가 명시 대입으로 저장하므로(레시피의 nickname은 설치가 먼저
+    /// 꺼낸다) 그 경우는 실제 설치 시험(`replacement_settle_tests.rs`)이 맡는다.
     #[test]
     fn a_cwd_respawn_keeps_a_nickname_changed_after_preparation() {
         use crate::runtime::child_terminal::ChildEntry;
@@ -482,12 +484,9 @@ mod tests {
             revision: Some(1),
         });
         let parent = ParentKey::Surface(1);
-        let cases: [(Option<&str>, Option<&str>, Option<&str>); 3] = [
-            (None, Some("renamed"), Some("renamed")),
-            (None, None, None),
-            (Some("given"), Some("renamed"), Some("given")),
-        ];
-        for (explicit, changed, expected) in cases {
+        let cases: [(Option<&str>, Option<&str>); 2] =
+            [(Some("renamed"), Some("renamed")), (None, None)];
+        for (changed, expected) in cases {
             {
                 let engine = session.borrow_mut();
                 let children = &mut engine.runtime.child_terminals;
@@ -503,10 +502,7 @@ mod tests {
                     },
                 );
             }
-            let mut params = json!({ "surface": 1, "child": 0, "cwd": cwd.path() });
-            if let Some(nickname) = explicit {
-                params["nickname"] = json!(nickname);
-            }
+            let params = json!({ "surface": 1, "child": 0, "cwd": cwd.path() });
             let request = tasty_ipc::protocol::JsonRpcRequest {
                 caller_agent_id: None,
                 response_timeout_ms: None,
@@ -533,7 +529,7 @@ mod tests {
             assert_eq!(
                 installed.nickname.as_deref(),
                 expected,
-                "explicit {explicit:?}, changed {changed:?}"
+                "changed {changed:?}"
             );
         }
     }

@@ -91,7 +91,7 @@ pub(crate) struct ChildRecipe {
     pub runtime_epoch: u64,
     pub cwd: Option<String>,
     pub role: Option<String>,
-    /// 새 자식이면 그 nickname이다. 교체(`replacing`)면 respawn이 명시한 값만 담고, 없으면 설치 때의 값을 둔다.
+    /// 새 자식이면 그 nickname이다. 교체(`replacing`)면 respawn이 명시한 값만 담고, 설치가 꺼내 명시 대입으로 저장한다.
     pub nickname: Option<String>,
     /// The bytes live only in the original bounded request continuation.
     pub has_command: bool,
@@ -100,14 +100,12 @@ pub(crate) struct ChildRecipe {
 }
 
 impl ChildRecipe {
-    /// 교체 설치가 관계 항목에 반영하는 값. nickname은 respawn이 명시했을 때만 덮는다. 준비 뒤에
-    /// `terminal.set_nickname`으로 바뀌거나 지워진 nickname을 준비 시점 값으로 되살리지 않는다.
+    /// 교체 설치가 조회 값의 관계 항목에 바로 반영하는 값(cwd·role). nickname은 건드리지 않는다. respawn이
+    /// 명시한 nickname은 설치가 이 레시피에서 먼저 꺼내 set_nickname과 같은 명시 대입으로 저장하고, 조회 값에는
+    /// 쓰기가 성공한 뒤에 들어온다. 명시하지 않았으면 준비 뒤 `terminal.set_nickname`으로 바뀐 값을 그대로 둔다.
     pub(crate) fn apply_replacement(self, entry: &mut crate::runtime::child_terminal::ChildEntry) {
         entry.cwd = self.cwd;
         entry.role = self.role;
-        if let Some(nickname) = self.nickname {
-            entry.nickname = Some(nickname);
-        }
     }
 }
 
