@@ -159,7 +159,8 @@ pub(super) fn draw_no_profile_states_view(ui: &mut egui::Ui, theme: &Theme) {
                         FpState::ErrorConnTimeout,
                     ),
                 ] {
-                    ui.vertical(|ui| {
+                    // 세 프레임은 문서 칸에서 줄을 바꾼다(디자인 flex-wrap).
+                    spec::wrap_item(ui, |ui| {
                         ui.spacing_mut().item_spacing.y = theme.spacing_xs.value();
                         ui.label(
                             egui::RichText::new(label)
