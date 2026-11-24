@@ -332,15 +332,14 @@ fn a_failed_wipe_removes_the_marker_and_fails() {
     let root = &r.root;
     put(root, "target/locked/file");
     fs::write(root.join(MARKER), "2000-01-01\n").expect("표지");
+    // root 는 권한을 무시해 쓰기 금지 폴더도 지우므로 이 재현을 건너뛴다.
+    // 같은 계약은 rm 스텁 시험(a_stubbed_rm_failure_removes_the_marker_and_fails)이 root 에서도 잰다.
+    // SAFETY: geteuid 는 인자 없이 현재 프로세스의 유효 사용자 ID 만 읽는다.
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
     let locked = root.join("target/locked");
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o555)).expect("권한");
-    let probe = locked.join("probe");
-    if fs::write(&probe, "x").is_ok() {
-        // 권한을 무시하는 사용자(root)라 삭제 실패를 만들 수 없다.
-        fs::remove_file(&probe).expect("probe 정리");
-        fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).expect("권한 복원");
-        panic!("쓰기 금지 폴더에 쓸 수 있어 삭제 실패를 재현하지 못했다(root로 실행 중인지 확인)");
-    }
     let (code, log) = run(root, "0");
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).expect("권한 복원");
     assert_eq!(code, 1, "{log}");
@@ -537,4 +536,35 @@ fn a_mount_point_inside_target_is_refused() {
     // 스텁은 준비 스크립트와 같은 작업 폴더에서 돌므로 target의 실제 경로를 실행 중에 읽는다.
     let mount = "#!/bin/sh\nprintf '%s\\n' '/dev/root on / type ext4 (rw)' \"tmpfs on $(cd target && pwd -P)/debug type tmpfs (rw)\"\n".to_string();
     assert_mount_boundary_is_refused(&[("mount", mount)]);
+}
+
+/// `rm -rf target`만 실패시키는 rm 스텁. 다른 호출은 진짜 rm으로 넘긴다.
+const RM_STUB: &str = r##"#!/bin/sh
+if [ "$1" = "-rf" ] && [ "$2" = "target" ] && [ "$#" -eq 2 ]; then
+    echo "rm stub: refused $*" >&2
+    exit 1
+fi
+exec "$REAL_RM" "$@"
+"##;
+
+/// target 본체 삭제가 실패하면 표지는 이미 지워져 있고 스텝은 1로 끝난다. 실패는 명령 스텁으로 주입하므로
+/// 권한을 무시하는 root 에서도 잰다.
+#[test]
+fn a_stubbed_rm_failure_removes_the_marker_and_fails() {
+    let r = repo();
+    let root = &r.root;
+    put(root, "target/debug/deps/libfoo.rlib");
+    fs::write(root.join(MARKER), "2000-01-01\n").expect("표지");
+    let real_rm = real_command("rm");
+    let (code, log) = run_stubbed(
+        root,
+        "0",
+        &[("rm", RM_STUB.to_string())],
+        &[("REAL_RM", real_rm.as_str())],
+    );
+    assert_eq!(code, 1, "{log}");
+    assert!(log.contains("rm stub: refused -rf target"), "{log}");
+    assert!(log.contains("The day marker was removed"), "{log}");
+    assert_eq!(marker(root), None, "{log}");
+    assert!(root.join("target/debug/deps/libfoo.rlib").exists(), "{log}");
 }
