@@ -108,3 +108,93 @@ fn a_failed_nickname_write_leaves_no_value_for_a_later_save() {
     assert_eq!(b.nickname.as_deref(), Some("b-new"));
     f.drain();
 }
+
+/// (가) 같은 자식에 실패할 대입 두 건 사이에 다른 자식의 저장이 접수돼도, 실패한 값은 그 저장에 실려
+/// 파일에 쓰이지 않고 조회 값에도 남지 않는다.
+#[test]
+fn a_save_admitted_between_two_failed_nicknames_does_not_carry_them() {
+    // 묶음마다 요청 하나: 첫 대입의 결과가 뒤 명령을 기다리지 않고 따로 전해진다.
+    let mut f = Fixture::limits(Limits {
+        max_items: 1,
+        ..Limits::default()
+    });
+    let mut client = f.client();
+    let parent = ParentKey::Surface(10);
+    client.register_child(10, named(100, 0, "a-old"));
+    client.register_child(10, named(200, 1, "b-old"));
+    wait(&client.submit().unwrap()).unwrap();
+    let panic_next = || {
+        f.hub
+            .panic_next
+            .store(true, std::sync::atomic::Ordering::SeqCst)
+    };
+    // writer 순서: 첫 대입, 막는 명령, 둘째 대입. 둘째가 접수된 채 첫 실패만 거둔 때 B 저장이 접수된다.
+    let (release_first, first_gate) = f.gate();
+    panic_next();
+    let first = client
+        .set_nickname(&parent, 0, 100, Some("a-bad".into()))
+        .unwrap();
+    let (entered, between) = mpsc::sync_channel(1);
+    let (release_second, hold) = mpsc::sync_channel::<()>(1);
+    let second_gate = command::submit(
+        Some(&f.parts.writer.handle()),
+        1,
+        move || {
+            entered.send(()).unwrap();
+            hold.recv_timeout(Duration::from_secs(5)).unwrap();
+        },
+        |_| 0,
+    )
+    .unwrap();
+    panic_next();
+    let second = client
+        .set_nickname(&parent, 0, 100, Some("a-bad".into()))
+        .unwrap();
+    gate_done(release_first, first_gate);
+    between.recv_timeout(Duration::from_secs(5)).unwrap();
+    let other = client
+        .set_nickname(&parent, 1, 200, Some("b-new".into()))
+        .unwrap();
+    assert!(wait(&first).is_err());
+    gate_done(release_second, second_gate);
+    assert!(wait(&second).is_err());
+    assert_eq!(wait(&other), Ok(None));
+    let shown = client.find_child(&parent, 0).expect("a");
+    assert_eq!(shown.nickname.as_deref(), Some("a-old"));
+    let disk = f.disk();
+    let a = disk.find_child(&parent, 0).expect("a on disk");
+    assert_eq!(a.nickname.as_deref(), Some("a-old"));
+    let b = disk.find_child(&parent, 1).expect("b on disk");
+    assert_eq!(b.nickname.as_deref(), Some("b-new"));
+    f.drain();
+}
+
+/// (나) 대입이 대기 중일 때 같은 자식에 다른 요청(respawn 설치)이 같은 값을 명시해 저장하면, 앞선 대입이
+/// 실패해도 그 값은 조회 값과 파일에 남는다.
+#[test]
+fn a_failed_nickname_does_not_erase_a_value_a_later_install_named() {
+    let mut f = Fixture::new();
+    let mut client = f.client();
+    let parent = ParentKey::Surface(10);
+    client.register_child(10, named(100, 0, "old"));
+    wait(&client.submit().unwrap()).unwrap();
+    let (release, gate) = f.gate();
+    f.hub
+        .panic_next
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let failed = client
+        .set_nickname(&parent, 0, 100, Some("new".into()))
+        .unwrap();
+    // respawn --cwd --nickname new 의 설치: 관계 항목에 명시 값을 대입하고 저장한다.
+    client.update_child(&parent, 0, |entry| entry.nickname = Some("new".into()));
+    let install = client.submit().unwrap();
+    gate_done(release, gate);
+    assert!(wait(&failed).is_err());
+    assert_eq!(wait(&install), Ok(None));
+    let shown = client.find_child(&parent, 0).expect("child");
+    assert_eq!(shown.nickname.as_deref(), Some("new"));
+    let disk = f.disk();
+    let saved = disk.find_child(&parent, 0).expect("child on disk");
+    assert_eq!(saved.nickname.as_deref(), Some("new"));
+    f.drain();
+}

@@ -587,15 +587,7 @@ impl Hub {
             let cleanup = state.cleanups.remove(index).unwrap();
             state.bytes = state.bytes.saturating_sub(cleanup.bytes);
         }
-        let nickname = matches!(intent.operation, Operation::SetNickname { .. })
-            .then(|| intent.operation.clone());
         let result = rebase::complete(&mut client, intent, outcome);
-        if result.is_err()
-            && let Some(operation) = &nickname
-        {
-            // set_nickname은 오류로 답한 값을 적용하지 않는다. 다른 명령의 실패 처리는 그대로 둔다.
-            rebase::restore_failed_nickname(&mut client, operation);
-        }
         for cleanup in &state.cleanups {
             if cleanup.needed && Arc::ptr_eq(&cleanup.client, &pending.client) {
                 client.visible.unregister_child_by_surface(cleanup.child);

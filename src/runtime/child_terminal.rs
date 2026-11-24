@@ -115,8 +115,11 @@ impl ChildTerminalRegistry {
     ) -> bool {
         self.edit(|s| s.update_child(parent, index, f))
     }
-    /// 부모·번호의 자식이 아직 `surface`일 때 조회 값과 저장 둘 다에 nickname을 대입한다. 저장은 필드 차이가
-    /// 비어도 값을 쓰는 명령이라, 같은 값을 다시 정한 요청도 그 결과로 답한다. 접수되지 않으면 조회 값을 되돌린다.
+    /// 부모·번호의 자식이 아직 `surface`인지 확인하고 nickname 대입 명령을 접수한다. 조회 값은 바꾸지 않는다.
+    /// 쓰기가 성공하면 결과 파일로 조회 값을 다시 만들 때(`rebase::complete`) 새 값이 들어오고, 그 뒤에
+    /// Ticket이 끝난다. 확정되지 않은 값이 조회 값에 없으므로 다른 저장의 필드 차이에 실리지 않고, 실패해도
+    /// 되돌릴 것이 없어 다른 요청이 명시한 값을 지우지 않는다. 명령은 필드 차이가 비어도 값을 쓰고, 파일에서
+    /// 그 번호가 다른 자식이면 실패한다.
     pub(crate) fn set_nickname(
         &mut self,
         parent: &ParentKey,
@@ -124,23 +127,22 @@ impl ChildTerminalRegistry {
         surface: u32,
         nickname: Option<String>,
     ) -> Result<Ticket, NicknameRefused> {
-        let previous = self
-            .edit(|s| {
-                let previous = s.set_child_nickname(parent, index, surface, nickname.clone())?;
-                s.owned.insert(surface);
-                Some(previous)
-            })
-            .ok_or(NicknameRefused::ChildChanged)?;
+        let current = self.read(|s| {
+            s.find_child(parent, index)
+                .is_some_and(|c| c.child_surface_id == surface)
+        });
+        if !current {
+            return Err(NicknameRefused::ChildChanged);
+        }
         let operation = persistence::Operation::SetNickname {
             parent: parent.clone(),
             index,
             surface,
             nickname,
         };
-        self.hub.submit(&self.client, operation).map_err(|error| {
-            self.edit(|s| s.set_child_nickname(parent, index, surface, previous));
-            NicknameRefused::NotAdmitted(error)
-        })
+        self.hub
+            .submit(&self.client, operation)
+            .map_err(NicknameRefused::NotAdmitted)
     }
     pub fn parent_of_child(&self, child: u32) -> Option<ParentKey> {
         self.read(|s| s.parent_of_child(child))
