@@ -263,8 +263,10 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 사건 하나의 출발 노드는 한 번 정한다(`MainView::settle_key_event`: 정규화 → 입력 몫 끊기 → 수신자, 결과는
 `MainView::key_decision`). winit 키는 App 입구(`App::route_window_input`)가 plugin 명령 판정(`try_plugin_shortcut`) 앞에서
 정하고, MainView 입구(`MainView::handle_engine_event`)는 같은 사건에서 다시 정하지 않는다(`MainView::key_settled`). 그 밖의
-사건과 편집 보류 재생은 view 의 단계(`MainKeySteps::settle_key_node`)가 같은 함수로 정한다. plugin 명령 판정, egui
-적재(`feed_egui_keyboard`), 키 처리(`handle_keyboard_input`)가 그 결과를 함께 읽는다. 단계 순서의 정본은
+사건과 편집 보류 재생은 view 의 단계(`MainKeySteps::settle_key_node`)가 같은 함수로 정한다. egui
+적재(`feed_egui_keyboard`)와 키 처리(`handle_keyboard_input`)는 그 결과를 읽고, plugin 명령 게이트
+(`key_nodes::plugin_key_gate_open`·`key_path::focus_path_levels`)는 그 정리 뒤 상태에서 경로를 구한다. 편집 보류 재생
+(`ReplayStep::Original`·`ReplayStep::View`)은 원래 사건 때가 아니라 재생 시점에 다시 정한다(`src/app/edit_key_replay.rs`). 단계 순서의 정본은
 `run_key_event`(`src/view/key_event.rs`)와 메인 창 단계 구현 `MainKeySteps`(`src/view/main/key_event_steps.rs`)이고
 `source_guards::edit_key_judgment_order`·`press_focus_call_sites`가 고정한다. egui 적재는 `MainViewState::window_feeds_key`,
 터미널로 보낼지는 `MainViewState::window_key_holds_terminal`이 정한다. vi 복사 모드는 지금 자리 그대로다.

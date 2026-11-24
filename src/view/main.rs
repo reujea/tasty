@@ -518,7 +518,8 @@ impl MainView {
     /// 단계 3~5: 사건 하나의 출발 노드를 한 번 정한다. 포커스를 정규화하고, 사건 시점의 노드로 입력 몫을 끊은 뒤, 끊긴
     /// 새 몫에서 단계 4 수신자를 정한다. winit 키는 App 이 plugin 단축키 단계 앞에서 부르고
     /// (`App::route_window_input`), 그 밖의 사건과 편집 보류 재생은 창의 단계 3~5(`MainKeySteps::settle_key_node`)가
-    /// 부른다(App 이 정했으면 `key_settled`). 두 단계는 같은 결과(포커스 노드·끊긴 몫·`key_decision`)를 읽는다.
+    /// 부른다(App 이 정했으면 `key_settled`). 창 view 의 단계는 그 결과(포커스 노드·끊긴 몫·`key_decision`)를 읽고,
+    /// plugin 명령 게이트(`plugin_key_gate_open`·`focus_path_levels`)는 그 정리 뒤 상태에서 경로를 구한다.
     pub(crate) fn settle_key_event(&mut self, engine: &EngineRead<'_>, event: &WindowEvent) {
         self.normalize_focus_on_key(engine, event);
         self.cut_input_segment(engine, event);

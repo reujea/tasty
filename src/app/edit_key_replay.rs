@@ -117,8 +117,8 @@ impl App {
     }
 
     /// winit 키 사건의 출발 노드를 메인 창에서 정한다(`MainView::settle_key_event`). 정했으면 참이고, 창 view 는 같은
-    /// 사건에서 다시 정하지 않는다. 키가 아닌 사건과 보조 창은 창 view 가 정한다. modal 이 열렸으면 창 view 가 정하기
-    /// 전 단계(modal 차단)에서 끝내므로 정하지 않는다.
+    /// 사건에서 다시 정하지 않는다. 키가 아닌 사건은 창 view 가 정하고, 보조 창은 자기 입력 경로를 쓴다. modal 이
+    /// 열렸으면 창 view 가 정하기 전 단계(modal 차단)에서 끝내므로 정하지 않는다.
     fn settle_window_key(&mut self, id: WindowId, event: &WindowEvent) -> bool {
         if !matches!(event, WindowEvent::KeyboardInput { .. }) || self.view.is_modal_active() {
             return false;
