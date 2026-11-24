@@ -70,6 +70,10 @@ fn the_popup_bodies_are_decoded_before_the_edge_reads_them() {
     let prepare = body
         .find("self.prepare_mesh_popups(")
         .expect("`run_egui_frame` 이 egui 패스 전에 팝업 본문을 디코드해야 한다");
+    let bodies = body
+        .find("popup_scope::bodies_to_decode(")
+        .expect("사전 디코드 대상은 직전 프레임 합성 영역에서 골라야 한다(접힌 팝업 제외)");
+    assert!(bodies < prepare, "디코드 대상을 고른 뒤 디코드한다");
     let composed = body
         .find("self.composed_popups()")
         .expect("띠가 읽는 합성 본문");

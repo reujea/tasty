@@ -457,5 +457,9 @@ mod tutorial_exclusive;
 mod frame_keys;
 
 #[cfg(feature = "gui")]
+#[path = "popup_decode_tests.rs"]
+mod popup_decode;
+
+#[cfg(feature = "gui")]
 #[path = "scene_key_owner_tests.rs"]
 mod scene_keys;

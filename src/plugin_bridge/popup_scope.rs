@@ -48,6 +48,20 @@ pub(crate) fn drawn_in_window(
     decl != PopupScopeDecl::Window || window_popups.contains(&instance_id)
 }
 
+/// egui 패스 전에 본문을 디코드할 plugin 팝업. 직전 프레임에 합성 영역(`composited`)을 받았고 아직 열린
+/// 인스턴스만이다. 접힌 팝업과 배치되지 않은 팝업(대상 탭이 숨은 surface 팝업 등)은 합성 영역을 받지 않으므로
+/// 빠진다. 합성하지 않을 팝업을 디코드하면 같은 프레임 합성이 그 자원을 지우고, delta 프레임이면 전체 재전송을
+/// 다시 요청해 매 프레임 다시 그린다.
+#[cfg(feature = "gui")]
+pub(crate) fn bodies_to_decode(
+    composited: &[(u64, crate::model::PhysicalRect)],
+    open: impl IntoIterator<Item = u64>,
+) -> Vec<u64> {
+    open.into_iter()
+        .filter(|id| composited.iter().any(|(c, _)| c == id))
+        .collect()
+}
+
 /// 같은 plugin·팝업의 인스턴스가 이미 열려 있는지. 다시 열면 그 인스턴스를 돌려받으므로
 /// 여는 진입점은 열기 전에 이 값을 읽어, 이미 열린 인스턴스의 창 결속을 바꾸지 않는다.
 #[cfg(feature = "gui")]
