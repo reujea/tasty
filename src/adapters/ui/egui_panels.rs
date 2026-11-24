@@ -388,8 +388,25 @@ pub fn draw_egui_panels(
                     0,
                     None,
                     |ui| {
-                        let panel = ui.max_rect();
                         let th = theme::theme();
+                        // 띠 kind는 leaf 위 포커스 띠 행을 비우고 그 아래부터 주소 띠·배너·tile을 둔다.
+                        // native 페이지의 위 끝(`webview_sync`)과 같은 물리 경계를 쓴다.
+                        let panel = if crate::state::surface_focus::webview_reserves_edge(
+                            remote.kind(),
+                            remote.capabilities(),
+                        ) {
+                            let leaf = ui.max_rect();
+                            let ppp = ui.ctx().pixels_per_point();
+                            let rows = tasty_ui_widgets::surface_focus_edge_rows(
+                                &th,
+                                leaf.top() * ppp,
+                                leaf.bottom() * ppp,
+                                ppp,
+                            );
+                            leaf.with_min_y(rows.bottom / ppp)
+                        } else {
+                            ui.max_rect()
+                        };
                         // 시안 순서: 주소 띠 → 크기 배너 → 원격 배너 → 스크립트 배너 → 페이지.
                         let band = html_sid.map(|sid| {
                             let source =

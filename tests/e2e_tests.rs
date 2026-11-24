@@ -2878,19 +2878,30 @@ fn x11_pointer(display: &str, steps: &[Pointer]) -> Result<(), String> {
     Ok(())
 }
 
-/// WebView 창이 surface 사각형(`debug.surface_rect`)과 물리 px 단위로 같은지. 반올림 차이만 둔다.
+/// WebView 창이 surface 사각형(`debug.surface_rect`)의 좌우·아래를 물리 px 단위로 채우는지. 반올림 차이만 둔다.
+/// 위쪽은 html이 띠 kind라 포커스 띠 행(`surface-focus-edge-width` × 배율, 정수 물리 px)과 주소 띠·배너
+/// 아래에서 시작하므로 그 행 이상 내려가 있어야 한다.
 #[cfg(all(target_os = "linux", feature = "gui"))]
 fn assert_webview_fills_surface(tasty: &TastyInstance, sid: u64, capture: &X11WebViewCapture) {
     let reply = tasty.call("debug.surface_rect", json!({ "surface_id": sid }));
     let r = &reply["rect"];
-    let surface =
+    let [sx, sy, sw, sh] =
         ["x", "y", "width", "height"].map(|k| r[k].as_f64().expect("surface rect") as f32);
+    let scale = reply["scale_factor"].as_f64().expect("scale_factor") as f32;
     let (cx, cy, cw, ch) = capture.child;
-    let child = [cx, cy, cw, ch].map(|v| v as f32);
+    let [cx, cy, cw, ch] = [cx, cy, cw, ch].map(|v| v as f32);
+    let edge = (2.0 * scale).round();
     assert!(
-        surface.iter().zip(child).all(|(s, c)| (s - c).abs() < 1.0),
-        "WebView 창 {:?} 이 surface 사각형 {surface:?} 과 다르다",
-        capture.child
+        (sx - cx).abs() < 1.0 && (sw - cw).abs() < 1.0 && (sy + sh - (cy + ch)).abs() < 1.0,
+        "WebView 창 {:?} 이 surface 사각형 {:?} 의 좌우·아래와 다르다",
+        capture.child,
+        [sx, sy, sw, sh]
+    );
+    assert!(
+        cy - sy >= edge - 1.0,
+        "WebView 창 {:?} 이 surface 사각형 {:?} 위의 포커스 띠 행({edge}px)을 덮는다",
+        capture.child,
+        [sx, sy, sw, sh]
     );
 }
 
@@ -2903,7 +2914,7 @@ fn webview_takes_input_at(display: &str, capture: &X11WebViewCapture, px: i32, p
 
 /// html WebView 는 surface 를 꽉 채우고, 분할선 hit 띠와 창 가장자리 리사이즈 밴드만 입력에서
 /// 빼서 host 에 남긴다(`state::webview_edges`). 분할 배치와 단일 pane 배치를 차례로 잰다.
-/// - 두 배치 모두 WebView X 창 = `debug.surface_rect`.
+/// - 두 배치 모두 WebView X 창이 `debug.surface_rect`의 좌우·아래를 채우고 위쪽 포커스 띠 행을 비운다.
 /// - 분할: WebView 왼쪽 끝(분할선 hit 띠)과 오른쪽 8 px(창 리사이즈 밴드)은 입력 영역 밖이고 가운데는 안.
 ///   XTest 로 왼쪽 끝을 눌러 끌면 분할선이 움직이고, 가운데 링크를 누르면 페이지가 바뀐다.
 /// - 단일 pane(왼쪽 pane 을 닫는다): 왼쪽 끝은 사이드바와 닿아 입력 영역 안, 오른쪽 밴드는 밖.

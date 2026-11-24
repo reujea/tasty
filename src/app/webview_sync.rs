@@ -179,6 +179,28 @@ fn hosts_webview(view: &MainView, surface: &dyn crate::model::Surface, sid: u32)
                 || view.state.webview_user_nav.iter().any(|(s, _)| *s == sid)))
 }
 
+/// 띠 kind WebView가 leaf 위에 비워 두는 높이(물리 px). 바탕 kind와 WebView가 아닌 surface는 0이다.
+fn edge_reserved(
+    surface: &dyn crate::model::Surface,
+    leaf: crate::model::PhysicalRect,
+    scale_factor: f32,
+) -> f64 {
+    let reserves = surface
+        .as_any()
+        .downcast_ref::<RemoteSurface>()
+        .is_some_and(|remote| {
+            crate::state::surface_focus::webview_reserves_edge(
+                remote.kind_static,
+                remote.capabilities,
+            )
+        });
+    if !reserves {
+        return 0.0;
+    }
+    let below = crate::state::surface_focus::below_edge(&crate::theme::theme(), leaf, scale_factor);
+    f64::from((below.y - leaf.y).value())
+}
+
 /// HTML surface 전체와 활성 surface의 영역을 수집한다. native 호출은 하지 않는다.
 /// 활성 surface의 영역은 플랫폼에 넘길 논리 좌표와 egui 툴팁 배치에 쓸 물리 사각형을 함께 돌려준다.
 fn collect_html_surfaces(
@@ -296,7 +318,9 @@ fn collect_html_surfaces(
                                 )
                                 .map(|v| v.value() as f64);
                             // 물리 사각형을 만든 뒤 플랫폼 API에 맞는 논리 좌표로 변환한다.
-                            let top = view.html_content_top(sid, scale_factor);
+                            // 띠 kind는 포커스 띠 행 아래(정수 물리 px)에서 시작한다. 그리기 전 첫 프레임도 같다.
+                            let edge = edge_reserved(surface, leaf_rect, scale_factor as f32);
+                            let top = edge + view.html_content_top(sid, scale_factor);
                             let physical = crate::webview::PhysicalWebViewBounds {
                                 x: leaf_rect.x.value() as f64 + left,
                                 y: leaf_rect.y.value() as f64 + top,
