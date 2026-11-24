@@ -44,22 +44,55 @@ pub(crate) struct MeshPress {
 }
 
 /// 버튼마다 누른 mesh leaf. 한 버튼을 누른 채 다른 버튼을 다른 leaf에서 눌러도 각 뗌은 그 버튼을 누른
-/// leaf로 간다.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct MeshPresses(Vec<(winit::event::MouseButton, MeshPress)>);
+/// leaf로 간다. 누른 leaf마다 마지막으로 받은 포인터 위치(물리 px)도 둔다. 포인터가 창 밖으로 나가 좌표가 없을
+/// 때 온 뗌을 그 위치로 보낸다.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct MeshPresses {
+    held: Vec<(winit::event::MouseButton, MeshPress)>,
+    seen: Vec<(MeshPress, (f32, f32))>,
+}
 
 impl MeshPresses {
     /// 마지막으로 누른 채인 leaf(로컬·attach 가리지 않는다). 누른 동안의 포인터 이동·휠이 이 leaf로 간다.
     pub(crate) fn last(&self) -> Option<MeshPress> {
-        self.0.last().map(|(_, p)| *p)
+        self.held.last().map(|(_, p)| *p)
     }
 
-    fn of(&self, button: winit::event::MouseButton) -> Option<MeshPress> {
-        self.0.iter().find(|(b, _)| *b == button).map(|(_, p)| *p)
+    /// `button`을 누른 leaf.
+    pub(crate) fn of(&self, button: winit::event::MouseButton) -> Option<MeshPress> {
+        self.held
+            .iter()
+            .find(|(b, _)| *b == button)
+            .map(|(_, p)| *p)
+    }
+
+    /// `button`을 `press` leaf의 `at`에서 눌렀다.
+    fn record(&mut self, button: winit::event::MouseButton, press: MeshPress, at: (f32, f32)) {
+        self.held.push((button, press));
+        self.saw(press, at);
+    }
+
+    /// 누른 채인 `press` leaf가 `at`의 포인터를 받았다. 누른 leaf가 아니면 아무것도 하지 않는다.
+    pub(crate) fn saw(&mut self, press: MeshPress, at: (f32, f32)) {
+        if !self.held.iter().any(|(_, p)| *p == press) {
+            return;
+        }
+        self.seen.retain(|(p, _)| *p != press);
+        self.seen.push((press, at));
+    }
+
+    /// `press` leaf가 마지막으로 받은 포인터 위치.
+    fn seen_at(&self, press: MeshPress) -> Option<(f32, f32)> {
+        self.seen
+            .iter()
+            .find(|(p, _)| *p == press)
+            .map(|(_, at)| *at)
     }
 
     fn forget(&mut self, button: winit::event::MouseButton) {
-        self.0.retain(|(b, _)| *b != button);
+        self.held.retain(|(b, _)| *b != button);
+        let held = &self.held;
+        self.seen.retain(|(p, _)| held.iter().any(|(_, h)| h == p));
     }
 }
 
@@ -130,7 +163,7 @@ pub(crate) fn button_target(
             presses.forget(button);
         }
         if let Some(r) = hit {
-            presses.0.push((button, MeshPress { id: r.id, side }));
+            presses.record(button, MeshPress { id: r.id, side }, (x, y));
         }
         return hit;
     }
@@ -153,34 +186,58 @@ pub(crate) enum MeshButtonStage {
     Below { dragging_divider: bool },
 }
 
-/// 창 버튼 사건의 mesh 대상(로컬·attach 공통). `Recorded` 단계는 기록된 버튼의 뗌을 기록한 leaf로 보내고 기록을
-/// 지운다. 이 단계가 다른 분기보다 앞이라 mesh에서 누른 버튼의 뗌은 분할선 드래그 중이든 위 층이 사건을 가져가든
-/// 사라지지 않는다. 그 leaf가 배치에서 사라졌으면 기록만 지우고 사건은 다른 분기로 간다. `Below` 단계는 로컬,
-/// 그다음 attach 순서로 [`button_target`]을 쓴다.
+/// 창 버튼 사건 하나의 mesh 판정 결과.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum MeshButtonRoute {
+    /// 이 leaf에 이 위치(물리 px)로 보낸다.
+    Send(MeshFrameRegion, (f32, f32)),
+    /// mesh가 가져가되 보내지 않는다(기록만 지운다).
+    Consume,
+    /// mesh 사건이 아니다. 창의 다른 분기로 간다.
+    Pass,
+}
+
+/// 창 버튼 사건의 mesh 대상(로컬·attach 공통). `at`은 창 안 포인터이고 창 밖이면 `None`이다.
+///
+/// `Recorded` 단계는 기록된 버튼의 뗌을 기록한 leaf로 보내고 기록을 지운다. 이 단계가 다른 분기보다 앞이라
+/// mesh에서 누른 버튼의 뗌은 분할선 드래그 중이든 위 층이 사건을 가져가든 사라지지 않는다. 좌표가 없으면 그
+/// leaf가 마지막으로 받은 포인터 위치로 보내고, 그 위치도 없으면 기록만 지운다(`Consume`). 그 leaf가 배치에서
+/// 사라졌으면 기록만 지우고 사건은 다른 분기로 간다. `Below` 단계는 좌표가 있을 때 로컬, 그다음 attach 순서로
+/// [`button_target`]을 쓴다.
 pub(crate) fn mesh_button_target(
     regions: &[MeshFrameRegion],
     presses: &mut MeshPresses,
     stage: MeshButtonStage,
     button: winit::event::MouseButton,
-    (x, y): (f32, f32),
+    at: Option<(f32, f32)>,
     pressed: bool,
-) -> Option<MeshFrameRegion> {
+) -> MeshButtonRoute {
     match stage {
         MeshButtonStage::Recorded => {
-            if pressed {
-                return None;
-            }
-            let p = presses.of(button)?;
+            let Some(p) = presses.of(button).filter(|_| !pressed) else {
+                return MeshButtonRoute::Pass;
+            };
+            let at = at.or_else(|| presses.seen_at(p));
             presses.forget(button);
-            pointer_target(regions, Some(p), p.side, x, y)
+            let Some(region) = regions.iter().find(|r| r.id == p.id && r.side == p.side) else {
+                return MeshButtonRoute::Pass;
+            };
+            at.map_or(MeshButtonRoute::Consume, |at| {
+                MeshButtonRoute::Send(*region, at)
+            })
         }
         MeshButtonStage::Below { dragging_divider } => {
+            let Some((x, y)) = at else {
+                return MeshButtonRoute::Pass;
+            };
             let local = (!dragging_divider)
                 .then(|| button_target(regions, presses, MeshSide::Local, button, (x, y), pressed))
                 .flatten();
-            local.or_else(|| {
-                button_target(regions, presses, MeshSide::Attach, button, (x, y), pressed)
-            })
+            local
+                .or_else(|| {
+                    button_target(regions, presses, MeshSide::Attach, button, (x, y), pressed)
+                })
+                .map_or(MeshButtonRoute::Pass, |r| MeshButtonRoute::Send(r, (x, y)))
         }
     }
 }
@@ -422,16 +479,22 @@ mod tests {
             presses,
             MeshButtonStage::Recorded,
             button,
-            at,
+            Some(at),
             pressed,
         );
-        if recorded.is_some() || above {
-            return recorded;
+        match recorded {
+            MeshButtonRoute::Send(r, _) => return Some(r),
+            MeshButtonRoute::Consume => return None,
+            MeshButtonRoute::Pass if above => return None,
+            MeshButtonRoute::Pass => {}
         }
         let stage = MeshButtonStage::Below {
             dragging_divider: dragging,
         };
-        mesh_button_target(regions, presses, stage, button, at, pressed)
+        match mesh_button_target(regions, presses, stage, button, Some(at), pressed) {
+            MeshButtonRoute::Send(r, _) => Some(r),
+            _ => None,
+        }
     }
 
     /// mesh leaf를 오른쪽으로 누른 뒤 왼쪽으로 분할선 드래그를 시작하고 오른쪽을 떼면, 뗌은 분할선 드래그 중에도
@@ -482,7 +545,8 @@ mod tests {
             region(1, 10.0, MeshSide::Local),
             region(3, 70.0, MeshSide::Local),
         ];
-        let mut presses = MeshPresses(vec![(Left, pressed(1, MeshSide::Local))]);
+        let mut presses = MeshPresses::default();
+        presses.record(Left, pressed(1, MeshSide::Local), (5.0, 20.0));
         let down = button_target(
             &regions,
             &mut presses,
@@ -492,10 +556,7 @@ mod tests {
             true,
         );
         assert_eq!(down.map(|r| r.id), Some(3));
-        assert_eq!(
-            presses,
-            MeshPresses(vec![(Left, pressed(3, MeshSide::Local))])
-        );
+        assert_eq!(presses.held, vec![(Left, pressed(3, MeshSide::Local))]);
         let miss = button_target(
             &regions,
             &mut presses,

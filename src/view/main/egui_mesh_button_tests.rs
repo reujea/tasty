@@ -184,3 +184,34 @@ fn an_extra_button_does_not_move_the_held_target() {
         assert!(motion_target(&regions, &w.presses, MeshSide::Attach, 5.0, y).is_none());
     }
 }
+
+/// 누른 뒤 포인터가 창 밖으로 나가 좌표가 비고 뗌이 오면, 기록을 지우고 뗌을 그 leaf가 마지막으로 받은 포인터
+/// 위치로 그 leaf에 보낸다. 누른 뒤 받은 이동이 있으면 그 위치, 없으면 누른 위치다. 로컬과 attach가 같다.
+#[test]
+fn a_release_without_a_cursor_reaches_the_pressed_leaf_at_its_last_point() {
+    use crate::state::mesh_frames::MeshPress;
+    for side in [MeshSide::Local, MeshSide::Attach] {
+        for moved in [None, Some((5.0, 40.0))] {
+            let regions = [region(1, 10.0, side)];
+            let mut w = Window::default();
+            assert!(w.button(&regions, Some((5.0, 20.0)), (Right, true), false));
+            if let Some(at) = moved {
+                w.presses.saw(MeshPress { id: 1, side }, at);
+            }
+            assert!(
+                w.button(&regions, None, (Right, false), false),
+                "{side:?} the release is taken"
+            );
+            let y = moved.map_or(20.0, |(_, y)| y) - 10.0;
+            assert_eq!(
+                w.buttons(side, 1),
+                vec![
+                    (PointerButtonWire::Secondary, true, 10.0),
+                    (PointerButtonWire::Secondary, false, y)
+                ],
+                "{side:?} moved={moved:?}"
+            );
+            assert_eq!(w.presses, MeshPresses::default(), "{side:?} record cleared");
+        }
+    }
+}

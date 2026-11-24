@@ -61,6 +61,11 @@ impl MainView {
         x: f32,
         y: f32,
     ) {
+        let press = crate::state::mesh_frames::MeshPress {
+            id: surface_id,
+            side: MeshSide::Attach,
+        };
+        self.state.mesh_press.saw(press, (x, y));
         let (lx, ly) = self.mesh_local_point(rect, x, y);
         let st = self.attach_mesh_input.entry(surface_id).or_default();
         st.admitted.get_or_insert_with(std::time::Instant::now);

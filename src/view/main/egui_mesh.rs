@@ -18,7 +18,7 @@ use tasty_plugin_protocol::{
 use crate::app::plugin_display::PluginDisplay;
 use crate::model::{PhysicalPx, PhysicalRect};
 use crate::plugin_bridge::MeshForwardCommon;
-use crate::state::mesh_frames::{MeshButtonStage, MeshSide};
+use crate::state::mesh_frames::{MeshButtonRoute, MeshButtonStage, MeshPress, MeshSide};
 
 use super::MainView;
 use crate::view::ui::View as _;
@@ -191,6 +191,11 @@ impl MainView {
         x: f32,
         y: f32,
     ) {
+        let press = MeshPress {
+            id: surface_id,
+            side: MeshSide::Local,
+        };
+        self.state.mesh_press.saw(press, (x, y));
         let (lx, ly) = self.mesh_local_point(rect, x, y);
         let st = self.egui_mesh.entry(surface_id).or_default();
         st.events
@@ -552,28 +557,24 @@ pub(super) fn route_mesh_button(
     button: MouseButton,
     pressed: bool,
 ) -> bool {
-    let Some((x, y)) = w.cursor else {
-        return false;
-    };
     let stage = match pass {
         MeshPass::Recorded => MeshButtonStage::Recorded,
         MeshPass::Below => MeshButtonStage::Below {
             dragging_divider: w.dragging_divider,
         },
     };
-    let Some(r) = crate::state::mesh_frames::mesh_button_target(
-        w.regions,
-        w.presses,
-        stage,
-        button,
-        (x, y),
-        pressed,
-    ) else {
+    let route = crate::state::mesh_frames::mesh_button_target(
+        w.regions, w.presses, stage, button, w.cursor, pressed,
+    );
+    if matches!(route, MeshButtonRoute::Pass) {
         return false;
-    };
+    }
     if !pressed && button == MouseButton::Left {
         *w.left_mouse_down = false;
     }
+    let MeshButtonRoute::Send(r, (x, y)) = route else {
+        return true;
+    };
     let Some(wire) = map_button(button) else {
         return true;
     };
