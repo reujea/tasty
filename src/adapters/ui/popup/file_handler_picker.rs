@@ -1239,30 +1239,54 @@ mod tests {
     }
 
     /// 경로 글자 폭은 재지만 한 글자도 들어가지 않으면(표지가 상자를 넘음) 앱 `target_budget` 은 추정으로
-    /// 가고, 상태 단어 폭은 표지가 그리는 글꼴로 잰 값(`fh_remote_word_width`)을 쓴다. 48자 CJK 단어는 잰 폭이
-    /// 남은 상자를 넘어 1자이고, 잰 폭 없이 en 칸 수(칸당 6)로 추정하면 'h' 옆에서 11자다.
+    /// 가고, 상태 단어 폭은 표지가 그리는 글꼴로 잰 값(`fh_remote_word_width`)을 쓴다. 16자 CJK 호스트는 잰 폭이
+    /// 상한(160) 가까이지만 추정은 6 × 16 = 96 이라, 22자 CJK 단어의 잰 폭을 빼도 추정이 하한 1 보다 크다.
+    /// 그래서 단어 폭 대신 표지 전체 폭을 넘기거나 단어 폭을 넘기지 않으면 값이 달라진다.
     #[test]
     fn the_app_target_budget_passes_the_measured_status_word_width() {
+        use tasty_ui_widgets::tokens::FH_TARGET_LINE_BOX;
         let th = test_theme();
-        let word = "再接続中".repeat(12);
+        let host = "遠隔作業用開発機".repeat(2);
+        let word = format!("{}再接", "再接続中".repeat(5));
         let mark = tasty_ui_widgets::RemoteMark {
-            host: "h",
+            host: &host,
             empty_label: "Remote",
             reconnecting: Some(&word),
         };
-        assert_eq!(app_budget(&th, &mark), 1);
-        let estimated = tasty_ui_widgets::fh_remote_path_budget_from(
-            &th,
-            LogicalPx(f32::NAN),
-            LogicalPx(f32::NAN),
-            None,
-            &mark,
-            "en",
+        let ctx = egui::Context::default();
+        crate::gfx::gpu::GpuState::setup_egui_fonts(&ctx);
+        let mut measured = (0, LogicalPx(0.0), LogicalPx(0.0));
+        for _ in 0..2 {
+            // 출력은 그리지 않고 잰 값만 쓴다.
+            let _ = ctx.run(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    measured = (
+                        target_budget(ui, &th, Some(&mark)),
+                        tasty_ui_widgets::fh_remote_mark_width(ui, &th, &mark),
+                        tasty_ui_widgets::fh_remote_word_width(ui, &th, &word),
+                    );
+                });
+            });
+        }
+        let (budget, mark_w, word_w) = measured;
+        // 잰 표지 옆에는 한 글자도 들어가지 않아 추정 갈래로 간다.
+        assert!(
+            (FH_TARGET_LINE_BOX - mark_w - th.spacing_sm).value() < FH_TARGET_MONO_ADVANCE.value(),
+            "mark {mark_w:?}"
         );
-        assert_eq!(
-            estimated, 11,
-            "the language estimate the measured width replaces"
-        );
+        // 정본 Meta 'path cap, unmeasured': 390 − 글리프 − 간격 − space-sm − 호스트 추정 − (간격 + 잰 단어 폭).
+        let host_estimate =
+            (FH_TARGET_MONO_ADVANCE * host.chars().count() as f32).min(th.fh_remote_max_width());
+        let room = FH_TARGET_LINE_BOX
+            - th.icon_glyph_size_xs
+            - th.fh_remote_gap()
+            - th.spacing_sm
+            - host_estimate
+            - th.fh_remote_gap()
+            - word_w;
+        let expected = (room.value() / FH_TARGET_MONO_ADVANCE.value()).floor() as usize;
+        assert!(expected > 1, "word {word_w:?}, room {room:?}");
+        assert_eq!(budget, expected, "word {word_w:?}");
     }
 
     /// 실제 앱 폰트로 경로 길이를 계산한다. 단일 글리프 폭과 글자 추가 시 증분의 차이도 확인한다.
