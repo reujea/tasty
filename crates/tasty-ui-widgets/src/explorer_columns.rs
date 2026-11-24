@@ -7,7 +7,8 @@ use tasty_type_geometry::length::LogicalPx;
 use crate::table::{TableAlign, TableColumn, TableColumnWidth};
 
 /// 디자인 `DetailRow` 의 `gridTemplateColumns: 1fr 80px 132px 92px` 와 각 열의 최소 폭.
-/// 역할에 맞는 토큰이 없다.
+/// 이름 열 하한과 크기·날짜·종류 열 폭은 같은 역할의 토큰(`explorer_detail_*` 접근자)이 있다.
+/// 접근자는 ui_zoom을 따르므로 바꾸면 열 폭이 배율에 따라 달라진다. 그 전환은 별도 작업이라 리터럴로 둔다.
 const NAME_MIN: LogicalPx = LogicalPx(140.0);
 const SIZE_W: LogicalPx = LogicalPx(80.0);
 const SIZE_MIN: LogicalPx = LogicalPx(64.0);

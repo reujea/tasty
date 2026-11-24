@@ -74,6 +74,7 @@ fn bar_state(ui: &mut egui::Ui, theme: &Theme, count: &str, invalid: bool, focus
                     let trailing = counter_w
                         + theme.item_height_interactive.scaled(4.0)
                         + theme.spacing_md.scaled(4.0);
+                    // 입력 칸 하한 80은 견본 프레임 전용 하한이며 역할 토큰이 없다.
                     let input_w =
                         (WIDTH - theme.spacing_sm.scaled(2.0) - trailing).max(LogicalPx(80.0));
                     let mut query = if invalid { "(tas" } else { "tasty" }.to_owned();
