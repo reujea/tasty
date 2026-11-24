@@ -19,11 +19,12 @@ fn screen() -> PhysicalRect {
     }
 }
 
-/// workspace 하나·탭 하나에 `surface`만 둔 장면. `official`이면 그 kind를 공식 plugin으로 등록한다.
+/// workspace 하나·탭 하나에 `surface`만 둔 장면. `declares_bed`이면 그 plugin이 이 kind를 `bed_focus = true`로
+/// 선언해 등록한다.
 fn scene(
     kind: &str,
     surface: Box<dyn crate::model::Surface>,
-    official: Option<&str>,
+    declares_bed: Option<&str>,
 ) -> (MainViewState, EngineSession) {
     use tasty_core::DomainEvent as E;
     let model = crate::state::tests::test_model(vec![
@@ -53,12 +54,13 @@ fn scene(
     ]);
     let (mut state, mut session) = crate::state::tests::test_state_from_model(model);
     session.runtime.surfaces.insert(SID, surface);
-    if let Some(plugin) = official {
+    if let Some(plugin) = declares_bed {
         let decl: tasty_plugin_manifest::SurfaceKindDecl =
             serde_json::from_value(serde_json::json!({
                 "kind": kind,
                 "display_name_i18n_key": "surface.kind.image",
                 "rendering": "egui-mesh",
+                "bed_focus": true,
             }))
             .expect("kind decl");
         assert!(
@@ -111,7 +113,7 @@ fn leaf(state: &MainViewState, read: &crate::runtime::engine_read::EngineRead<'_
     leaves.iter().find(|r| r.id == SID).expect("leaf").rect
 }
 
-/// kind 이름, surface, 공식 등록 plugin, 그리는 쪽, 띠 행 예약 여부.
+/// kind 이름, surface, `bed_focus`를 선언해 등록하는 plugin, 그리는 쪽, 띠 행 예약 여부.
 type Case = (
     &'static str,
     Box<dyn crate::model::Surface>,
@@ -121,7 +123,8 @@ type Case = (
 );
 
 /// mesh 프레임은 띠 kind(선언 없는 로컬 mesh, `bed_focus` 없는 mirror mesh)에서만 띠 행 아래에서 시작한다.
-/// 바탕 kind(공식 image, `bed_focus`를 실은 mirror mesh)는 leaf 전체다.
+/// 바탕 kind(`bed_focus`를 선언한 로컬 mesh, `bed_focus`를 실은 mirror mesh)는 leaf 전체다. 로컬 바탕 사례는
+/// 이름 fallback이 없는 제3자 kind라 선언 경로로만 바탕이 된다.
 #[test]
 fn a_mesh_frame_starts_below_the_edge_only_for_an_edge_kind() {
     let theme = crate::theme::theme();
@@ -134,9 +137,9 @@ fn a_mesh_frame_starts_below_the_edge_only_for_an_edge_kind() {
             true,
         ),
         (
-            "image",
-            local_mesh("image", "com.tasty.image"),
-            Some("com.tasty.image"),
+            "my-viewer",
+            local_mesh("my-viewer", "com.example.viewer"),
+            Some("com.example.viewer"),
             MeshSide::Local,
             false,
         ),
@@ -155,8 +158,8 @@ fn a_mesh_frame_starts_below_the_edge_only_for_an_edge_kind() {
             false,
         ),
     ];
-    for (kind, surface, official, side, edge) in cases {
-        let (state, mut session) = scene(kind, surface, official);
+    for (kind, surface, declares_bed, side, edge) in cases {
+        let (state, mut session) = scene(kind, surface, declares_bed);
         let engine = session.borrow_mut();
         let read = engine.read();
         let leaf = leaf(&state, &read);
