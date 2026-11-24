@@ -83,9 +83,10 @@ fn bar(ui: &mut egui::Ui, th: &Theme, active: bool, close: Close, tip: &str, cor
         ),
     );
     // hover와 키보드 포커스에서는 Close 툴팁이 버튼 아래, 오른쪽 변을 버튼에 맞춰 열려 있다. 툴팁은 별도 층이라
-    // 칸의 클립을 받지 않으므로, 버튼이 갤러리 스크롤 영역 밖이면 열지 않는다.
+    // 칸의 클립을 받지 않으므로, 버튼이 보이는 넓이가 없으면(갤러리 스크롤 영역 밖이거나 경계에 닿기만 하면) 열지
+    // 않는다. `is_rect_visible`은 경계 접촉도 참이라 쓰지 않는다.
     let button = egui::Rect::from_center_size(center, egui::vec2(d, d));
-    if close != Close::Rest && ui.is_rect_visible(button) {
+    if close != Close::Rest && button.intersect(ui.clip_rect()).is_positive() {
         tasty_ui_widgets::Tooltip::new(t("titlebar.close"))
             .id_source(("settings_titlebar_linux_tip", tip))
             .below_end(ui.ctx(), th, button)
@@ -398,6 +399,34 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// 도형 가운데 Close 툴팁 글자가 있는지.
+    fn has_tooltip(shapes: &[egui::epaint::ClippedShape]) -> bool {
+        let label = t("titlebar.close");
+        shapes.iter().any(|s| match &s.shape {
+            egui::Shape::Text(text) => text.galley.text() == label,
+            _ => false,
+        })
+    }
+
+    /// Given hover·포커스 칸, When 버튼이 보이면 Then Close 툴팁이 열리고, When 상위 클립이 버튼 아래 변에 닿기만 하면
+    /// (겹친 넓이 0) Then 툴팁을 열지 않는다.
+    #[test]
+    fn the_tooltip_opens_only_for_a_button_with_visible_area() {
+        let th = palette(&tasty_themes::mocha_fallback(), 1.0);
+        let button_bottom = th.border_width.value()
+            + th.titlebar_height.value() * 0.5
+            + th.titlebar_window_button_size().value() * 0.5;
+        let touching =
+            egui::Rect::from_min_max(egui::pos2(0.0, button_bottom), egui::pos2(1600.0, 1000.0));
+        for close in [Close::Hover, Close::Focus] {
+            assert!(has_tooltip(&shapes(1.0, None, close)), "{close:?}: visible");
+            assert!(
+                !has_tooltip(&shapes(1.0, Some(touching), close)),
+                "{close:?}: only touching"
+            );
         }
     }
 }
