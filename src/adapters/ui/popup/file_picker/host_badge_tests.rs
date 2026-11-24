@@ -84,3 +84,32 @@ fn the_host_badge_no_host_word_takes_the_ja_label_family() {
     // 다시 실행한 프로세스가 이 시험 하나를 실제로 돌렸는지 본다(이름이 어긋나면 0개가 돌고 성공한다).
     assert!(stdout.contains("1 passed"), "TASTY_LOCALE=ja: {stdout}");
 }
+
+/// 배지의 글리프와 글자 잉크는 accent-info-raised 다(디자인 FpHostBadge). 채움·테두리만 accent-info 틴트다.
+#[test]
+fn the_host_badge_paints_its_glyph_and_text_in_the_raised_info_ink() {
+    let th = crate::theme::theme();
+    let ctx = egui::Context::default();
+    egui_extras::install_image_loaders(&ctx);
+    let mut glyphs = Vec::new();
+    let mut texts = Vec::new();
+    for _ in 0..2 {
+        let full = ctx.run(egui::RawInput::default(), |ctx| {
+            egui::Area::new(egui::Id::new("fp_host_badge_ink_test"))
+                .fade_in(false)
+                .show(ctx, |ui| host_badge(ui, &th, "work-laptop-attach"));
+        });
+        glyphs.clear();
+        texts.clear();
+        for clipped in full.shapes {
+            match clipped.shape {
+                egui::Shape::Rect(r) if r.brush.is_some() => glyphs.push(r.fill),
+                egui::Shape::Text(t) => texts.push(t.fallback_color),
+                _ => {}
+            }
+        }
+    }
+    let raised: egui::Color32 = th.accent_info_raised().into();
+    assert_eq!(glyphs, vec![raised]);
+    assert_eq!(texts, vec![raised]);
+}

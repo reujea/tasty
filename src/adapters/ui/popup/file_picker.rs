@@ -45,6 +45,10 @@ use crate::adapters::ui::icons;
 
 /// breadcrumb 구분자 크기. 대응 토큰이 없어 갤러리와 같은 별도 값을 사용한다.
 pub(super) const CRUMB_GLYPH: LogicalPx = LogicalPx(13.0);
+/// 호스트 배지의 글리프 크기(디자인 FpHostBadge의 remote 아이콘 13). 대응 Theme 크기 토큰이 없다.
+const HOST_BADGE_GLYPH: LogicalPx = LogicalPx(13.0);
+/// 호스트 배지의 글리프 ↔ 글자 간격(디자인 FpHostBadge gap 5). 대응 Theme 간격 토큰이 없다.
+const HOST_BADGE_GAP: LogicalPx = LogicalPx(5.0);
 use crate::adapters::ui::popup::PopupAction;
 use crate::i18n::{t, t_count_template};
 use crate::state::{FilePickerResult, FpLoadState, MainViewState};
@@ -572,16 +576,18 @@ pub(super) fn row_height(th: &Theme) -> LogicalPx {
     pad + name.max(th.icon_glyph_size_md) + pad
 }
 
-/// 원격 호스트를 user@host 형태로 표시하는 배지. 프로필 이름이 없는 attach(빈 호스트)는 호스트 자리에
-/// `attach.mirror_pill_label` 낱말을 label 글꼴로 쓴다.
+/// 원격 호스트 글자(attach 프로필 이름)를 mono 로 표시하는 배지. 프로필 이름이 없는 attach(빈 호스트)는 호스트
+/// 자리에 `attach.mirror_pill_label` 낱말을 label 글꼴로 쓴다. 채움·테두리는 accent-info 틴트, 글리프와 글자
+/// 잉크는 accent-info-raised 다(디자인 FpHostBadge).
 fn host_badge(ui: &mut egui::Ui, th: &Theme, host: &str) {
     let info = th.accent_info();
+    let ink: egui::Color32 = th.accent_info_raised().into();
     let (text, font) = badge_text(th, host);
     let galley = ui
         .painter()
         .layout_no_wrap(text, font, egui::Color32::PLACEHOLDER);
-    let glyph = th.icon_glyph_size_xs.value();
-    let gap = th.spacing_xs.value();
+    let glyph = HOST_BADGE_GLYPH.value();
+    let gap = HOST_BADGE_GAP.value();
     let pad_x = th.spacing_sm.value();
     let h = 22.0;
     let w = pad_x * 2.0 + glyph + gap + galley.rect.width();
@@ -607,12 +613,12 @@ fn host_badge(ui: &mut egui::Ui, th: &Theme, host: &str) {
         egui::pos2(rect.left() + pad_x, rect.center().y - glyph * 0.5),
         egui::vec2(glyph, glyph),
     );
-    icons::REMOTE.image(glyph, info_color).paint_at(ui, gy);
+    icons::REMOTE.image(glyph, ink).paint_at(ui, gy);
     let pos = egui::pos2(
         rect.left() + pad_x + glyph + gap,
         rect.center().y - galley.rect.height() * 0.5,
     );
-    ui.painter().galley(pos, galley, info_color);
+    ui.painter().galley(pos, galley, ink);
 }
 
 /// 배지에 쓸 글자와 글꼴. 호스트 이름은 mono, 빈 호스트의 낱말은 label 글꼴이다.
