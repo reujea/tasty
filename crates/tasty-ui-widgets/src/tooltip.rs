@@ -933,6 +933,75 @@ mod tests {
         }
     }
 
+    /// The bubble lands where an `egui::Area` with `constrain(true)` puts the same pivot and size,
+    /// on every frame including the first, sizing one: pulled in at an edge, hanging out by the
+    /// excess when larger than the screen, and on the sizing frame with the default size limited
+    /// to a screen smaller than it.
+    #[test]
+    fn the_bubble_lands_where_a_constrained_area_would() {
+        let theme = theme();
+        let long =
+            "/home/someone/workspace/a-long-project/crates/some-crate/src/deeply/nested/module.rs";
+        let cases = [
+            (
+                "Close tab · 20s\nCopying · 3s",
+                egui::vec2(800.0, 600.0),
+                egui::pos2(790.0, 590.0),
+                egui::Align2::CENTER_TOP,
+                false,
+            ),
+            (
+                long,
+                egui::vec2(120.0, 30.0),
+                egui::pos2(60.0, 15.0),
+                egui::Align2::CENTER_TOP,
+                true,
+            ),
+            (
+                "Close tab · 20s\nCopying · 3s",
+                egui::vec2(100.0, 40.0),
+                egui::pos2(80.0, 20.0),
+                egui::Align2::CENTER_TOP,
+                false,
+            ),
+            (
+                "tip at the left edge",
+                egui::vec2(800.0, 600.0),
+                egui::pos2(2.0, 2.0),
+                egui::Align2::RIGHT_CENTER,
+                false,
+            ),
+        ];
+        for (case, (text, screen, pos, pivot, mono)) in cases.into_iter().enumerate() {
+            let ctx = egui::Context::default();
+            let ours = egui::Id::new(("ours", case));
+            let reference = egui::Id::new(("reference", case));
+            for step in 0..4 {
+                let _output = ctx.run(input_in(screen, f64::from(step) * 0.1), |ctx| {
+                    Tooltip::new(text)
+                        .mono(mono)
+                        .id_source(("ours", case))
+                        .paint(ctx, &theme, pos, pivot);
+                    let size = ctx
+                        .memory(|m| m.area_rect(ours))
+                        .expect("the bubble area is stored")
+                        .size();
+                    egui::Area::new(reference)
+                        .order(egui::Order::Tooltip)
+                        .fixed_pos(pos)
+                        .pivot(pivot)
+                        .constrain(true)
+                        .interactable(false)
+                        .show(ctx, |ui| {
+                            ui.allocate_space(size);
+                        });
+                });
+                let rect = |id| ctx.memory(|m| m.area_rect(id));
+                assert_eq!(rect(ours), rect(reference), "case {case} step {step}");
+            }
+        }
+    }
+
     /// A bubble whose body is off screen draws nothing, its shadow included, as an area frame and
     /// label skip what does not show. A bubble that was taller than the screen and gets short
     /// again is placed from its last size for one frame, above the screen.
