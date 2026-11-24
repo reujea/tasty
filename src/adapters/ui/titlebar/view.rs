@@ -61,6 +61,11 @@ pub struct TitlebarProps<'a> {
     /// 빈 영역 드래그 가운데 주 버튼(왼쪽) 드래그만 창 이동으로 보고한다(Linux 설정창, 디자인 정본과 같다).
     /// 거짓이면 어느 버튼의 드래그든 이동이다(메인 창).
     pub primary_drag_only: bool,
+    /// 이번 패스의 키 주인이 팝업이다(Linux 설정창). 참이면 창 버튼이 Tab 포커스를 받지 않아, 팝업이 닫힌 뒤
+    /// Space·Enter가 그 포커스로 버튼을 누르지 않는다.
+    // 이유: 참으로 넘기는 곳이 Linux 설정창뿐이고, 이 값을 읽는 Linux DE 버튼도 Linux 빌드에만 그려진다.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    pub popup_owns_keys: bool,
 }
 
 /// titlebar view 가 보고하는 사용자 의도. wrapper 가 winit window 조작 / app 이벤트로 변환.
@@ -260,7 +265,12 @@ fn draw_window_buttons(
             WindowButton::Maximize => crate::i18n::t("titlebar.maximize"),
             WindowButton::Close => crate::i18n::t("titlebar.close"),
         };
-        let resp = ui.interact(btn_rect, id, egui::Sense::click());
+        let sense = if props.popup_owns_keys {
+            egui::Sense::CLICK
+        } else {
+            egui::Sense::click()
+        };
+        let resp = ui.interact(btn_rect, id, sense);
         let resp = if props.keyboard_focus {
             let shown = tasty_ui_widgets::tooltip_hover_delay_elapsed(
                 ui.ctx(),

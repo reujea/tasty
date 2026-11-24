@@ -80,6 +80,7 @@ pub fn draw_titlebar(
         maximized: window.is_maximized(),
         keyboard_focus: false,
         primary_drag_only: false,
+        popup_owns_keys: false,
     };
 
     let result = draw_titlebar_view(ctx, &props);

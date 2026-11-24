@@ -231,7 +231,7 @@ impl SettingsChrome {
         }
         let th = crate::theme::theme();
         let props = settings_props(&th, window.has_focus(), window.is_maximized());
-        let result = draw_bar(ctx, &props, takes_keys);
+        let result = draw_bar(ctx, props, takes_keys);
         let ppp = ctx.pixels_per_point();
         self.close = result.close_rect.map(|rect| CloseArea {
             rect,
@@ -354,6 +354,7 @@ fn settings_props(th: &crate::theme::Theme, active: bool, maximized: bool) -> Ti
         maximized,
         keyboard_focus: true,
         primary_drag_only: true,
+        popup_owns_keys: false,
     }
 }
 
@@ -361,11 +362,12 @@ fn settings_props(th: &crate::theme::Theme, active: bool, maximized: bool) -> Ti
 /// Tab·Space·Enter를 읽지 않는다.
 fn draw_bar(
     ctx: &egui::Context,
-    props: &TitlebarProps,
+    mut props: TitlebarProps,
     takes_keys: bool,
 ) -> titlebar::TitlebarDrawResult {
+    props.popup_owns_keys = !takes_keys;
     crate::adapters::ui::popup::body_keys::with_body_keys(ctx, takes_keys, || {
-        titlebar::draw_titlebar_view(ctx, props)
+        titlebar::draw_titlebar_view(ctx, &props)
     })
 }
 
@@ -690,7 +692,7 @@ mod tests {
             drop(ctx.run(input, |ctx| {
                 let mut props = settings_props(&th, true, false);
                 props.primary_drag_only = primary_drag_only;
-                actions.extend(draw_bar(ctx, &props, takes_keys).actions);
+                actions.extend(draw_bar(ctx, props, takes_keys).actions);
             }));
         }
         actions
@@ -790,6 +792,25 @@ mod tests {
             Vec::new(),
             "a popup owns the keys"
         );
+    }
+
+    /// Given 팝업이 키 주인인 패스에서 Tab을 눌렀을 때, When 팝업이 닫혀 다음 패스에 Space·Enter가 설정창에 오면
+    /// Then 닫기 버튼은 그 Tab으로 포커스를 받지 않았으므로 닫지 않는다.
+    #[test]
+    fn a_tab_under_a_popup_leaves_no_focus_for_a_later_space() {
+        use egui::Key::{Enter, Space, Tab};
+        for press in [Space, Enter] {
+            let passes = vec![
+                Vec::new(),
+                vec![key(Tab, true), key(Tab, false)],
+                vec![key(press, true), key(press, false)],
+            ];
+            assert_eq!(
+                bar_actions_with_keys(passes, true, &[1]),
+                Vec::new(),
+                "{press:?}"
+            );
+        }
     }
 
     /// Given 앱 제목 줄 크기로 만든 창, When 협상이 서버 장식이면 Then 높이를 서버 장식에 맞추고 제목 줄을 그리지
