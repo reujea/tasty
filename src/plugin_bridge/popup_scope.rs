@@ -62,6 +62,26 @@ pub(crate) fn bodies_to_decode(
         .collect()
 }
 
+/// 이번 프레임에 합성 영역을 받았는데 egui 패스 전에 디코드하지 않은(GPU 대상이 없는) 팝업이 있으면 다음 프레임을
+/// 요청한다. 처음 열린 팝업, 숨겼다 돌아온 팝업, 접혔다 펼친 팝업이다. 그 프레임에는 본문을 합성하지 못하고, 받은
+/// 프레임이 그대로면 plugin이 새 프레임을 보내지 않아 다음 redraw가 없을 수 있다. 다음 프레임이 직전 합성 영역으로
+/// 그 본문을 디코드하므로 늦음은 한 프레임이다. 프레임을 아직 받지 않은 팝업(`has_frame` 거짓)은 프레임이 오면
+/// 다시 그리므로 보지 않는다.
+#[cfg(feature = "gui")]
+pub(crate) fn redraw_for_undecoded_bodies(
+    ctx: &egui::Context,
+    decoded: &[u64],
+    composited: &[(u64, crate::model::PhysicalRect)],
+    has_frame: impl Fn(u64) -> bool,
+) {
+    if composited
+        .iter()
+        .any(|(id, _)| !decoded.contains(id) && has_frame(*id))
+    {
+        ctx.request_repaint();
+    }
+}
+
 /// 같은 plugin·팝업의 인스턴스가 이미 열려 있는지. 다시 열면 그 인스턴스를 돌려받으므로
 /// 여는 진입점은 열기 전에 이 값을 읽어, 이미 열린 인스턴스의 창 결속을 바꾸지 않는다.
 #[cfg(feature = "gui")]

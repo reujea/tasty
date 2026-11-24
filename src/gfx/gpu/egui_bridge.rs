@@ -146,15 +146,17 @@ impl GpuState {
         let minimized = cfg!(windows) && window.is_minimized() == Some(true);
         // 이번 프레임 팝업 본문을 egui 패스 전에 디코드해 띠 구멍과 합성이 같은 clip을 쓰게 한다. 대상은 직전
         // 프레임에 합성 영역을 받은 팝업이다(접힌 팝업·배치되지 않은 팝업은 디코드하지 않는다).
-        if let Some(mgr) = plugin_manager {
-            let bodies = crate::plugin_bridge::popup_scope::bodies_to_decode(
+        let bodies = plugin_manager.map_or_else(Vec::new, |mgr| {
+            crate::plugin_bridge::popup_scope::bodies_to_decode(
                 &state.plugin_mesh_popup_regions,
                 mgr.popup_instances().map(|(id, _)| id),
-            );
-            self.prepare_mesh_popups(bodies, mgr);
+            )
+        });
+        if let Some(mgr) = plugin_manager {
+            self.prepare_mesh_popups(bodies.iter().copied(), mgr);
         }
         let composed_popups = self.composed_popups();
-        self.run_main_pass(
+        let output = self.run_main_pass(
             window,
             state,
             |raw_input| keep_screen_while_minimized(raw_input, minimized),
@@ -286,7 +288,17 @@ impl GpuState {
                     ctx.set_cursor_icon(ui::titlebar::resize_cursor(dir));
                 }
             },
-        )
+        );
+        // 합성 영역을 새로 받아 이번 프레임에 본문을 합성하지 못하는 팝업은 다음 프레임에 그린다.
+        if let Some(mgr) = plugin_manager {
+            crate::plugin_bridge::popup_scope::redraw_for_undecoded_bodies(
+                &self.egui_ctx,
+                &bodies,
+                &state.plugin_mesh_popup_regions,
+                |id| mgr.popup_mesh_frame(id).is_some(),
+            );
+        }
+        output
     }
 
     /// 메인 창의 egui 패스 하나. 패스 하나는 입력 몫 하나다. 창이 끊은 자리 하나(`InputCuts::split_pass`)로 이번

@@ -79,6 +79,13 @@ fn the_popup_bodies_are_decoded_before_the_edge_reads_them() {
         .find("self.composed_popups()")
         .expect("띠가 읽는 합성 본문");
     let pass = body.find("self.run_main_pass(").expect("egui 패스");
+    let redraw = body
+        .find("popup_scope::redraw_for_undecoded_bodies(")
+        .expect("본문 없이 합성 영역을 받은 팝업은 다음 프레임을 요청해야 한다");
+    assert!(
+        pass < redraw,
+        "다음 프레임 요청은 이번 패스의 합성 영역을 본 뒤다"
+    );
     assert!(
         prepare < composed && composed < pass,
         "팝업 본문 디코드 → 합성 본문 읽기 → egui 패스 순서가 아니다"
