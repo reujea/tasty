@@ -172,7 +172,7 @@ impl SettingsChrome {
     }
 
     /// 좌버튼 누름의 출처를 적는다. 저널이나 편집 키가 재생한 누름이면 그 누름이 시작한 제목 줄 드래그로 OS 이동을
-    /// 시작하지 않는다. 다른 버튼의 누름은 egui의 드래그 후보를 바꾸지 않으므로 적지 않는다.
+    /// 시작하지 않는다. 제목 줄 이동은 왼쪽 버튼만 눌린 드래그뿐이라 왼쪽 누름의 출처만 적으면 된다.
     pub(crate) fn note_left_press(&mut self, replayed: bool) {
         self.replayed_press = replayed;
     }
