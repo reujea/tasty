@@ -344,6 +344,10 @@ pub struct ThemeSizing {
     // 창 크기가 UI 배율과 독립이라 그 안의 L1 띠도 고정한다.
     /// 설정창 L1 탭 띠 높이(아래 1px 선 포함).
     pub settings_l1_height: LogicalPx,
+    /// 설정창 inner 너비.
+    pub settings_window_width: LogicalPx,
+    /// 앱 제목 줄을 뺀 설정창 inner 높이.
+    pub settings_window_height: LogicalPx,
     // ── 가독 폭 (Note / content / 모달 컬럼용) ──
     /// 좁은 가독 폭 (300px).
     pub measure_sm: LogicalPx,
@@ -440,6 +444,8 @@ pub const SIZING: ThemeSizing = ThemeSizing {
     caption_width: LogicalPx(46.0),
     window_button_size: LogicalPx(24.0),
     settings_l1_height: LogicalPx(44.0),
+    settings_window_width: LogicalPx(1100.0),
+    settings_window_height: LogicalPx(700.0),
     measure_sm: LogicalPx(300.0),
     measure_md: LogicalPx(400.0),
     measure_lg: LogicalPx(460.0),
@@ -975,6 +981,12 @@ pub struct Theme {
     /// 설정창 L1 탭 띠 높이(아래 1px 선 포함).
     /// 설정창 크롬은 창 크기처럼 UI zoom 제외.
     pub settings_l1_height: LogicalPx,
+    /// 설정창 inner 너비.
+    /// 설정창 크롬은 창을 만들 때 정하므로 UI zoom 제외.
+    pub settings_window_width: LogicalPx,
+    /// 앱 제목 줄을 뺀 설정창 inner 높이.
+    /// 설정창 크롬은 창을 만들 때 정하므로 UI zoom 제외.
+    pub settings_window_height: LogicalPx,
     // ── 가독 폭 (Note / content / 모달 컬럼용) ──
     pub measure_sm: LogicalPx,
     pub measure_md: LogicalPx,
@@ -1162,6 +1174,8 @@ impl Theme {
             window_button_size: SIZING.window_button_size,
             // 설정창 크롬 — 창 크기와 같이 zoom 미적용.
             settings_l1_height: SIZING.settings_l1_height,
+            settings_window_width: SIZING.settings_window_width,
+            settings_window_height: SIZING.settings_window_height,
             // 가독 폭 / form-control 폭 / 세부 치수 — host UI content, zoom 적용.
             measure_sm: zoomed(SIZING.measure_sm),
             measure_md: zoomed(SIZING.measure_md),
@@ -2255,6 +2269,8 @@ mod tests {
         assert_eq!(base.caption_width, zoomed.caption_width);
         assert_eq!(base.window_button_size, zoomed.window_button_size);
         assert_eq!(base.settings_l1_height, zoomed.settings_l1_height);
+        assert_eq!(base.settings_window_width, zoomed.settings_window_width);
+        assert_eq!(base.settings_window_height, zoomed.settings_window_height);
     }
 
     #[test]

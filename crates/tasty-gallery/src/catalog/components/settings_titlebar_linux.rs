@@ -97,7 +97,7 @@ fn bar(ui: &mut egui::Ui, th: &Theme, active: bool, close: Close, tip: &str, cor
 /// 칸 폭(`crop_w`)은 정본 칸처럼 한 줄 전체이고 창보다 좁으면 Settings 라벨 쪽이 왼쪽으로 잘린다.
 fn frame(ui: &mut egui::Ui, th: &Theme, crop_w: f32, active: bool, close: Close, tip: &str) {
     let bw = th.border_width.value();
-    let window_w = th.settings_window_width().value();
+    let window_w = th.settings_window_width.value();
     let crop_h = bw + th.titlebar_height.value() + th.settings_l1_height.value();
     let (crop, _) = ui.allocate_exact_size(
         egui::vec2(crop_w.min(window_w), crop_h),
@@ -298,4 +298,54 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         theme,
         "Don't put Settings in the title bar as well: the L1 band already says it one row below.",
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 한 칸을 `zoom` 배율 팔레트로 그리고 나온 도형을 돌려준다. `clip`이 있으면 칸을 그리는 Ui의 클립이다.
+    fn shapes(zoom: f32, clip: Option<egui::Rect>) -> Vec<egui::epaint::ClippedShape> {
+        let th = palette(&tasty_themes::mocha_fallback(), zoom);
+        let ctx = egui::Context::default();
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1600.0, 1000.0),
+            )),
+            ..Default::default()
+        };
+        ctx.run(input, |ctx| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(ctx, |ui| {
+                    if let Some(clip) = clip {
+                        ui.set_clip_rect(clip);
+                    }
+                    frame(ui, &th, 500.0, true, Close::Rest, "test");
+                });
+        })
+        .shapes
+    }
+
+    fn rects(shapes: &[egui::epaint::ClippedShape]) -> Vec<egui::Rect> {
+        shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Rect(r) => Some(r.rect),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Given UI 배율 0.85·1·1.2 When 칸을 그리면 Then 칸 안의 창은 본체 설정창처럼 배율 없이 1100 × 736이다.
+    #[test]
+    fn the_cropped_window_keeps_the_product_size_at_every_zoom() {
+        for zoom in [0.85, 1.0, 1.2] {
+            let found = rects(&shapes(zoom, None))
+                .iter()
+                .any(|r| r.width() == 1100.0 && r.height() == 736.0);
+            assert!(found, "zoom {zoom}: no 1100 x 736 window");
+        }
+    }
 }

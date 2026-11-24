@@ -5013,13 +5013,13 @@ impl crate::theme::Theme {
     /// `component.settings-window-height` → `{primitive.size-700}` = 700px
     #[inline]
     pub fn settings_window_height(&self) -> LogicalPx {
-        LogicalPx((700.0 * self.ui_zoom).round())
+        self.settings_window_height
     }
 
     /// `component.settings-window-width` → `{primitive.size-1100}` = 1100px
     #[inline]
     pub fn settings_window_width(&self) -> LogicalPx {
-        LogicalPx((1100.0 * self.ui_zoom).round())
+        self.settings_window_width
     }
 
     /// `component.sidebar-button-label-font-size` → `{semantic.font-size-caption}` = 11px

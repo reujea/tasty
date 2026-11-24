@@ -72,6 +72,8 @@ const EXEMPT: &[(&str, Reason)] = &[
     ("caption_width", Reason::Titlebar),
     ("window_button_size", Reason::Titlebar),
     ("settings_l1_height", Reason::SettingsWindow),
+    ("settings_window_width", Reason::SettingsWindow),
+    ("settings_window_height", Reason::SettingsWindow),
 ];
 
 /// 필드 하나의 실측 결과: (이름, `zoomed()` 를 타는가).

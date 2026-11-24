@@ -67,7 +67,7 @@ const DECLARATION_SITES: &[(&str, usize, &str)] = &[
     ),
     (
         "crates/tasty-type-appearance/src/theme.rs",
-        60,
+        62,
         "Theme 의 값표 — 다른 자리가 참조해야 할 이름(border_width 등)이 여기 산다",
     ),
 ];

@@ -109,6 +109,8 @@ pub const SEMANTIC_DIM_TO_THEME_FIELD: &[(&str, &str)] = &[
     ("component.status-dot-ring-width", "status_dot_ring_width"),
     ("component.spinner-size", "spinner_size"),
     ("component.settings-l1-height", "settings_l1_height"),
+    ("component.settings-window-width", "settings_window_width"),
+    ("component.settings-window-height", "settings_window_height"),
     // 위의 배율 적용 필드가 먼저 선택된다. 아래 필드는 치수 검사에 필요하다.
     ("semantic.control-height-tab", "tab_bar_height"),
     ("semantic.font-size-body", "tab_bar_label_font_size"),
