@@ -462,3 +462,25 @@ fn an_esc_read_as_part_of_a_utf8_character_does_not_end_the_owner_osc() {
         vec![(Effect::Title, true)]
     );
 }
+
+/// Given 효과를 맡은 구독이 CSI·SOS의 앞부분만 받았다, When 수신자가 닫힌 뒤 ESC 없이 C1 OSC 도입자(0x9D)가
+/// 그 시퀀스를 끊고 OSC 52 쓰기를 시작한다, Then 새 쓰기는 서버 몫이다.
+#[test]
+fn a_c1_introducer_without_esc_ends_the_owner_sequence() {
+    let heads: [(&str, &[u8]); 3] = [
+        ("CSI", b"\x1b[1;"),
+        ("SOS", b"\x1bXabc"),
+        ("C1 CSI", b"\x9b1;"),
+    ];
+    let wrong: Vec<_> = heads
+        .into_iter()
+        .map(|(kind, head)| {
+            (
+                kind,
+                effect_marks_after_owner_leaves(head, b"\x9d52;c;Ymll\x07"),
+            )
+        })
+        .filter(|(_, marks)| *marks != [(Effect::ClipboardSet, false)])
+        .collect();
+    assert!(wrong.is_empty(), "{wrong:?}");
+}
