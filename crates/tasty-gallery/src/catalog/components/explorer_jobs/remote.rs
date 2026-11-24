@@ -669,7 +669,7 @@ pub fn draw_remote_progress(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "no host",
-                "no profile name (--ssh, --target-port, a profile saved with an empty name) → attach.mirror_pill_label in --tasty-font-label, same ink, glyph unchanged · in the progress line's mark and the queue header's mark · queue_title unchanged · the address bar holds the remote absolute path, with or without a profile name",
+                "no profile name (--ssh, --target-port, a profile saved with an empty name) → attach.mirror_pill_label in font-label, same ink, glyph unchanged · in the progress line's mark and the queue header's mark · queue_title unchanged · the address bar holds the remote absolute path, with or without a profile name",
             ),
             ("queued", "“+n queued” = this cell's remote queue"),
             (
