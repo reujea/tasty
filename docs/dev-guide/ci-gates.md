@@ -483,15 +483,22 @@ self-hosted 러너에서 도는 일반 검사 잡은 이전 실행의 `target/`�
     조건이 `!cancelled()`뿐이고 `continue-on-error: true`라 판정을 내지 않는다.
   - 관측용 gui e2e 스텝(`cargo test (linux, gui, e2e — 관측용)`)은 `continue-on-error: true`지만 준비 성공을 조건으로 둔다.
 - 배선 가드: `crates/tasty-doc-guards/tests/ci_build_cache_prepare_is_wired.rs`가 워크플로 글자로 확인한다.
+  워크플로를 고치다 생기는 실수(조건 하나 빠뜨림, 준비 스텝 순서·조건 변경, 표기 변경)를 막는 것이 목적이다. 받는 표기를 좁게
+  고정하고 그 밖은 실패로 보낸다. 일부러 꾸민 우회 표기를 모두 막는 것은 목적이 아니다.
   정리를 끈 checkout 바로 뒤의 준비 스텝, 준비 스텝의 꼴, 위 조건, 패키징 워크플로의 정리 유지를 본다.
-  준비 스텝은 키가 `name`·`id`·`shell`·`run`뿐이다(`if`·`continue-on-error` 없음). `run`은 Linux·macOS에서
-  `bash scripts/ci-prepare-workspace.sh` 한 줄이고, Windows에서는 Git Bash를 찾아 부르고 종료 코드를 넘기는 지금 블록과 같다.
-  좁은 표기만 읽고, 그 밖의 표기는 파일:행과 함께 `지원하지 않는 표기`로 실패한다.
-  - 구조: 스텝은 6칸 `- `, 스텝 키는 8칸이다. 같은 키를 두 번 쓰지 않는다.
-  - 판정에 쓰는 값(`uses`·`id`·`if`·`continue-on-error`·`with.clean`·`runs-on`): 한 줄이다. 따옴표 없는 값, 작은따옴표 값,
-    이스케이프 없는 큰따옴표 값만 받는다. 블록 스칼라, 여러 줄 값, 값 뒤 주석은 받지 않는다. `runs-on`은 모든 잡에서 본다.
-  - `if` 식: 대괄호나 `&&`·`||`가 든 문자열 리터럴이 있으면 최상위 항을 나눌 수 없으므로 받지 않는다.
-  가드는 `continue-on-error: true` 스텝을 빼므로 관측용 e2e의 준비 조건은 고정하지 않는다.
+  준비 스텝은 키가 `name`·`id`·`shell`·`run`뿐이다(`if`·`continue-on-error` 없음). 꼴은 잡의 OS(`runs-on` 라벨)로 고른다.
+  Linux·macOS 잡은 `shell: bash`와 `run: bash scripts/ci-prepare-workspace.sh` 한 줄이다. Windows 잡은 `shell: pwsh`와
+  Git Bash를 찾아 부르고 종료 코드를 넘기는 지금 블록이고, 블록 안의 `#` 줄까지 같아야 한다.
+  그 밖의 표기는 파일:행과 함께 `지원하지 않는 표기`로 실패한다.
+  - 구조: 최상위 줄은 모두 키이고 한 번씩만 나온다. 스텝은 6칸 `- `, 스텝 키는 8칸이다. 같은 깊이에서 같은 키를 두 번 쓰지 않는다.
+  - 판정에 쓰는 값(`uses`·`id`·`if`·`continue-on-error`·`with.clean`): 한 줄이다. 따옴표 없는 값, 작은따옴표 값,
+    이스케이프 없는 큰따옴표 값만 받는다. 블록 스칼라, 여러 줄 값, 값 뒤 주석은 받지 않는다. `if`·`continue-on-error` 표기는
+    모든 스텝에서 본다. `actions/checkout`은 소문자로만 쓴다.
+  - `runs-on`: 모든 잡에서 본다. 한 줄 값, 흐름 목록 `[a, b]`, 블록 목록(`- a`)을 받고, 각 라벨은 위 값과 같은 꼴이다.
+    식(`${{ }}`)과 매핑은 받지 않는다.
+  - 조건 식: 준비 뒤의 상태 함수가 든 판정 스텝과 `script-gates`의 판정기 사용 스텝에서는 최상위 `&&` 항으로 나눠 본다.
+    이 식에 대괄호(문자열 리터럴 안 포함)나 `&&`·`||`가 든 문자열 리터럴이 있으면 항을 믿을 수 없으므로 받지 않는다.
+  가드는 `continue-on-error: true` 스텝을 준비 조건 검사에서 빼므로 관측용 e2e의 준비 조건은 고정하지 않는다.
 - 로그 줄: 준비 스텝은 `[ci-cache] action=<wipe|keep|none> reason=<…>` 한 줄에 표지 값, 삭제 전후 여유(GB, 버림.
   삭제 뒤 값을 읽지 못하면 `unknown`), 임계값(GB), OS를 남긴다. `action=keep reason=cached`가 캐시를 쓴 실행이다. `action=none reason=target-absent`는
   `target`이 없던 실행이다. `clean: false`여도 checkout은 원격 URL이 다르거나 기존 저장소를 준비하지 못하면
