@@ -280,8 +280,9 @@ impl View for PresetView {
             let chooser = &mut *pass.state;
             reconcile_browse(surface_cfg, chooser, pending_browse, &catalog);
             // 파일 선택 창이 이 패스 키 주인이면 앞에 그리는 창 위젯은 그 키를 보지 않는다.
-            let window_takes_keys = chooser.window_takes_keys(ctx, &pass.keys);
-            crate::adapters::ui::popup::body_keys::with_body_keys(ctx, window_takes_keys, || {
+            let widget_keys = crate::view::window_input::WindowPopups::window_popups(&mut *chooser)
+                .window_widget_takes_keys(ctx);
+            crate::adapters::ui::popup::body_keys::with_body_keys(ctx, widget_keys, || {
                 crate::preset_ui::draw_preset_panel(
                     ctx,
                     drafts,
@@ -304,7 +305,7 @@ impl View for PresetView {
             {
                 *pending_browse = Some(request);
             }
-            chooser.draw(ctx, &pass.keys);
+            chooser.draw(ctx);
             if let Some(outcome) = chooser.take_outcome("preset.field")
                 && let (Some(request), Some(cfg), Some(path)) = (
                     pending_browse.take(),

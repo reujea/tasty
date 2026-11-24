@@ -9,15 +9,7 @@
 //! (`PopupManager::apply_window_escape`), 관리자를 그리는 함수가 같은 넘김 기록을 꺼낸다.
 
 use super::keys::{BasicKey, ConsumedKey};
-use super::{PopupAction, PopupCloseReason, PopupEscape, PopupInstanceId, PopupManager};
-
-/// 별도 창이 이번 egui 패스마다 그 관리자에 넣는 키 값. 공용 패스(`view::window_input::WindowPass`)가 `run` 전에 한 번
-/// 정하고 다시 그리는 패스에도 같은 값을 넣는다.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub(crate) struct WindowPassKeys {
-    /// 결속이 없는 몫의 키 주인: `run` 시작 때 노드(`PopupManager::window_key_node`)의 인스턴스.
-    pub(crate) owner: Option<PopupInstanceId>,
-}
+use super::{PopupAction, PopupCloseReason, PopupEscape};
 
 /// 본문이 이 패스 Esc 를 썼는지((a)(b)(c)).
 fn content_used_escape(consumed: &[ConsumedKey], action: &PopupAction, child_open: bool) -> bool {
@@ -44,17 +36,4 @@ pub(super) fn central_refold(
     child_open: bool,
 ) -> bool {
     !content_used_escape(consumed, action, child_open)
-}
-
-impl PopupManager {
-    /// 별도 창이 이번 패스 키 값을 넣는다. 관리자를 그리는 함수가 팝업을 그리기 전에 패스마다 부른다. 그 몫의 결속이
-    /// 있으면 그것을, 없으면 W1 노드를 그 패스 키 주인으로 정한다(`decide_window_frame_keys`). 창 위젯이 이 패스 키를
-    /// 받으면(키 주인 없음) 참이다.
-    pub(crate) fn put_window_pass_keys(
-        &mut self,
-        ctx: &egui::Context,
-        keys: &WindowPassKeys,
-    ) -> bool {
-        !self.decide_window_frame_keys(ctx, keys.owner).held()
-    }
 }

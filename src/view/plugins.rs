@@ -126,7 +126,7 @@ impl View for PluginsView {
             .base
             .gpu
             .run_window_pass(window, ui_state, |ctx, pass| {
-                plugins_ui::draw_plugins_panel(ctx, snapshot, pass.state, actions, &pass.keys);
+                plugins_ui::draw_plugins_panel(ctx, snapshot, pass.state, actions);
 
                 let empty_layout = LayoutContext {
                     active_workspace: 0,

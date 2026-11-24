@@ -275,10 +275,13 @@ impl View for SettingsView {
             .base
             .gpu
             .run_window_pass(window, ui_state, |ctx, pass| {
-                // 팝업이 키 주인이면 제목 줄도 본문처럼 키를 보지 않는다(`draw_settings_panel`의 `with_body_keys`).
+                // 팝업이 이 패스 키 주인이면 제목 줄도 본문처럼 키를 보지 않는다(본문과 같은 판정,
+                // `PopupManager::window_widget_takes_keys`).
                 #[cfg(target_os = "linux")]
                 {
-                    let titlebar_keys = pass.keys.owner.is_none();
+                    let titlebar_keys =
+                        crate::view::window_input::WindowPopups::window_popups(pass.state)
+                            .window_widget_takes_keys(ctx);
                     titlebar_close |= chrome.draw_titlebar(ctx, &winit, size, titlebar_keys);
                 }
                 action = settings_ui::draw_settings_panel(
@@ -289,7 +292,6 @@ impl View for SettingsView {
                         captured_double_tap: captured_dt,
                         file_format: &file_format,
                         file_handler: &file_handler,
-                        pass_keys: &pass.keys,
                     },
                 );
 

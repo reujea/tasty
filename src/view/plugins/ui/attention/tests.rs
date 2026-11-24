@@ -218,10 +218,10 @@ fn window_step(
         crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(ctx),
     );
     // 창 `render`처럼 W1 값을 넣고 bare Esc 는 사건 입구처럼 키 주인에 넘긴다.
-    let keys = crate::view::window_input::WindowPopups::window_popups(&mut ui_state.folder_chooser)
+    crate::view::window_input::WindowPopups::window_popups(&mut ui_state.folder_chooser)
         .raw_pass_keys(ctx, owner, &mut raw.events);
     ctx.run(raw, |ctx| {
-        crate::plugins_ui::draw_plugins_panel(ctx, snapshot, ui_state, actions, &keys);
+        crate::plugins_ui::draw_plugins_panel(ctx, snapshot, ui_state, actions);
     })
 }
 
@@ -362,10 +362,10 @@ fn esc_and_selection_are_ignored_while_removing() {
         crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(&ctx),
     );
     // 창 `render`처럼 W1 값을 넣고 bare Esc 는 사건 입구처럼 키 주인에 넘긴다.
-    let keys = crate::view::window_input::WindowPopups::window_popups(&mut ui_state.folder_chooser)
+    crate::view::window_input::WindowPopups::window_popups(&mut ui_state.folder_chooser)
         .raw_pass_keys(&ctx, owner, &mut raw.events);
     drop(ctx.run(raw, |ctx| {
-        crate::plugins_ui::draw_plugins_panel(ctx, &snapshot, &mut ui_state, &mut actions, &keys);
+        crate::plugins_ui::draw_plugins_panel(ctx, &snapshot, &mut ui_state, &mut actions);
         left = ctx.input(|i| i.key_pressed(egui::Key::Escape));
     }));
     assert!(left, "Esc must stay unconsumed while removing");

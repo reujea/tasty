@@ -99,7 +99,7 @@ fn field(
 /// 설정 창 그리기와 같은 순서: 패스 키 값 넣기 → 창 위젯(차단 값) → 그리기 중 열기 → 팝업.
 fn draw(ctx: &egui::Context, pass: &mut WindowPass<'_, TestWindow>) {
     let window = &mut *pass.state;
-    let takes = window.popups.put_window_pass_keys(ctx, &pass.keys);
+    let takes = window.popups.window_widget_takes_keys(ctx);
     crate::adapters::ui::popup::body_keys::with_body_keys(ctx, takes, || {
         egui::CentralPanel::default().show(ctx, |ui| {
             if sees_x(ui) {
@@ -208,10 +208,15 @@ impl Harness {
     }
 
     /// 포인터를 옮기고(끊지 않는 사건) 누른다.
-    fn press(&mut self, window: &mut impl WindowPopups, pos: egui::Pos2) {
+    pub(crate) fn press(&mut self, window: &mut impl WindowPopups, pos: egui::Pos2) {
         self.queue.push(egui::Event::PointerMoved(pos));
         self.settle(window, Incoming::Press);
         self.queue.push(button(pos, true));
+    }
+
+    /// 누른 버튼을 뗀다(끊지 않는 사건).
+    pub(crate) fn release(&mut self, pos: egui::Pos2) {
+        self.queue.push(button(pos, false));
     }
 
     pub(crate) fn click(&mut self, window: &mut impl WindowPopups, pos: egui::Pos2) {

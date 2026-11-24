@@ -2242,8 +2242,7 @@ fn a_text_focus_in_a_keyboard_none_popup_is_kept() {
 
 /// T-10b-4: Given 변환 팝업이 키 주인이고 포트 스캐너가 키 없이 보일 때, When 한 패스에 키와 스캐너 입력칸 클릭(누름과
 /// 뗌)이 함께 오면, Then 그 패스에 스캐너가 키 주인이 되고 누른 입력칸 포커스가 남는다. 메인 창은 누름을 키 주인
-/// 판정보다 먼저 반영하고, egui 입력칸은 누름 패스에 포커스를 얻는다. 그래서 이 장면은 이번 패스 누름 예외를 거치지
-/// 않는다(그 예외는 별도 창 T-F3-1 이 본다).
+/// 판정보다 먼저 반영하고, egui 입력칸은 누름 패스에 포커스를 얻는다. 별도 창도 누름을 사건 시점에 적용한다(T-F3-1).
 #[test]
 fn a_click_this_pass_makes_the_pressed_popup_the_key_owner() {
     let (mut state, mut session) = scene(PANE_L);
@@ -2279,6 +2278,46 @@ fn a_click_this_pass_makes_the_pressed_popup_the_key_owner() {
     );
     let focused = egui_focus(&ctx).expect("누른 입력칸이 이번 패스에 포커스를 얻는다");
     assert!(egui::TextEdit::load_state(&ctx, focused).is_some());
+}
+
+/// T-W2b-1: Given 메인 창에서 키 주인인 포트 스캐너, When 그 스캐너의 입력칸을 누르고 떼면(누름이 키 주인을 바꾸지
+/// 않는다), Then 누른 패스 끝과 뗀 다음 패스 모두 그 입력칸이 텍스트 포커스를 가진다.
+#[test]
+fn a_press_that_keeps_the_key_owner_keeps_its_text_focus() {
+    let (mut state, mut session) = scene(PANE_L);
+    let engine = session.borrow_mut();
+    registered(&mut state);
+    let ctx = Context::default();
+    let scanner = open_scanner(&mut state);
+    frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    let texts = frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    assert_eq!(
+        state.popups.focus(),
+        Some(PopupNode::Host(scanner)),
+        "스캐너가 키 주인이다"
+    );
+    let field = text_rect(&texts, t("port_scanner.search_placeholder"));
+    frame_rects(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        pointer(field.center(), true),
+    );
+    assert_eq!(state.popups.focus(), Some(PopupNode::Host(scanner)));
+    let pressed = egui_focus(&ctx).expect("누른 입력칸이 포커스를 얻는다");
+    assert!(egui::TextEdit::load_state(&ctx, pressed).is_some());
+    frame_rects(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        pointer(field.center(), false),
+    );
+    frame_rects(&ctx, &mut state, &engine.read(), Vec::new());
+    assert_eq!(
+        egui_focus(&ctx),
+        Some(pressed),
+        "그 입력칸이 포커스를 지킨다"
+    );
 }
 
 /// T-10b-5: Given 키 주인이 아닌 A 본문의 원격 닫기 확인이 첫 렌더에 취소 버튼에 포커스를 줄 때, When 이어서 그리면,

@@ -99,8 +99,11 @@ fn escape_in_the_chooser_does_not_cancel_the_surface_settings() {
         // 창 `render`처럼 직전 패스 뒤 포커스 기록으로 키 주인을 정하고, 주인이 있으면 설정 화면을 가린다.
         let owner = chooser.key_owner(&ctx, WindowFocusRecord::read(&ctx));
         // 창 `render`처럼 W1 값을 넣고 bare Esc 는 사건 입구처럼 키 주인에 넘긴다.
-        let keys = crate::view::window_input::WindowPopups::window_popups(&mut chooser)
-            .raw_pass_keys(&ctx, owner, &mut raw.events);
+        crate::view::window_input::WindowPopups::window_popups(&mut chooser).raw_pass_keys(
+            &ctx,
+            owner,
+            &mut raw.events,
+        );
         drop(ctx.run(raw, |ctx| {
             with_body_keys(ctx, owner.is_none(), || {
                 egui::CentralPanel::default().show(ctx, |ui| {
@@ -114,7 +117,7 @@ fn escape_in_the_chooser_does_not_cancel_the_surface_settings() {
                     );
                 });
             });
-            chooser.draw(ctx, &keys);
+            chooser.draw(ctx);
         }));
         assert!(matches!(outcome, CfgOutcome::None));
     }
@@ -160,7 +163,7 @@ fn preset_pass(
         ..Default::default()
     };
     // 창 `render`처럼 W1 값을 넣고 bare Esc 는 사건 입구처럼 키 주인에 넘긴다.
-    let keys = crate::view::window_input::WindowPopups::window_popups(&mut *chooser).raw_pass_keys(
+    crate::view::window_input::WindowPopups::window_popups(&mut *chooser).raw_pass_keys(
         ctx,
         owner,
         &mut raw.events,
@@ -183,7 +186,7 @@ fn preset_pass(
         {
             opened = true;
         }
-        chooser.draw(ctx, &keys);
+        chooser.draw(ctx);
     });
     PresetPass {
         outcome,

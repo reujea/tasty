@@ -15,13 +15,15 @@ pub(super) fn draw_add_tab(
     snapshot: &PluginsSnapshot,
     ui_state: &mut PluginsUiState,
     actions: &mut Vec<PluginsAction>,
-    keys: &crate::adapters::ui::popup::escape_step::WindowPassKeys,
 ) {
     let th = theme::theme();
+    let key_owner =
+        crate::view::window_input::WindowPopups::window_popups(&mut ui_state.folder_chooser)
+            .window_run_owner();
 
     egui::CentralPanel::default().show(ctx, |ui| {
         vspace(ui, th.spacing_md);
-        draw_add_form(ui, snapshot, ui_state, actions, &th, keys.owner);
+        draw_add_form(ui, snapshot, ui_state, actions, &th, key_owner);
     });
 }
 
@@ -506,18 +508,10 @@ mod tests {
                 crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(&ctx),
             );
             // 창 `render`처럼 W1 값을 넣고 bare Esc 는 사건 입구처럼 키 주인에 넘긴다.
-            let keys = crate::view::window_input::WindowPopups::window_popups(
-                &mut ui_state.folder_chooser,
-            )
-            .raw_pass_keys(&ctx, owner, &mut raw.events);
+            crate::view::window_input::WindowPopups::window_popups(&mut ui_state.folder_chooser)
+                .raw_pass_keys(&ctx, owner, &mut raw.events);
             output = Some(ctx.run(raw, |ctx| {
-                draw_add_tab(
-                    ctx,
-                    &PluginsSnapshot::default(),
-                    ui_state,
-                    &mut actions,
-                    &keys,
-                );
+                draw_add_tab(ctx, &PluginsSnapshot::default(), ui_state, &mut actions);
             }));
         }
         (actions, output.expect("drawn"))
@@ -618,9 +612,8 @@ mod tests {
             );
             // 창 `render`처럼 W1 값을 넣고 bare Esc 는 사건 입구처럼 키 주인에 넘긴다.
             let mut events = events;
-            let keys =
-                crate::view::window_input::WindowPopups::window_popups(&mut state.folder_chooser)
-                    .raw_pass_keys(&ctx, owner, &mut events);
+            crate::view::window_input::WindowPopups::window_popups(&mut state.folder_chooser)
+                .raw_pass_keys(&ctx, owner, &mut events);
             drop(ctx.run(
                 egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
@@ -636,7 +629,6 @@ mod tests {
                         &PluginsSnapshot::default(),
                         state,
                         &mut actions,
-                        &keys,
                     )
                 },
             ));
@@ -681,9 +673,8 @@ mod tests {
         );
         // 창 `render`처럼 W1 값을 넣고 bare Esc 는 사건 입구처럼 키 주인에 넘긴다.
         let mut events = events;
-        let keys =
-            crate::view::window_input::WindowPopups::window_popups(&mut state.folder_chooser)
-                .raw_pass_keys(ctx, owner, &mut events);
+        crate::view::window_input::WindowPopups::window_popups(&mut state.folder_chooser)
+            .raw_pass_keys(ctx, owner, &mut events);
         drop(ctx.run(
             egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
@@ -694,13 +685,7 @@ mod tests {
                 ..Default::default()
             },
             |ctx| {
-                super::super::draw_plugins_panel(
-                    ctx,
-                    &PluginsSnapshot::default(),
-                    state,
-                    actions,
-                    &keys,
-                )
+                super::super::draw_plugins_panel(ctx, &PluginsSnapshot::default(), state, actions)
             },
         ));
     }

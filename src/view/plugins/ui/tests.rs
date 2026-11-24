@@ -42,10 +42,10 @@ fn run_window(
         crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(ctx),
     );
     // 창 `render`처럼 W1 값을 넣고 bare Esc 는 사건 입구처럼 키 주인에 넘긴다.
-    let keys = crate::view::window_input::WindowPopups::window_popups(&mut ui_state.folder_chooser)
+    crate::view::window_input::WindowPopups::window_popups(&mut ui_state.folder_chooser)
         .raw_pass_keys(ctx, owner, &mut raw.events);
     drop(ctx.run(raw, |ctx| {
-        draw_plugins_panel(ctx, snapshot, ui_state, actions, &keys);
+        draw_plugins_panel(ctx, snapshot, ui_state, actions);
         esc_left = ctx.input(|i| i.key_pressed(egui::Key::Escape));
     }));
     esc_left
@@ -161,10 +161,10 @@ fn draw_window(
         crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(ctx),
     );
     // 창 `render`처럼 W1 값을 넣고 bare Esc 는 사건 입구처럼 키 주인에 넘긴다.
-    let keys = crate::view::window_input::WindowPopups::window_popups(&mut ui_state.folder_chooser)
+    crate::view::window_input::WindowPopups::window_popups(&mut ui_state.folder_chooser)
         .raw_pass_keys(ctx, owner, &mut raw.events);
     ctx.run(raw, |ctx| {
-        draw_plugins_panel(ctx, snapshot, ui_state, actions, &keys);
+        draw_plugins_panel(ctx, snapshot, ui_state, actions);
     })
 }
 

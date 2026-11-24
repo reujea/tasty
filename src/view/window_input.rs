@@ -5,7 +5,6 @@
 
 use crate::adapters::ui::fullscreen::StageId;
 use crate::adapters::ui::popup::PopupManager;
-use crate::adapters::ui::popup::escape_step::WindowPassKeys;
 use crate::adapters::ui::popup::frame_keys::{Incoming, InputCuts};
 use crate::gfx::gpu::input_pass::InputPassState;
 use crate::view::main::input_segment::EguiPressSink;
@@ -15,25 +14,19 @@ pub(crate) trait WindowPopups {
     fn window_popups(&mut self) -> &mut PopupManager;
 }
 
-/// 별도 창 패스 하나의 상태. `keys` 는 `run` 전에 정한 그 패스 키 값이다(`GpuState::run_window_pass`).
+/// 별도 창 패스 하나의 상태.
 pub(crate) struct WindowPass<'a, T> {
     pub(crate) state: &'a mut T,
-    pub(crate) keys: WindowPassKeys,
 }
 
 impl<'a, T: WindowPopups> WindowPass<'a, T> {
     pub(crate) fn new(state: &'a mut T) -> Self {
-        Self {
-            state,
-            keys: WindowPassKeys::default(),
-        }
+        Self { state }
     }
 
-    /// `run` 전에 이번 패스 키 값을 정한다. 결속이 없는 몫의 키 주인은 지금 노드다.
+    /// `run` 전에 결속이 없는 몫의 키 주인을 지금 노드로 정한다(`PopupManager::begin_window_run`).
     pub(crate) fn begin_run(&mut self, ctx: &egui::Context) {
-        self.keys = WindowPassKeys {
-            owner: self.state.window_popups().window_key_node(ctx).popup(),
-        };
+        self.state.window_popups().begin_window_run(ctx);
     }
 }
 

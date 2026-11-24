@@ -231,7 +231,6 @@ fn the_settings_escape_goes_to_the_focused_of_conflict_and_chooser() {
 // ── 별도 창 키 주인(W1). 시험은 창 `render`처럼 직전 패스 뒤 포커스 기록으로 값을 정해 패스마다 넣는다. ──
 
 use crate::adapters::ui::popup::PopupInstanceId;
-use crate::adapters::ui::popup::escape_step::WindowPassKeys;
 use crate::adapters::ui::popup::window_keys::{WindowFocusRecord, focusable_at_text};
 
 fn key_event(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
@@ -256,17 +255,17 @@ fn next_owner(ctx: &egui::Context, st: &SettingsUiState) -> Option<PopupInstance
         .window_key_owner(ctx, WindowFocusRecord::read(ctx))
 }
 
-/// 설정 창 `render`처럼 W1 값을 `run` 전에 정하고 bare Esc 는 사건 입구처럼 키 주인에 넘긴 뒤(`raw_pass_keys`), 패스마다
-/// `draw`에 넘긴다.
+/// 설정 창 `render`처럼 W1 값을 `run` 전에 관리자에 두고 bare Esc 는 사건 입구처럼 키 주인에 넘긴 뒤
+/// (`raw_pass_keys`) `draw`를 부른다.
 fn keyed_run(
     ctx: &egui::Context,
     st: &mut SettingsUiState,
     mut raw: egui::RawInput,
-    mut draw: impl FnMut(&egui::Context, &mut SettingsUiState, &WindowPassKeys),
+    mut draw: impl FnMut(&egui::Context, &mut SettingsUiState),
 ) -> egui::FullOutput {
     let owner = next_owner(ctx, st);
-    let keys = st.popups.raw_pass_keys(ctx, owner, &mut raw.events);
-    ctx.run(raw, |ctx| draw(ctx, st, &keys))
+    st.popups.raw_pass_keys(ctx, owner, &mut raw.events);
+    ctx.run(raw, |ctx| draw(ctx, st))
 }
 
 /// 창 위젯(`outside`)을 그린 뒤 설정 창 관리자의 팝업을 그린다. 충돌 팝업 본문은 `inside`가 그린다. 이 패스에
@@ -279,8 +278,8 @@ fn conflict_pass(
     inside: &mut dyn FnMut(&mut egui::Ui),
 ) -> (Vec<PopupId>, egui::FullOutput) {
     let mut owners = Vec::new();
-    let out = keyed_run(ctx, st, keys_input(events), |ctx, st, keys| {
-        st.popups.put_window_pass_keys(ctx, keys);
+    let out = keyed_run(ctx, st, keys_input(events), |ctx, st| {
+        st.popups.window_widget_takes_keys(ctx);
         egui::CentralPanel::default().show(ctx, |ui| outside(ui));
         st.popups.draw_view_local(ctx, &mut |cx, ui, owns_keys| {
             if owns_keys {
@@ -738,7 +737,7 @@ fn panel_pass(
     st: &mut SettingsUiState,
     raw: egui::RawInput,
 ) -> egui::FullOutput {
-    keyed_run(ctx, st, raw, |ctx, st, keys| {
+    keyed_run(ctx, st, raw, |ctx, st| {
         let action = draw_settings_panel(
             ctx,
             SettingsPanelCtx {
@@ -747,7 +746,6 @@ fn panel_pass(
                 captured_double_tap: &mut p.tap,
                 file_format: &p.formats,
                 file_handler: &p.handlers,
-                pass_keys: keys,
             },
         );
         assert_eq!(action, None, "the panel was not saved or cancelled");
@@ -874,12 +872,12 @@ fn entered_pass(
     bare: bool,
 ) -> (egui::FullOutput, Vec<usize>) {
     let owner = next_owner(ctx, st);
-    let keys = if bare {
-        st.popups.raw_pass_keys(ctx, owner, &mut raw.events)
+    if bare {
+        st.popups.raw_pass_keys(ctx, owner, &mut raw.events);
     } else {
         st.popups.bind_window_key(ctx);
-        WindowPassKeys { owner }
-    };
+        st.popups.set_window_run_owner(owner);
+    }
     let mut raws = Vec::new();
     let out = ctx.run(raw, |ctx| {
         raws.push(ctx.input(|i| i.raw.events.len()));
@@ -891,7 +889,6 @@ fn entered_pass(
                 captured_double_tap: &mut p.tap,
                 file_format: &p.formats,
                 file_handler: &p.handlers,
-                pass_keys: &keys,
             },
         );
         assert_eq!(action, None, "the panel was not saved or cancelled");
@@ -940,7 +937,6 @@ fn drain_settings(
                     captured_double_tap: &mut p.tap,
                     file_format: &p.formats,
                     file_handler: &p.handlers,
-                    pass_keys: &pass.keys,
                 },
             );
             assert_eq!(action, None, "the panel was not saved or cancelled");
@@ -1045,7 +1041,7 @@ fn chooser_close_reasons(
         let more = h.has_input();
         let out = h.run_pass(st, |ctx, pass| {
             let st = &mut *pass.state;
-            st.popups.put_window_pass_keys(ctx, &pass.keys);
+            st.popups.window_widget_takes_keys(ctx);
             let chooser = &mut st.file_chooser;
             let closed = st.popups.draw_view_local(ctx, &mut |cx, ui, _| {
                 if cx.id != FILE_PICKER_POPUP_ID {
@@ -1279,7 +1275,7 @@ fn a_discarded_pass_does_not_close_or_apply_again() {
     let mut closed_after_first = None;
     let mut events = vec![escape_key()];
     let owner = next_owner(&ctx, &st);
-    let keys = st.popups.raw_pass_keys(&ctx, owner, &mut events);
+    st.popups.raw_pass_keys(&ctx, owner, &mut events);
     let mut raws = Vec::new();
     let out = ctx.run(raw(events), |ctx| {
         raws.push(ctx.input(|i| i.raw.events.len()));
@@ -1297,7 +1293,6 @@ fn a_discarded_pass_does_not_close_or_apply_again() {
                 captured_double_tap: &mut p.tap,
                 file_format: &p.formats,
                 file_handler: &p.handlers,
-                pass_keys: &keys,
             },
         );
         assert_eq!(action, None);
@@ -1684,18 +1679,18 @@ fn modified_enter_y_and_n_are_ignored_by_the_conflict() {
     }
 }
 
-/// 창 위젯(`outside`)을 그린 뒤 설정 창 관리자의 chooser 를 그린다. 이 패스에 chooser 가 키 주인이었는지와 출력을
-/// 돌려준다.
+/// 별도 창 사건 입구 하네스의 패스 하나: 창 위젯(`outside`)을 그린 뒤 설정 창 관리자의 chooser 를 그린다. 이 패스에
+/// chooser 가 키 주인이었는지와 출력을 돌려준다.
 fn chooser_pass(
-    ctx: &egui::Context,
+    h: &mut crate::view::window_input::tests::Harness,
     st: &mut SettingsUiState,
-    events: Vec<egui::Event>,
     outside: &mut dyn FnMut(&mut egui::Ui),
 ) -> (bool, egui::FullOutput) {
     let th = crate::theme::theme();
     let mut owned = false;
-    let out = keyed_run(ctx, st, keys_input(events), |ctx, st, keys| {
-        st.popups.put_window_pass_keys(ctx, keys);
+    let out = h.run_pass(st, |ctx, pass| {
+        let st = &mut *pass.state;
+        st.popups.window_widget_takes_keys(ctx);
         egui::CentralPanel::default().show(ctx, |ui| outside(ui));
         let chooser = &mut st.file_chooser;
         let closed = st.popups.draw_view_local(ctx, &mut |cx, ui, owns_keys| {
@@ -1710,12 +1705,11 @@ fn chooser_pass(
     (owned, out)
 }
 
-/// T-F3-1: Given 설정 창 저장 모드 chooser 와 egui 포커스를 가진 창 위젯 입력칸(그 패스 W1 키 주인 없음), When 한
-/// 패스에 chooser 의 이름 입력칸을 누르면, Then 그 패스 chooser 는 키 주인이 아니고, 누른 위젯이 이름 입력칸이며,
-/// 패스 끝 egui 포커스가 그 입력칸에 남는다(이번 패스 누름 예외). 뗀 다음 패스부터 chooser 가 키 주인이다. 별도 창은
-/// 패스 전에 키 주인을 정하므로 누름 패스의 chooser 는 아직 주인이 아니다. 예외를 끄면(M-10b-3) 포커스가 풀린다.
+/// T-F3-1: Given 설정 창 저장 모드 chooser 와 egui 포커스를 가진 창 위젯 입력칸(그 패스 W1 키 주인 없음), When 별도
+/// 창 사건 입구로 chooser 의 이름 입력칸을 누르면, Then 누름이 사건 시점에 포커스를 옮겨 그 패스부터 chooser 가 키
+/// 주인이고, 누른 위젯이 이름 입력칸이며, 패스 끝 egui 포커스가 그 입력칸에 남는다. 뗀 다음 패스에도 그대로다.
 #[test]
-fn a_press_on_the_save_name_keeps_its_focus_in_the_non_owner_pass() {
+fn a_press_on_the_save_name_keeps_its_focus() {
     use crate::adapters::ui::popup::window_input_test_support::click_widget_at;
     let mut st = SettingsUiState::new();
     st.open_file_chooser(
@@ -1727,29 +1721,22 @@ fn a_press_on_the_save_name_keeps_its_focus_in_the_non_owner_pass() {
         None,
     );
     assert!(st.popups.is_open(FILE_PICKER_POPUP_ID));
-    let ctx = egui::Context::default();
+    let mut h = crate::view::window_input::tests::Harness::new();
+    let ctx = h.ctx.clone();
     let outside_id = egui::Id::new("f3-outside");
     let mut outside = outside_edit(outside_id);
-    drop(chooser_pass(&ctx, &mut st, vec![], &mut outside));
-    let (_, out) = chooser_pass(&ctx, &mut st, vec![], &mut outside);
+    drop(chooser_pass(&mut h, &mut st, &mut outside));
+    let (_, out) = chooser_pass(&mut h, &mut st, &mut outside);
     let name = text_rect_in(&out, "kept-name.txt").center();
     let name_id = click_widget_at(&ctx, name).expect("이름 입력칸");
     ctx.memory_mut(|m| m.request_focus(outside_id));
-    drop(chooser_pass(&ctx, &mut st, vec![], &mut outside));
+    drop(chooser_pass(&mut h, &mut st, &mut outside));
     assert_eq!(focused(&ctx), Some(outside_id), "창 위젯이 포커스를 가진다");
-    assert_eq!(
-        next_owner(&ctx, &st),
-        None,
-        "누르는 패스는 키 주인 없이 시작한다"
-    );
+    assert_eq!(next_owner(&ctx, &st), None, "누르기 전에는 키 주인이 없다");
 
-    let (owned, _) = chooser_pass(
-        &ctx,
-        &mut st,
-        vec![egui::Event::PointerMoved(name), button_event(name, true)],
-        &mut outside,
-    );
-    assert!(!owned, "누른 패스에 chooser 는 키 주인이 아니다");
+    h.press(&mut st, name);
+    let (owned, _) = chooser_pass(&mut h, &mut st, &mut outside);
+    assert!(owned, "누른 패스부터 chooser 가 키 주인이다");
     assert_eq!(
         focused(&ctx),
         Some(name_id),
@@ -1759,14 +1746,10 @@ fn a_press_on_the_save_name_keeps_its_focus_in_the_non_owner_pass() {
         egui::TextEdit::load_state(&ctx, name_id).is_some(),
         "포커스 위젯은 텍스트 입력칸이다"
     );
-    drop(chooser_pass(
-        &ctx,
-        &mut st,
-        vec![button_event(name, false)],
-        &mut outside,
-    ));
-    let (owned, _) = chooser_pass(&ctx, &mut st, vec![], &mut outside);
-    assert!(owned, "다음 패스부터 chooser 가 키 주인이다");
+    h.release(name);
+    drop(chooser_pass(&mut h, &mut st, &mut outside));
+    let (owned, _) = chooser_pass(&mut h, &mut st, &mut outside);
+    assert!(owned, "뗀 뒤에도 chooser 가 키 주인이다");
     assert_eq!(
         focused(&ctx),
         Some(name_id),

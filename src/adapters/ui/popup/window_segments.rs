@@ -2,7 +2,7 @@
 //! 포커스 인스턴스와 직전 패스 뒤 egui 포커스 기록(W1, `window_keys`)에 아직 그리지 않은 누름을 더한 값이다. 누름·키
 //! 사건이 egui 입력에 들어오기 전에 그 노드로 입력을 끊고(`PopupManager::cut_key_frame`), 누름은 그 자리에서 포커스를
 //! 옮긴다(`press_window_at`). 키가 실린 몫의 결속은 그 노드다(`bind_window_key`). 그리기 입구
-//! (`put_window_pass_keys`)는 그 몫의 결속을 읽는다. 계약: `docs/architecture/input-layer.md`의 "별도 창 입력 패스".
+//! (`window_widget_takes_keys`)는 그 몫의 결속을 읽는다. 계약: `docs/architecture/input-layer.md`의 "별도 창 입력 패스".
 
 use std::collections::VecDeque;
 
@@ -39,6 +39,8 @@ pub(crate) struct WindowSegments {
     node: Option<WindowNode>,
     /// 끊은 뒤 몫들의 노드. 앞에서부터 그리기 순서다.
     after: VecDeque<Option<WindowNode>>,
+    /// 이번 `run` 의 결속 없는 몫 키 주인: `run` 시작 때 노드의 인스턴스(`begin_window_run`).
+    run_owner: Option<PopupInstanceId>,
 }
 
 impl WindowSegments {
@@ -177,14 +179,14 @@ impl PopupManager {
 #[cfg(test)]
 impl PopupManager {
     /// 한 `RawInput` 시험 대역(별도 창 `render`): 지금 egui 포커스를 직전 패스 기록으로 두고, `events` 의 수식키 없는
-    /// Esc 누름마다 사건 입구의 단계 11(`apply_window_escape`)을 밟고(그 누름은 입력에서 빠져 넘김 기록이 된다) 키
-    /// 주인이 W1 값(`owner`)인 패스 키 값을 돌려준다.
+    /// Esc 누름마다 사건 입구의 단계 11(`apply_window_escape`)을 밟고(그 누름은 입력에서 빠져 넘김 기록이 된다) 이번
+    /// `run` 의 결속 없는 몫 키 주인을 W1 값(`owner`)으로 둔다.
     pub(crate) fn raw_pass_keys(
         &mut self,
         ctx: &egui::Context,
         owner: Option<PopupInstanceId>,
         events: &mut Vec<egui::Event>,
-    ) -> super::escape_step::WindowPassKeys {
+    ) {
         // 창은 직전 패스를 닫을 때(`close_window_segment`) 포커스를 기록한다. 대역은 패스를 닫지 않으므로 여기서 읽는다.
         self.window.record = WindowFocusRecord::read(ctx);
         let held = ctx.input(|i| i.key_down(egui::Key::Escape));
@@ -205,11 +207,36 @@ impl PopupManager {
             }
         }
         *events = loaded;
-        super::escape_step::WindowPassKeys { owner }
+        self.window.run_owner = owner;
+    }
+
+    /// 시험 대역: 이번 `run` 의 결속 없는 몫 키 주인을 `owner` 로 둔다.
+    pub(crate) fn set_window_run_owner(&mut self, owner: Option<PopupInstanceId>) {
+        self.window.run_owner = owner;
     }
 }
 
 impl PopupManager {
+    /// 별도 창 `run` 전에 결속 없는 몫의 키 주인을 지금 노드로 정한다. egui 가 같은 `run` 안에서 패스를 다시 돌려도 같은
+    /// 값을 쓴다(`GpuState::run_window_pass`).
+    pub(crate) fn begin_window_run(&mut self, ctx: &egui::Context) {
+        self.window.run_owner = self.window_key_node(ctx).popup();
+    }
+
+    /// 이번 `run` 의 결속 없는 몫 키 주인.
+    pub(crate) fn window_run_owner(&self) -> Option<PopupInstanceId> {
+        self.window.run_owner
+    }
+
+    /// 이번 패스 키 주인을 정한다. 그 몫의 결속이 있으면 그것을, 없으면 `run` 전 노드를 쓴다
+    /// (`decide_window_frame_keys`). 관리자를 그리는 함수가 팝업을 그리기 전에 패스마다 부른다. 창 위젯이 이 패스 키를
+    /// 받으면(키 주인 없음) 참이다.
+    pub(crate) fn window_widget_takes_keys(&mut self, ctx: &egui::Context) -> bool {
+        !self
+            .decide_window_frame_keys(ctx, self.window.run_owner)
+            .held()
+    }
+
     /// 별도 창 패스 하나를 닫는다. 패스 뒤 egui 포커스를 기록하고 다음 몫의 노드를 꺼낸다. 그 패스가 그린 누름은 지운다.
     pub(crate) fn close_window_segment(&mut self, ctx: &egui::Context) {
         self.window.record = WindowFocusRecord::read(ctx);

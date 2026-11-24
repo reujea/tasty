@@ -102,14 +102,9 @@ impl WindowFileChooser {
     pub(crate) fn poll(&mut self, owner: &mut crate::app::local_reads::ReadRequests) -> bool {
         self.chooser.poll_local_reads(owner)
     }
-    /// `keys` 는 창 `render` 가 이번 프레임에 정한 키 값이다. 다시 그리는 패스에도 같은 값을 넣도록 팝업을 그리기 전에
-    /// 패스마다 관리자에 넣는다.
-    pub(crate) fn draw(
-        &mut self,
-        ctx: &egui::Context,
-        keys: &crate::adapters::ui::popup::escape_step::WindowPassKeys,
-    ) {
-        self.popups.put_window_pass_keys(ctx, keys);
+    /// 팝업을 그리기 전에 패스마다 이번 패스 키 주인을 정한다(`PopupManager::window_widget_takes_keys`).
+    pub(crate) fn draw(&mut self, ctx: &egui::Context) {
+        self.popups.window_widget_takes_keys(ctx);
         let chooser = &mut self.chooser;
         let closed = self.popups.draw_view_local(ctx, &mut |cx, ui, _| {
             if cx.id != FILE_PICKER_POPUP_ID {
@@ -126,15 +121,6 @@ impl WindowFileChooser {
     }
     pub(crate) fn take_outcome(&mut self, consumer: &'static str) -> Option<FileChooserOutcome> {
         self.chooser.take_outcome(consumer)
-    }
-    /// 창 위젯이 이 패스 키를 받는지(파일 선택 창이 이 패스 키 주인이 아님). 창 위젯을 파일 선택 창보다 먼저 그리는 창이
-    /// 그 앞에서 부른다. 같은 `run` 의 그리기(`draw`)는 같은 값을 쓴다.
-    pub(crate) fn window_takes_keys(
-        &mut self,
-        ctx: &egui::Context,
-        keys: &crate::adapters::ui::popup::escape_step::WindowPassKeys,
-    ) -> bool {
-        self.popups.put_window_pass_keys(ctx, keys)
     }
     /// 이 창의 W1 값. `record`는 직전 패스 뒤의 포커스 기록이다.
     #[cfg(test)]

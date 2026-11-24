@@ -217,12 +217,12 @@ fn a_window_escape_is_applied_after_its_segment_ends() {
     );
 }
 
-/// 별도 창 키 값(결속 없는 몫의 노드)은 관리자를 그리는 함수가 팝업을 그리기 전에 패스마다 넣는다.
+/// 별도 창 패스 키 주인(그 몫의 결속, 없으면 `run` 전 노드)은 관리자를 그리는 함수가 팝업을 그리기 전에 패스마다 정한다.
 /// 창 `render` 는 공용 패스(`run_window_pass`)로만 패스를 열고 입력을 직접 꺼내지 않는다. 공용 패스 주체가 `run`
-/// 전에 그 패스 키 값을 정한다. 소스 자리와 순서만 본다. 그리기 함수 안에서 조건을 걸어 첫 패스에만 넣는 잘못은 잡지 못한다.
+/// 전에 결속 없는 몫의 키 주인을 관리자에 둔다. 소스 자리와 순서만 본다. 그리기 함수 안에서 조건을 걸어 첫 패스에만 넣는 잘못은 잡지 못한다.
 #[test]
 fn window_pass_keys_are_put_in_every_pass() {
-    const PUT: &str = "put_window_pass_keys(";
+    const PUT: &str = "window_widget_takes_keys(";
     for (rel, signature) in [
         ("src/view/settings/ui.rs", "fn draw_settings_panel("),
         ("src/view/file_chooser/window.rs", "fn draw("),
@@ -236,7 +236,14 @@ fn window_pass_keys_are_put_in_every_pass() {
         "src/view/plugins.rs",
     ] {
         let body = body(rel, "fn render(");
-        for put in [PUT, "take_egui_input(", "run_egui("] {
+        // preset 창은 공용 패스가 넘긴 그리기 클로저 안에서 정한다(창 위젯을 선택 창보다 먼저 그린다).
+        if let Some(at) = body.find(PUT) {
+            assert!(
+                body.find("run_window_pass(").is_some_and(|run| run < at),
+                "{rel}: `render` 가 공용 패스 밖에서 `{PUT}` 를 부른다."
+            );
+        }
+        for put in ["take_egui_input(", "run_egui("] {
             assert!(
                 !body.contains(put),
                 "{rel}: `render` 가 `{put}` 를 부른다. 패스는 공용 패스가 열고 넣기는 관리자를 그리는 함수가 한다."

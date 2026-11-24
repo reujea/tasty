@@ -571,8 +571,6 @@ pub struct SettingsPanelCtx<'a> {
     pub captured_double_tap: &'a mut Option<String>,
     pub file_format: &'a FileFormatRegistry,
     pub file_handler: &'a FileHandlerRegistry,
-    /// 창 `render` 가 이번 프레임에 정한 키 값. 다시 그리는 패스에도 같은 값을 넣는다.
-    pub pass_keys: &'a crate::adapters::ui::popup::escape_step::WindowPassKeys,
 }
 
 /// 단축키 충돌 팝업에 표시할 안내 문자열을 구성한다. 팝업 draw 와 open 직전
@@ -640,10 +638,9 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
         captured_double_tap,
         file_format,
         file_handler,
-        pass_keys,
     } = panel;
-    // 팝업을 그리기 전에 패스마다 이번 패스 키 값을 관리자에 넣는다. 창 위젯 차단도 그 몫의 같은 결과를 읽는다.
-    let window_takes_keys = ui_state.popups.put_window_pass_keys(ctx, pass_keys);
+    // 팝업을 그리기 전에 패스마다 이번 패스 키 주인을 정한다. 창 위젯 차단도 그 몫의 같은 결과를 읽는다.
+    let widget_keys = ui_state.popups.window_widget_takes_keys(ctx);
     if ui_state.draft.is_none() {
         ui_state.draft = Some(settings.clone());
         // 새 오픈마다 Scripts 관리 창 상호작용 상태·changed 캐시 리셋(다음 draw 에서
@@ -670,7 +667,7 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
     l1_sep.color = th.separator.to_egui_premultiplied();
 
     // 팝업이 이 패스 키 주인이면 앞에 그리는 창 위젯은 그 키를 보지 않는다. 키는 팝업 그리기 전에 돌려놓는다.
-    crate::adapters::ui::popup::body_keys::with_body_keys(ctx, window_takes_keys, || {
+    crate::adapters::ui::popup::body_keys::with_body_keys(ctx, widget_keys, || {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(th.bg_panel().to_egui()))
             .show(ctx, |ui| {

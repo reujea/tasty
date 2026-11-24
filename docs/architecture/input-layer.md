@@ -306,8 +306,9 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 사건 시점 노드로 적용한다. 팝업 노드면 메인 창과 같은 넘김 기록으로 그 Esc 를 키 주인에 넘긴다
 (`view::window_input::bind_window_input`, `PopupManager::apply_window_escape`). debug 키 주입도 같은 입구를 지난다
 (`view::window_input::inject_window_key`). 패스는 메인 창과 같은 순서
-함수로 열고 닫으며(`GpuState::run_window_pass`), 그리기 입구(`put_window_pass_keys`)와 창 위젯 차단이 그 몫의 결속을 함께
-읽는다. quit 창은 팝업 관리자가 없어 노드가 창 위젯 하나다.
+함수로 열고 닫으며(`GpuState::run_window_pass`), `run` 전에 결속 없는 몫의 키 주인을 관리자에 둔다
+(`PopupManager::begin_window_run`). 그리기 입구(`PopupManager::window_widget_takes_keys`)와 창 위젯 차단이 그 몫의
+결속을 함께 읽는다. quit 창은 팝업 관리자가 없어 노드가 창 위젯 하나다.
 
 ### 경로 키
 

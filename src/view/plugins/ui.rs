@@ -341,7 +341,6 @@ pub fn draw_plugins_panel(
     snapshot: &PluginsSnapshot,
     ui_state: &mut PluginsUiState,
     actions: &mut Vec<PluginsAction>,
-    keys: &crate::adapters::ui::popup::escape_step::WindowPassKeys,
 ) {
     let th = theme::theme();
 
@@ -351,8 +350,10 @@ pub fn draw_plugins_panel(
     let remove_cancellable =
         ui_state.confirm_remove_folder.is_some() && ui_state.removing_folder.is_none();
     // 폴더 선택 창이 이 패스 키 주인이면 Esc 는 그 창 것이다.
-    let window_takes_keys = ui_state.folder_chooser.window_takes_keys(ctx, keys);
-    if window_takes_keys
+    let widget_keys =
+        crate::view::window_input::WindowPopups::window_popups(&mut ui_state.folder_chooser)
+            .window_widget_takes_keys(ctx);
+    if widget_keys
         && (ui_state.confirm_uninstall_id.is_some() || remove_cancellable)
         && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
     {
@@ -361,7 +362,7 @@ pub fn draw_plugins_panel(
     }
 
     // 폴더 선택 창이 키 주인이면 앞에 그리는 창 위젯은 그 키를 보지 않는다. 키는 그 창을 그리기 전에 돌려놓는다.
-    crate::adapters::ui::popup::body_keys::with_body_keys(ctx, window_takes_keys, || {
+    crate::adapters::ui::popup::body_keys::with_body_keys(ctx, widget_keys, || {
         egui::TopBottomPanel::top("plugins_header")
             .exact_height(th.plugins_header_height().value())
             .show(ctx, |ui| {
@@ -446,10 +447,10 @@ pub fn draw_plugins_panel(
         match ui_state.active_tab {
             PluginsTab::List => draw_list_tab(ctx, snapshot, ui_state, actions),
             PluginsTab::Attention => draw_attention_tab(ctx, snapshot, ui_state, actions),
-            PluginsTab::Add => draw_add_tab(ctx, snapshot, ui_state, actions, keys),
+            PluginsTab::Add => draw_add_tab(ctx, snapshot, ui_state, actions),
         }
     });
-    ui_state.folder_chooser.draw(ctx, keys);
+    ui_state.folder_chooser.draw(ctx);
     add::apply_folder_result(ui_state, snapshot);
 }
 
