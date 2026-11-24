@@ -54,9 +54,10 @@ if ! is_uint "$min_free_gb" 9; then
     echo "Error: TASTY_CI_CACHE_MIN_FREE_GB must be an integer from 0 to 999999999 (GB): $min_free_gb" >&2
     exit 2
 fi
-# GB를 KiB로 바꾼다(올림). df -Pk의 Available과 같은 단위로 비교한다.
+# GB를 KiB로 바꾼다(내림). 여유 KiB가 이 값 이하인 것과 여유 바이트(KiB×1024)가 임계 바이트 이하인 것은 같다.
+# 올림하면 홀수 GB에서 임계값보다 큰 여유(예: 1GB에 976563KiB = 1000000512바이트)도 지운다.
 min_free_gb=$(( 10#$min_free_gb ))
-threshold_kib=$(( (min_free_gb * 1000000000 + 1023) / 1024 ))
+threshold_kib=$(( min_free_gb * 1000000000 / 1024 ))
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"

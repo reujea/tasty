@@ -432,3 +432,26 @@ fn a_symlinked_marker_is_not_trusted() {
     );
     assert_eq!(marker(root), Some(today()), "{log}");
 }
+
+/// 임계값은 바이트로 비교한다. 1GB(10^9 바이트)에 여유 976563KiB(1000000512바이트)는 임계보다 커서 남기고,
+/// 976562KiB(999999488바이트)는 이하라 지운다. GB를 KiB로 올림해 비교하면 앞의 경우도 지운다.
+#[test]
+fn the_threshold_compares_bytes_at_an_odd_gigabyte() {
+    for (avail, want) in [
+        ("976563", "action=keep reason=cached"),
+        ("976562", "action=wipe reason=low-disk"),
+    ] {
+        let r = repo();
+        let root = &r.root;
+        let day = today();
+        put(root, "target/debug/deps/libfoo.rlib");
+        fs::write(root.join(MARKER), format!("{day}\n")).expect("표지");
+        let line = format!("/dev/x 9999999 1 {avail} 1% /");
+        let (code, log) = run_with(root, "1", Some(&line));
+        if today() != day {
+            return the_threshold_compares_bytes_at_an_odd_gigabyte();
+        }
+        assert_eq!(code, 0, "{log}");
+        assert!(log.contains(want), "여유 {avail}KiB, 임계 1GB\n{log}");
+    }
+}
