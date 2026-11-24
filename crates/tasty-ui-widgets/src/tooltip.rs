@@ -195,12 +195,19 @@ impl<'a> Tooltip<'a> {
                 let mut prepared = frame.begin(ui);
                 let content = &mut prepared.content_ui;
                 content.set_max_width(theme.tooltip_max_width.value());
-                let (text_pos, galley, _) = egui::Label::new(job)
+                let (text_pos, galley, text) = egui::Label::new(job)
                     .selectable(false)
                     .layout_in_ui(content);
                 let fallback = content.visuals().text_color();
-                painter.add(frame.paint(content.min_rect()));
-                painter.galley(text_pos, galley, fallback);
+                // As `Frame::Prepared::paint` and `Label::ui` do: frame (with its shadow) and text
+                // only when their own rect shows on screen.
+                let body = frame.widget_rect(content.min_rect());
+                if body.intersects(screen) {
+                    painter.add(frame.paint(content.min_rect()));
+                }
+                if text.rect.intersects(screen) {
+                    painter.galley(text_pos, galley, fallback);
+                }
                 prepared.end(ui);
             });
     }
@@ -918,6 +925,50 @@ mod tests {
                 frame < first_marker,
                 "id source {source}: bubble at {frame}, painter at {first_marker}"
             );
+        }
+    }
+
+    /// A bubble whose body is off screen draws nothing, its shadow included, as an area frame and
+    /// label skip what does not show. A bubble that was taller than the screen and gets short
+    /// again is placed from its last size for one frame, above the screen.
+    #[test]
+    fn an_off_screen_bubble_draws_nothing() {
+        let theme = theme();
+        let ctx = egui::Context::default();
+        let screen = egui::vec2(200.0, 100.0);
+        let tall = "line\n".repeat(20);
+        let at = egui::pos2(100.0, 50.0);
+        let mut counts = Vec::new();
+        for (step, text) in [tall.as_str(), tall.as_str(), "x", "x"]
+            .into_iter()
+            .enumerate()
+        {
+            let output = ctx.run(input_in(screen, step as f64), |ctx| {
+                Tooltip::new(text).paint(ctx, &theme, at, egui::Align2::CENTER_BOTTOM);
+            });
+            counts.push(
+                output
+                    .shapes
+                    .iter()
+                    .filter(|c| !matches!(c.shape, egui::Shape::Noop))
+                    .count(),
+            );
+        }
+        assert_eq!(
+            counts[2], 0,
+            "the off screen frame draws nothing: {counts:?}"
+        );
+        assert!(
+            counts[1] > 0 && counts[3] > 0,
+            "the bubble draws on screen: {counts:?}"
+        );
+    }
+
+    fn input_in(screen: egui::Vec2, time: f64) -> egui::RawInput {
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, screen)),
+            time: Some(time),
+            ..Default::default()
         }
     }
 }
