@@ -10,7 +10,7 @@ use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::i18n::t;
 
 /// 닫기 버튼의 고정 상태. hover와 누름은 같은 모양이라 한 칸으로 보인다.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Close {
     Rest,
     Hover,
@@ -82,9 +82,10 @@ fn bar(ui: &mut egui::Ui, th: &Theme, active: bool, close: Close, tip: &str, cor
             th.titlebar_border().to_egui_premultiplied(),
         ),
     );
-    // hover와 키보드 포커스에서는 Close 툴팁이 버튼 아래, 오른쪽 변을 버튼에 맞춰 열려 있다.
-    if close != Close::Rest {
-        let button = egui::Rect::from_center_size(center, egui::vec2(d, d));
+    // hover와 키보드 포커스에서는 Close 툴팁이 버튼 아래, 오른쪽 변을 버튼에 맞춰 열려 있다. 툴팁은 별도 층이라
+    // 칸의 클립을 받지 않으므로, 버튼이 갤러리 스크롤 영역 밖이면 열지 않는다.
+    let button = egui::Rect::from_center_size(center, egui::vec2(d, d));
+    if close != Close::Rest && ui.is_rect_visible(button) {
         tasty_ui_widgets::Tooltip::new(t("titlebar.close"))
             .id_source(("settings_titlebar_linux_tip", tip))
             .below_end(ui.ctx(), th, button)
@@ -306,7 +307,11 @@ mod tests {
     use super::*;
 
     /// 한 칸을 `zoom` 배율 팔레트로 그리고 나온 도형을 돌려준다. `clip`이 있으면 칸을 그리는 Ui의 클립이다.
-    fn shapes(zoom: f32, clip: Option<egui::Rect>) -> Vec<egui::epaint::ClippedShape> {
+    fn shapes(
+        zoom: f32,
+        clip: Option<egui::Rect>,
+        close: Close,
+    ) -> Vec<egui::epaint::ClippedShape> {
         let th = palette(&tasty_themes::mocha_fallback(), zoom);
         let ctx = egui::Context::default();
         let input = egui::RawInput {
@@ -316,17 +321,22 @@ mod tests {
             )),
             ..Default::default()
         };
-        ctx.run(input, |ctx| {
-            egui::CentralPanel::default()
-                .frame(egui::Frame::NONE)
-                .show(ctx, |ui| {
-                    if let Some(clip) = clip {
-                        ui.set_clip_rect(clip);
-                    }
-                    frame(ui, &th, 500.0, true, Close::Rest, "test");
-                });
-        })
-        .shapes
+        let pass = |input: egui::RawInput| {
+            ctx.run(input, |ctx| {
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE)
+                    .show(ctx, |ui| {
+                        if let Some(clip) = clip {
+                            ui.set_clip_rect(clip);
+                        }
+                        frame(ui, &th, 500.0, true, close, "test");
+                    });
+            })
+            .shapes
+        };
+        // 툴팁 같은 Area는 첫 패스에 크기만 재고 그리지 않으므로 두 번째 패스의 도형을 쓴다.
+        drop(pass(input.clone()));
+        pass(input)
     }
 
     fn rects(shapes: &[egui::epaint::ClippedShape]) -> Vec<egui::Rect> {
@@ -343,7 +353,7 @@ mod tests {
     #[test]
     fn the_cropped_window_keeps_the_product_size_at_every_zoom() {
         for zoom in [0.85, 1.0, 1.2] {
-            let found = rects(&shapes(zoom, None))
+            let found = rects(&shapes(zoom, None, Close::Rest))
                 .iter()
                 .any(|r| r.width() == 1100.0 && r.height() == 736.0);
             assert!(found, "zoom {zoom}: no 1100 x 736 window");
@@ -354,7 +364,7 @@ mod tests {
     #[test]
     fn the_crop_stays_inside_the_parent_clip() {
         let parent = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1600.0, 40.0));
-        let out = shapes(1.0, Some(parent));
+        let out = shapes(1.0, Some(parent), Close::Rest);
         // 빈 자리 도형(Noop)은 그리지 않으므로 뺀다.
         let drawn: Vec<_> = out
             .iter()
@@ -369,6 +379,25 @@ mod tests {
                 s.clip_rect,
                 s.shape.visual_bounding_rect()
             );
+        }
+    }
+
+    /// Given 갤러리 스크롤로 칸이 보이는 영역 밖에 있을 때, When hover·포커스 칸을 그리면 Then 열어 둔 Close 툴팁도
+    /// 보이는 영역 밖에 그려지지 않는다.
+    #[test]
+    fn the_open_tooltip_stays_inside_the_parent_clip() {
+        let parent = egui::Rect::from_min_max(egui::pos2(0.0, 300.0), egui::pos2(1600.0, 1000.0));
+        for close in [Close::Hover, Close::Focus] {
+            for s in shapes(1.0, Some(parent), close) {
+                let seen = s.clip_rect.intersect(s.shape.visual_bounding_rect());
+                if seen.is_positive() {
+                    assert_eq!(
+                        seen.intersect(parent),
+                        seen,
+                        "{close:?}: {seen:?} is outside"
+                    );
+                }
+            }
         }
     }
 }
