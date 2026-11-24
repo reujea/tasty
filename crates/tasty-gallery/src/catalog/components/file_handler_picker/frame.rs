@@ -794,6 +794,11 @@ pub(super) fn remote_spec_frame(
             advance,
             tasty_ui_widgets::fh_remote_mark_width(ui, theme, head.mark),
             theme.spacing_sm,
+            &fh_model::UnmeasuredMark {
+                host: head.mark.host,
+                reconnecting: head.mark.reconnecting,
+                language: crate::i18n::current_language(),
+            },
         ),
         None => fh_model::target_budget_chars(advance),
     };

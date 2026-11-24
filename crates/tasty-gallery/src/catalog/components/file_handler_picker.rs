@@ -816,6 +816,11 @@ mod tests {
                         advance,
                         tasty_ui_widgets::fh_remote_mark_width(ui, &theme, &mark),
                         theme.spacing_sm,
+                        &fh_model::UnmeasuredMark {
+                            host: mark.host,
+                            reconnecting: None,
+                            language: "en",
+                        },
                     );
                     cuts.push((budget, fh_model::elide_target_front(row.path, budget)));
                 }

@@ -18,6 +18,12 @@ fn ensure_init() {
     });
 }
 
+/// 갤러리가 쓰는 언어 코드(`TASTY_LOCALE`, 없으면 en).
+pub fn current_language() -> &'static str {
+    ensure_init();
+    tasty_i18n::current_language()
+}
+
 /// `key`의 현재 언어 문자열.
 pub fn t(key: &'static str) -> &'static str {
     ensure_init();

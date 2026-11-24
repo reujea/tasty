@@ -141,6 +141,11 @@ fn target_budget(
             advance,
             tasty_ui_widgets::fh_remote_mark_width(ui, th, mark),
             th.spacing_sm,
+            &fh_model::UnmeasuredMark {
+                host: mark.host,
+                reconnecting: mark.reconnecting,
+                language: crate::i18n::current_language(),
+            },
         ),
         None => fh_model::target_budget_chars(advance),
     }

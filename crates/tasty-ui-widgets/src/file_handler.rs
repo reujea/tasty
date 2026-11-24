@@ -1,8 +1,9 @@
 //! 본체와 갤러리가 공유하는 파일 핸들러 ID·경로의 말줄임 규칙.
 
 use crate::tokens::{
-    FH_ID_ELIDE_MAX, FH_ID_ELIDE_TAIL, FH_TARGET_ELIDE_FALLBACK, FH_TARGET_ELIDE_FALLBACK_REMOTE,
-    FH_TARGET_LINE_BOX,
+    FH_ID_ELIDE_MAX, FH_ID_ELIDE_TAIL, FH_REMOTE_HOST_CAP_UNMEASURED,
+    FH_REMOTE_WORD_GAP_UNMEASURED, FH_STATUS_WORD_EM_UNMEASURED, FH_TARGET_ELIDE_FALLBACK,
+    FH_TARGET_LINE_BOX, FH_TARGET_MONO_ADVANCE, FH_TARGET_REMOTE_BOX_UNMEASURED,
 };
 use tasty_type_geometry::length::LogicalPx;
 
@@ -31,23 +32,75 @@ pub fn target_budget_chars(mono_advance: LogicalPx) -> usize {
     fits as usize
 }
 
+/// 경로 상자를 잴 수 없을 때 추정에 쓰는 원격 표지 내용.
+#[derive(Debug, Clone, Copy)]
+pub struct UnmeasuredMark<'a> {
+    /// 호스트 글자. 비면(낱말 Remote) 호스트 상한으로 본다.
+    pub host: &'a str,
+    /// 재연결 중이면 상태 단어.
+    pub reconnecting: Option<&'a str>,
+    /// 상태 단어의 언어. 그 언어의 label 글꼴이 고정폭이면 칸 수로, 아니면 글자 수로 폭을 추정한다.
+    pub language: &'a str,
+}
+
 /// 원격 표지 옆 경로 상자(경로 줄 − 표지 − `gap`)에 들어갈 글자 수.
-/// 글자 폭이나 표지 폭을 잴 수 없으면 호스트가 상한일 때의 값을 쓴다.
+/// 글자 폭이나 표지 폭을 잴 수 없으면 [`target_budget_chars_unmeasured`]로 추정한다.
 pub fn target_budget_chars_beside(
     mono_advance: LogicalPx,
     mark_w: LogicalPx,
     gap: LogicalPx,
+    unmeasured: &UnmeasuredMark<'_>,
 ) -> usize {
     let w = mono_advance.value();
     let room = (FH_TARGET_LINE_BOX - mark_w - gap).value();
     if !w.is_finite() || w <= 0.0 || !room.is_finite() {
-        return FH_TARGET_ELIDE_FALLBACK_REMOTE;
+        return target_budget_chars_unmeasured(unmeasured);
     }
     let fits = (room / w).floor();
     if fits < 1.0 {
-        return FH_TARGET_ELIDE_FALLBACK_REMOTE;
+        return target_budget_chars_unmeasured(unmeasured);
     }
     fits as usize
+}
+
+/// 잴 수 없을 때의 경로 글자 수(정본 Meta 'path cap, unmeasured'):
+/// floor((366 − min(6 × 호스트 글자 수, 160) − 재연결이면 (4 + 상태 단어 폭)) / 6).
+/// 빈 호스트는 상한 160 이다. 상태 단어 폭은 [`status_word_width_unmeasured`]로 추정한다.
+pub fn target_budget_chars_unmeasured(mark: &UnmeasuredMark<'_>) -> usize {
+    let host = if mark.host.is_empty() {
+        FH_REMOTE_HOST_CAP_UNMEASURED
+    } else {
+        (FH_TARGET_MONO_ADVANCE * mark.host.chars().count() as f32)
+            .min(FH_REMOTE_HOST_CAP_UNMEASURED)
+    };
+    let word = mark.reconnecting.map_or(LogicalPx(0.0), |word| {
+        FH_REMOTE_WORD_GAP_UNMEASURED + status_word_width_unmeasured(word, mark.language)
+    });
+    let room = FH_TARGET_REMOTE_BOX_UNMEASURED - host - word;
+    (room.value() / FH_TARGET_MONO_ADVANCE.value())
+        .floor()
+        .max(1.0) as usize
+}
+
+/// 재연결 상태 단어의 폭을 잴 수 없을 때의 추정. 그 언어의 label 글꼴이 고정폭(en · ko)이면 칸당 6 이고
+/// 한글 음절은 두 칸이다(reconnecting 72, 재연결 중 54). UI sans(ja · zh-Hans)면 글자당 12 다
+/// (再接続中 48, 重新连接中 60).
+pub fn status_word_width_unmeasured(word: &str, language: &str) -> LogicalPx {
+    if crate::label_font_family_for(language) == egui::FontFamily::Monospace {
+        let cells: usize = word
+            .chars()
+            .map(|c| {
+                if ('\u{AC00}'..='\u{D7A3}').contains(&c) {
+                    2
+                } else {
+                    1
+                }
+            })
+            .sum();
+        FH_TARGET_MONO_ADVANCE * cells as f32
+    } else {
+        FH_STATUS_WORD_EM_UNMEASURED * word.chars().count() as f32
+    }
 }
 
 /// 파일명 끝을 보존하도록 경로 앞부분을 줄인다.
@@ -149,15 +202,22 @@ mod tests {
     #[test]
     fn the_path_beside_a_remote_mark_gets_what_the_mark_leaves() {
         let mark = |host_px: f32| LogicalPx(12.0 + 4.0 + host_px);
-        let budget =
-            |host_px| target_budget_chars_beside(LogicalPx(6.0), mark(host_px), LogicalPx(8.0));
+        let unmeasured = UnmeasuredMark {
+            host: "host",
+            reconnecting: None,
+            language: "en",
+        };
+        let budget = |host_px| {
+            target_budget_chars_beside(LogicalPx(6.0), mark(host_px), LogicalPx(8.0), &unmeasured)
+        };
         assert_eq!(budget(24.0), 57, "host");
         assert_eq!(budget(108.0), 43, "work-laptop-attach");
         assert_eq!(budget(90.0), 46, "127.0.0.1:54321");
         assert_eq!(budget(160.0), 34, "host at the cap");
+        // 글자 폭을 잴 수 없으면 호스트 글자 수로 추정한다('host' 57).
         assert_eq!(
-            target_budget_chars_beside(LogicalPx(0.0), mark(24.0), LogicalPx(8.0)),
-            FH_TARGET_ELIDE_FALLBACK_REMOTE
+            target_budget_chars_beside(LogicalPx(0.0), mark(24.0), LogicalPx(8.0), &unmeasured),
+            57
         );
         // 93자 표본은 work-laptop-attach 옆에서 조각 경계로, 상한에서는 한 조각 안에서 잘린다.
         assert_eq!(
@@ -168,6 +228,64 @@ mod tests {
             elide_target_front(B_SEGMENT, budget(160.0)),
             "…SidebarCategoryHeaderContrast.tsx"
         );
+    }
+
+    /// 잴 수 없을 때의 경로 글자 수(정본 Meta 'path cap, unmeasured'). 호스트는 6 × 글자 수(상한 160),
+    /// 빈 호스트와 상한은 34 다. 재연결 중이면 4 + 상태 단어 폭을 더 빼고, 그 폭은 언어별로 추정한다.
+    #[test]
+    fn the_unmeasured_path_cap_follows_the_host_and_the_status_word_by_language() {
+        let cap = |host, reconnecting, language| {
+            let mark = UnmeasuredMark {
+                host,
+                reconnecting,
+                language,
+            };
+            // 글자 폭이 유효하지 않은 실제 경로로도 같은 값이 나온다.
+            let beside = target_budget_chars_beside(
+                LogicalPx(f32::NAN),
+                LogicalPx(40.0),
+                LogicalPx(8.0),
+                &mark,
+            );
+            assert_eq!(beside, target_budget_chars_unmeasured(&mark));
+            beside
+        };
+        assert_eq!(cap("host", None, "en"), 57);
+        assert_eq!(cap("work-laptop-attach", None, "en"), 43);
+        assert_eq!(cap(&"x".repeat(40), None, "en"), 34, "at the cap");
+        assert_eq!(
+            cap("", None, "en"),
+            FH_TARGET_ELIDE_FALLBACK_REMOTE,
+            "no host"
+        );
+        assert_eq!(
+            cap("", None, "ja"),
+            FH_TARGET_ELIDE_FALLBACK_REMOTE,
+            "no host, ja"
+        );
+
+        // 상태 단어 폭: en·ko 는 칸당 6(한글 음절 두 칸), ja·zh-Hans 는 글자당 12.
+        for (word, language, width) in [
+            ("reconnecting", "en", 72.0),
+            ("재연결 중", "ko", 54.0),
+            ("再接続中", "ja", 48.0),
+            ("重新连接中", "zh-Hans", 60.0),
+        ] {
+            assert_eq!(
+                status_word_width_unmeasured(word, language),
+                LogicalPx(width),
+                "{language}"
+            );
+            // 상한 호스트 옆: floor((366 − 160 − 4 − 폭) / 6).
+            let expected = ((366.0 - 160.0 - 4.0 - width) / 6.0_f32).floor() as usize;
+            assert_eq!(cap("", Some(word), language), expected, "{language}");
+        }
+        assert_eq!(cap("", Some("reconnecting"), "en"), 21);
+        assert_eq!(cap("", Some("재연결 중"), "ko"), 24);
+        assert_eq!(cap("", Some("再接続中"), "ja"), 25);
+        assert_eq!(cap("", Some("重新连接中"), "zh-Hans"), 23);
+        // 'host' 옆 재연결: floor((366 − 24 − 4 − 72) / 6) = 44.
+        assert_eq!(cap("host", Some("reconnecting"), "en"), 44);
     }
 
     #[test]
