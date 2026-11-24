@@ -560,9 +560,11 @@ thread-local mock. `crates/tasty-gallery/src/catalog/widgets/<name>.rs`.
 `src/view/settings/ui.rs`(+ `settings/ui/tabs/*`, `keybindings_tab.rs`) ↔ 갤러리
 `components/settings.rs` (Overlays `settings` · `settings-controls` specimen). `settings` 는 시안 갤러리
 `SettingsFrame` 의 620×380 전시 구성(L1 탭 넷, L2 168 · 항목 셋, Theme preset 카드 둘, 버튼 줄)을 그대로
-옮긴다. 제품 창 1100×700 · L2 200 은 Meta 의 canonical 값과 본체에만 있다. L1 탭 일곱은 본체와 아래 Linux 제목 줄
-표본이 그린다. L1 높이 44 의 출처는 표본마다 다르다. `settings` 표본은 `titlebar_height + spacing_sm`(44)로 띠 높이를
-정하고, 본체와 Linux 제목 줄 표본은 `Theme::settings_l1_height`(`settings-l1-height`, UI 배율 제외)를 읽는다. Linux 설정창 제목 줄은 시안
+옮긴다. 제품 창 1100×700 은 본체와 아래 Linux 제목 줄 표본이 배율 없는 Theme 필드(`settings_window_width`·
+`settings_window_height`)로 쓰고, L2 200 은 Meta 의 canonical 값과 본체에만 있다. L1 탭 일곱은 본체와 Linux 제목 줄
+표본이 그린다. L1 높이의 출처는 표본마다 다르다. `settings` 표본은 `titlebar_height + spacing_sm`으로 띠 높이를
+정한다. 배율 1에서 44 이고, `spacing_sm`만 UI 배율을 받으므로 0.85·1.2 에서 43·46 이다. 본체와 Linux 제목 줄 표본은
+`Theme::settings_l1_height`(`settings-l1-height`, UI 배율 제외, 44)를 읽는다. Linux 설정창 제목 줄은 시안
 `ui_kits/terminal/overlays/settings_titlebar_linux.jsx` ↔ 본체 `src/view/settings/chrome.rs`(메인 타이틀바 렌더러
 `draw_titlebar_view`에 닫기 버튼 하나와 키보드 포커스 표시를 넘긴다) ↔ 갤러리
 `components/settings_titlebar_linux.rs`(`settings-titlebar-linux`, 시안 같은 이름 카드의 Mocha·Latte 칸)다. `settings-controls` 는
