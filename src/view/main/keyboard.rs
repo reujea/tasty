@@ -39,6 +39,20 @@ struct KeyboardSendOutcome {
     sent: bool,
 }
 
+/// 단계 11 맨 앞의 키 사건 하나: 더블탭 검출기 공급과 설정 열기 요청 래치 끝(`latch`, 누름만 본다). 뗌이거나 래치
+/// 노드가 받은 누름이면 참이고 그 사건은 뒤 단계(무대·더블탭·Esc·단축키·끝 목적지)로 가지 않는다. `at` 은 그 사건이
+/// 창에 도착한 시각이다.
+pub(crate) fn key_ends_at_latch(
+    detector: &mut crate::double_tap::DoubleTapDetector,
+    key: &Key,
+    pressed: bool,
+    at: std::time::Instant,
+    latch: impl FnOnce() -> bool,
+) -> bool {
+    detector.on_key_event(key, pressed, at);
+    !pressed || latch()
+}
+
 impl MainView {
     /// Resolve tutorial ownership before feeding egui, so Escape cannot also reach the PTY.
     pub(super) fn route_tutorial_input(&mut self, event: &winit::event::WindowEvent) -> bool {
@@ -74,29 +88,33 @@ impl MainView {
         event: &winit::event::KeyEvent,
         edit_judged: Option<crate::adapters::ui::input::edit_key::EditKey>,
     ) {
-        // Feed all key events (Press + Release) to the double-tap detector, timed by their arrival.
+        // 더블탭 검출기 공급(사건 도착 시각)과 설정 열기 요청 래치 끝. 래치 노드가 받은 누름은 여기서 끝난다(bare Esc 는
+        // 래치 취소).
         let arrived = self.base.gpu.event_arrival();
-        self.double_tap.on_key_event(
-            &event.logical_key,
-            event.state == ElementState::Pressed,
-            arrived,
-        );
-
-        if event.state != ElementState::Pressed {
-            return;
-        }
-
-        // 설정 열기 요청 래치 노드가 받은 누름은 여기서 끝난다(bare Esc 는 래치 취소).
+        let pressed = event.state == ElementState::Pressed;
         let value = self.key_value(event);
         let escape_held = self.base.gpu.egui_escape_held();
-        if self.state.end_key_at_settings_latch(
-            &value,
-            self.key_decision,
-            self.escape_fed,
-            self.base.gpu.egui_input_events_mut(),
-            escape_held,
-        ) {
+        let mut latched = false;
+        let ends = key_ends_at_latch(
+            &mut self.double_tap,
+            &event.logical_key,
+            pressed,
+            arrived,
+            || {
+                latched = self.state.end_key_at_settings_latch(
+                    &value,
+                    self.key_decision,
+                    self.escape_fed,
+                    self.base.gpu.egui_input_events_mut(),
+                    escape_held,
+                );
+                latched
+            },
+        );
+        if latched {
             self.mark_dirty();
+        }
+        if ends {
             return;
         }
 

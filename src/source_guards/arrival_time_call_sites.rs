@@ -26,8 +26,12 @@ fn a_held_main_double_tap_is_judged_by_its_arrival_interval() {
     let feed = body("src/view/main/keyboard.rs", "fn handle_keyboard_input(");
     has(
         &feed,
-        "let arrived = self.base.gpu.event_arrival();
-         self.double_tap.on_key_event( &event.logical_key, event.state == ElementState::Pressed, arrived, );",
+        "let arrived = self.base.gpu.event_arrival();",
+        "메인 더블탭 도착 시각",
+    );
+    has(
+        &feed,
+        "key_ends_at_latch( &mut self.double_tap, &event.logical_key, pressed, arrived,",
         "메인 더블탭 공급",
     );
 }

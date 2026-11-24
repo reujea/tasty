@@ -131,7 +131,7 @@ fn a_double_tap_during_the_settings_latch_does_nothing() {
     let body = squeeze(&fn_body(&src, "fn handle_keyboard_input(").expect("handle_keyboard_input"));
     let latch = at(
         &body,
-        "ifself.state.end_key_at_settings_latch(&value,self.key_decision,self.escape_fed,self.base.gpu.egui_input_events_mut(),escape_held,){self.mark_dirty();return;}",
+        "latched=self.state.end_key_at_settings_latch(&value,self.key_decision,self.escape_fed,self.base.gpu.egui_input_events_mut(),escape_held,);latched},);iflatched{self.mark_dirty();}ifends{return;}",
         "래치 노드에서 끝",
     );
     for then in [
