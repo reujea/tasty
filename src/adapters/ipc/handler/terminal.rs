@@ -592,12 +592,16 @@ fn decode_nickname(params: &Value, id: &Value) -> Result<Option<String>, JsonRpc
         )),
         (None, true) => Ok(None),
         (None, false) => Err(invalid(
-            "missing 'nickname' (use 'clear: true' to remove it)".into(),
+            "missing 'nickname' — pass --nickname <name> ('nickname' over IPC), or --clear \
+             ('clear: true' over IPC) to remove it"
+                .into(),
         )),
         (Some(name), false) => {
             if name.is_empty() {
                 return Err(invalid(
-                    "'nickname' must not be empty (use 'clear: true' to remove it)".into(),
+                    "'nickname' must not be empty — use --clear ('clear: true' over IPC) to \
+                     remove it"
+                        .into(),
                 ));
             }
             if name.len() > NICKNAME_MAX_BYTES {
@@ -697,8 +701,15 @@ pub(crate) fn handle_set_nickname(
             id,
             format!(
                 "child {child_index} under {} is surface {surface_id}, which is not open in \
-                 this window — its nickname can only be changed from the window that holds it",
-                parent_label(&parent)
+                 this window — change it from the window that holds it{}",
+                parent_label(&parent),
+                match &parent {
+                    // 다른 창의 자식은 External 부모의 자식뿐이다. 창은 workspace로 고른다.
+                    ParentKey::External(key) => format!(
+                        " (pass --parent-external {key} --workspace <a workspace in that window>)"
+                    ),
+                    ParentKey::Surface(_) => String::new(),
+                }
             ),
         );
     }
@@ -1944,6 +1955,11 @@ mod tests {
             let err = resp.error.unwrap_or_else(|| panic!("{params} must fail"));
             assert_eq!(err.code, -32602, "{params}");
             assert!(err.message.contains(needle), "{params}: {}", err.message);
+            if needle == "missing 'nickname'" || needle == "must not be empty" {
+                // CLI 사용자도 같은 문구를 받으므로 CLI 인자와 IPC 표기를 함께 적는다.
+                assert!(err.message.contains("--clear"), "{}", err.message);
+                assert!(err.message.contains("'clear: true'"), "{}", err.message);
+            }
         }
         let kept = e.runtime.child_terminals.find_child(&parent.into(), 0);
         assert_eq!(kept.expect("child kept").nickname.as_deref(), Some("keep"));
@@ -2113,6 +2129,12 @@ mod tests {
         assert_eq!(err.code, -32602);
         assert!(
             err.message.contains("not open in this window"),
+            "{}",
+            err.message
+        );
+        assert!(
+            err.message
+                .contains("--parent-external codex:w --workspace <a workspace in that window>"),
             "{}",
             err.message
         );
