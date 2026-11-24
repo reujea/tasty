@@ -23,12 +23,18 @@ const READS: [&str; 5] = [
 ];
 
 /// 지금 값을 읽어도 되는 그리기 자리: 파일, 감싼 함수, 호출이 든 줄(공백 줄임), 이유.
-const ALLOWED: [(&str, &str, &str, &str); 11] = [
+const ALLOWED: [(&str, &str, &str, &str); 12] = [
     (
         "src/adapters/ui/egui_panels.rs",
         "draw_egui_panels",
         "let focused_surface_id = state.focused_surface_id(engine);",
         "포커스 바탕(bed_focused)과 외부 변경 확인 대상 표시",
+    ),
+    (
+        "src/adapters/ui/surface_focus_edge.rs",
+        "collect",
+        "let focused = state.focused_surface_id(engine);",
+        "띠 kind leaf의 포커스 띠 표시(바탕 kind의 bed_focused와 같은 값)",
     ),
     (
         "src/adapters/ui/file_open_tool.rs",
