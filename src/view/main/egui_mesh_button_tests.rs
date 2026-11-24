@@ -215,3 +215,26 @@ fn a_release_without_a_cursor_reaches_the_pressed_leaf_at_its_last_point() {
         }
     }
 }
+
+/// A를 누른 뒤 A가 배치에서 빠지고(탭 전환 등) 포인터 아래 같은 쪽 mesh B에서 떼면, 뗌은 기록을 지우며 소비되고 B는
+/// 짝 없는 뗌을 받지 않는다. 로컬과 attach가 같다.
+#[test]
+fn a_release_of_a_vanished_leaf_is_consumed() {
+    for side in [MeshSide::Local, MeshSide::Attach] {
+        let mut w = Window::default();
+        let before = [region(1, 10.0, side), region(3, 70.0, side)];
+        assert!(w.button(&before, Some((5.0, 20.0)), (Left, true), false));
+        w.left_mouse_down = true;
+        let after = [region(3, 70.0, side)];
+        assert!(
+            w.button(&after, Some((5.0, 80.0)), (Left, false), false),
+            "{side:?} the release is taken"
+        );
+        assert!(w.buttons(side, 3).is_empty(), "{side:?} B gets no release");
+        assert_eq!(w.presses, MeshPresses::default(), "{side:?} record cleared");
+        assert!(
+            !w.left_mouse_down,
+            "{side:?} a mesh left release ends the window press"
+        );
+    }
+}

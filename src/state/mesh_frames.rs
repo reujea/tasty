@@ -202,8 +202,8 @@ pub(crate) enum MeshButtonRoute {
 /// `Recorded` 단계는 기록된 버튼의 뗌을 기록한 leaf로 보내고 기록을 지운다. 이 단계가 다른 분기보다 앞이라
 /// mesh에서 누른 버튼의 뗌은 분할선 드래그 중이든 위 층이 사건을 가져가든 사라지지 않는다. 좌표가 없으면 그
 /// leaf가 마지막으로 받은 포인터 위치로 보내고, 그 위치도 없으면 기록만 지운다(`Consume`). 그 leaf가 배치에서
-/// 사라졌으면 기록만 지우고 사건은 다른 분기로 간다. `Below` 단계는 좌표가 있을 때 로컬, 그다음 attach 순서로
-/// [`button_target`]을 쓴다.
+/// 사라졌어도 기록을 지우고 뗌을 가져간다(`Consume`). 포인터 아래 다른 mesh가 짝 없는 뗌을 받지 않는다.
+/// `Below` 단계는 좌표가 있을 때 로컬, 그다음 attach 순서로 [`button_target`]을 쓴다.
 pub(crate) fn mesh_button_target(
     regions: &[MeshFrameRegion],
     presses: &mut MeshPresses,
@@ -220,7 +220,9 @@ pub(crate) fn mesh_button_target(
             let at = at.or_else(|| presses.seen_at(p));
             presses.forget(button);
             let Some(region) = regions.iter().find(|r| r.id == p.id && r.side == p.side) else {
-                return MeshButtonRoute::Pass;
+                // 누른 leaf가 배치에서 빠졌다. 아래 단계가 기록 없는 사건으로 다시 찾으면 포인터 아래 다른 mesh에
+                // 짝 없는 뗌이 간다.
+                return MeshButtonRoute::Consume;
             };
             at.map_or(MeshButtonRoute::Consume, |at| {
                 MeshButtonRoute::Send(*region, at)
