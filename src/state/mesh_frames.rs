@@ -85,6 +85,13 @@ pub(crate) fn pointer_target(
     }
 }
 
+/// plugin wire로 보낼 수 있는 버튼(왼쪽·오른쪽·가운데). `view::main::egui_mesh::map_button`이 옮기는 버튼과 같다.
+/// 이 밖의 버튼은 누름 기록에 넣지 않는다.
+pub(crate) fn wire_button(button: winit::event::MouseButton) -> bool {
+    use winit::event::MouseButton::{Left, Middle, Right};
+    matches!(button, Left | Right | Middle)
+}
+
 /// 포인터 이동·휠의 `side` 대상. 버튼을 누른 채면 마지막으로 누른 leaf가 받고, 그 leaf가 다른 쪽이면 이쪽은
 /// 받지 않는다(로컬 A를 누른 채 attach B를 누르면 이동·휠은 B로 간다). 누른 버튼이 없으면 포인터 아래 영역이다.
 /// 로컬과 attach가 같은 판정을 쓴다.
@@ -115,6 +122,10 @@ pub(crate) fn button_target(
     let recorded = presses.of(button);
     if pressed {
         let hit = pointer_target(regions, None, side, x, y);
+        if !wire_button(button) {
+            // plugin에 보낼 수 없는 버튼이라 그 leaf가 누름을 받지 않는다. 기록하면 이동·휠 대상만 바뀐다.
+            return hit;
+        }
         if hit.is_some() || recorded.is_some_and(|p| p.side == side) {
             presses.forget(button);
         }

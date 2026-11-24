@@ -137,3 +137,50 @@ fn unrecorded_events_go_below_and_skip_the_local_mesh_during_a_drag() {
     );
     assert!(w.buttons(MeshSide::Local, 1).is_empty());
 }
+
+/// 누름 기록에 넣는 버튼은 wire로 보낼 수 있는 버튼과 같다.
+#[test]
+fn the_recorded_buttons_are_the_wire_buttons() {
+    for b in [
+        Left,
+        Right,
+        MouseButton::Middle,
+        MouseButton::Back,
+        MouseButton::Forward,
+        MouseButton::Other(7),
+    ] {
+        assert_eq!(
+            crate::state::mesh_frames::wire_button(b),
+            super::map_button(b).is_some(),
+            "{b:?}"
+        );
+    }
+}
+
+/// 로컬 A를 왼쪽으로 누른 채 attach B 위에서 wire로 보낼 수 없는 버튼을 누르면, 그 누름은 기록하지 않으므로 이동·휠은
+/// 그대로 A로 간다. B의 입력 큐에도 아무것도 들어가지 않는다.
+#[test]
+fn an_extra_button_does_not_move_the_held_target() {
+    use crate::state::mesh_frames::motion_target;
+    let regions = [
+        region(1, 10.0, MeshSide::Local),
+        region(3, 70.0, MeshSide::Attach),
+    ];
+    let mut w = Window::default();
+    assert!(w.button(&regions, Some((5.0, 20.0)), (Left, true), false));
+    w.button(
+        &regions,
+        Some((5.0, 80.0)),
+        (MouseButton::Back, true),
+        false,
+    );
+    assert!(w.buttons(MeshSide::Attach, 3).is_empty());
+    for y in [80.0, 20.0] {
+        assert_eq!(
+            motion_target(&regions, &w.presses, MeshSide::Local, 5.0, y).map(|r| r.id),
+            Some(1),
+            "moves and wheels stay with A at y={y}"
+        );
+        assert!(motion_target(&regions, &w.presses, MeshSide::Attach, 5.0, y).is_none());
+    }
+}
