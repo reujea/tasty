@@ -170,7 +170,15 @@ impl EngineRead<'_> {
         surface_id: u32,
     ) -> Option<&crate::remote::state::MirrorLocation> {
         self.mirror_workspace_of(surface_id)
-            .and_then(|ws| self.mirror_locations.get(&ws))
+            .and_then(|ws| self.mirror_location_in(ws))
+    }
+
+    /// mirror workspace 의 원격 위치. 연결 정보가 없으면 None.
+    pub(crate) fn mirror_location_in(
+        &self,
+        workspace_id: u32,
+    ) -> Option<&crate::remote::state::MirrorLocation> {
+        self.mirror_locations.get(&workspace_id)
     }
 
     /// 원격 위치 표시(링크 툴팁, 원격 picker·다운로드 대화상자 경로 줄 앞 표지)의 호스트 글자

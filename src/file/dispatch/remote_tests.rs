@@ -1034,3 +1034,84 @@ fn a_downloaded_file_follows_the_place_its_request_chose() {
         "{pending:?}"
     );
 }
+
+/// 원격 picker 의 표지는 picker 를 연 mirror 의 위치 값을 그릴 때마다 읽는다. 열 때 이미 재연결 중이면
+/// 재연결 형태로 시작하고, 위치 값이 바뀌면 따라가며, 위치 값이 빠지면 마지막 값을 둔다. 호스트 글자는
+/// 열 때 정한 값 그대로다.
+#[test]
+fn the_remote_picker_mark_follows_the_mirror_reconnecting_state() {
+    use crate::adapters::ui::popup::file_handler_picker::{opened_picker, remote_reconnecting};
+    use crate::remote::state::MirrorLocation;
+    let location = |reconnecting| MirrorLocation {
+        host: "work-laptop-attach".into(),
+        reconnecting,
+    };
+    let open = |reconnecting: Option<bool>| {
+        let (mut core, mut state, mut engine_session, sid) = mirror_with_ipc_first();
+        let mut engine = engine_session.borrow_mut();
+        let ws = engine.workspace_at(0).expect("mirror workspace").id;
+        if let Some(r) = reconnecting {
+            engine.remote.mirror_locations.insert(ws, location(r));
+        }
+        apply_identify_result(
+            &mut core,
+            &mut state,
+            &mut engine,
+            FileTarget::new("/remote/doc.md"),
+            Some(DetectorId::new("remote-test")),
+            Some(sid),
+            crate::file::dispatch::FileDispatchPolicy {
+                dispatch_origin: FileDispatchOrigin::User,
+                ignore_size_limit: false,
+                run: None,
+                result_place: Default::default(),
+            },
+        );
+        let picker = opened_picker(&mut state).expect("user open shows the remote picker");
+        drop(engine);
+        (picker, engine_session, ws)
+    };
+
+    // 열 때 이미 재연결 중이면 재연결 형태로 시작한다.
+    let (mut picker, mut engine_session, ws) = open(Some(true));
+    assert_eq!(picker.opened_in, Some(ws));
+    assert!(
+        picker.row_link.is_none(),
+        "an agent mirror, not a saved row"
+    );
+    assert_eq!(picker.remote_host.as_deref(), Some("work-laptop-attach"));
+    assert!(picker.remote_reconnecting);
+    let engine = engine_session.borrow_mut();
+    assert!(remote_reconnecting(&mut picker, &engine.read()));
+    // 다시 붙으면 평소 표지로 돌아오고, 다시 끊기면 재연결 형태가 된다.
+    engine.remote.mirror_locations.insert(ws, location(false));
+    assert!(!remote_reconnecting(&mut picker, &engine.read()));
+    engine.remote.mirror_locations.insert(ws, location(true));
+    assert!(remote_reconnecting(&mut picker, &engine.read()));
+    // 위치 값이 빠지면 마지막으로 본 값을 둔다. 호스트 글자는 바뀌지 않는다.
+    engine.remote.mirror_locations.remove(&ws);
+    assert!(remote_reconnecting(&mut picker, &engine.read()));
+    assert_eq!(picker.remote_host.as_deref(), Some("work-laptop-attach"));
+    // 저장된 원격 행에서 연 picker 는 연결 여부와 관계없이 평소 표지다(행이 끊기면 picker 가 닫힌다).
+    engine.remote.mirror_locations.insert(ws, location(true));
+    for linked in [true, false] {
+        picker.row_link = Some((ws, linked));
+        assert!(
+            !remote_reconnecting(&mut picker, &engine.read()),
+            "{linked}"
+        );
+    }
+    drop(engine);
+
+    // 첫 위치 동기화 전에 열리면 평소 표지와 빈 호스트(화면은 Remote 낱말)로 시작한다.
+    let (mut picker, mut engine_session, ws) = open(None);
+    assert_eq!(picker.remote_host.as_deref(), Some(""));
+    assert!(!picker.remote_reconnecting);
+    let engine = engine_session.borrow_mut();
+    assert!(!remote_reconnecting(&mut picker, &engine.read()));
+    engine.remote.mirror_locations.insert(ws, location(true));
+    assert!(remote_reconnecting(&mut picker, &engine.read()));
+    // 로컬 대상 picker 에는 원격 표지가 없으므로 재연결 형태도 없다.
+    picker.remote_host = None;
+    assert!(!remote_reconnecting(&mut picker, &engine.read()));
+}

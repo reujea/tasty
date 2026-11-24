@@ -1155,6 +1155,7 @@ fn mk_picker_data() -> FileHandlerPickerData {
         ignore_size_limit: false,
         run: None,
         remote_host: None,
+        remote_reconnecting: false,
         opened_in: None,
         row_link: None,
     }

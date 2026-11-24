@@ -473,6 +473,7 @@ mod tests {
             ignore_size_limit: false,
             run: Some(crate::request_runs::RunGuard::new(run, "picker dropped")),
             remote_host: None,
+            remote_reconnecting: false,
             opened_in: None,
             row_link: None,
         };

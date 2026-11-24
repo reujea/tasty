@@ -164,6 +164,9 @@ fn open_remote_picker(
         |picker| {
             picker.default_handler = None;
             picker.remote_host = Some(engine.mirror_host_text(origin_surface_id));
+            picker.remote_reconnecting = engine
+                .mirror_location_of(origin_surface_id)
+                .is_some_and(|location| location.reconnecting);
             picker.recent.retain(|summary| {
                 engine
                     .file_handler

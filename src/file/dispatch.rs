@@ -324,6 +324,7 @@ pub(crate) fn open_picker_adjusted(
             )
         }),
         remote_host: None,
+        remote_reconnecting: false,
         opened_in,
         row_link: crate::adapters::ui::popup::remote_row::picker_row_link(engine, opened_in),
     };

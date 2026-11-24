@@ -908,6 +908,18 @@ pub(crate) fn picker_of(
     }
 }
 
+/// 이 프레임에 원격 표지를 재연결 형태로 그리는가. picker 를 연 mirror workspace 의 위치 값(App 이 회차마다
+/// 게시하는 스냅샷, 상태바와 같은 값)을 읽는다.
+pub(crate) fn remote_reconnecting(
+    picker: &mut crate::state::FileHandlerPickerData,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) -> bool {
+    let location = picker
+        .opened_in
+        .and_then(|ws| engine.mirror_location_in(ws));
+    picker.remote_reconnecting(location)
+}
+
 pub(crate) fn picker_of_mut(
     payload: &mut crate::adapters::ui::popup::PopupPayload,
 ) -> Option<&mut crate::state::FileHandlerPickerData> {
@@ -1016,9 +1028,13 @@ fn to_entry(s: &crate::state::PickerHandlerSummary, now: i64) -> FileHandlerPick
 pub fn draw_file_handler_picker(
     ui: &mut egui::Ui,
     _state: &mut MainViewState,
-    _engine: &crate::runtime::engine_read::EngineRead<'_>,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
     cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
+    let Some(reconnecting) = picker_of_mut(cx.payload).map(|p| remote_reconnecting(p, engine))
+    else {
+        return PopupAction::Close;
+    };
     let Some(picker) = picker_of(cx.payload) else {
         return PopupAction::Close;
     };
@@ -1029,13 +1045,14 @@ pub fn draw_file_handler_picker(
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
     let empty_label = t("attach.mirror_pill_label");
+    let word = t("status_bar.remote_reconnecting");
     let remote = picker
         .remote_host
         .as_deref()
         .map(|host| tasty_ui_widgets::RemoteMark {
             host,
             empty_label,
-            reconnecting: None,
+            reconnecting: reconnecting.then_some(word),
         });
     let target_display = fh_model::elide_target_front(
         &picker.target_display,

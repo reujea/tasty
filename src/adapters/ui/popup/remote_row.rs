@@ -498,6 +498,7 @@ mod tests {
             ignore_size_limit: false,
             run: None,
             remote_host: None,
+            remote_reconnecting: false,
             opened_in: Some(opened_in),
             row_link: picker_row_link(engine, Some(opened_in)),
         };
