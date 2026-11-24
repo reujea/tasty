@@ -1910,7 +1910,7 @@ mod tests {
             .workspace_at(0)
             .expect("workspace index is valid")
             .all_surface_ids()[0];
-        // 파일 writer가 붙지 않은 registry는 저장 명령을 접수하지 않는다.
+        // 파일 writer가 붙지 않은 registry는 저장 명령을 접수하지 않는다(초기 읽기 대기로 거절).
         e.runtime.child_terminals =
             crate::runtime::child_terminal::ChildTerminalRegistry::default();
         e.runtime
@@ -1923,11 +1923,7 @@ mod tests {
         );
         let err = resp.error.expect("refused save must fail");
         assert_eq!(err.code, -32603, "{}", err.message);
-        assert!(
-            err.message.contains("file writer unavailable"),
-            "{}",
-            err.message
-        );
+        assert!(err.message.contains("child registry"), "{}", err.message);
         let kept = e.runtime.child_terminals.find_child(&parent.into(), 0);
         assert_eq!(
             kept.expect("child kept").nickname,
@@ -1942,7 +1938,11 @@ mod tests {
     fn set_nickname_refuses_a_child_open_in_another_window() {
         let mut e_session = engine_with_extra(&[]);
         let mut e = e_session.borrow_mut();
-        let hub = crate::runtime::child_terminal::Hub::new(None);
+        // 두 창이 같은 파일을 공유하는 모양을 만들려고 격리 홈 아래 별도 파일의 hub 하나에 client 둘을 붙인다.
+        let path = tasty_utils::path::tasty_home()
+            .map(|home| home.join("child-terminals-two-windows.json"));
+        assert!(path.is_some(), "isolated test home");
+        let hub = crate::runtime::child_terminal::Hub::new(path);
         hub.test_attach_writer();
         e.runtime.child_terminals =
             crate::runtime::child_terminal::ChildTerminalRegistry::from_hub(&hub);
