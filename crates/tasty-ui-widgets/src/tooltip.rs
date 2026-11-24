@@ -177,7 +177,9 @@ impl<'a> Tooltip<'a> {
             .constrain(false)
             .interactable(false)
             .show(ctx, |ui| {
-                let painter = ui.painter().with_clip_rect(screen);
+                // `with_clip_rect` would intersect with the empty clip; replace it instead.
+                let mut painter = ui.painter().clone();
+                painter.set_clip_rect(screen);
                 let frame = egui::Frame::new()
                     .fill(theme.surface_raised().to_egui())
                     .stroke(egui::Stroke::new(
@@ -786,7 +788,8 @@ mod tests {
         assert!(!used);
     }
 
-    /// The bubble frame painted in `output`: the raised-fill rect (also inside a shape list).
+    /// The bubble frame painted in `output`: the raised-fill rect (also inside a shape list)
+    /// whose clip lets it show.
     fn bubble_frames(output: &egui::FullOutput, theme: &Theme) -> Vec<(usize, egui::Rect)> {
         fn raised(shape: &egui::Shape, fill: egui::Color32) -> Option<egui::Rect> {
             match shape {
@@ -800,7 +803,9 @@ mod tests {
             .shapes
             .iter()
             .enumerate()
-            .filter_map(|(i, c)| raised(&c.shape, fill).map(|rect| (i, rect)))
+            .filter_map(|(i, c)| raised(&c.shape, fill).map(|rect| (i, c.clip_rect, rect)))
+            .filter(|(_, clip, rect)| clip.contains_rect(*rect))
+            .map(|(i, _, rect)| (i, rect))
             .collect()
     }
 
