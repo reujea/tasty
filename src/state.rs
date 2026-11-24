@@ -421,6 +421,8 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             html_content_insets: std::collections::HashMap::new(),
             #[cfg(feature = "gui")]
+            surface_focus_edges: Vec::new(),
+            #[cfg(feature = "gui")]
             html_address: Default::default(),
             pending_intents: Vec::new(),
         }

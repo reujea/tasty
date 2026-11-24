@@ -24,6 +24,20 @@ pub(crate) fn focus_mark(
     }
 }
 
+/// 이번 프레임에 포커스 띠를 칠할 leaf 하나(논리 px).
+#[cfg(feature = "gui")]
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FocusEdgeLeaf {
+    pub(crate) surface_id: u32,
+    pub(crate) leaf: egui::Rect,
+    /// leaf에서 띠 행을 뺀 내용 영역. 링은 띠 leaf에서 이 영역만 칠한다.
+    pub(crate) below: egui::Rect,
+    /// 그 화면의 모델 포커스. hard 점유여도 포커스를 따른다.
+    pub(crate) focused: bool,
+    /// 띠 행 안에 다시 칠할 링.
+    pub(crate) ring: Option<egui::Stroke>,
+}
+
 /// leaf 위에 띠 행을 예약하는 webview인지. 띠 kind인 webview kind만이다.
 #[cfg(feature = "gui")]
 pub(crate) fn webview_reserves_edge(

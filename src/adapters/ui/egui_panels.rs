@@ -956,6 +956,11 @@ fn draw_occupied_overlays(
         let painter =
             ctx.layer_painter(crate::adapters::ui::tab_bar::pane_tab_bar_layer(o.pane_id));
         let rect = egui::Rect::from_min_size(egui::pos2(o.x, o.y), egui::vec2(o.w, o.h));
+        // 포커스 띠 leaf는 띠 행 아래만 칠한다. 행 안의 링은 띠가 다시 칠한다.
+        let painter = match crate::adapters::ui::surface_focus_edge::ring_clip(state, o.sid) {
+            Some(clip) => painter.with_clip_rect(clip),
+            None => painter,
+        };
         painter.rect_stroke(
             rect,
             0.0,

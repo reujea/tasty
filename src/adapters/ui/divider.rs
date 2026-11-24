@@ -29,6 +29,8 @@ pub fn draw_pane_dividers(ctx: &egui::Context, dividers: &[PhysicalRect], scale_
 pub struct SurfaceHighlightRegion {
     pub rect: PhysicalRect,
     pub kind: Option<AttentionKind>,
+    /// 링을 칠할 영역(논리 px). 포커스 띠 leaf는 띠 행 아래만 칠한다. `None`이면 leaf 전체다.
+    pub clip: Option<egui::Rect>,
 }
 
 pub struct SurfaceHighlightsProps<'a> {
@@ -63,6 +65,10 @@ pub fn draw_surface_highlights_view(ctx: &egui::Context, props: &SurfaceHighligh
         };
         let r = region.rect;
         let egui_rect = crate::adapters::ui::to_egui_rect(r, scale_factor).round_ui();
+        let painter = match region.clip {
+            Some(clip) => painter.with_clip_rect(clip),
+            None => painter.clone(),
+        };
         painter.rect_stroke(
             egui_rect,
             0.0,
@@ -83,7 +89,11 @@ pub(crate) fn regions_from_state(
     for (_pane_id, _pane_rect, surface_regions) in &regions {
         for r in surface_regions {
             let kind = crate::adapters::ui::surface_rings::attention_ring(engine, r.id);
-            out.push(SurfaceHighlightRegion { rect: r.rect, kind });
+            out.push(SurfaceHighlightRegion {
+                rect: r.rect,
+                kind,
+                clip: crate::adapters::ui::surface_focus_edge::ring_clip(state, r.id),
+            });
         }
     }
     out
@@ -149,10 +159,12 @@ mod tests {
             SurfaceHighlightRegion {
                 rect: mk_rect(0.0, 0.0, 100.0, 50.0),
                 kind: None,
+                clip: None,
             },
             SurfaceHighlightRegion {
                 rect: mk_rect(100.0, 0.0, 100.0, 50.0),
                 kind: None,
+                clip: None,
             },
         ];
         run_view(&regions, 1.0);
@@ -164,14 +176,17 @@ mod tests {
             SurfaceHighlightRegion {
                 rect: mk_rect(0.0, 0.0, 100.0, 50.0),
                 kind: Some(AttentionKind::Completion),
+                clip: None,
             },
             SurfaceHighlightRegion {
                 rect: mk_rect(100.0, 0.0, 100.0, 50.0),
                 kind: None,
+                clip: None,
             },
             SurfaceHighlightRegion {
                 rect: mk_rect(200.0, 0.0, 100.0, 50.0),
                 kind: Some(AttentionKind::NeedsInput),
+                clip: None,
             },
         ];
         run_view(&regions, 1.0);
@@ -182,6 +197,7 @@ mod tests {
         let regions = vec![SurfaceHighlightRegion {
             rect: mk_rect(0.0, 0.0, 200.0, 100.0),
             kind: Some(AttentionKind::Completion),
+            clip: None,
         }];
         run_view(&regions, 2.0);
     }
@@ -191,6 +207,7 @@ mod tests {
         let regions = vec![SurfaceHighlightRegion {
             rect: mk_rect(0.0, 0.0, 0.0, 0.0),
             kind: Some(AttentionKind::NeedsInput),
+            clip: None,
         }];
         run_view(&regions, 1.0);
     }

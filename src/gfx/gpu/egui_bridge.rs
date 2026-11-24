@@ -164,18 +164,21 @@ impl GpuState {
                         ui::move_source::clear_if_target_closed(engine, &mut state.pending_move);
                         ui::draw_ui(ctx, state, engine, scale_factor, plugin_alert);
                         ui::draw_pane_dividers(ctx, dividers, scale_factor);
-                        ui::draw_surface_highlights(
-                            ctx,
-                            state,
-                            engine,
-                            terminal_rect,
-                            scale_factor,
-                        );
                         ui::draw_pane_tab_bars(
                             ctx,
                             state,
                             engine,
                             pane_rects,
+                            terminal_rect,
+                            scale_factor,
+                        );
+                        // 탭 바가 탭과 높이를 고친 뒤 띠 leaf를 모은다. 링 두 가지와 띠가 이 목록을 함께 읽는다.
+                        // attention 링은 층(Middle)으로 쌓이므로 탭 바 뒤에 그려도 순서는 그대로다.
+                        ui::surface_focus_edge::collect(state, engine, pane_rects, scale_factor);
+                        ui::draw_surface_highlights(
+                            ctx,
+                            state,
+                            engine,
                             terminal_rect,
                             scale_factor,
                         );
@@ -213,6 +216,14 @@ impl GpuState {
                     engine,
                     plugin_manager,
                     Some(&popup_layout),
+                );
+                // plugin 본문 영역이 정해진 뒤 띠를 칠한다. 쌓임은 층이 정하므로 늦게 칠해도 팝업 아래다.
+                ui::surface_focus_edge::paint(
+                    ctx,
+                    state,
+                    plugin_manager,
+                    host_popup_on_top,
+                    scale_factor,
                 );
                 enforce_foreground_z_order(ctx, state.banner_layer, pane_rects);
                 // 입력 영역 갱신 순서와 별개로 최종 레이어 순서를 명시한다.

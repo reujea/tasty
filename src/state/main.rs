@@ -371,6 +371,10 @@ pub struct MainViewState {
     #[cfg(feature = "gui")]
     pub(crate) plugin_mesh_popup_regions: Vec<(u64, crate::model::PhysicalRect)>,
 
+    /// 이번 프레임에 포커스 띠를 칠할 leaf. 탭 바 갱신 뒤 한 번 모으고 링과 띠가 함께 읽는다.
+    #[cfg(feature = "gui")]
+    pub(crate) surface_focus_edges: Vec<crate::state::surface_focus::FocusEdgeLeaf>,
+
     /// 키 포커스가 있는 플러그인 팝업의 IME 캐럿(창 물리 좌표).
     /// PopupPaintFrame에서 받은 값을 렌더 때 갱신하며 MainView가 OS 후보창 위치에 사용한다.
     #[cfg(feature = "gui")]

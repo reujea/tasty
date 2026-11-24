@@ -6,6 +6,7 @@ pub(crate) mod icons;
 pub(crate) mod link_remote_tip;
 mod sidebar;
 pub(crate) mod status_bar;
+pub(crate) mod surface_focus_edge;
 pub(crate) mod surface_rings;
 pub(crate) mod switch_overlay;
 pub(crate) mod tab_bar;
