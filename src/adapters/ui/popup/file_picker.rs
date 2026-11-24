@@ -675,13 +675,16 @@ pub fn draw_file_picker(
         data.load = FpLoadState::ErrorConn(t("filepicker.error_conn.session_lost").to_string());
     }
 
-    // 열 때 위치가 없어 호스트 글자를 정하지 못했으면 게시된 위치에서 다시 읽는다.
+    // 호스트 글자는 그리는 프레임마다 출처 mirror 의 위치 값에서 읽는다(열 때 값·첫 목록 응답 값이 있어도).
+    // 위치 값이 없으면(동기화 전, 세션이 목록에서 빠진 회차) 마지막으로 본 값을 둔다.
     if let Some(mirror_ws_id) = data.mirror_ws_id
-        && data.remote_host.is_none()
+        && let Some(location) = engine.mirror_location_in(mirror_ws_id)
     {
-        data.remote_host = engine
-            .mirror_location_in(mirror_ws_id)
-            .map(|location| location.host.clone());
+        match data.remote_host.as_mut() {
+            Some(host) if *host == location.host => {}
+            Some(host) => host.clone_from(&location.host),
+            None => data.remote_host = Some(location.host.clone()),
+        }
     }
 
     if let FpLoadState::Loading { sent_at, .. } = data.load
@@ -1079,8 +1082,8 @@ pub(crate) fn open(
         folder: options.folder,
         request_id,
         mirror_ws_id,
-        // 호스트 글자는 열 때 위치에서 읽는다. 위치가 아직 없으면(동기화 전) 비워 두고 그리는 프레임이나
-        // 첫 목록 응답에서 다시 읽는다.
+        // 호스트 글자는 열 때 위치에서 읽고, 그리는 프레임마다 그 mirror 의 위치 값으로 다시 맞춘다. 위치가
+        // 아직 없으면(동기화 전) 비워 두고 위치 값이나 첫 목록 응답이 채운다.
         remote_host: mirror_ws_id
             .and_then(|ws| engine.mirror_location_in(ws))
             .map(|location| location.host.clone()),

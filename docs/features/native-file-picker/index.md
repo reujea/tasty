@@ -154,7 +154,7 @@ forward/tap 도 동반 — file picker 뿐 아니라 mirror 연결 자체가 끊
 ### 창 구성 — 헤더는 하나다
 
 본체 file picker popup 은 셸 타이틀바 없이(`headless`) 뷰가 그린 헤더 한 줄로 시작한다. 헤더는
-파일 글리프 · 제목 · 원격이면 host 배지 · 닫기 ✕ 다. host 배지는 연결의 호스트 글자(attach 프로필 이름, mono)이고, 프로필 이름이 없는 attach(빈 호스트)는 `attach.mirror_pill_label` 낱말을 font-label 로 쓴다. 채움·테두리는 `accent-info` 틴트, 글리프(13)와 글자 잉크는 `accent-info-raised`, 글리프와 글자 사이는 5 다. 원격 여부는 열 때부터 알므로(mirror workspace) 첫 목록 응답 전 로딩·요청 실패·시간 초과에서도 배지와 원격 로딩 문구(`filepicker.loading_body_remote`)를 그린다. 호스트 글자는 열 때 그 mirror 의 위치 값에서 읽고, 위치 값이 아직 없으면(동기화 전) 정하지 않은 채 낱말 Remote 를 그리다가 다음 프레임이나 첫 목록 응답에서 채운다. 이 헤더 줄이 이동 손잡이다 — 뷰가 그린 헤더
+파일 글리프 · 제목 · 원격이면 host 배지 · 닫기 ✕ 다. host 배지는 연결의 호스트 글자(attach 프로필 이름, mono)이고, 프로필 이름이 없는 attach(빈 호스트)는 `attach.mirror_pill_label` 낱말을 font-label 로 쓴다. 채움·테두리는 `accent-info` 틴트, 글리프(13)와 글자 잉크는 `accent-info-raised`, 글리프와 글자 사이는 5 다. 원격 여부는 열 때부터 알므로(mirror workspace) 첫 목록 응답 전 로딩·요청 실패·시간 초과에서도 배지와 원격 로딩 문구(`filepicker.loading_body_remote`)를 그린다. 호스트 글자는 열려 있는 동안 그리는 프레임마다 그 mirror 의 위치 값에서 읽는다(빈 호스트로 연 뒤 이름이 게시되거나 이름이 바뀌어도 따라간다). 위치 값이 빠지면 마지막으로 본 값을 쓰고, 처음부터 없으면(동기화 전) 정하지 않은 채 낱말 Remote 를 그리다가 위치 값이나 첫 목록 응답이 채운다. 이 헤더 줄이 이동 손잡이다 — 뷰가 그린 헤더
 사각형을 매니저에 보고하고(`DragHandle::Region`), 빈 곳을 끌면 popup 이 움직인다. 헤더 안의 ✕ 는
 드래그보다 먼저 입력을 받는다. 닫는 길은 헤더 ✕ · Cancel · Esc 이고 셋 다 `Cancelled` 를 남긴다.
 

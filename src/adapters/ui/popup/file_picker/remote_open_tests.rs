@@ -174,6 +174,59 @@ fn a_picker_opened_before_the_location_sync_picks_up_the_host_later() {
     assert!(!has(&texts, t("attach.mirror_pill_label")), "{texts:?}");
 }
 
+/// 열린 피커의 배지는 그리는 프레임마다 출처 mirror 의 위치 값을 따른다. 빈 호스트(Some(""))로 연 뒤 이름이
+/// 게시되면 이름으로, 이름이 바뀌면 새 이름으로 바뀌고, 위치 값이 빠지면 마지막 값을 둔다. 첫 목록 응답이 채운
+/// 값(Some)도 위치 값이 오면 그 값으로 바뀐다.
+#[test]
+fn an_open_picker_badge_follows_its_mirror_location_every_frame() {
+    let set = |f: &mut Fixture, host: Option<&str>| {
+        let ws = f.ws;
+        let mut engine = f.session.borrow_mut();
+        match host {
+            Some(host) => {
+                engine.remote.mirror_locations.insert(
+                    ws,
+                    MirrorLocation {
+                        host: host.into(),
+                        reconnecting: false,
+                    },
+                );
+            }
+            None => {
+                engine.remote.mirror_locations.remove(&ws);
+            }
+        }
+    };
+    let mut f = open_remote(Some(MirrorLocation {
+        host: String::new(),
+        reconnecting: false,
+    }));
+    assert_eq!(f.data().remote_host.as_deref(), Some(""));
+    let texts = f.painted();
+    assert!(has(&texts, t("attach.mirror_pill_label")), "{texts:?}");
+
+    set(&mut f, Some("work-laptop-attach"));
+    let texts = f.painted();
+    assert!(has(&texts, "work-laptop-attach"), "{texts:?}");
+    assert!(!has(&texts, t("attach.mirror_pill_label")), "{texts:?}");
+
+    set(&mut f, Some("build-eu"));
+    let texts = f.painted();
+    assert!(has(&texts, "build-eu"), "{texts:?}");
+    assert!(!has(&texts, "work-laptop-attach"), "{texts:?}");
+
+    set(&mut f, None);
+    let texts = f.painted();
+    assert!(has(&texts, "build-eu"), "last seen host: {texts:?}");
+
+    // 첫 목록 응답이 세션 값으로 채운 호스트도 위치 값이 게시되면 그 값으로 바뀐다.
+    f.data().remote_host = Some("from-the-listing".into());
+    set(&mut f, Some("work-laptop-attach"));
+    let texts = f.painted();
+    assert!(has(&texts, "work-laptop-attach"), "{texts:?}");
+    assert!(!has(&texts, "from-the-listing"), "{texts:?}");
+}
+
 /// 첫 조회가 끊기거나(오류 응답) 시간을 넘겨도 배지는 남는다.
 #[test]
 fn the_host_badge_stays_when_the_first_listing_fails_or_times_out() {
