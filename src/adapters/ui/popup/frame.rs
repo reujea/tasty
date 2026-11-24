@@ -255,6 +255,7 @@ pub(crate) fn draw_popup_layer(
         .copied()
         .collect();
 
+    state.restore_notices.drawn = None;
     let mut draw_result = popups.draw_routed(
         ctx,
         &mut |cx, ui| {
@@ -295,7 +296,10 @@ pub(crate) fn draw_popup_layer(
         .extend(draw_result.overlay_targets);
 
     state.popups = popups;
-    state.restore_notices.column = draw_result.column_rect;
+    state.restore_notices.column = match (draw_result.column_rect, state.restore_notices.drawn) {
+        (Some(stacked), Some(drawn)) => Some(stacked.union(drawn)),
+        (stacked, drawn) => stacked.or(drawn),
+    };
     crate::adapters::ui::modifier_hint_overlay::persist_released(
         state,
         engine,

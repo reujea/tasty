@@ -46,9 +46,11 @@ pub(crate) struct NoticePayload {
 pub(crate) struct RestoreNotices {
     /// 사용자가 닫은 안내 id. App이 가져간다.
     acknowledged: Vec<u64>,
-    /// 이번 프레임에 안내 열이 차지한 사각형. 안내가 없으면 `None`이다. 같은 열 아래에 이어 그리는 attach
-    /// 대기 칩은 이 값의 아래쪽 + `notice-column-gap`에서 시작한다.
+    /// 이번 프레임에 안내 열이 차지한 사각형(쌓은 자리와 그린 카드의 합). 안내가 없으면 `None`이다. 같은 열
+    /// 아래에 이어 그리는 attach 대기 칩은 이 값의 아래쪽 + `notice-column-gap`에서 시작한다.
     pub(crate) column: Option<egui::Rect>,
+    /// 이번 프레임에 그린 안내 카드의 합. 본문이 커진 프레임에는 쌓은 자리(직전 높이)보다 아래까지 그린다.
+    pub(crate) drawn: Option<egui::Rect>,
     /// 팝업을 그린 뒤의 배너·범위 위쪽 팝업 자리로 다시 잰 안내 열의 위쪽. attach 대기 칩이 쓴다.
     pub(crate) column_top: Option<LogicalPx>,
 }
@@ -138,7 +140,7 @@ pub(crate) fn on_close_notice(
 /// 안내 한 장을 그린다. ×·Continue·안쪽 포커스의 Esc면 닫는다.
 pub(crate) fn draw_notice_popup(
     ui: &mut egui::Ui,
-    _state: &mut MainViewState,
+    state: &mut MainViewState,
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
     cx: &mut PopupCx<'_>,
 ) -> PopupAction {
@@ -169,6 +171,8 @@ pub(crate) fn draw_notice_popup(
     if output.copy_path {
         ui.ctx().copy_text(entry.path.clone());
     }
+    let drawn = &mut state.restore_notices.drawn;
+    *drawn = Some(drawn.map_or(output.rect, |rect| rect.union(output.rect)));
     let height = LogicalPx(output.rect.height());
     if notice.height != Some(height) {
         // 잰 높이로 다음 프레임에 열을 다시 쌓는다.

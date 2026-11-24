@@ -319,3 +319,37 @@ fn the_chip_column_starts_below_a_search_bar_opened_this_frame() {
         "chip column top {top:?} is below the drawn bar {bar:?}"
     );
 }
+
+/// Given 그린 안내, When 본문이 늘어 카드가 커진 프레임, Then 칩이 쓰는 열 사각형은 그 프레임에 그린 카드
+/// 아래까지다(직전 높이로 쌓은 자리가 아니다).
+#[test]
+fn the_column_covers_a_notice_that_grew_this_frame() {
+    let (mut state, mut session) = test_state();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = egui::Context::default();
+    push(&mut state, entry(1, "/a"));
+    for _ in 0..3 {
+        frame(&ctx, &mut state, &read, Input::Idle);
+    }
+    let height = |state: &MainViewState| {
+        notices(&state.popups)
+            .find_map(|(_, notice)| notice.height)
+            .expect("measured")
+    };
+    let short = height(&state);
+    for p in state.popups.entries_of_mut(RESTORE_NOTICE_POPUP_ID) {
+        if let PopupPayload::RestoreNotice(notice) = &mut p.payload {
+            notice.entry.body = "a longer body line that wraps in the card\n".repeat(8);
+        }
+    }
+    frame(&ctx, &mut state, &read, Input::Idle);
+    let grown = height(&state);
+    assert!(grown > short, "the card grew: {short:?} → {grown:?}");
+    let card_top = notice_rects(&state)[0].top();
+    let column = state.restore_notices.column.expect("a notice is shown");
+    assert!(
+        column.bottom() >= card_top + grown.value(),
+        "column {column:?} covers the card drawn {grown:?} tall from {card_top}"
+    );
+}
