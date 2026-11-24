@@ -13,8 +13,8 @@ use crate::platform::window_chrome::{RESIZE_EDGE_MARGIN, resize_direction_at};
 pub(crate) struct SettingsChrome {
     /// 마지막 포인터 위치(물리). 창 밖이면 없다.
     cursor: Option<PhysicalPosition<f64>>,
-    /// 직전 패스에 그린 닫기 버튼 영역(물리)과 그때의 창 너비. 버튼은 오른쪽에 붙으므로 너비가 바뀌면 그만큼 옮겨 본다.
-    close: Option<(PhysicalRect, u32)>,
+    /// 직전 패스에 그린 닫기 버튼 영역.
+    close: Option<CloseArea>,
     /// 직전 패스에서 가장자리 밴드와 겹친 egui 위젯(클릭·드래그를 받는 것)의 영역(물리). 누르는 순간의 포인터가
     /// 이 안이면 리사이즈가 양보해 스크롤바 같은 위젯이 누름을 받는다. 제목 줄의 빈 드래그 영역은 넣지 않는다.
     edge_widgets: Vec<PhysicalRect>,
@@ -28,6 +28,18 @@ pub(crate) struct SettingsChrome {
     replayed_press: bool,
     /// 저널이 멈춘 동안 닫기 버튼 안에서 시작한 누름. 버튼 안에서 떼야 닫는다.
     halted_press: bool,
+}
+
+/// 그린 닫기 버튼 영역(egui 논리 좌표)과 그때의 창 너비·점당 픽셀. 버튼은 오른쪽에 붙으므로 너비가 바뀌면 그만큼
+/// 옮겨 보고, 배율이 바뀌면 새 배율로 물리 좌표를 다시 계산한다.
+#[derive(Debug, Clone, Copy)]
+struct CloseArea {
+    rect: egui::Rect,
+    /// 그릴 때의 창 너비(논리).
+    basis: f32,
+    /// egui 점당 픽셀. 본체는 egui zoom_factor가 1이라 창 배율(`Window::scale_factor`)과 같고, 저널이 멈춘 동안
+    /// 배율이 바뀌면 새 배율로 바꾼다.
+    ppp: f32,
 }
 
 /// 살아 있는 창 사건 하나를 볼 때의 창 상태.
@@ -160,10 +172,18 @@ impl SettingsChrome {
 
     /// 지금 창 너비에 맞춘 닫기 버튼 영역.
     fn close_rect(&self, width: u32) -> Option<PhysicalRect> {
-        self.close.map(|(rect, basis)| PhysicalRect {
-            x: PhysicalPx(rect.x.value() + width as f32 - basis as f32),
-            ..rect
+        self.close.map(|area| {
+            let now = PhysicalPx(width as f32).to_logical(area.ppp).value();
+            let rect = area.rect.translate(egui::vec2(now - area.basis, 0.0));
+            titlebar::physical_panel_rect(rect, area.ppp)
         })
+    }
+
+    /// 저널이 멈춘 동안 창 배율이 바뀌었다. 다시 그리지 않으므로 직전 닫기 버튼 영역을 새 배율로 옮겨 계속 받는다.
+    fn rescale_close(&mut self, new_scale: f64) {
+        if let Some(area) = &mut self.close {
+            area.ppp = new_scale as f32;
+        }
     }
 
     /// 설정 패널보다 먼저 제목 줄을 그리고 이동 요청을 창에 보낸다. 닫기 버튼을 눌렀으면 참이다.
@@ -188,11 +208,11 @@ impl SettingsChrome {
         let th = crate::theme::theme();
         let props = settings_props(&th, window.has_focus(), window.is_maximized());
         let result = draw_bar(ctx, &props, takes_keys);
-        self.close = result.close_rect.map(|rect| {
-            (
-                titlebar::physical_panel_rect(rect, ctx.pixels_per_point()),
-                size.width,
-            )
+        let ppp = ctx.pixels_per_point();
+        self.close = result.close_rect.map(|rect| CloseArea {
+            rect,
+            basis: PhysicalPx(size.width as f32).to_logical(ppp).value(),
+            ppp,
         });
         let routed = route_actions(&result.actions);
         // 재생된 누름이면 버튼이 이미 떨어졌을 수 있어 OS 이동을 시작하지 않는다.
@@ -263,9 +283,13 @@ impl SettingsChrome {
                 self.halted_press = false;
                 false
             }
-            WindowEvent::ScaleFactorChanged { .. } => {
+            // 저장한 포인터 좌표는 옛 배율의 값이라 다음 이동까지 쓰지 않는다.
+            WindowEvent::ScaleFactorChanged {
+                scale_factor: new_scale,
+                ..
+            } => {
                 self.halted_press = false;
-                self.close = None;
+                self.rescale_close(*new_scale);
                 self.cursor = None;
                 false
             }
@@ -469,7 +493,11 @@ mod tests {
     fn chrome(server_decorated: bool) -> SettingsChrome {
         SettingsChrome {
             cursor: None,
-            close: close_rect().map(|r| (r, SIZE.width)),
+            close: Some(CloseArea {
+                rect: egui::Rect::from_min_size(egui::pos2(1070.0, 0.0), egui::vec2(30.0, 30.0)),
+                basis: SIZE.width as f32,
+                ppp: 1.0,
+            }),
             edge_widgets: Vec::new(),
             areas_stale: false,
             resize_buttons: Vec::new(),
@@ -661,6 +689,26 @@ mod tests {
             Vec::new(),
             "a popup owns the keys"
         );
+    }
+
+    /// Given 저널이 멈춘 창, When 배율이 1에서 2로 바뀌고 창이 2200으로 넓어지면 Then 닫기 버튼 영역도 두 배 자리로
+    /// 옮겨 그 안의 클릭으로 닫고, 옛 자리의 클릭으로는 닫지 않는다.
+    #[test]
+    fn a_halted_scale_change_keeps_the_close_button() {
+        use ElementState::{Pressed, Released};
+        let click = |c: &mut SettingsChrome, x: f64, y: f64| {
+            [moved(x, y), left(Pressed), left(Released)]
+                .iter()
+                .map(|e| c.halted_close_click(e, 2200))
+                .last()
+                .expect("events")
+        };
+        let mut c = chrome(false);
+        c.rescale_close(2.0);
+        assert!(click(&mut c, 2170.0, 30.0), "the button at the new scale");
+        let mut c = chrome(false);
+        c.rescale_close(2.0);
+        assert!(!click(&mut c, 1080.0, 10.0), "the old place");
     }
 
     /// Given 저널이 멈췄을 때, When 닫기 버튼 안에서 눌렀다 그 안에서 떼면 Then 설정창을 닫는다. 밖으로 나가서 떼거나,
