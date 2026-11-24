@@ -104,9 +104,22 @@ fn the_terminal_goes_through_the_window_hold_gate() {
     );
     at(
         &consume,
-        ".window_escape(self.base.gpu.egui_input_events_mut(),loaded_from,escape_held,)",
-        "창의 Esc 처리가 이번 사건이 실은 범위에서 Esc 를 뺀다",
+        ".apply_escape_key(&value,self.key_decision,self.escape_fed,self.base.gpu.egui_input_events_mut(),escape_held,)",
+        "창의 Esc 처리가 사건 시점 수신자와 단계 8 적재 결과로 Esc 를 적용한다",
     );
+    let feed =
+        squeeze(&fn_body(&read("src/view/main.rs"), "fn feed_egui_keyboard(").expect("feed"));
+    let mark = at(
+        &feed,
+        "self.state.mark_escape_segment(fed.is_some(),bare_escape);",
+        "단계 8 뒤 경계",
+    );
+    let note = at(
+        &feed,
+        "self.escape_fed=fed.is_some()&&bare_escape;",
+        "단계 8 적재 결과를 단계 11 에 남긴다",
+    );
+    assert!(mark < note, "뒤 경계 → 적재 결과 순서가 아니다");
 }
 
 /// native WebView 가 넘긴 키: `pump_webview_key_events` 는 수집한 키를 `consume_forwarded_keys` 로만 소비하고, 그 루프는

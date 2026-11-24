@@ -190,6 +190,16 @@ impl SettingsView {
 }
 
 impl View for SettingsView {
+    fn window_input(
+        &mut self,
+    ) -> Option<(
+        &mut crate::gpu::GpuState,
+        &mut crate::adapters::ui::popup::PopupManager,
+    )> {
+        use crate::view::window_input::WindowPopups;
+        Some((&mut self.base.gpu, self.settings_ui_state.window_popups()))
+    }
+
     fn poll_local_reads(&mut self, owner: &mut crate::app::local_reads::ReadRequests) {
         if self.settings_ui_state.poll_local_reads(owner) {
             self.mark_dirty();
@@ -410,17 +420,6 @@ impl SettingsView {
             Self::own_event,
             Self::window_input,
         )
-    }
-
-    /// 끊기와 결속에 쓰는 GPU 와 관리자(`judged_window_event`).
-    fn window_input(
-        &mut self,
-    ) -> Option<(
-        &mut crate::gpu::GpuState,
-        &mut crate::adapters::ui::popup::PopupManager,
-    )> {
-        use crate::view::window_input::WindowPopups;
-        Some((&mut self.base.gpu, self.settings_ui_state.window_popups()))
     }
 
     /// 편집 키 판정과 egui를 지난 이벤트의 창 자체 처리.

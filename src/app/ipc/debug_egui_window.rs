@@ -68,22 +68,25 @@ impl App {
     }
 
     /// 처리는 focused window 경로와 같고(`debug_egui_key.rs`), 응답에 `window_id`를 더한다.
-    /// 유지 수식 키는 창마다 따로다. 넣은 Esc 누름에는 실제 키처럼 그 창의 Esc 표지를 쌓는다. 표지의 Win·Super 는
-    /// 그 창이 지금 누른 것으로 보는 실물 상태다.
+    /// 유지 수식 키는 창마다 따로다. 팝업 관리자를 가진 창은 winit 키와 같은 사건 입구(끊기 → 적재 → 결속·bare Esc
+    /// 적용)를 지난다(`window_input::inject_window_key`).
     fn debug_egui_key_to_window(
         &mut self,
         params: &serde_json::Value,
     ) -> Result<serde_json::Value, (i32, String)> {
         let (wid, view) = self.debug_egui_target(params)?;
-        let gpu = &mut view.base_mut().gpu;
-        let from = gpu.egui_input_events_mut().len();
-        let mut body =
-            super::debug_egui_key::egui_key_body(gpu, params).map_err(|m| (-32602, m))?;
-        let mods = crate::adapters::ui::popup::keys::egui_window_key_mods(
-            gpu.debug_egui_modifiers(),
-            tasty_key_match::super_held(&gpu.egui_ctx),
-        );
-        gpu.debug_load_escape_marks(from, mods);
+        let body = match view.window_input() {
+            Some((gpu, popups)) => {
+                let ctx = gpu.egui_ctx.clone();
+                super::debug_egui_key::egui_key_body_with(params, |key, pressed, modifiers| {
+                    crate::view::window_input::inject_window_key(
+                        &ctx, popups, gpu, key, pressed, modifiers,
+                    )
+                })
+            }
+            None => super::debug_egui_key::egui_key_body(&mut view.base_mut().gpu, params),
+        };
+        let mut body = body.map_err(|m| (-32602, m))?;
         if body["injected"] == true {
             view.mark_dirty();
         }

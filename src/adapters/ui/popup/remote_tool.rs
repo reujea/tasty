@@ -2777,7 +2777,14 @@ mod tests {
             repeat: false,
             modifiers: egui::Modifiers::NONE,
         }];
-        assert!(state.window_escape(&mut events, Some(0), false));
+        assert!(
+            crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+                &mut state,
+                &read,
+                &mut events,
+                false
+            )
+        );
         pass(&mut state, &mut st, events);
         assert!(!ctx.memory(|m| m.is_popup_open(filter)), "필터가 닫힌다");
         assert!(tool_open(&state, iid), "팝업은 열린 채다");

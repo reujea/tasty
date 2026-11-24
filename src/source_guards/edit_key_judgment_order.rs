@@ -192,26 +192,34 @@ fn the_address_band_hears_that_the_edit_key_passed() {
     }
 }
 
-/// 별도 창 Esc 표지(팝업 층 Esc 판정): 판정을 지난 사건을 egui-winit 에 넘기기 전에 입력 큐 길이를 재고, 넘긴 뒤 새로
-/// 붙은 범위의 Esc 누름에만 표지를 쌓는다. 순서만 본다. 조건 분기와 범위 값은 `body_keys` 순수 함수 시험이 잰다.
+/// 별도 창 bare Esc(단계 8 뒤 단계 11): egui 에 실은 사건의 몫 결속(`bind_window_input`)이 bare Esc 면 그 몫을 끝내고
+/// (뒤 경계) 사건 시점 수신자로 적용한다. 공용 순서 함수가 egui 적재 뒤에 그 결속을 부르는지는
+/// `every_window_runs_a_key_event_through_one_order_function` 이 본다. 순서만 본다. 적용 값은 `window_input` 시험이 잰다.
 #[test]
-fn window_escape_marks_follow_the_egui_load() {
-    let signature = "fn handle_egui_event_for_window(";
-    let body = body("src/gfx/gpu/edit_keys.rs", signature);
-    let order = [
-        "judge_egui_key(",
-        "egui_input().events.len()",
-        EGUI_WINIT,
-        "escape_marks_in(",
-    ];
-    for pair in order.windows(2) {
-        assert_before(&body, pair[0], pair[1], signature);
-    }
+fn a_window_escape_is_applied_after_its_segment_ends() {
+    let signature = "fn bind_window_input(";
+    let bind: String = body("src/view/window_input.rs", signature)
+        .split_whitespace()
+        .collect();
+    assert_before(
+        &bind,
+        "Incoming::Escape=>{popups.note_escape_loaded();",
+        "popups.apply_window_escape(ctx,pending,escape_held);",
+        signature,
+    );
+    let feed = body(
+        "src/gfx/gpu/edit_keys.rs",
+        "fn handle_egui_event_for_window(",
+    );
+    assert!(
+        !feed.contains("escape_marks"),
+        "별도 창 egui 적재에 Esc 표지가 남았다. bare Esc 는 사건 입구의 적용이 넘긴다."
+    );
 }
 
-/// 별도 창 키 값(결속 없는 몫의 노드와 그 몫의 Esc 표지)은 관리자를 그리는 함수가 팝업을 그리기 전에 패스마다 넣는다.
-/// 창 `render` 는 공용 패스(`run_window_pass`)로만 패스를 열고 입력·표지를 직접 꺼내지 않는다. 공용 패스 주체가 `run`
-/// 전에 표지를 꺼낸다. 소스 자리와 순서만 본다. 그리기 함수 안에서 조건을 걸어 첫 패스에만 넣는 잘못은 잡지 못한다.
+/// 별도 창 키 값(결속 없는 몫의 노드)은 관리자를 그리는 함수가 팝업을 그리기 전에 패스마다 넣는다.
+/// 창 `render` 는 공용 패스(`run_window_pass`)로만 패스를 열고 입력을 직접 꺼내지 않는다. 공용 패스 주체가 `run`
+/// 전에 그 패스 키 값을 정한다. 소스 자리와 순서만 본다. 그리기 함수 안에서 조건을 걸어 첫 패스에만 넣는 잘못은 잡지 못한다.
 #[test]
 fn window_pass_keys_are_put_in_every_pass() {
     const PUT: &str = "put_window_pass_keys(";
@@ -228,12 +236,7 @@ fn window_pass_keys_are_put_in_every_pass() {
         "src/view/plugins.rs",
     ] {
         let body = body(rel, "fn render(");
-        for put in [
-            PUT,
-            "take_egui_input(",
-            "take_window_escape_marks(",
-            "run_egui(",
-        ] {
+        for put in [PUT, "take_egui_input(", "run_egui("] {
             assert!(
                 !body.contains(put),
                 "{rel}: `render` 가 `{put}` 를 부른다. 패스는 공용 패스가 열고 넣기는 관리자를 그리는 함수가 한다."
@@ -246,5 +249,5 @@ fn window_pass_keys_are_put_in_every_pass() {
     }
     let host = "src/gfx/gpu/window_pass.rs";
     let run = body(host, "fn run(");
-    assert_before(&run, "take_window_escape_marks(", ".run(raw_input", host);
+    assert_before(&run, "begin_run(", ".run(raw_input", host);
 }

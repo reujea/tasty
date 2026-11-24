@@ -1,7 +1,5 @@
 mod boot_error;
 #[cfg(debug_assertions)]
-mod debug_escape_marks;
-#[cfg(debug_assertions)]
 mod debug_surface;
 mod delayed_repaint;
 pub(crate) mod edit_keys;
@@ -182,11 +180,6 @@ pub struct GpuState {
     /// egui 입력 큐를 끊은 자리들(`cut_egui_input_here`). 패스마다 앞 자리 하나에서 나눠 뒤 사건을 그다음 패스로
     /// 넘긴다.
     pub(super) egui_input_cuts: crate::adapters::ui::popup::frame_keys::InputCuts,
-    /// 별도 창이 egui 입력에 적재한 Esc 누름마다 사건 시점 수식키(`handle_egui_event_for_window`). 입력을 꺼낼 때
-    /// `pass_escape_marks` 로 옮긴다.
-    pub(super) loaded_escape_marks: Vec<tasty_key_match::KeyMods>,
-    /// 마지막으로 꺼낸 입력의 Esc 표지(`take_window_escape_marks`).
-    pub(super) pass_escape_marks: Vec<tasty_key_match::KeyMods>,
     /// 타이틀바 닫기 등을 해당 창의 AppEvent로 보내는 proxy.
     pub(super) proxy: EventLoopProxy<AppEvent>,
 }
@@ -360,8 +353,6 @@ impl GpuState {
             terminal_cursor_restore_pending: false,
             layout_resweep_pending: false,
             egui_input_cuts: Default::default(),
-            loaded_escape_marks: Vec::new(),
-            pass_escape_marks: Vec::new(),
             proxy,
         })
     }

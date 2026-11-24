@@ -100,7 +100,12 @@ fn escape_on_an_expanded_file_picker_folds_it_and_keeps_the_request() {
         modifiers: egui::Modifiers::NONE,
     }];
     assert!(
-        state.window_escape(&mut events, Some(0), false),
+        crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+            &mut state,
+            &read,
+            &mut events,
+            false
+        ),
         "창이 Esc 를 처리한다"
     );
     frame(&ctx, &mut state, &read, events);

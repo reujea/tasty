@@ -33,6 +33,8 @@ pub struct RestoreNoticeView<'a> {
     pub continue_label: &'a str,
     /// popup 타이틀바 높이. 본체는 popup 매니저와 같은 값을 넘긴다.
     pub title_bar_height: LogicalPx,
+    /// 이번 패스 키를 이 안내가 받는다(호출부가 키 출발점으로 정했다). 참이면 안쪽 포커스와 관계없이 Esc 로 닫는다.
+    pub owns_keys: bool,
 }
 
 /// 그린 결과.
@@ -128,8 +130,8 @@ pub fn restore_notice(
             let memory = view.id_salt.with("focused_inside");
             let was_focused = ui.data(|d| d.get_temp::<bool>(memory)).unwrap_or(false);
             ui.data_mut(|d| d.insert_temp(memory, focused_inside));
-            dismissed |=
-                (focused_inside || was_focused) && ui.input(|i| i.key_pressed(egui::Key::Escape));
+            dismissed |= (focused_inside || was_focused || view.owns_keys)
+                && ui.input(|i| i.key_pressed(egui::Key::Escape));
         },
     );
 
@@ -401,6 +403,7 @@ mod tests {
                             body: "body",
                             continue_label: "continue",
                             title_bar_height: LogicalPx(28.0),
+                            owns_keys: false,
                         },
                         360.0,
                     ));

@@ -245,6 +245,8 @@ pub(crate) fn draw_popup_layer(
     state.normalize_focus(engine);
     state.decide_frame_key_owner(Some(draw_ctx));
 
+    let notice = state.pass_notice();
+    state.popups.set_pass_notice(notice);
     let mut popups = std::mem::replace(&mut state.popups, crate::adapters::ui::PopupManager::new());
 
     // content_fn이 state를 가변 대여하므로 plugin 팝업 영역(상자와 덮는 범위)을 미리 복사한다.

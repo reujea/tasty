@@ -9,8 +9,8 @@ use super::edit_key::{EditBindings, edit_binding};
 use super::key_class::{KeyClass, KeyEventValue, classify_key};
 use super::key_level::{FieldLevel, KEYBINDING_LEVELS, KeyLevel, NumericAxis, numeric_axis_level};
 use super::key_route::{
-    KeyNode, PopupFold, PopupKeyNode, RouteKey, Routed, ScopeContent, ScopeKeyNode, route_key,
-    start_node_ends_key, text_edit_builtin,
+    KeyNode, KeyReceiver, PopupFold, PopupKeyNode, RouteKey, Routed, ScopeContent, ScopeKeyNode,
+    route_key, start_node_ends_key, text_edit_builtin,
 };
 use crate::adapters::ui::popup::focus::PopupNode;
 use crate::adapters::ui::popup::{PopupEscape, PopupKeyboard};
@@ -42,16 +42,49 @@ pub(crate) fn window_key_decision(
     else {
         return KeyDecision::Current;
     };
+    route_decision(state, engine, key, &path, &lookup, value.mods)
+}
+
+/// egui 사건으로 들어온 bare Esc 누름(debug 주입)의 단계 4. winit 키와 같은 분류 순서로 래치 중이면 지금 경로이고,
+/// 아니면 포커스 노드에서 시작한 경로의 Esc 수신자다(`route_escape`).
+pub(crate) fn bare_escape_decision(
+    state: &MainViewState,
+    engine: &EngineRead<'_>,
+    egui_surface: bool,
+) -> KeyDecision {
+    if state.has_settings_open_request() {
+        return KeyDecision::Current;
+    }
+    let key = RouteKey {
+        key: egui::Key::Escape,
+        modifiers: egui::Modifiers::NONE,
+        super_held: false,
+    };
+    let lookup = Key::Named(winit::keyboard::NamedKey::Escape);
+    let mods = ModifiersState::empty();
+    let path = window_key_path(state, engine, key, &lookup, mods, egui_surface);
+    route_decision(state, engine, key, &path, &lookup, mods)
+}
+
+/// 경로 키 하나와 그 노드 목록의 수신자.
+fn route_decision(
+    state: &MainViewState,
+    engine: &EngineRead<'_>,
+    key: RouteKey,
+    path: &[KeyNode],
+    lookup: &Key,
+    mods: ModifiersState,
+) -> KeyDecision {
     let kb = &engine.settings.keybindings;
     let matching = matching_levels(
         kb,
         explorer_focused(state, engine),
         engine.settings.general.workspace_categories_enabled,
-        &lookup,
-        value.mods,
+        lookup,
+        mods,
     );
     KeyDecision::Path(route_key(
-        &path,
+        path,
         key,
         &EditBindings::from_settings(kb),
         &matching,
@@ -59,19 +92,25 @@ pub(crate) fn window_key_decision(
 }
 
 /// App plugin 판정 게이트(winit 키). 경로 키면 포커스 노드에서 시작한 경로가 출발 노드에서 그 키를 끝내지 않을
-/// 때 열고, 지금 경로로 남는 사건이면 지금 게이트(`window_keys_to_overlay`)다. plugin 명령 level 은 매처가 거른다.
+/// 때 열고, 지금 경로로 남는 사건이면 지금 게이트(`window_keys_to_overlay`)다. bare Esc 는 그 경로의 수신자
+/// (`route_escape`)가 단축키 단계·받은 surface·버림이면 연다(출발 노드 안 수신자면 닫힌다). plugin 명령 level 은
+/// 매처가 거른다.
 pub(crate) fn plugin_key_gate_open(
     state: &MainViewState,
     engine: &EngineRead<'_>,
     value: &KeyEventValue<'_>,
 ) -> bool {
-    match window_path_key(
-        state,
-        engine,
-        value,
-        false,
-        focused_surface_takes_egui(state, engine),
-    ) {
+    let egui_surface = focused_surface_takes_egui(state, engine);
+    match window_path_key(state, engine, value, false, egui_surface) {
+        Some((key, _, _)) if key.bare_escape() => matches!(
+            window_key_decision(state, engine, value, false, egui_surface),
+            KeyDecision::Path(Routed {
+                receiver: KeyReceiver::Shortcut { .. }
+                    | KeyReceiver::Surface(_)
+                    | KeyReceiver::Drop,
+                ..
+            })
+        ),
         Some((key, path, _)) => !start_node_ends_key(
             &path,
             key,
@@ -89,8 +128,8 @@ pub(crate) fn focused_surface_takes_egui(state: &MainViewState, engine: &EngineR
 }
 
 /// native WebView 가 넘긴 키의 분류. 전달 키는 조회 키와 수식키만 가지므로 그 조회 키를 논리 키로 넣어 winit 입구와
-/// 같은 판정(`classify_key`)을 한다. 경로 키가 아닌 것(bare Esc, 클립보드 조합, 편집 바인딩 키, egui 키 없는 누름)은
-/// 지금 게이트를 쓴다. 설정 열기 요청 래치는 창 전체 차단이 먼저 본다.
+/// 같은 판정(`classify_key`)을 한다. 경로 키가 아닌 것(클립보드 조합, 편집 바인딩 키, egui 키 없는 누름)은 지금
+/// 게이트를 쓴다. bare Esc 는 경로 키라 받은 surface 덮임 게이트를 쓴다. 설정 열기 요청 래치는 창 전체 차단이 먼저 본다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ForwardedKey {
     Path,
@@ -165,7 +204,7 @@ pub(crate) fn window_key_path(
 ) -> Vec<KeyNode> {
     use crate::adapters::ui::input::key_path::{key_start_node, start_scope_levels};
     let kb = &engine.settings.keybindings;
-    let notice = crate::adapters::ui::restore_notice::has_keyboard_focus(&state.popups);
+    let notice = crate::adapters::ui::restore_notice::focused_notice(&state.popups);
     let start = key_start_node(state, engine);
     let mut scopes = start_scope_levels(state, engine, start)
         .into_iter()
@@ -177,28 +216,28 @@ pub(crate) fn window_key_path(
             })
         })
         .collect::<Vec<_>>();
-    let first = match start {
-        FocusNode::SettingsRequest => return Vec::new(),
-        FocusNode::Stage => KeyNode::Stage {
+    let first = match (start, notice) {
+        (FocusNode::SettingsRequest, _) => return Vec::new(),
+        (FocusNode::Stage, _) => KeyNode::Stage {
             exit: crate::shortcuts::matches_any_binding(&kb.fullscreen_stage_exit, lookup, mods),
         },
-        FocusNode::Popup(node) => match popup_key_node(state, node, key, kb) {
+        (FocusNode::Popup(node), _) => match popup_key_node(state, node, key, kb) {
             Some(popup) => KeyNode::Popup(popup),
             None => return Vec::new(),
         },
-        _ if notice => KeyNode::Notice,
-        FocusNode::Tutorial => KeyNode::Tutorial,
-        FocusNode::HtmlAddress(sid) => KeyNode::HtmlAddress {
+        (_, Some(iid)) => KeyNode::Notice(iid),
+        (FocusNode::Tutorial, None) => KeyNode::Tutorial,
+        (FocusNode::HtmlAddress(sid), None) => KeyNode::HtmlAddress {
             sid,
             keymap: crate::view::main::address_keymap_receives(kb, lookup, mods),
         },
-        FocusNode::Surface(Some(sid)) => {
+        (FocusNode::Surface(Some(sid)), None) => {
             if let Some(KeyNode::Scope(surface)) = scopes.first_mut() {
                 surface.content = surface_content(state, engine, sid, key, egui_surface);
             }
             return scopes;
         }
-        FocusNode::Surface(None) => return scopes,
+        (FocusNode::Surface(None), None) => return scopes,
     };
     scopes.insert(0, first);
     scopes

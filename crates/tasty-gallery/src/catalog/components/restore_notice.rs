@@ -67,6 +67,7 @@ fn view(
         body,
         continue_label: t("notice.continue"),
         title_bar_height: TITLE_BAR_HEIGHT,
+        owns_keys: false,
     }
 }
 

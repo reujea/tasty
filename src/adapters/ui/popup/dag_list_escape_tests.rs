@@ -77,7 +77,14 @@ fn one_escape_on_the_detail_view_returns_to_the_list() {
         repeat: false,
         modifiers: egui::Modifiers::NONE,
     }];
-    assert!(state.window_escape(&mut events, Some(0), false));
+    assert!(
+        crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+            &mut state,
+            &read,
+            &mut events,
+            false
+        )
+    );
     assert!(
         state.popups.is_open(DAG_LIST_POPUP_ID),
         "첫 Esc 뒤 팝업은 열려 있다"
@@ -196,12 +203,14 @@ fn a_super_escape_does_not_leave_the_detail_after_super_is_released() {
     let read = engine.read();
     let mut input = crate::adapters::ui::popup::window_input_test_support::WindowInput::default();
     tasty_key_match::note_modifiers(&ctx, winit::keyboard::ModifiersState::SUPER);
+    input.hold_super(true);
     assert!(
         !input.escape(&ctx, &mut state, &read, true),
         "창이 처리하지 않는다"
     );
     assert!(input.escape_fed(), "그 사건이 egui 큐에 남았다");
     tasty_key_match::note_modifiers(&ctx, winit::keyboard::ModifiersState::empty());
+    input.hold_super(false);
     assert!(
         !tasty_key_match::super_held(&ctx),
         "그리기 시점에 Super 가 놓였다"

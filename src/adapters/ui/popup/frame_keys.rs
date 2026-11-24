@@ -63,6 +63,17 @@ impl Bound {
     }
 }
 
+/// 사건 시점의 노드가 지금 몫의 노드와 다른지(`cut_key_frame`). 메인 창 몫의 노드는 포커스 노드와 그 몫 키 시점의
+/// 복원 안내 인스턴스다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NodeChange {
+    Same,
+    /// 포커스 노드는 같고 키 시점의 안내 인스턴스만 다르다. 끊지만 노드 전환이 아니라 빈 패스를 먼저 두지 않는다.
+    Notice,
+    /// 포커스 노드가 다르다.
+    Focus,
+}
+
 /// egui 입력 큐 끝에 들어오려는 사건의 종류(`cut_key_frame`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Incoming {
@@ -117,13 +128,24 @@ pub(crate) struct KeySlots {
     pass_escape_released: bool,
     /// 지금 받는 첫 몫에 egui 수신자로 간 bare Esc 누름이 들었다.
     escape_loaded: bool,
-    /// 별도 창이 이번 패스에 넣은 Esc 표지(`PopupManager::put_window_pass_keys`). 그리기가 꺼낸다.
-    pub(super) window_escape: Option<super::body_keys::EscapeMarks>,
     /// 별도 창이 이번 `run` 에 정한 키 주인과 그 `run` 번호(`decide_window_frame_keys`).
     window_frame: Option<(u64, FrameKeys)>,
+    /// 이번 그리기 몫 키들의 사건 시점 복원 안내 인스턴스(`MainViewState::pass_notice`). 있으면 포커스를 받지 않는
+    /// 팝업 가운데 그 인스턴스만 키를 받는다.
+    pass_notice: Option<PopupInstanceId>,
 }
 
 impl PopupManager {
+    /// 이번 그리기 몫의 안내 인스턴스를 넣는다. 메인 창 팝업 층이 그리기 전에 패스마다 부른다.
+    pub(crate) fn set_pass_notice(&mut self, notice: Option<PopupInstanceId>) {
+        self.keys.pass_notice = notice;
+    }
+
+    /// 이번 그리기 몫의 안내 인스턴스(`set_pass_notice`).
+    pub(super) fn pass_notice(&self) -> Option<PopupInstanceId> {
+        self.keys.pass_notice
+    }
+
     /// 창이 키를 처리할 때 그 시점의 키 주인을 묶는다. 이번 프레임에 먼저 묶인 값이 있으면 그대로 둔다(한 프레임의
     /// 키는 첫 키를 받은 주인 하나가 받는다).
     pub(crate) fn bind_input_key_owner(&mut self, owner: PopupNode) {
@@ -142,14 +164,11 @@ impl PopupManager {
     /// 있으면 끊는다(수신자를 읽지 않는다). 뒤 경계: egui 수신자로 간 Esc 가 든 몫(`note_escape_loaded`)에는 다음 사건이
     /// 들지 않는다. 끊는 조건은 이 함수에만 있다.
     ///
-    /// `node_changed` 는 그 사건 시점의 포커스 노드가 지금 몫의 노드와 다르다는 것이다(`MainViewState::cut_key_frame`).
-    /// 그러면 사건 종류와 관계없이 끊는다. 그렇게 연 몫에 아무 사건도 들기 전에 키가 오면 한 번 더 끊는다. 앞 몫의
-    /// 마지막 사건(검색 단축키, 무대 종료 키, Esc 해제, 누름 등)이 포커스 노드를 바꿨으면 새 노드는 빈 패스 하나를 먼저
-    /// 그린다. 새 노드의 입력칸은 그 패스에서 egui 키 포커스를 얻고 다음 패스에서 그 키를 받는다(누름 뒤 키와 같은 이유).
-    ///
-    /// `notice_changed` 는 키가 오는데 그 키 시점의 복원 안내 안쪽 포커스가 지금 몫 키들의 값과 다르다는 것이다. 안내는
-    /// 포커스 노드가 아니라 노드 차이로는 끊지 않지만, 그리기가 몫 하나의 값으로 판정하므로 값이 다른 키 사이를 끊는다.
-    /// 빈 패스를 먼저 두지 않는다(새 몫은 노드 전환이 아니다).
+    /// `node` 는 그 사건 시점의 노드가 지금 몫의 노드와 다른지다(`MainViewState::cut_key_frame`). 다르면 사건 종류와
+    /// 관계없이 끊는다. 포커스 노드가 달라(`NodeChange::Focus`) 연 몫에 아무 사건도 들기 전에 키가 오면 한 번 더 끊는다.
+    /// 앞 몫의 마지막 사건(검색 단축키, 무대 종료 키, Esc 해제, 누름 등)이 포커스 노드를 바꿨으면 새 노드는 빈 패스 하나를
+    /// 먼저 그린다. 새 노드의 입력칸은 그 패스에서 egui 키 포커스를 얻고 다음 패스에서 그 키를 받는다(누름 뒤 키와 같은
+    /// 이유).
     ///
     /// 끊으면 닫히는 몫에 결속이 없을 때 `focus`(닫히는 몫의 포커스 노드가 팝업이면 그 노드)로 묶는다. 참이면 호출자는
     /// egui 입력도 그 자리에서 끊는다(`InputCuts::cut_at`).
@@ -158,8 +177,7 @@ impl PopupManager {
         events: &[egui::Event],
         incoming: Incoming,
         focus: Option<PopupNode>,
-        node_changed: bool,
-        notice_changed: bool,
+        node: NodeChange,
     ) -> bool {
         let (start, bound, escape, transition, escape_loaded) = match self.keys.after_cut.back_mut()
         {
@@ -187,8 +205,7 @@ impl PopupManager {
                     .find(|e| is_key_input(e) || is_press(e))
                     .is_some_and(is_press)
         };
-        let cut = node_changed
-            || notice_changed
+        let cut = node != NodeChange::Same
             || escape_loaded
             || match incoming {
                 Incoming::Press => segment.iter().any(is_key_input) || bound.is_some() || escape,
@@ -206,7 +223,7 @@ impl PopupManager {
         bound.get_or_insert(focus.map_or(Bound::NoPopup, Bound::Popup));
         self.keys.after_cut.push_back(AfterCut {
             at: events.len(),
-            node_transition: node_changed,
+            node_transition: node == NodeChange::Focus,
             ..AfterCut::default()
         });
         true

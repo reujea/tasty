@@ -1298,8 +1298,8 @@ fn escape_only_unfocuses_an_unfocus_popup() {
     );
 }
 
-/// T-4a3-3: Given 키 주인 시험 팝업(Esc 선언 Ignore, 접히지 않음), When Esc 가 오면, Then 본문은 처리된 입력과 raw 입력
-/// 어디에서도 Esc 를 보지 못하고 포커스를 유지한다.
+/// T-4a3-3: Given 키 주인 시험 팝업(Esc 선언 Ignore, 접히지 않음), When Esc 가 오면, Then 그 Esc 는 부모 경로로 가고
+/// 본문은 처리된 입력과 raw 입력 어디에서도 Esc 를 보지 못하며 포커스를 유지한다.
 #[test]
 fn an_ignore_popup_body_never_sees_escape() {
     const IGNORE: &str = "scene_escape_ignore";
@@ -1334,8 +1334,8 @@ fn an_ignore_popup_body_never_sees_escape() {
         };
     layer_pass(&ctx, &mut state, &read, &mut input, &mut body);
     assert!(
-        input.escape(&ctx, &mut state, &read, true),
-        "창이 Esc 를 처리한다"
+        !input.escape(&ctx, &mut state, &read, true),
+        "Ignore 팝업은 수신자가 아니라 창의 Esc 적용이 처리하지 않고 부모 경로로 올린다"
     );
     layer_pass(&ctx, &mut state, &read, &mut input, &mut body);
     assert_eq!(called, 2, "본문이 두 패스 모두 불렸다");

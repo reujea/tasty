@@ -27,7 +27,7 @@ fn run_window(
     actions: &mut Vec<PluginsAction>,
     events: Vec<egui::Event>,
 ) -> bool {
-    let raw = egui::RawInput {
+    let mut raw = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
             egui::Pos2::ZERO,
             egui::vec2(720.0, 480.0),
@@ -41,15 +41,9 @@ fn run_window(
         ctx,
         crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(ctx),
     );
-    // 창 `render`처럼 W1 값과 이번 입력의 Esc 표지(모두 수식키 없음)를 묶는다.
-    let keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
-        owner,
-        marks: crate::adapters::ui::popup::body_keys::escape_marks_in(
-            &raw.events,
-            0,
-            tasty_key_match::KeyMods::default(),
-        ),
-    };
+    // 창 `render`처럼 W1 값을 넣고 bare Esc 는 사건 입구처럼 키 주인에 넘긴다.
+    let keys = crate::view::window_input::WindowPopups::window_popups(&mut ui_state.folder_chooser)
+        .raw_pass_keys(ctx, owner, &mut raw.events);
     drop(ctx.run(raw, |ctx| {
         draw_plugins_panel(ctx, snapshot, ui_state, actions, &keys);
         esc_left = ctx.input(|i| i.key_pressed(egui::Key::Escape));
@@ -155,7 +149,7 @@ fn draw_window(
     ui_state: &mut PluginsUiState,
     actions: &mut Vec<PluginsAction>,
 ) -> egui::FullOutput {
-    let raw = egui::RawInput {
+    let mut raw = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
             egui::Pos2::ZERO,
             egui::vec2(720.0, 480.0),
@@ -166,15 +160,9 @@ fn draw_window(
         ctx,
         crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(ctx),
     );
-    // 창 `render`처럼 W1 값과 이번 입력의 Esc 표지(모두 수식키 없음)를 묶는다.
-    let keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
-        owner,
-        marks: crate::adapters::ui::popup::body_keys::escape_marks_in(
-            &raw.events,
-            0,
-            tasty_key_match::KeyMods::default(),
-        ),
-    };
+    // 창 `render`처럼 W1 값을 넣고 bare Esc 는 사건 입구처럼 키 주인에 넘긴다.
+    let keys = crate::view::window_input::WindowPopups::window_popups(&mut ui_state.folder_chooser)
+        .raw_pass_keys(ctx, owner, &mut raw.events);
     ctx.run(raw, |ctx| {
         draw_plugins_panel(ctx, snapshot, ui_state, actions, &keys);
     })

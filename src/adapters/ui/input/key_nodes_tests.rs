@@ -270,17 +270,45 @@ fn a_text_popup_yields_a_bound_ctrl_escape_and_takes_shift_escape() {
     );
 }
 
-/// T-Esc-1: 수식키 없는 Esc 는 어느 포커스에서도 지금 경로다.
+/// M-E0b-1 F(T-Esc-1 반전): 수식키 없는 Esc 는 어느 포커스에서도 경로 키다(`route_escape`). 무대 노드면 무대가 받는다.
 #[test]
-fn a_bare_escape_stays_on_the_current_path() {
+fn a_bare_escape_takes_the_key_path() {
     let (mut state, mut session) = scene();
     let engine = session.borrow_mut();
     let read = engine.read();
-    assert_eq!(decide(&state, &read, escape(), NONE), KeyDecision::Current);
+    assert!(matches!(
+        decide(&state, &read, escape(), NONE),
+        KeyDecision::Path(_)
+    ));
     open_focused(&mut state, "notifications");
-    assert_eq!(decide(&state, &read, escape(), NONE), KeyDecision::Current);
+    assert!(matches!(
+        decide(&state, &read, escape(), NONE),
+        KeyDecision::Path(_)
+    ));
     assert!(state.open_fullscreen_stage("blank"));
-    assert_eq!(decide(&state, &read, escape(), NONE), KeyDecision::Current);
+    assert_eq!(
+        routed(decide(&state, &read, escape(), NONE)).receiver,
+        KeyReceiver::Stage
+    );
+}
+
+/// M-E0b-1 P: 수식키 Esc(Shift+Esc)는 bare Esc 가 아니라 보통 키처럼 경로로 오른다. 무대 노드에서는 무대 종료 바인딩이
+/// 아니어서 무대 내용이 받지 않고 engine 단축키 후보도 없다.
+#[test]
+fn a_modified_escape_rises_like_any_key() {
+    let (mut state, mut session) = scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    open_focused(&mut state, "notifications");
+    assert!(matches!(
+        decide(&state, &read, escape(), ModifiersState::SHIFT),
+        KeyDecision::Path(_)
+    ));
+    assert!(state.open_fullscreen_stage("blank"));
+    assert!(matches!(
+        decide(&state, &read, escape(), ModifiersState::SHIFT),
+        KeyDecision::Path(_)
+    ));
 }
 
 /// T-12b-4: 무대 + 종료 키 → 무대 노드가 받는다(engine 후보보다 먼저). 무대 + engine 단축키 → 단축키. 무대 + Window
@@ -459,7 +487,7 @@ fn a_bound_key_owner_is_the_start_node() {
     );
 }
 
-/// T-12b-7: 전달 키 분류. 보통 단축키 키는 경로 키, bare Esc·클립보드 조합·편집 바인딩 키는 지금 경로다.
+/// T-12b-7: 전달 키 분류. 보통 단축키 키와 bare Esc 는 경로 키, 클립보드 조합·편집 바인딩 키는 지금 경로다.
 #[test]
 fn forwarded_keys_are_classified_like_window_keys() {
     let (_state, mut session) = scene();
@@ -469,7 +497,7 @@ fn forwarded_keys_are_classified_like_window_keys() {
     let class = |key: Key, mods| forwarded_key_class(kb, &key, mods);
     assert_eq!(class(Key::Character("b".into()), CTRL), ForwardedKey::Path);
     assert_eq!(class(f_key(6).0, CTRL), ForwardedKey::Path);
-    assert_eq!(class(escape().0, NONE), ForwardedKey::Current);
+    assert_eq!(class(escape().0, NONE), ForwardedKey::Path);
     assert_eq!(class(escape().0, ModifiersState::SHIFT), ForwardedKey::Path);
     assert_eq!(
         class(f_key(9).0, CTRL),
@@ -520,6 +548,24 @@ fn a_forwarded_path_key_is_blocked_only_when_its_surface_is_covered() {
     let palette = open_focused(&mut state, "command_palette");
     assert!(state.popups.instance(palette).unwrap().covers());
     assert!(received_key_blocked(&state, &read, ForwardedKey::Path, sid));
+}
+
+/// M-E0b-3 F: Given Window 범위에 덮지 않는 알림 목록이 포커스일 때, When 받은 surface 가 bare Esc 를 넘기면, Then 그
+/// Esc 는 경로 키로 분류되고(지금 게이트를 쓰지 않는다) 받은 surface 가 덮이지 않았으므로 막히지 않는다.
+#[test]
+fn a_forwarded_escape_under_a_focused_notification_reaches_the_received_surface() {
+    let (mut state, mut session) = scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let sid = state.focused_surface_id(&read).expect("surface");
+    open_focused(&mut state, "notifications");
+    assert!(state.window_keys_to_overlay(), "지금 게이트는 막는다");
+    let class = forwarded_key_class(&read.settings.keybindings, &escape().0, NONE);
+    assert_eq!(class, ForwardedKey::Path);
+    assert!(
+        !received_key_blocked(&state, &read, class, sid),
+        "받은 surface 의 Esc 는 막히지 않는다"
+    );
 }
 
 /// T-12b-6 (라) 진입 직후: 팝업에 키를 묶은 몫에서 무대를 열면 무대가 출발 노드다. 그 몫을 그리기 전 무대 종료 키는

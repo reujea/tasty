@@ -233,22 +233,17 @@ impl MainView {
             .reset_reveal_timer_if_not_shown(&theme);
     }
 
-    /// 수식키 없는 Escape는 창의 Esc 판정(`MainViewState::window_escape`)이 처리한다. 대상인지는 시험 입구와 같은
-    /// 공유 판정(`tasty_key_match::is_window_escape`)으로 정한다. 처리한 Esc 는 이번 사건이 egui 입력에 실은 범위에서
-    /// 빼고, 키 주인이 읽을 몫은 그 원래 사건을 넘겨 둔다.
+    /// 수식키 없는 Escape 누름은 단계 11 적용(`MainViewState::apply_escape_key`)이 사건 시점 수신자(`self.key_decision`)로
+    /// 처리한다. 대상인지는 단계 4 와 같은 판정(`key_class::is_bare_escape_press`, 논리 키가 없으면 물리 키)이다.
+    /// 처리한 Esc 는 egui 입력에서 빼고, 키 주인이 읽을 몫은 그 원래 사건을 넘겨 둔다.
     fn try_consume_escape_key(&mut self, event: &winit::event::KeyEvent) -> bool {
-        let mods = crate::adapters::ui::popup::keys::window_key_mods(self.base.state.modifiers);
-        if !tasty_key_match::is_window_escape(
-            event.logical_key == Key::Named(NamedKey::Escape),
-            mods,
-        ) {
-            return false;
-        }
+        let value = self.key_value(event);
         let escape_held = self.base.gpu.egui_escape_held();
-        let loaded_from = self.escape_loaded_from.take();
-        let consumed = self.state.window_escape(
+        let consumed = self.state.apply_escape_key(
+            &value,
+            self.key_decision,
+            self.escape_fed,
             self.base.gpu.egui_input_events_mut(),
-            loaded_from,
             escape_held,
         );
         if consumed {

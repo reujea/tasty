@@ -227,14 +227,22 @@ mod tests {
     use crate::adapters::ui::popup::{PopupScope, PopupState};
 
     fn state_with_host_popup() -> crate::state::MainViewState {
-        let (mut state, _session) = crate::state::tests::test_state();
+        session_with_host_popup().0
+    }
+
+    /// `state_with_host_popup` 과 그 상태의 엔진 세션(사건 시점 수신자 판정이 읽는다).
+    fn session_with_host_popup() -> (
+        crate::state::MainViewState,
+        crate::runtime::engine_session::EngineSession,
+    ) {
+        let (mut state, session) = crate::state::tests::test_state();
         state.popups.register(PopupState::new(
             "host_popup",
             "Host".to_string(),
             egui::vec2(200.0, 100.0),
             crate::model::popup_kind::PopupScope::Window,
         ));
-        state
+        (state, session)
     }
 
     /// 배치한 plugin 팝업이 없으면(첫 프레임 전) plugin 팝업은 키를 받지 않는다.
@@ -298,7 +306,7 @@ mod tests {
         assert_eq!(state.frame_plugin_key_target(None), Some(42));
     }
 
-    /// 창의 수식키 없는 Esc 누름 하나(`window_escape` 의 `pending`).
+    /// 창의 수식키 없는 Esc 누름 하나(`window_escape_step` 의 `pending`).
     #[cfg(feature = "gui")]
     fn bare_escape() -> Vec<egui::Event> {
         vec![egui::Event::Key {
@@ -323,14 +331,21 @@ mod tests {
     #[cfg(feature = "gui")]
     #[test]
     fn escape_on_an_expanded_plugin_key_owner_is_handed_and_leaves_the_popup_below() {
-        let mut state = state_with_host_popup();
+        let (mut state, mut session) = session_with_host_popup();
         let host = state
             .popups
             .open_centered_focused("host_popup", PopupScope::Window)
             .unwrap();
         place_plugin_popup(&mut state, 42, true);
         state.popups.expand_plugin(42);
-        assert!(state.window_escape(&mut bare_escape(), Some(0), false));
+        assert!(
+            crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+                &mut state,
+                &session.borrow_mut().read(),
+                &mut bare_escape(),
+                false
+            )
+        );
         assert!(handed_to_the_frame(&mut state), "plugin 렌더에 넘긴다");
         let p = state.popups.instance(host).unwrap();
         assert!(p.open, "아래 host 팝업은 열린 채다");
@@ -346,7 +361,7 @@ mod tests {
     #[cfg(feature = "gui")]
     #[test]
     fn a_passive_picker_on_top_takes_no_keys_and_escape_never_reaches_the_popup_below() {
-        let mut state = state_with_host_popup();
+        let (mut state, mut session) = session_with_host_popup();
         state.popups.register(PopupState::new(
             "picker",
             "Picker".to_string(),
@@ -378,7 +393,14 @@ mod tests {
             state.popups.host_key_owner().is_none(),
             "다시 접기·일반 Esc 의 host 대상은 없다(passive 피커도 아래 L 팝업도 아니다)"
         );
-        assert!(state.window_escape(&mut bare_escape(), Some(0), false));
+        assert!(
+            crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+                &mut state,
+                &session.borrow_mut().read(),
+                &mut bare_escape(),
+                false
+            )
+        );
         assert!(
             handed_to_the_frame(&mut state),
             "펼친 plugin 키 주인이 Esc 를 받는다"

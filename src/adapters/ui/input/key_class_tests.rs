@@ -129,7 +129,11 @@ fn only_pressed_egui_keys_outside_the_current_path_are_path_keys() {
             KeyCode::Escape,
             ModifiersState::empty()
         ),
-        KeyClass::Current(CurrentReason::BareEscape)
+        KeyClass::Path(RouteKey {
+            key: egui::Key::Escape,
+            modifiers: egui::Modifiers::NONE,
+            super_held: false,
+        })
     );
     // 수식키 Esc 는 경로 키다.
     assert!(matches!(
@@ -243,4 +247,42 @@ fn the_clipboard_combo_reads_the_egui_winit_modifiers() {
         classify_key(&cleared, false, false),
         KeyClass::Path(_)
     ));
+}
+
+/// M-E0b-9 F: 수식키 없는 Esc 가 사용자 편집 바인딩과 겹쳐도 편집 바인딩 판정보다 앞에서 Esc 경로 키다. 물리 키로만
+/// Escape 인 누름(논리 키를 모르는 배열)도 같은 판정이다(M-E0b-8 의 분류).
+#[test]
+fn a_bare_escape_bound_as_an_edit_key_takes_the_escape_route() {
+    let bare = KeyClass::Path(RouteKey {
+        key: egui::Key::Escape,
+        modifiers: egui::Modifiers::NONE,
+        super_held: false,
+    });
+    let escape = Key::Named(NamedKey::Escape);
+    assert_eq!(
+        classify_key(
+            &value(&escape, KeyCode::Escape, ModifiersState::empty()),
+            false,
+            true
+        ),
+        bare
+    );
+    let unknown = Key::Unidentified(winit::keyboard::NativeKey::Unidentified);
+    assert_eq!(
+        classify_key(
+            &value(&unknown, KeyCode::Escape, ModifiersState::empty()),
+            false,
+            false
+        ),
+        bare
+    );
+    // 래치는 bare Esc 보다 앞이다(설정 요청 취소, N1 까지).
+    assert_eq!(
+        classify_key(
+            &value(&escape, KeyCode::Escape, ModifiersState::empty()),
+            true,
+            true
+        ),
+        KeyClass::Current(CurrentReason::Latched)
+    );
 }

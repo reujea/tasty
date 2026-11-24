@@ -3,7 +3,7 @@
 //! (`window_feeds_egui`)를 거쳐 큐에 들어간다(`key`). 패스 입력은 egui 패스와 같은 순서로 꺼낸다
 //! (`PopupManager::begin_key_pass` 뒤 큐를 꺼내 앞 끊은 자리에서 나눔, `InputCuts::split_pass`). 몫을 닫는 패스는 제품
 //! 패스와 같은 순서 함수(`gfx::gpu::input_pass::run_input_pass`)로 돈다(`run_pass`). Esc 처럼 창이 따로 고르는
-//! 키(`window_escape`)는 창과 같은 함수로 거른다(`escape`).
+//! 키(`window_escape`)는 창과 같은 단계 4 판정과 적용 함수로 거른다(`escape`, `window_escape_step`).
 
 use crate::adapters::ui::input::key_route::is_bare_escape_event;
 use crate::adapters::ui::popup::frame_keys::Incoming;
@@ -163,12 +163,49 @@ impl WindowInput {
         self.escape_with(ctx, state, engine, pressed, egui::Modifiers::NONE)
     }
 
+    /// 창이 winit 키 사건 하나로 받은 수식키 없는 Escape 자리 누름. 물리 키는 Escape 이고 논리 키는 `logical` 이다
+    /// (배열이 모르면 `Key::Unidentified`). 끊기 → 단계 4 판정 → egui 게이트 → 뒤 경계 → 단계 11 입구
+    /// (`MainViewState::apply_escape_key`)를 창과 같은 함수와 같은 판정 값(`KeyEventValue`)으로 밟는다. 창이 처리했으면
+    /// 참이다.
+    pub(crate) fn winit_escape(
+        &mut self,
+        ctx: &egui::Context,
+        state: &mut RequestContext,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        logical: winit::keyboard::Key,
+    ) -> bool {
+        let value = crate::adapters::ui::input::key_class::KeyEventValue {
+            logical: &logical,
+            physical: winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::Escape),
+            pressed: true,
+            mods: winit::keyboard::ModifiersState::empty(),
+            egui_mods: egui::Modifiers::NONE,
+        };
+        let event = egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: Some(egui::Key::Escape),
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let decision = self.settle(state, engine, &event, false);
+        let fed = state.window_feeds_key(decision, false, true).is_some();
+        state.mark_escape_segment(
+            fed,
+            crate::adapters::ui::input::key_class::is_bare_escape_press(&value),
+        );
+        if fed {
+            self.queue.push(event);
+        }
+        let held = ctx.input(|i| i.key_down(egui::Key::Escape));
+        state.apply_escape_key(&value, decision, fed, &mut self.queue, held)
+    }
+
     /// 창이 받은 Esc 누름·뗌 하나(`feed_egui_keyboard` → `keyboard::handle_keyboard_input`). 끊기 → egui 게이트를
-    /// 거쳐(bare Esc 는 지금 게이트, 수식키 Esc 누름은 창과 같은 단계 4·K9 판정 `window_feeds_key`), egui 로 가면
-    /// `modifiers` 를 실은 사건을 큐에 싣고 가지 않는 뗌은 그 몫에 남긴다
-    /// (`MainView::note_unfed_key`). 누름은 창과 같은 공유 판정(`tasty_key_match::is_window_escape`, 같은 수식키.
-    /// 비-macOS Win·Super 는 `tasty_key_match::super_held`)을 거쳐 창의 Esc 처리(`window_escape`, 직전 패스의
-    /// Escape 눌림)로 간다. 창이 처리했으면 참이다.
+    /// 거쳐(창과 같은 단계 4·K9 판정 `window_feeds_key`), egui 로 가면 `modifiers` 를 실은 사건을 큐에 싣고 가지 않는
+    /// 뗌은 그 몫에 남긴다(`MainView::note_unfed_key`). 수식키 없는 누름(`RouteKey::bare_escape`, 비-macOS Win·Super 는
+    /// `tasty_key_match::super_held`)은 사건 시점 수신자로 창의 Esc 적용(`window_escape`, 직전 패스의 Escape 눌림)을
+    /// 거친다. 창이 처리했으면 참이다.
     pub(crate) fn escape_with(
         &mut self,
         ctx: &egui::Context,
@@ -185,29 +222,20 @@ impl WindowInput {
             modifiers,
         };
         let decision = self.settle(state, engine, &event, false);
-        // 창 판정이 고를 범위는 이번 사건이 실린 자리부터다.
-        let loaded_from = self.queue.len();
+        let bare = is_bare_escape_event(&event, self.held_super());
         self.escape_fed = state.window_feeds_key(decision, false, true).is_some();
-        state.mark_escape_segment(
-            self.escape_fed,
-            is_bare_escape_event(&event, self.held_super()),
-        );
+        state.mark_escape_segment(self.escape_fed, bare);
         if self.escape_fed {
             self.queue.push(event);
         } else if !pressed {
             state.popups.note_unfed_escape_release();
         }
-        let mods = crate::adapters::ui::popup::keys::egui_window_key_mods(
-            modifiers,
-            tasty_key_match::super_held(ctx),
-        );
-        pressed
-            && tasty_key_match::is_window_escape(true, mods)
-            && state.window_escape(
-                &mut self.queue,
-                Some(loaded_from),
-                ctx.input(|i| i.key_down(egui::Key::Escape)),
-            )
+        bare && state.window_escape(
+            decision,
+            self.escape_fed,
+            &mut self.queue,
+            ctx.input(|i| i.key_down(egui::Key::Escape)),
+        )
     }
 
     /// 마지막 `escape_with` 가 그 사건을 egui 큐에 실었는지.
@@ -481,10 +509,36 @@ pub(crate) fn layer_escape(
         modifiers: egui::Modifiers::NONE,
     }];
     assert!(
-        state.window_escape(&mut events, Some(0), false),
+        window_escape_step(state, engine, &mut events, false),
         "창이 Esc 를 처리한다"
     );
     layer_frame(ctx, state, engine, events)
+}
+
+/// 창이 받은 bare Esc 누름 하나(`pending` 끝에 실렸다)를 제품 단계로 밟는다: 단계 4 Esc 수신자
+/// (`key_nodes::bare_escape_decision`), 단계 8 결속(`window_feeds_key`, egui 로 가지 않으면 끝의 그 누름을 뺀다),
+/// 단계 11 적용(`window_escape`). 창이 처리했으면 참이다. `escape_held` 는 직전 egui 패스 끝의 Escape 눌림 상태다.
+pub(crate) fn window_escape_step(
+    state: &mut RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    pending: &mut Vec<egui::Event>,
+    escape_held: bool,
+) -> bool {
+    let egui_surface =
+        crate::adapters::ui::input::key_nodes::focused_surface_takes_egui(state, engine);
+    let decision =
+        crate::adapters::ui::input::key_nodes::bare_escape_decision(state, engine, egui_surface);
+    let fed = state
+        .window_feeds_key(decision, egui_surface, true)
+        .is_some();
+    if !fed
+        && pending
+            .last()
+            .is_some_and(crate::adapters::ui::popup::body_keys::is_escape_press)
+    {
+        pending.pop();
+    }
+    state.window_escape(decision, fed, pending, escape_held)
 }
 
 /// 본문 키 시험이 붙이는 수식키 하나. `Command` 는 macOS Cmd, 비-macOS Win·Super 다.

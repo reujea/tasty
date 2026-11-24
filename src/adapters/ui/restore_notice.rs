@@ -105,7 +105,37 @@ pub(crate) fn count(state: &MainViewState) -> usize {
 
 /// 안내 안쪽 컨트롤이 키보드 포커스를 가졌는지. 안내가 나타나는 것만으로는 true가 되지 않는다.
 pub(crate) fn has_keyboard_focus(popups: &crate::adapters::ui::PopupManager) -> bool {
-    notices(popups).any(|(_, notice)| notice.focused_inside)
+    focused_notice(popups).is_some()
+}
+
+/// 안쪽 컨트롤이 키보드 포커스를 가진 안내 인스턴스. 키 사건은 사건 시점의 이 값을 출발점(`KeyNode::Notice`)과 몫의
+/// 안내 값으로 쓰고, 그리기는 그 몫의 안내 인스턴스만 그 키를 받는다(`MainViewState::pass_notice`).
+pub(crate) fn focused_notice(
+    popups: &crate::adapters::ui::PopupManager,
+) -> Option<crate::adapters::ui::popup::PopupInstanceId> {
+    notices(popups)
+        .find(|(_, notice)| notice.focused_inside)
+        .map(|(p, _)| p.instance)
+}
+
+/// 시험: 그리기 전에 안쪽 포커스를 안내 `to`(항목 id)로 옮긴다. 직전 프레임 기록(`focused_inside`)과 위젯이 기억한
+/// 직전 포커스를 함께 바꾼다.
+#[cfg(test)]
+pub(crate) fn move_inside_focus(
+    ctx: &egui::Context,
+    popups: &mut crate::adapters::ui::PopupManager,
+    to: u64,
+) {
+    for p in popups.entries_of_mut(RESTORE_NOTICE_POPUP_ID) {
+        if let PopupPayload::RestoreNotice(notice) = &mut p.payload {
+            let here = notice.entry.id == to;
+            notice.focused_inside = here;
+            let memory = egui::Id::new("restore_notice")
+                .with(notice.entry.id)
+                .with("focused_inside");
+            ctx.data_mut(|d| d.insert_temp(memory, here));
+        }
+    }
 }
 
 /// 시험용: 안내 하나를 열고 안쪽 컨트롤이 키보드 포커스를 가졌는지를 정한다.
@@ -160,7 +190,8 @@ pub(crate) fn on_close_notice(
     }
 }
 
-/// 안내 한 장을 그린다. ×·Continue·안쪽 포커스의 Esc면 닫는다.
+/// 안내 한 장을 그린다. ×·Continue·안쪽 포커스의 Esc면 닫는다. 이번 몫 키의 출발점이 이 안내면(사건 시점 안쪽 포커스,
+/// `MainViewState::pass_notice`) 그 Esc 로 닫는다. 그리기 전에 안쪽 포커스가 다른 안내로 옮겨도 그 Esc 는 이 안내 것이다.
 pub(crate) fn draw_notice_popup(
     ui: &mut egui::Ui,
     state: &mut MainViewState,
@@ -183,6 +214,7 @@ pub(crate) fn draw_notice_popup(
         body: &entry.body,
         continue_label: crate::i18n::t("notice.continue"),
         title_bar_height: super::popup::title_bar_height(),
+        owns_keys: state.pass_notice() == Some(cx.instance),
     };
     // 카드의 그림자와 바깥쪽 테두리는 카드 사각형 밖에 그린다. 관리자가 정한 콘텐츠 자르기를 창 전체로 넓힌다.
     ui.set_clip_rect(ui.ctx().screen_rect());

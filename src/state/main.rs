@@ -173,9 +173,10 @@ pub struct MainViewState {
     /// (`pass_focus_node`).
     #[cfg(feature = "gui")]
     pub(crate) segment_focus: Option<crate::state::focus_node::FocusNode>,
-    /// 이번 그리기 몫 키들의 사건 시점 복원 안내 안쪽 포커스(`cut_key_frame`). 키가 없는 몫은 `None` 이다.
+    /// 이번 그리기 몫 키들의 사건 시점 복원 안내(안쪽 포커스를 가진 인스턴스, 없으면 `Some(None)`,
+    /// `cut_key_frame`). 키가 없는 몫은 `None` 이다.
     #[cfg(feature = "gui")]
-    pub(crate) segment_notice: Option<bool>,
+    pub(crate) segment_notice: Option<Option<crate::adapters::ui::popup::PopupInstanceId>>,
     /// 이번 그리기 몫이 열린 화면(무대 ID, 일반 화면이면 `None`). 몫을 열 때의 `fullscreen_stage_id` 다.
     #[cfg(feature = "gui")]
     pub(crate) segment_screen: Option<crate::fullscreen_stages::StageId>,

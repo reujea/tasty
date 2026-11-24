@@ -460,18 +460,26 @@ fn a_modified_escape_is_an_ordinary_key() {
 
 // --- 비팝업 출발점 ---
 
+/// 시험 안내 인스턴스.
+fn notice_iid() -> PopupInstanceId {
+    PopupInstanceId(7)
+}
+
 /// 복원 안내: 위젯 키는 안내, 나머지는 Window 키맵 → engine(PTY 아님).
 #[test]
 fn a_notice_start_takes_its_widget_keys() {
     let path = on(
-        KeyNode::Notice,
+        KeyNode::Notice(notice_iid()),
         scopes_from(KeyLevel::Window, ScopeContent::None),
     );
-    assert_eq!(route(&path, key(Key::Enter), &[]), KeyReceiver::Notice);
-    assert_eq!(route(&path, esc(), &[]), KeyReceiver::Notice);
+    assert_eq!(
+        route(&path, key(Key::Enter), &[]),
+        KeyReceiver::Notice(notice_iid())
+    );
+    assert_eq!(route(&path, esc(), &[]), KeyReceiver::Notice(notice_iid()));
     assert_eq!(
         route(&path, with(Key::Escape, Modifiers::SHIFT), &[]),
-        KeyReceiver::Notice
+        KeyReceiver::Notice(notice_iid())
     );
     assert_eq!(
         route(&path, key(Key::A), &[KeyLevel::Surface]),
@@ -590,7 +598,7 @@ fn one_start_node_has_at_most_one_egui_receiver() {
             scopes_from(KeyLevel::Tab, ScopeContent::None),
         ),
         on(
-            KeyNode::Notice,
+            KeyNode::Notice(notice_iid()),
             scopes_from(KeyLevel::Window, ScopeContent::None),
         ),
         on(

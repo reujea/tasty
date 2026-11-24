@@ -375,9 +375,10 @@ fn a_stage_keeps_its_exit_key_from_a_plugin_global_command() {
     assert_eq!(names(&mut state), ["glob"], "무대가 쓰지 않는 키");
 }
 
-/// T-Esc-1: Esc 를 `Ignore`로 선언한 팝업이 포커스면 plugin 의 Esc 명령은 돌지 않는다(bare Esc 는 지금 게이트).
+/// T-Esc-1, M-E0b-7 F: Esc 를 `Ignore`로 선언한 팝업이 포커스면 그 팝업은 Esc 를 받지 않고(J-D (b)), bare Esc 는
+/// `route_escape` 의 부모 경로(창 범위 단축키)로 올라가 plugin 의 Esc 명령이 돈다.
 #[test]
-fn an_ignoring_popup_keeps_a_bare_escape_from_a_plugin_command() {
+fn an_ignoring_popup_lets_a_bare_escape_reach_the_plugin_command() {
     let (mut state, mut session) = scene(B);
     let mut mgr = manager();
     state
@@ -388,19 +389,19 @@ fn an_ignoring_popup_keeps_a_bare_escape_from_a_plugin_command() {
         )
         .expect("충돌 질문이 열린다");
     state.normalize_focus(&session.read());
-    assert!(!winit_key(
+    assert!(winit_key(
         &mut state,
         &mut session,
         &mut mgr,
         escape(),
         NONE
     ));
-    assert!(names(&mut state).is_empty());
+    assert_eq!(names(&mut state), ["esc"]);
 }
 
 /// T-Esc-1: 튜토리얼 말풍선이 키보드를 가지면 bare Esc 는 지금 게이트가 닫아 plugin 의 Esc 명령이 돌지 않는다.
-/// 말풍선 노드는 Esc 를 끝내지 않으므로(`key_route::start_node_ends_key`) bare Esc 에 경로 게이트를 쓰면 갈리는
-/// 장면이다. 포커스할 수 있는 `Ignore` 팝업(explorer_conflict)은 `Text`라 경로 게이트도 Esc 를 끝내 갈리지 않는다.
+/// bare Esc 의 게이트는 `route_escape` 결과다. 말풍선 노드는 Esc 수신자(`KeyReceiver::Tutorial`)라 닫힌다. 말풍선
+/// 노드가 Esc 를 끝내지 않는 `key_route::start_node_ends_key` 로 판정하면 열려 갈리는 장면이다(M-E0b-2).
 #[test]
 fn a_tutorial_keeps_a_bare_escape_from_a_plugin_command() {
     let (mut state, mut session) = scene(B);

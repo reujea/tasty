@@ -276,8 +276,10 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 설정·plugins·preset 창의 키 사건 노드는 팝업 인스턴스 하나이거나 창 위젯이다. 노드를 정하는 함수는
 `PopupManager::window_key_node`(`src/adapters/ui/popup/window_segments.rs`) 하나다. 누름·키 사건은 egui 입력에 들어가기 전에
 그 노드로 입력을 끊고 누름은 그 자리에서 포커스를 옮긴다(`view::window_input::settle_window_input`, 끊는 조건은 메인 창과 같은
-`PopupManager::cut_key_frame`). egui 에 실은 키의 몫은 그 노드로 묶이고, egui 에 실은 bare Esc 는 그 몫을 끝낸다
-(`view::window_input::bind_window_input`). 패스는 메인 창과 같은 순서
+`PopupManager::cut_key_frame`). egui 에 실은 키의 몫은 그 노드로 묶이고, egui 에 실은 bare Esc 는 그 몫을 끝낸 뒤
+사건 시점 노드로 적용한다. 팝업 노드면 메인 창과 같은 넘김 기록으로 그 Esc 를 키 주인에 넘긴다
+(`view::window_input::bind_window_input`, `PopupManager::apply_window_escape`). debug 키 주입도 같은 입구를 지난다
+(`view::window_input::inject_window_key`). 패스는 메인 창과 같은 순서
 함수로 열고 닫으며(`GpuState::run_window_pass`), 그리기 입구(`put_window_pass_keys`)와 창 위젯 차단이 그 몫의 결속을 함께
 읽는다. quit 창은 팝업 관리자가 없어 노드가 창 위젯 하나다.
 
@@ -286,7 +288,10 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 키 경로를 지나는 사건은 경로 키뿐이다. 경로 키인지와 지금 경로로 남는 사유는 `key_class::classify_key`가 정한다.
 클립보드 조합은 그 창의 egui-winit 수식키로 본다(`KeyEventValue::egui_mods`). egui-winit 변환과 같은지는
 `key_class_tests.rs`가 잠금 버전 소스와 대조한다. 경로 키가 아닌 사건은 키 경로 이전의
-게이트(`window_feeds_egui`·`window_holds_terminal_keys`·`window_keys_to_overlay`)를 그대로 지난다. bare Esc의 처리는
+게이트(`window_feeds_egui`·`window_holds_terminal_keys`·`window_keys_to_overlay`)를 그대로 지난다. 수식키 없는 Esc 도
+경로 키다(래치 중 Esc 는 지금 경로). 그 판정은 `RouteKey::bare_escape` 하나이고(논리 키가 없으면 물리 키) 편집 바인딩보다
+먼저 본다. 수신자는 `key_route::route_escape`가 정하고, 그 결과는 단계 11 `MainViewState::apply_escape_key`가 적용한다.
+App plugin 게이트와 WebView 전달 게이트도 같은 경로 결과를 읽는다. 넘김과 그리기는
 [popup.md의 Esc 소유권](../design/systems/popup.md#plugin-popup--host-popup-부모-자식)을 따른다.
 
 ### 키 경로와 수신자

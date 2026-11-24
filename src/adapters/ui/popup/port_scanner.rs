@@ -2946,7 +2946,14 @@ mod tests {
             repeat: false,
             modifiers: egui::Modifiers::NONE,
         }];
-        assert!(state.window_escape(&mut events, Some(0), false));
+        assert!(
+            crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+                &mut state,
+                &read,
+                &mut events,
+                false
+            )
+        );
         state
             .popups
             .begin_key_pass(ctx.input(|i| i.key_down(egui::Key::Escape)));

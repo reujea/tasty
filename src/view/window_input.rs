@@ -29,11 +29,10 @@ impl<'a, T: WindowPopups> WindowPass<'a, T> {
         }
     }
 
-    /// `run` 전에 이번 패스 키 값을 정한다. 결속이 없는 몫의 키 주인은 지금 노드이고, 표지는 이번 몫 것이다.
-    pub(crate) fn begin_run(&mut self, ctx: &egui::Context, marks: Vec<tasty_key_match::KeyMods>) {
+    /// `run` 전에 이번 패스 키 값을 정한다. 결속이 없는 몫의 키 주인은 지금 노드다.
+    pub(crate) fn begin_run(&mut self, ctx: &egui::Context) {
         self.keys = WindowPassKeys {
             owner: self.state.window_popups().window_key_node(ctx).popup(),
-            marks,
         };
     }
 }
@@ -135,19 +134,61 @@ pub(crate) fn settle_window_input(
     }
 }
 
-/// egui 에 실은 사건(`incoming`)의 몫을 묶는다. 키·IME·Esc 면 그 사건 시점 노드로 묶고, bare Esc 면 그 몫을 끝낸다(뒤
-/// 경계, `PopupManager::note_escape_loaded`).
+/// egui 에 실은 사건(`incoming`)의 몫을 묶는다. 키·IME 면 그 사건 시점 노드로 묶는다. bare Esc 면 그 몫을 끝내고(뒤
+/// 경계, `PopupManager::note_escape_loaded`) 사건 시점 수신 노드로 묶어 결과를 적용한다(단계 11,
+/// `PopupManager::apply_window_escape`). `pending` 은 그 창 egui 입력 큐, `escape_held` 는 직전 패스 끝의 Escape 눌림
+/// 상태다.
 pub(crate) fn bind_window_input(
     ctx: &egui::Context,
     popups: &mut PopupManager,
     incoming: Incoming,
+    pending: &mut Vec<egui::Event>,
+    escape_held: bool,
 ) {
-    if incoming.is_key() {
-        popups.bind_window_key(ctx);
+    match incoming {
+        Incoming::Escape => {
+            popups.note_escape_loaded();
+            popups.apply_window_escape(ctx, pending, escape_held);
+        }
+        Incoming::Key => popups.bind_window_key(ctx),
+        Incoming::Press => {}
     }
-    if incoming == Incoming::Escape {
-        popups.note_escape_loaded();
-    }
+}
+
+/// 별도 창 debug 키 주입 하나. winit 키와 같은 사건 입구를 지난다: 끊기(`settle_window_input`) → egui 큐 적재
+/// (`debug_input::push_egui_key`) → 결속과 bare Esc 적용(`bind_window_input`). bare Esc 인지는 메인 창 debug 주입과 같이
+/// 주입이 쥔 egui 수식키와 창이 지금 누른 것으로 보는 실물 Win·Super 로 정한다(`RouteKey::bare_escape`). 매핑 불가 키면
+/// 끊지도 넣지도 않고 `None`.
+#[cfg(debug_assertions)]
+pub(crate) fn inject_window_key<S>(
+    ctx: &egui::Context,
+    popups: &mut PopupManager,
+    sink: &mut S,
+    key_name: &str,
+    pressed: bool,
+    modifiers: Option<egui::Modifiers>,
+) -> Option<crate::view::main::debug_input::PushedKey>
+where
+    S: EguiPressSink + crate::view::main::debug_input::EguiKeySink,
+{
+    let key = egui::Key::from_name(key_name)?;
+    let bare_escape = pressed
+        && crate::adapters::ui::input::key_route::RouteKey {
+            key,
+            modifiers: modifiers.unwrap_or_else(|| sink.held_modifiers()),
+            super_held: sink.super_held(),
+        }
+        .bare_escape();
+    let incoming = if bare_escape {
+        Incoming::Escape
+    } else {
+        Incoming::Key
+    };
+    settle_window_input(sink, ctx, popups, incoming);
+    let pushed = crate::view::main::debug_input::push_egui_key(sink, key_name, pressed, modifiers)?;
+    let held = sink.escape_held();
+    bind_window_input(ctx, popups, incoming, sink.queued_events(), held);
+    Some(pushed)
 }
 
 #[cfg(test)]

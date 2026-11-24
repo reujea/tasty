@@ -341,7 +341,14 @@ fn opening_the_picker_from_an_expanded_parent_popup_opens_it_expanded() {
         repeat: false,
         modifiers: egui::Modifiers::NONE,
     }];
-    assert!(state.window_escape(&mut events, Some(0), false));
+    assert!(
+        crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+            &mut state,
+            &session.read(),
+            &mut events,
+            false
+        )
+    );
     assert!(
         state.popups.plugin_expanded().contains(&7),
         "창은 사건 시점에 접지 않는다"
@@ -733,7 +740,12 @@ fn escape_on_left_with_right_picker(press_escape: bool) {
         );
         let mut pending = Vec::new();
         assert!(
-            !state.window_escape(&mut pending, Some(0), false),
+            !crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+                &mut state,
+                &engine.read(),
+                &mut pending,
+                false
+            ),
             "창 Esc 판정이 L 의 Esc 를 처리한다"
         );
         assert!(
@@ -926,7 +938,12 @@ fn a_window_picker_takes_the_first_escape_before_an_open_notification_list() {
         modifiers: egui::Modifiers::NONE,
     };
     let mut pending = vec![escape];
-    state.window_escape(&mut pending, Some(0), false);
+    crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+        &mut state,
+        &engine.read(),
+        &mut pending,
+        false,
+    );
     layer_frame(&mut state, &engine.read(), pending);
     let closes_notifications = state.pending_intents.iter().any(|i| {
         matches!(

@@ -204,9 +204,10 @@ fn escape_through_the_window(
     layout: &LayoutContext,
 ) -> bool {
     let mut events = escape();
-    let consumed = state.window_escape(
+    let consumed = crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+        state,
+        engine,
         &mut events,
-        Some(0),
         ctx.input(|i| i.key_down(egui::Key::Escape)),
     );
     frame(ctx, state, engine, mgr, layout, events);
@@ -370,7 +371,12 @@ fn the_escape_handed_to_the_owner_keeps_its_modifiers() {
     assert!(is_open(&state, h));
     let mut events = vec![escape_with(egui::Modifiers::NONE)];
     assert!(
-        state.window_escape(&mut events, Some(0), false),
+        crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+            &mut state,
+            &engine.read(),
+            &mut events,
+            false
+        ),
         "창이 H 의 포커스를 푼다"
     );
     assert!(events.is_empty(), "창은 그 Esc 를 egui 입력에서 뺀다");
@@ -479,7 +485,12 @@ fn an_escape_that_closes_a_plugin_owner_does_not_reach_a_surface_field() {
 
     let mut events = escape();
     assert!(
-        state.window_escape(&mut events, Some(0), false),
+        crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+            &mut state,
+            &engine.read(),
+            &mut events,
+            false
+        ),
         "plugin 키 주인 갈래"
     );
     assert!(events.is_empty(), "창은 그 Esc 를 egui 입력에서 뺀다");
@@ -528,12 +539,17 @@ fn sent_escape_keys(state: &mut RequestContext) -> Vec<(bool, bool)> {
 }
 
 /// 창이 Esc 누름을 처리한 뒤 같은 프레임에 그 뗌이 온다(뗌은 창이 처리하지 않아 egui 입력에 남는다).
-fn quick_escape(ctx: &Context, state: &mut RequestContext) -> Vec<Event> {
+fn quick_escape(
+    ctx: &Context,
+    state: &mut RequestContext,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+) -> Vec<Event> {
     let mut events = escape();
     assert!(
-        state.window_escape(
+        crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+            state,
+            engine,
             &mut events,
-            Some(0),
             ctx.input(|i| i.key_down(egui::Key::Escape))
         ),
         "plugin 키 주인 갈래"
@@ -568,7 +584,7 @@ fn a_quick_escape_reaches_the_plugin_owner_as_press_then_release() {
     draw(&mut state, Vec::new());
     focus_p(&mut state);
     state.take_pending_intents();
-    let events = quick_escape(&ctx, &mut state);
+    let events = quick_escape(&ctx, &mut state, &engine.read());
     draw(&mut state, events);
     assert_eq!(
         sent_escape_keys(&mut state),
@@ -633,9 +649,10 @@ fn a_held_escape_reaches_an_unfocus_plugin_owner_once_and_releases_it() {
 
     let mut events = escape();
     assert!(
-        state.window_escape(
+        crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+            &mut state,
+            &engine.read(),
             &mut events,
-            Some(0),
             ctx.input(|i| i.key_down(egui::Key::Escape))
         ),
         "plugin 키 주인 갈래"
@@ -686,9 +703,10 @@ fn a_held_escape_reaches_an_unfocus_plugin_owner_once_and_releases_it() {
     );
 
     let mut events = escape();
-    let handled = state.window_escape(
+    let handled = crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+        &mut state,
+        &engine.read(),
         &mut events,
-        Some(0),
         ctx.input(|i| i.key_down(egui::Key::Escape)),
     );
     draw(&mut state, &mgr, events);

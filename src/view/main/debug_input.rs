@@ -312,13 +312,13 @@ impl PushedKey {
 
 /// 메인 창에 주입한 키 하나. 창의 키와 같은 순서로 지금 입력 몫을 끊은 뒤(`key_focus`) 키를 egui 입력 큐에 넣는다
 /// (`push_egui_key`). 포인터(`press_focus`)·글자(`debug_inject_egui_text`) 주입과 진입 순서가 같다. 매핑 불가 키면
-/// 끊지도 넣지도 않고 `None`. 넣은 사건에 수식키 없는 Esc 누름이 있으면 실제 키처럼 창의 Esc 판정
-/// (`MainViewState::window_escape`, 대상은 `tasty_key_match::is_window_escape`)을 거친다. 수식키는 주입이 쥔 egui
-/// 수식키와 창이 지금 누른 것으로 보는 실물 Win·Super(`EguiKeySink::super_held`)다. 처리한 누름은 egui 큐에서
-/// 빠지고 키 주인 몫으로 넘어간다.
+/// 끊지도 넣지도 않고 `None`. 넣은 사건이 수식키 없는 Esc 누름이면(`RouteKey::bare_escape`, 수식키는 주입이 쥔 egui
+/// 수식키와 창이 지금 누른 것으로 보는 실물 Win·Super `EguiKeySink::super_held`) 실제 키처럼 메인 경로의 Esc 수신자
+/// (`key_nodes::bare_escape_decision`)를 정해 그 몫에 묶고(`window_feeds_key`) 단계 11 적용(`window_escape`)을 거친다.
+/// 처리한 누름은 egui 큐에서 빠지고 키 주인 몫으로 넘어간다. egui 전용 입구라 단축키·끝 목적지 단계는 돌지 않는다.
 pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
     state: &mut crate::state::MainViewState,
-    core: &crate::core::CoreState,
+    core: &crate::runtime::engine_read::EngineRead<'_>,
     sink: &mut S,
     key_name: &str,
     pressed: bool,
@@ -340,19 +340,21 @@ pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
     segment_focus(state, core, sink, incoming);
     let from = sink.queued_events().len();
     let pushed = push_egui_key(sink, key_name, pressed, modifiers)?;
-    let mods = crate::adapters::ui::popup::keys::egui_window_key_mods(
-        sink.held_modifiers(),
-        sink.super_held(),
-    );
     let loaded = sink.queued_events().get(from..).is_some_and(|e| {
         e.iter()
             .any(crate::adapters::ui::popup::body_keys::is_escape_press)
     });
     // 주입한 bare Esc 는 egui 입력에 실리므로 그 몫을 끝낸다(뒤 경계).
     state.mark_escape_segment(loaded, bare_escape);
-    if loaded && tasty_key_match::is_window_escape(true, mods) {
+    if loaded && bare_escape {
+        let egui_surface =
+            crate::adapters::ui::input::key_nodes::focused_surface_takes_egui(state, core);
+        let decision =
+            crate::adapters::ui::input::key_nodes::bare_escape_decision(state, core, egui_surface);
+        // 결속은 winit 키의 단계 8 과 같은 판정이다. debug 주입은 수신자와 무관하게 egui 큐에 싣는다.
+        let _ = state.window_feeds_key(decision, egui_surface, true);
         let held = sink.escape_held();
-        if !state.window_escape(sink.queued_events(), Some(from), held) {
+        if !state.window_escape(decision, loaded, sink.queued_events(), held) {
             tracing::debug!(
                 "the window did not take the injected Escape; it stays in the egui input"
             );

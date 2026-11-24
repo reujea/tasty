@@ -42,6 +42,14 @@ pub(crate) struct WindowSegments {
 }
 
 impl WindowSegments {
+    /// 지금 사건을 받는 몫의 노드.
+    fn open_node_value(&self) -> Option<WindowNode> {
+        match self.after.back() {
+            Some(node) => *node,
+            None => self.node,
+        }
+    }
+
     /// 지금 사건을 받는 몫(마지막으로 끊은 뒤 몫, 없으면 지금 그리는 몫)의 노드 칸.
     fn open_node(&mut self) -> &mut Option<WindowNode> {
         match self.after.back_mut() {
@@ -77,8 +85,12 @@ impl PopupManager {
         loop {
             let node = *self.window.open_node();
             let popup = node.unwrap_or(focus).popup().map(PopupNode::Host);
-            let changed = node.is_some_and(|node| node != focus);
-            if !self.cut_key_frame(events, incoming, popup, changed, false) {
+            let changed = if node.is_some_and(|node| node != focus) {
+                super::frame_keys::NodeChange::Focus
+            } else {
+                super::frame_keys::NodeChange::Same
+            };
+            if !self.cut_key_frame(events, incoming, popup, changed) {
                 break;
             }
             self.window.open_node().get_or_insert(focus);
@@ -119,6 +131,85 @@ impl PopupManager {
         self.bind_window_key_node(node.popup().map(PopupNode::Host));
     }
 
+    /// egui 에 실은 bare Esc 누름의 수신 노드. 사건 시점 노드가 Esc 를 받는 팝업(선언이 Ignore 가 아니거나 펼침)이면 그
+    /// 팝업이고, 아니면 부모 경로인 창 위젯이다(메인 창 `route_escape` 와 같은 규칙).
+    fn window_escape_node(&self, ctx: &egui::Context) -> WindowNode {
+        let node = match self.window.open_node_value() {
+            Some(node) => node,
+            None => self.window_key_node(ctx),
+        };
+        match node {
+            WindowNode::Popup(iid)
+                if self.instance(iid).is_some_and(|p| {
+                    p.escape_decl() != super::PopupEscape::Ignore || p.expanded()
+                }) =>
+            {
+                node
+            }
+            _ => WindowNode::Widget,
+        }
+    }
+
+    /// 단계 8·11(별도 창): egui 에 실은 bare Esc 누름 하나를 그 수신 노드로 묶고 결과를 적용한다. 수신자가 팝업이면
+    /// 그 누름을 `pending`(egui 입력)에서 빼 그 팝업에 넘기고(메인 창과 같은 넘김 기록), 펼치지 않은 팝업이면 포커스를
+    /// 푼다. 창 위젯이면 egui 입력에 둔다. `escape_held` 는 직전 패스 끝의 Escape 눌림 상태다.
+    pub(crate) fn apply_window_escape(
+        &mut self,
+        ctx: &egui::Context,
+        pending: &mut Vec<egui::Event>,
+        escape_held: bool,
+    ) {
+        let WindowNode::Popup(iid) = self.window_escape_node(ctx) else {
+            self.bind_window_key_node(None);
+            return;
+        };
+        self.bind_window_key_node(Some(PopupNode::Host(iid)));
+        if !self.instance(iid).is_some_and(|p| p.expanded()) {
+            self.set_instance_focused(iid, false);
+        }
+        if let Some(at) = pending.iter().rposition(super::body_keys::is_escape_press) {
+            let event = pending.remove(at);
+            self.hand_escape_to_bound_owner(escape_held, vec![(at, event)]);
+        }
+    }
+}
+
+#[cfg(test)]
+impl PopupManager {
+    /// 한 `RawInput` 시험 대역(별도 창 `render`): 지금 egui 포커스를 직전 패스 기록으로 두고, `events` 의 수식키 없는
+    /// Esc 누름마다 사건 입구의 단계 11(`apply_window_escape`)을 밟고(그 누름은 입력에서 빠져 넘김 기록이 된다) 키
+    /// 주인이 W1 값(`owner`)인 패스 키 값을 돌려준다.
+    pub(crate) fn raw_pass_keys(
+        &mut self,
+        ctx: &egui::Context,
+        owner: Option<PopupInstanceId>,
+        events: &mut Vec<egui::Event>,
+    ) -> super::escape_step::WindowPassKeys {
+        // 창은 직전 패스를 닫을 때(`close_window_segment`) 포커스를 기록한다. 대역은 패스를 닫지 않으므로 여기서 읽는다.
+        self.window.record = WindowFocusRecord::read(ctx);
+        let held = ctx.input(|i| i.key_down(egui::Key::Escape));
+        let mut loaded = Vec::with_capacity(events.len());
+        for event in std::mem::take(events) {
+            let bare = matches!(
+                event,
+                egui::Event::Key {
+                    key: egui::Key::Escape,
+                    pressed: true,
+                    modifiers,
+                    ..
+                } if modifiers.is_none()
+            );
+            loaded.push(event);
+            if bare {
+                self.apply_window_escape(ctx, &mut loaded, held);
+            }
+        }
+        *events = loaded;
+        super::escape_step::WindowPassKeys { owner }
+    }
+}
+
+impl PopupManager {
     /// 별도 창 패스 하나를 닫는다. 패스 뒤 egui 포커스를 기록하고 다음 몫의 노드를 꺼낸다. 그 패스가 그린 누름은 지운다.
     pub(crate) fn close_window_segment(&mut self, ctx: &egui::Context) {
         self.window.record = WindowFocusRecord::read(ctx);

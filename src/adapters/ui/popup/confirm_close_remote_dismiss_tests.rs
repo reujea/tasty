@@ -130,7 +130,14 @@ fn escape_closes_the_close_remote_confirmation_and_sends_nothing() {
     frame(&ctx, screen(), &mut state, &session);
     // 창이 그 Esc 를 판정해 키 주인 확인에 넘긴다. 확인 본문은 Esc 를 읽지 않고 중앙 단계가 선언대로 닫는다.
     let mut raw = key(egui::Key::Escape);
-    assert!(state.window_escape(&mut raw.events, Some(0), false));
+    assert!(
+        crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+            &mut state,
+            &session.read(),
+            &mut raw.events,
+            false
+        )
+    );
     frame(&ctx, raw, &mut state, &session);
     assert!(!state.popups.is_open(CONFIRM_CLOSE_REMOTE_POPUP_ID));
     assert!(pending(&state).is_none());

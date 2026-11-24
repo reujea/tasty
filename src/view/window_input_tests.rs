@@ -1,10 +1,9 @@
-//! 별도 창 입력 패스(§1.1) 장면. 창 대역은 사건마다 제품 단계를 밟는다: 단계 3~5(`settle_window_input`), egui 큐 적재
-//! (Esc 누름이면 그 사건 시점 수식키 표지), 적재한 키의 몫 결속(`PopupManager::bind_window_key`). 패스는 제품과 같은 순서
-//! 함수(`run_input_pass`)와 창 상태(`WindowPass`)로 돌고, 입력은 끊은 자리에서 나누며 표지도 제품과 같은 함수로 몫별로
-//! 나눈다(`split_pass_marks`). 그리기는 설정 창처럼 관리자에 패스 키 값을 넣고 창 위젯을 그린 뒤 팝업을 그린다.
+//! 별도 창 입력 패스(§1.1) 장면. 창 대역은 사건마다 제품 단계를 밟는다: 단계 3~5(`settle_window_input`), egui 큐 적재,
+//! 적재한 사건의 몫 결속과 bare Esc 적용(`bind_window_input`). 패스는 제품과 같은 순서 함수(`run_input_pass`)와 창
+//! 상태(`WindowPass`)로 돌고, 입력은 끊은 자리에서 나눈다. 그리기는 설정 창처럼 관리자에 패스 키 값을 넣고 창 위젯을
+//! 그린 뒤 팝업을 그린다.
 
 use super::*;
-use crate::adapters::ui::popup::escape_step::split_pass_marks;
 use crate::adapters::ui::popup::{PopupId, PopupScope, PopupState};
 use crate::gfx::gpu::input_pass::{InputPassHost, run_input_pass};
 use crate::gfx::gpu::text_selection::HeldPastes;
@@ -133,8 +132,6 @@ pub(crate) struct Harness {
     pub(crate) ctx: egui::Context,
     queue: Vec<egui::Event>,
     pub(crate) cuts: InputCuts,
-    loaded_marks: Vec<tasty_key_match::KeyMods>,
-    pass_marks: Vec<tasty_key_match::KeyMods>,
     held: HeldPastes,
 }
 
@@ -159,8 +156,7 @@ impl<'s, T: WindowPopups> InputPassHost<WindowPass<'s, T>> for Harness {
 
     fn take_input(&mut self) -> egui::RawInput {
         let mut events = std::mem::take(&mut self.queue);
-        let split = self.cuts.split_pass(&mut events, &mut self.queue);
-        self.pass_marks = split_pass_marks(&mut self.loaded_marks, &events, split);
+        self.cuts.split_pass(&mut events, &mut self.queue);
         egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
                 egui::Pos2::ZERO,
@@ -187,7 +183,7 @@ impl<'s, T: WindowPopups> InputPassHost<WindowPass<'s, T>> for Harness {
         state: &mut WindowPass<'s, T>,
         mut ui: impl FnMut(&egui::Context, &mut WindowPass<'s, T>),
     ) -> egui::FullOutput {
-        state.begin_run(&self.ctx, std::mem::take(&mut self.pass_marks));
+        state.begin_run(&self.ctx);
         self.ctx.run(raw_input, |ctx| ui(ctx, state))
     }
 
@@ -202,8 +198,6 @@ impl Harness {
             ctx: egui::Context::default(),
             queue: Vec::new(),
             cuts: InputCuts::default(),
-            loaded_marks: Vec::new(),
-            pass_marks: Vec::new(),
             held: HeldPastes::default(),
         }
     }
@@ -225,7 +219,7 @@ impl Harness {
         self.queue.push(button(pos, false));
     }
 
-    /// 수식키 없는 키 하나. 글자가 있으면 같은 사건이 글자도 싣는다. Esc 누름이면 표지를 남긴다.
+    /// 수식키 없는 키 하나. 글자가 있으면 같은 사건이 글자도 싣는다.
     pub(crate) fn key(
         &mut self,
         window: &mut impl WindowPopups,
@@ -238,7 +232,6 @@ impl Harness {
             Incoming::Key
         };
         self.settle(window, incoming);
-        let from = self.queue.len();
         self.queue.push(egui::Event::Key {
             key,
             physical_key: None,
@@ -249,13 +242,15 @@ impl Harness {
         if let Some(text) = text {
             self.queue.push(egui::Event::Text(text.into()));
         }
-        self.loaded_marks
-            .extend(crate::adapters::ui::popup::body_keys::escape_marks_in(
-                &self.queue,
-                from,
-                tasty_key_match::KeyMods::default(),
-            ));
-        bind_window_input(&self.ctx, window.window_popups(), incoming);
+        let ctx = self.ctx.clone();
+        let held = ctx.input(|i| i.key_down(egui::Key::Escape));
+        bind_window_input(
+            &ctx,
+            window.window_popups(),
+            incoming,
+            &mut self.queue,
+            held,
+        );
     }
 
     fn type_x(&mut self, window: &mut TestWindow) {

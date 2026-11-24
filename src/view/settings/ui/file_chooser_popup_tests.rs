@@ -260,22 +260,16 @@ fn next_owner(ctx: &egui::Context, st: &SettingsUiState) -> Option<PopupInstance
         .window_key_owner(ctx, WindowFocusRecord::read(ctx))
 }
 
-/// 설정 창 `render`처럼 W1 값과 이번 입력의 Esc 표지(모두 수식키 없음)를 `run` 전에 정하고, 패스마다 `draw`에
-/// 같은 값을 넘긴다. 관리자에 넣는 일은 `draw`가 한다(제품의 관리자 그리기 함수와 같다).
+/// 설정 창 `render`처럼 W1 값을 `run` 전에 정하고 bare Esc 는 사건 입구처럼 키 주인에 넘긴 뒤(`raw_pass_keys`), 패스마다
+/// `draw`에 넘긴다.
 fn keyed_run(
     ctx: &egui::Context,
     st: &mut SettingsUiState,
-    raw: egui::RawInput,
+    mut raw: egui::RawInput,
     mut draw: impl FnMut(&egui::Context, &mut SettingsUiState, &WindowPassKeys),
 ) -> egui::FullOutput {
-    let keys = WindowPassKeys {
-        owner: next_owner(ctx, st),
-        marks: crate::adapters::ui::popup::body_keys::escape_marks_in(
-            &raw.events,
-            0,
-            tasty_key_match::KeyMods::default(),
-        ),
-    };
+    let owner = next_owner(ctx, st);
+    let keys = st.popups.raw_pass_keys(ctx, owner, &mut raw.events);
     ctx.run(raw, |ctx| draw(ctx, st, &keys))
 }
 
@@ -869,22 +863,26 @@ fn a_discarded_pass_keeps_the_explicit_no_owner() {
     assert!(st.pending_binding.is_some());
 }
 
-// ── 충돌 질문·설정 창 선택기의 Esc(중앙 단계). 패스마다 `draw_settings_panel`을 부르고, 표지는 창 `render`처럼
-// 입력 묶음마다 정한다. ──
+// ── 충돌 질문·설정 창 선택기의 Esc(중앙 단계). 패스마다 `draw_settings_panel`을 부르고, Esc 판정은 창 사건 입구처럼
+// 사건 시점에 정한다. ──
 
-/// `panel_pass`와 같고 Esc 표지를 직접 준다. 그리기마다(다시 그리는 패스 포함) 같은 값을 넘긴다. 패스마다 그 패스
-/// `raw.events` 수를 돌려준다.
+/// `panel_pass`와 같고 이 패스 입력의 Esc 를 별도 창 사건 입구처럼 사건 시점에 판정한다. `bare` 면 수식키 없는 Esc 로
+/// 보고 그 Esc 를 키 주인에 넘긴다(`raw_pass_keys`). 아니면(비-macOS Win·Super 를 누른 채 친 Esc) 보통 키처럼 그 몫을
+/// 지금 노드에 묶고 egui 입력에 둔다(`bind_window_key`). 패스마다 그 패스 `raw.events` 수를 돌려준다.
 #[cfg(not(target_os = "macos"))]
-fn marked_pass(
+fn entered_pass(
     ctx: &egui::Context,
     p: &mut Panel,
     st: &mut SettingsUiState,
-    raw: egui::RawInput,
-    marks: Vec<tasty_key_match::KeyMods>,
+    mut raw: egui::RawInput,
+    bare: bool,
 ) -> (egui::FullOutput, Vec<usize>) {
-    let keys = WindowPassKeys {
-        owner: next_owner(ctx, st),
-        marks,
+    let owner = next_owner(ctx, st);
+    let keys = if bare {
+        st.popups.raw_pass_keys(ctx, owner, &mut raw.events)
+    } else {
+        st.popups.bind_window_key(ctx);
+        WindowPassKeys { owner }
     };
     let mut raws = Vec::new();
     let out = ctx.run(raw, |ctx| {
@@ -972,11 +970,12 @@ fn conflict_keys(keys: [egui::Key; 2]) -> (Panel, SettingsUiState, String, usize
 }
 
 /// M-E1-4 F: Given 키 주인 충돌 질문, When 한 입력 묶음에 bare Esc 뒤 Y 가 오면, Then 별도 창 사건 입구가 Esc 몫 뒤에서
-/// 끊어(조건 8 뒤 경계) Esc 패스가 질문을 닫고 Y 는 닫힌 질문에 가지 않아 바인딩은 적용되지 않는다.
+/// 끊어(조건 8 뒤 경계) Esc 패스가 질문을 닫고 Y 는 닫힌 질문에 가지 않아 바인딩은 적용되지 않는다. Esc 는 사건 시점에
+/// 질문의 포커스를 풀어 Y 의 노드가 창 위젯으로 바뀌므로 Y 앞에 노드가 바뀐 빈 패스가 하나 더 있다.
 #[test]
 fn escape_then_yes_on_the_conflict_question_applies_nothing() {
     let (_p, st, combo, cuts) = conflict_keys([egui::Key::Escape, egui::Key::Y]);
-    assert_eq!(cuts, 1, "Esc 몫과 Y 몫이 나뉜다");
+    assert_eq!(cuts, 2, "Esc 몫, 노드가 바뀐 빈 패스, Y 몫으로 나뉜다");
     assert!(!applied(&st, &combo), "바인딩이 적용되지 않는다");
     assert!(!st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID), "닫힌다");
     assert!(st.pending_binding.is_none(), "Esc 가 대기를 취소한다");
@@ -1045,8 +1044,8 @@ fn conflict_escape_clears_the_pending_binding_in_the_same_pass() {
     assert!(st.pending_binding.is_none(), "대기 단축키가 빈다");
 }
 
-/// T-4a3-K3c: Given 키 주인 충돌 질문, When 표지 [bare]인 Esc 패스를 Super 가 눌린 채 그리면, Then 그 패스에 닫히고
-/// 대기 단축키가 비었다(중앙 사건은 표지 수식키로 정한다).
+/// T-4a3-K3c: Given 키 주인 충돌 질문, When 사건 시점에 수식키 없는 Esc 로 정한 패스를 Super 가 눌린 채 그리면, Then
+/// 그 패스에 닫히고 대기 단축키가 비었다(중앙 사건은 사건 시점 판정으로 정한다).
 #[cfg(not(target_os = "macos"))]
 #[test]
 fn a_bare_escape_closes_the_conflict_even_if_super_is_down_at_render() {
@@ -1058,19 +1057,20 @@ fn a_bare_escape_closes_the_conflict_even_if_super_is_down_at_render() {
         tasty_key_match::super_held(&ctx),
         "render 시점에 Super 가 눌려 있다"
     );
-    drop(marked_pass(
+    drop(entered_pass(
         &ctx,
         &mut p,
         &mut st,
         keys_input(vec![escape_key()]),
-        vec![tasty_key_match::KeyMods::default()],
+        true,
     ));
     assert!(!st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID));
     assert!(st.pending_binding.is_none());
 }
 
-/// T-4a3-K3d: Given 키 주인 충돌 질문, When 표지 [Super]인 Esc 를 Super 를 뗀 뒤 그리면(그리기 시점 값으로는 bare 로
-/// 보인다), Then 첫 패스 뒤 거부 표지가 서지 않고 열린 채이며, 다음 프레임 뒤에도 열린 채 대기 단축키가 남는다.
+/// T-4a3-K3d: Given 키 주인 충돌 질문, When 사건 시점에 Super 를 누른 채 친 Esc 를 Super 를 뗀 뒤 그리면(그리기 시점
+/// 값으로는 bare 로 보인다), Then 첫 패스 뒤 거부 표지가 서지 않고 열린 채이며, 다음 프레임 뒤에도 열린 채 대기 단축키가
+/// 남는다.
 #[cfg(not(target_os = "macos"))]
 #[test]
 fn a_super_escape_does_not_close_the_conflict_after_super_is_released() {
@@ -1082,26 +1082,16 @@ fn a_super_escape_does_not_close_the_conflict_after_super_is_released() {
         !tasty_key_match::super_held(&ctx),
         "render 시점에 Super 가 놓였다"
     );
-    let super_mark = tasty_key_match::KeyMods {
-        super_: true,
-        ..Default::default()
-    };
-    drop(marked_pass(
+    drop(entered_pass(
         &ctx,
         &mut p,
         &mut st,
         keys_input(vec![escape_key()]),
-        vec![super_mark],
+        false,
     ));
     assert!(!st.conflict_cancelled, "거부 표지가 서지 않는다");
     assert!(st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID));
-    drop(marked_pass(
-        &ctx,
-        &mut p,
-        &mut st,
-        screen_input(),
-        Vec::new(),
-    ));
+    drop(entered_pass(&ctx, &mut p, &mut st, screen_input(), false));
     assert!(
         st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID),
         "다음 프레임에도 열린 채다"
@@ -1109,8 +1099,8 @@ fn a_super_escape_does_not_close_the_conflict_after_super_is_released() {
     assert!(st.pending_binding.is_some());
 }
 
-/// T-4a3-K3e: Given 키 주인 충돌 질문, When 단축키 행 줄 쌓기가 바뀌어 같은 입력을 다시 그리는 프레임에 표지 [bare]인
-/// Esc 가 오면, Then 첫 패스 뒤 닫히고 대기 단축키가 비며, 다시 그린 패스는 다시 닫거나 적용하지 않는다.
+/// T-4a3-K3e: Given 키 주인 충돌 질문, When 단축키 행 줄 쌓기가 바뀌어 같은 입력을 다시 그리는 프레임에 창이 넘긴
+/// 수식키 없는 Esc 가 오면, Then 첫 패스 뒤 닫히고 대기 단축키가 비며, 다시 그린 패스는 다시 닫거나 적용하지 않는다.
 #[test]
 fn a_discarded_pass_does_not_close_or_apply_again() {
     let (mut p, mut st) = conflicting_panel();
@@ -1129,12 +1119,11 @@ fn a_discarded_pass_does_not_close_or_apply_again() {
     let before = st.draft.as_ref().expect("draft").keybindings.clone();
     st.active_tab = SettingsTab::Keybindings;
     let mut closed_after_first = None;
-    let keys = WindowPassKeys {
-        owner: next_owner(&ctx, &st),
-        marks: vec![tasty_key_match::KeyMods::default()],
-    };
+    let mut events = vec![escape_key()];
+    let owner = next_owner(&ctx, &st);
+    let keys = st.popups.raw_pass_keys(&ctx, owner, &mut events);
     let mut raws = Vec::new();
-    let out = ctx.run(raw(vec![escape_key()]), |ctx| {
+    let out = ctx.run(raw(events), |ctx| {
         raws.push(ctx.input(|i| i.raw.events.len()));
         if raws.len() == 2 {
             closed_after_first = Some((
@@ -1156,7 +1145,11 @@ fn a_discarded_pass_does_not_close_or_apply_again() {
         assert_eq!(action, None);
     });
     assert_eq!(out.platform_output.num_completed_passes, 2);
-    assert_eq!(raws, vec![1, 0], "둘째 패스 raw 입력은 비었다");
+    assert_eq!(
+        raws,
+        vec![0, 0],
+        "창이 넘긴 Esc 는 패스 입력에 없다(키 주인 본문을 그리는 동안만 넣는다)"
+    );
     assert_eq!(
         closed_after_first,
         Some((false, false)),
@@ -1198,12 +1191,12 @@ fn an_apply_click_and_a_bare_escape_apply_even_if_super_is_down_at_render() {
         tasty_key_match::super_held(&ctx),
         "뗌 패스 render 시점에 Super 가 눌려 있다"
     );
-    drop(marked_pass(
+    drop(entered_pass(
         &ctx,
         &mut p,
         &mut st,
         keys_input(vec![button_event(apply, false), escape_key()]),
-        vec![tasty_key_match::KeyMods::default()],
+        true,
     ));
     assert!(st.conflict_accepted, "적용 표지가 섰다");
     assert!(

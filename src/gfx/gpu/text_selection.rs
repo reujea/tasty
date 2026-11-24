@@ -181,12 +181,6 @@ impl GpuState {
             self.egui_ctx.request_repaint();
         }
         self.edit_keys.input_taken(&raw_input.events);
-        // Esc 표지도 원시 사건과 같이 몫별로 나눈다.
-        self.pass_escape_marks = crate::adapters::ui::popup::escape_step::split_pass_marks(
-            &mut self.loaded_escape_marks,
-            &raw_input.events,
-            split,
-        );
         let focused = self.focus_tag();
         if self.plugin_paste_target.is_some()
             && self
@@ -202,12 +196,6 @@ impl GpuState {
             .events
             .extend(pastes.into_iter().map(egui::Event::Paste));
         raw_input
-    }
-
-    /// 마지막으로 꺼낸 입력이 적재한 Esc 누름마다 사건 시점 수식키. 별도 창 공용 패스(`run_window_pass`)가 입력을 꺼낸
-    /// 뒤 `run` 전에 부른다.
-    pub fn take_window_escape_marks(&mut self) -> Vec<tasty_key_match::KeyMods> {
-        std::mem::take(&mut self.pass_escape_marks)
     }
 
     /// The Wayland selection needs polling: a paste is being read or copied text is being sent.

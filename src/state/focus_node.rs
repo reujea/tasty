@@ -19,7 +19,7 @@
 
 use crate::adapters::ui::popup::PopupScope;
 use crate::adapters::ui::popup::focus::PopupNode;
-use crate::adapters::ui::popup::frame_keys::Incoming;
+use crate::adapters::ui::popup::frame_keys::{Incoming, NodeChange};
 use crate::adapters::ui::popup::route::{PressSnapshot, ScopePath, path_of_focus, path_of_scope};
 use crate::core::CoreState;
 
@@ -60,8 +60,8 @@ pub(crate) struct SegmentAfterCut {
     press: Option<PressSnapshot>,
     /// 그 몫에 처음 든 키 사건 시점의 포커스 노드. 누름만 든 몫은 끊어 닫을 때의 포커스 노드다.
     focus: Option<FocusNode>,
-    /// 그 몫 키들의 사건 시점 복원 안내 안쪽 포커스(`restore_notice::has_keyboard_focus`). 키가 없으면 `None` 이다.
-    notice: Option<bool>,
+    /// 그 몫 키들의 사건 시점 복원 안내(`restore_notice::focused_notice`). 키가 없으면 `None` 이다.
+    notice: Option<Option<crate::adapters::ui::popup::PopupInstanceId>>,
     /// 그 몫이 열린 화면(무대 ID, 일반 화면이면 `None`).
     screen: Option<crate::fullscreen_stages::StageId>,
     /// 그리기 중 전환 앞 화면에서 열린 몫이다(`seal_after_drawing_transition`).
@@ -104,7 +104,7 @@ impl super::MainViewState {
             screen: self.segment_screen,
             marked: self.segment_before_transition,
             focus: self.segment_focus,
-            notice: self.segment_notice,
+            notice: self.segment_notice.map(|n| n.is_some()),
             press: self.press_snapshot.is_some(),
         };
         std::iter::once(current)
@@ -112,7 +112,7 @@ impl super::MainViewState {
                 screen: s.screen,
                 marked: s.before_transition,
                 focus: s.focus,
-                notice: s.notice,
+                notice: s.notice.map(|n| n.is_some()),
                 press: s.press.is_some(),
             }))
             .collect()
@@ -241,7 +241,7 @@ impl super::MainViewState {
         incoming: Incoming,
     ) -> usize {
         let focus = self.focus_node(core);
-        let notice = crate::adapters::ui::restore_notice::has_keyboard_focus(&self.popups);
+        let notice = crate::adapters::ui::restore_notice::focused_notice(&self.popups);
         let mut cuts = 0;
         loop {
             let node = *self.open_segment_focus();
@@ -249,13 +249,15 @@ impl super::MainViewState {
                 FocusNode::Popup(node) => Some(node),
                 _ => None,
             };
-            let changed = node.is_some_and(|node| node != focus);
-            let notice_changed =
-                incoming.is_key() && self.open_segment_notice().is_some_and(|n| n != notice);
-            if !self
-                .popups
-                .cut_key_frame(events, incoming, popup, changed, notice_changed)
-            {
+            // 몫의 노드는 포커스 노드와 그 키 시점의 안내 인스턴스다. 안내 값은 키가 든 몫에만 있다.
+            let changed = if node.is_some_and(|node| node != focus) {
+                NodeChange::Focus
+            } else if incoming.is_key() && self.open_segment_notice().is_some_and(|n| n != notice) {
+                NodeChange::Notice
+            } else {
+                NodeChange::Same
+            };
+            if !self.popups.cut_key_frame(events, incoming, popup, changed) {
                 break;
             }
             self.open_segment_focus().get_or_insert(focus);
@@ -272,8 +274,10 @@ impl super::MainViewState {
         cuts
     }
 
-    /// 지금 사건을 받는 몫의 사건 시점 안내 포커스 칸.
-    fn open_segment_notice(&mut self) -> &mut Option<bool> {
+    /// 지금 사건을 받는 몫의 사건 시점 안내 칸.
+    fn open_segment_notice(
+        &mut self,
+    ) -> &mut Option<Option<crate::adapters::ui::popup::PopupInstanceId>> {
         match self.segments_after_cut.back_mut() {
             Some(slot) => &mut slot.notice,
             None => &mut self.segment_notice,
@@ -466,7 +470,13 @@ impl super::MainViewState {
     /// 포커스를 가진 동안 분류한 키는 창이 egui 로 보내지만 surface 본문의 키가 아니다. 그 값은 그리기 때 다시 읽지
     /// 않는다(앞 몫의 바깥 누름이 안내 포커스를 풀 수 있다).
     pub(crate) fn pass_notice_focus(&self) -> Option<bool> {
-        self.segment_notice
+        self.segment_notice.map(|n| n.is_some())
+    }
+
+    /// 지금 그리는 몫 키들의 사건 시점 안내 인스턴스(그 키의 출발점 `KeyNode::Notice`). 그리기는 그 인스턴스만 그 키를
+    /// 받는다(`PopupManager::set_pass_notice`, `restore_notice::draw_notice_popup`).
+    pub(crate) fn pass_notice(&self) -> Option<crate::adapters::ui::popup::PopupInstanceId> {
+        self.segment_notice.flatten()
     }
 
     /// egui 패스 하나(입력 몫 하나)를 닫는다. 그 몫의 결속·넘길 Esc(`PopupManager::close_key_pass`)와 누름 스냅샷·

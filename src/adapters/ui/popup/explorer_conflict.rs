@@ -275,8 +275,9 @@ mod tests {
         assert!(right.pending_ask().is_some());
     }
 
-    /// T-6b-1: Given 포커스를 받은 충돌 질문(제품 정의, 선언 Ignore), When 수식키 없는 Esc 가 오면, Then 창이 그 Esc 를
-    /// 처리하고 사건 시점에 포커스가 그대로다. 그린 뒤에도 남은 작업을 취소하지 않고 질문이 열린 채다.
+    /// T-6b-1, M-E0b-7: Given 포커스를 받은 충돌 질문(제품 정의, 선언 Ignore), When 수식키 없는 Esc 가 오면, Then 질문은
+    /// Esc 수신자가 아니고(J-D (b)) 그 Esc 는 부모 경로로 가 egui 에 실리지 않는다. 사건 시점에 포커스가 그대로이고, 그린
+    /// 뒤에도 남은 작업을 취소하지 않고 질문이 열린 채다.
     #[test]
     fn escape_does_nothing_on_the_conflict_question() {
         use crate::adapters::ui::popup::window_input_test_support::layer_frame;
@@ -307,15 +308,36 @@ mod tests {
             repeat: false,
             modifiers: egui::Modifiers::NONE,
         }];
+        let egui_surface =
+            crate::adapters::ui::input::key_nodes::focused_surface_takes_egui(&state, &read);
+        let decision = crate::adapters::ui::input::key_nodes::bare_escape_decision(
+            &state,
+            &read,
+            egui_surface,
+        );
         assert!(
-            state.window_escape(&mut events, Some(0), false),
-            "창이 Esc 를 처리한다"
+            matches!(
+                decision,
+                crate::adapters::ui::input::key_nodes::KeyDecision::Path(routed)
+                    if !routed.receiver.is_egui()
+            ),
+            "Esc 는 질문을 지나 부모 경로로 간다: {decision:?}"
+        );
+        assert!(
+            !crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+                &mut state,
+                &read,
+                &mut events,
+                false
+            ),
+            "창의 Esc 적용은 처리하지 않고 단축키·끝 목적지 단계로 넘긴다"
         );
         assert!(
             state.popups.is_instance_focused(iid),
             "사건 시점에 포커스가 그대로다"
         );
-        layer_frame(&ctx, &mut state, &read, events);
+        // egui 수신자가 아닌 Esc 는 egui 입력에 실리지 않는다(단계 8).
+        layer_frame(&ctx, &mut state, &read, Vec::new());
         layer_frame(&ctx, &mut state, &read, Vec::new());
         assert_eq!(shared.take_answer(), None, "남은 작업을 취소하지 않는다");
         assert!(

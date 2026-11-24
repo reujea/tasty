@@ -496,7 +496,7 @@ mod tests {
         let mut actions = Vec::new();
         let mut output = None;
         for frame in events {
-            let raw = egui::RawInput {
+            let mut raw = egui::RawInput {
                 screen_rect: Some(screen),
                 events: frame.clone(),
                 ..Default::default()
@@ -505,15 +505,11 @@ mod tests {
                 &ctx,
                 crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(&ctx),
             );
-            // 창 `render`처럼 W1 값과 이번 입력의 Esc 표지(모두 수식키 없음)를 묶는다.
-            let keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
-                owner,
-                marks: crate::adapters::ui::popup::body_keys::escape_marks_in(
-                    &raw.events,
-                    0,
-                    tasty_key_match::KeyMods::default(),
-                ),
-            };
+            // 창 `render`처럼 W1 값을 넣고 bare Esc 는 사건 입구처럼 키 주인에 넘긴다.
+            let keys = crate::view::window_input::WindowPopups::window_popups(
+                &mut ui_state.folder_chooser,
+            )
+            .raw_pass_keys(&ctx, owner, &mut raw.events);
             output = Some(ctx.run(raw, |ctx| {
                 draw_add_tab(
                     ctx,
@@ -620,15 +616,11 @@ mod tests {
                 &ctx,
                 crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(&ctx),
             );
-            // 창 `render`처럼 W1 값과 이번 입력의 Esc 표지(모두 수식키 없음)를 묶는다.
-            let keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
-                owner,
-                marks: crate::adapters::ui::popup::body_keys::escape_marks_in(
-                    &events,
-                    0,
-                    tasty_key_match::KeyMods::default(),
-                ),
-            };
+            // 창 `render`처럼 W1 값을 넣고 bare Esc 는 사건 입구처럼 키 주인에 넘긴다.
+            let mut events = events;
+            let keys =
+                crate::view::window_input::WindowPopups::window_popups(&mut state.folder_chooser)
+                    .raw_pass_keys(&ctx, owner, &mut events);
             drop(ctx.run(
                 egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
@@ -687,15 +679,11 @@ mod tests {
             ctx,
             crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(ctx),
         );
-        // 창 `render`처럼 W1 값과 이번 입력의 Esc 표지(모두 수식키 없음)를 묶는다.
-        let keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
-            owner,
-            marks: crate::adapters::ui::popup::body_keys::escape_marks_in(
-                &events,
-                0,
-                tasty_key_match::KeyMods::default(),
-            ),
-        };
+        // 창 `render`처럼 W1 값을 넣고 bare Esc 는 사건 입구처럼 키 주인에 넘긴다.
+        let mut events = events;
+        let keys =
+            crate::view::window_input::WindowPopups::window_popups(&mut state.folder_chooser)
+                .raw_pass_keys(ctx, owner, &mut events);
         drop(ctx.run(
             egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(

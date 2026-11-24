@@ -1,5 +1,5 @@
-//! 창의 Esc 처리. 창은 그리기보다 먼저 이 판정을 돌린다. 판정 전에 입력 시점의 키 주인을 묶으므로
-//! (`bind_window_key_owner`) 이 Esc 를 실은 그리기의 키 주인은 여기서 정한 대상과 같다.
+//! 창의 Esc 처리(단계 11). 창은 그리기보다 먼저 사건 시점 수신자(단계 4 `route_escape`)의 결과를 적용한다. egui
+//! 수신자는 단계 8(`window_feeds_key`)이 그 몫에 묶었으므로 이 Esc 를 실은 그리기의 키 주인은 그 수신자와 같다.
 //!
 //! 창이 처리한 Esc 누름은 언제나 egui 입력에서 뺀다(뗌은 남겨 egui 의 눌린 키 상태를 푼다). egui 는 패스 시작에서 입력에 남은 Esc 로 위젯 키 포커스를 풀므로,
 //! 남기면 팝업 층 아래 화면(탐색기 찾기 입력란 등)이 포커스를 잃는다. 키 주인이 그 Esc 를 읽어야 하면(host 본문의
@@ -17,27 +17,44 @@ enum EscapeGate {
 }
 
 impl super::MainViewState {
-    /// 창이 받은 Esc 누름을 판정한다. 처리했으면 `pending`(이번 egui 입력)에서 그 누름 하나를 빼고, 키 주인이 읽을
-    /// 몫이면 그 원래 사건을 원래 자리와 함께 넘겨 둔다. 고르는 누름은 이번 사건이 실은 범위(`loaded_from` 부터 끝까지)의
-    /// 마지막 Esc 누름이다. 적재가 없었으면(`None` 이거나 범위에 Esc 누름이 없음) 큐를 바꾸지 않고 넘기지도 않는다. Esc
-    /// 뗌은 빼지 않는다. egui 입력에 남아 눌린 키 상태를 푼다(넘긴 누름을 되넣을 때도 그 뗌이 뒤에 온다). `escape_held` 는
-    /// 직전 egui 패스 끝의 Escape 눌림 상태다(키 주인에게 되넣을 때 egui 와 같은 반복 판정의 출발점). 처리했으면 참이다.
-    pub(crate) fn window_escape(
+    /// 단계 11 입구: 창이 받은 키 사건(`value`)이 수식키 없는 Esc 누름이면 사건 시점 수신자(`decision`)의 결과를
+    /// 적용한다(`window_escape`). 대상인지는 단계 4 와 같은 판정이다(`key_class::is_bare_escape_press`, 논리 키가 없으면
+    /// 물리 키). `fed` 는 단계 8 적재 결과다. 처리했으면 참이다.
+    pub(crate) fn apply_escape_key(
         &mut self,
+        value: &crate::adapters::ui::input::key_class::KeyEventValue<'_>,
+        decision: crate::adapters::ui::input::key_nodes::KeyDecision,
+        fed: bool,
         pending: &mut Vec<egui::Event>,
-        loaded_from: Option<usize>,
         escape_held: bool,
     ) -> bool {
-        let EscapeGate::Consumed { hand_to_owner } = self.escape_gate() else {
+        crate::adapters::ui::input::key_class::is_bare_escape_press(value)
+            && self.window_escape(decision, fed, pending, escape_held)
+    }
+
+    /// 단계 11: 창이 받은 bare Esc 누름 하나에 사건 시점 수신자(`decision`, 단계 4)의 결과를 적용한다. 처리했으면
+    /// `pending`(egui 입력)에서 그 누름을 빼고, 키 주인이 읽을 몫이면 그 원래 사건을 원래 자리와 함께 넘겨 둔다. 뺄 누름은
+    /// 이번 사건이 egui 에 실은 누름(큐의 마지막 Esc 누름)이고, 실렸는지(`fed`)는 단계 8 적재 결과다.
+    /// egui 수신자의 결속은 단계 8(`window_feeds_key`)이 이미 했다. Esc 뗌은 빼지 않는다. `escape_held` 는 직전 egui 패스
+    /// 끝의 Escape 눌림 상태다(키 주인에게 되넣을 때 egui 와 같은 반복 판정의 출발점). 처리했으면 참이고, 아니면 단축키·끝
+    /// 목적지 단계로 간다.
+    pub(crate) fn window_escape(
+        &mut self,
+        decision: crate::adapters::ui::input::key_nodes::KeyDecision,
+        fed: bool,
+        pending: &mut Vec<egui::Event>,
+        escape_held: bool,
+    ) -> bool {
+        let EscapeGate::Consumed { hand_to_owner } = self.escape_gate(decision) else {
             return false;
         };
-        let press = loaded_from.and_then(|from| {
-            let from = from.min(pending.len());
-            pending[from..]
-                .iter()
-                .rposition(crate::adapters::ui::popup::body_keys::is_escape_press)
-                .map(|at| from + at)
-        });
+        let press = fed
+            .then(|| {
+                pending
+                    .iter()
+                    .rposition(crate::adapters::ui::popup::body_keys::is_escape_press)
+            })
+            .flatten();
         if let Some(at) = press {
             let event = pending.remove(at);
             if hand_to_owner {
@@ -48,9 +65,16 @@ impl super::MainViewState {
         true
     }
 
-    /// Escape로 설정 요청·알림을 처리하고, host 키 주인은 선언 `escape` 대로 포커스를 풀어 넘긴다(Ignore 는 넘기지
-    /// 않는다). 닫기는 팝업 층 중앙 단계가 정한다.
-    fn escape_gate(&mut self) -> EscapeGate {
+    /// Escape 결과. 래치 중이면 설정 요청을 취소하고(N1 까지), 알림 목록 특례(C12b-4 까지)를 본 뒤, 사건 시점 수신자가
+    /// host 팝업이면 선언 `escape` 대로 포커스를 풀어 넘긴다(펼친 팝업은 풀지 않고 넘긴다). Ignore 팝업은 수신자가 되지
+    /// 않는다(`route_escape` 가 부모 경로로 올린다). plugin 팝업이면 그 렌더가 받도록 넘긴다. 그 밖의 수신자는 창이
+    /// 처리하지 않는다. 닫기는 팝업 층 중앙 단계가 정한다.
+    fn escape_gate(
+        &mut self,
+        decision: crate::adapters::ui::input::key_nodes::KeyDecision,
+    ) -> EscapeGate {
+        use crate::adapters::ui::input::key_nodes::KeyDecision;
+        use crate::adapters::ui::input::key_route::KeyReceiver;
         if self.settings_open_requested {
             // 아직 처리하지 않은 설정 창 열기 요청을 취소한다.
             self.settings_open_requested = false;
@@ -58,28 +82,9 @@ impl super::MainViewState {
                 hand_to_owner: false,
             };
         }
-        // 이 Esc 를 실은 그리기의 키 주인을 지금 정한다. 아래 갈래가 포커스를 풀거나 닫아도 그 프레임에 새로 키
-        // 주인이 된 다른 팝업은 같은 Esc 를 읽지 않는다.
-        let live = self.live_key_owner();
-        if let Some(live) = live {
-            self.popups.bind_input_key_owner(live);
-        }
-        // 이번 프레임에 앞서 묶인 키 주인이 있으면 이 Esc 도 그 주인 것이다. 창이 이미 그 주인의 포커스를 풀었거나
-        // 닫았으면(그리기 전 두 번째 Esc) 더 처리하지 않는다. 다른 범위의 팝업을 풀거나 닫지 않는다. 묶인 주인에는
-        // 첫 Esc 만 넘어간다.
-        let bound = self.popups.bound_input_key_owner();
-        if bound.is_some() && bound != live {
-            return EscapeGate::Consumed {
-                hand_to_owner: false,
-            };
-        }
-        // 키 주인도 알림 목록도 없으면 창이 처리할 것이 없다.
-        if live.is_none() && !self.popups.is_open("notifications") {
-            return EscapeGate::Pass;
-        }
         // 알림 목록은 포커스 노드가 다른 팝업이 아닐 때만 Esc 를 받는다. 창을 덮는 피커처럼 다른 팝업이 포커스 노드면
         // Esc 는 그 팝업에서 시작한다.
-        if self.notifications_take_escape(live) {
+        if self.notifications_take_escape(self.live_key_owner()) {
             self.dispatch_intent(
                 crate::intent::UiIntent::ClosePopup {
                     id: "notifications",
@@ -90,40 +95,28 @@ impl super::MainViewState {
                 hand_to_owner: false,
             };
         }
-        // plugin 팝업이 키 주인이면 그 렌더가 Esc 를 받아 선언과 표시 상태로 처리한다(펼쳤으면 다시 접기). 아래의
-        // 포커스된 host 팝업과 알림 목록은 건드리지 않는다(plugin 키 주인이면 알림 목록은 위에서 Esc 를 받지 않는다).
-        if matches!(
-            self.popup_key_owner(),
-            Some(crate::adapters::ui::popup::occlusion::PopupKeyOwner::Plugin(_))
-        ) {
-            return EscapeGate::Consumed {
+        let KeyDecision::Path(routed) = decision else {
+            return EscapeGate::Pass;
+        };
+        match routed.receiver {
+            // plugin 팝업 렌더가 Esc 를 받아 선언과 표시 상태로 처리한다(펼쳤으면 다시 접기).
+            KeyReceiver::PluginPopup(_) => EscapeGate::Consumed {
                 hand_to_owner: true,
-            };
-        }
-        // 설정 요청과 알림을 먼저 처리한 뒤, host 키 주인의 Esc 를 선언대로 처리한다. Close·Unfocus 는 지금 인스턴스
-        // 포커스를 풀고 그 Esc 를 넘긴다. 입력 시점의 키 주인(위에서 묶은 이 인스턴스) 본문이 팝업 층에서 이 Esc 를
-        // 받고, 본문이 쓰지 않았으면 Close 는 그 패스 중앙 단계(`popup::escape_step`)가 닫는다. Ignore 는 넘기지 않는다.
-        // 순서 검증: crates/tasty-doc-guards/tests/escape_dismisses_the_focused_popup.rs.
-        if let Some((instance, escape)) = self.popups.host_key_owner_escape() {
-            use crate::adapters::ui::popup::PopupEscape;
-            // 펼친 host 팝업은 포커스를 풀지 않고 넘긴다. 본문이 쓰지 않았으면 중앙 단계가 이 Esc 에 묶인 인스턴스를
-            // 다시 접는다(닫지 않는다). 선언 `escape` 와 무관하다.
-            if self.popups.instance(instance).is_some_and(|p| p.expanded()) {
-                return EscapeGate::Consumed {
+            },
+            // Close·Unfocus 는 지금 인스턴스 포커스를 풀고 그 Esc 를 넘긴다. 입력 시점의 키 주인(단계 8 이 묶은 이
+            // 인스턴스) 본문이 팝업 층에서 이 Esc 를 받고, 본문이 쓰지 않았으면 Close 는 그 패스 중앙 단계
+            // (`popup::escape_step`)가 닫는다. 펼친 host 팝업은 포커스를 풀지 않고 넘긴다. 본문이 쓰지 않았으면 중앙
+            // 단계가 다시 접는다(닫지 않는다). 순서 검증: crates/tasty-doc-guards/tests/escape_dismisses_the_focused_popup.rs.
+            KeyReceiver::Popup(instance) => {
+                if !self.popups.instance(instance).is_some_and(|p| p.expanded()) {
+                    self.popups.set_instance_focused(instance, false);
+                }
+                EscapeGate::Consumed {
                     hand_to_owner: true,
-                };
+                }
             }
-            if escape == PopupEscape::Ignore {
-                return EscapeGate::Consumed {
-                    hand_to_owner: false,
-                };
-            }
-            self.popups.set_instance_focused(instance, false);
-            return EscapeGate::Consumed {
-                hand_to_owner: true,
-            };
+            _ => EscapeGate::Pass,
         }
-        EscapeGate::Pass
     }
 
     /// 열린 알림 목록이 이 Esc 로 닫히는지. 포커스 노드가 팝업이 아니거나 알림 목록 자신일 때다.

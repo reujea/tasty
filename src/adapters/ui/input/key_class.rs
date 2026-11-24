@@ -1,5 +1,5 @@
-//! 키 사건 하나의 경로 분류(계약 E0 단계 4의 입력). 경로 키(egui 키가 있는 누름이고 bare Esc·설정 열기 요청
-//! 래치 중·클립보드 조합·편집 바인딩 키가 아닌 것)만 포커스 노드에서 시작한 키 경로(`route_key`)로 수신자를
+//! 키 사건 하나의 경로 분류(계약 E0 단계 4의 입력). 경로 키(egui 키가 있는 누름이고 설정 열기 요청 래치 중·
+//! 클립보드 조합·편집 바인딩 키가 아닌 것. bare Esc 는 언제나 경로 키)만 포커스 노드에서 시작한 키 경로(`route_key`)로 수신자를
 //! 정하고, 나머지 사건은 그 입구의 지금 경로를 그대로 지난다. egui 키와 클립보드 조합 판정은 egui-winit이 같은
 //! 사건을 egui 사건으로 바꾸는 규칙과 같다(시험이 잠금 파일의 egui-winit 소스와 갈래를 대조한다). 규칙:
 //! `docs/architecture/input-layer.md`의 "경로 키".
@@ -26,7 +26,6 @@ pub(crate) enum CurrentReason {
     Release,
     /// 설정 열기 요청 래치 중.
     Latched,
-    BareEscape,
     /// egui 키가 없는 누름(수식키 단독, egui 키 없이 글자만 내는 키).
     NoEguiKey,
     /// egui-winit이 `Event::Cut`·`Copy`·`Paste`로 바꾸는 누름.
@@ -56,28 +55,25 @@ pub(crate) fn classify_key(
     if latched {
         return current(CurrentReason::Latched);
     }
-    let escape_mods = crate::adapters::ui::popup::keys::window_key_mods(value.mods);
-    if tasty_key_match::is_window_escape(
-        *value.logical == Key::Named(NamedKey::Escape),
-        escape_mods,
-    ) {
-        return current(CurrentReason::BareEscape);
-    }
     let Some(key) = egui_key(value.logical, value.physical) else {
         return current(CurrentReason::NoEguiKey);
     };
-    let modifiers = egui_modifiers(value.mods);
+    let route = RouteKey {
+        key,
+        modifiers: egui_modifiers(value.mods),
+        super_held: !cfg!(target_os = "macos") && value.mods.super_key(),
+    };
+    // bare Esc 는 클립보드·편집 바인딩보다 먼저 경로 키다(편집 바인딩과 겹쳐도 Esc 경로로 간다).
+    if route.bare_escape() {
+        return KeyClass::Path(route);
+    }
     if is_clipboard_combo(key, value.egui_mods) {
         return current(CurrentReason::Clipboard);
     }
     if edit_binding {
         return current(CurrentReason::EditBinding);
     }
-    KeyClass::Path(RouteKey {
-        key,
-        modifiers,
-        super_held: !cfg!(target_os = "macos") && value.mods.super_key(),
-    })
+    KeyClass::Path(route)
 }
 
 /// 이 사건이 수식키 없는 Esc 누름인지(`RouteKey::bare_escape`). 래치와 무관하게 사건 값으로만 정한다. 입력 몫을 끊는

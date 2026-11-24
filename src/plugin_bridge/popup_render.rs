@@ -41,15 +41,15 @@ pub fn draw_plugin_popups(
     plugin_manager: Option<PluginDisplay<'_>>,
     layout: Option<&LayoutContext>,
 ) {
-    use crate::adapters::ui::popup::body_keys::{hand_escape, handed_marks, withdraw_escape};
+    use crate::adapters::ui::popup::body_keys::{hand_escape, withdraw_escape};
     // 창이 plugin 키 주인 몫으로 egui 입력에서 뺀 원래 Esc 사건. 렌더가 키 주인 팝업에만 키를 보내므로 렌더하는
     // 동안 넣는다. host 키 주인 몫은 host 그리기가 이미 꺼냈다. egui 의 사건 순서·눌린 키 상태는 넣은 사건으로
     // 갱신하고, 선언이 그 Esc 를 내용에 보내지 않으면 렌더가 wire 에서 그 누름만 건너뛴다.
     let handed = state.popups.take_handed_escape();
     let put = hand_escape(ctx, &handed);
-    let marks = handed_marks(ctx, &put);
     draw_plugin_popups_with_keys(ctx, state, engine, plugin_manager, layout, &put);
-    withdraw_escape(ctx, &put, &marks);
+    // plugin 렌더는 egui 입력에서 Esc 를 소비하지 않는다(wire 로 보낼 뿐이다).
+    withdraw_escape(ctx, &put, false);
 }
 
 fn draw_plugin_popups_with_keys(
@@ -2034,9 +2034,16 @@ mod tests {
         /// 창이 그 Esc 를 처리했는지 돌려준다.
         fn escape_pass(&mut self, before: Vec<Event>, held: bool, after: Vec<Event>) -> bool {
             let mut events = before;
-            let from = events.len();
             events.push(esc_press(held));
-            let handled = self.state.window_escape(&mut events, Some(from), held);
+            let handled = {
+                let engine = self.session.borrow_mut();
+                crate::adapters::ui::popup::window_input_test_support::window_escape_step(
+                    &mut self.state,
+                    &engine.read(),
+                    &mut events,
+                    held,
+                )
+            };
             events.extend(after);
             self.pass(events);
             handled
@@ -2140,14 +2147,14 @@ mod tests {
         events
     }
 
-    /// T-4b-1: Given Ignore 선언 plugin 키 주인(접히지 않음), When 한 패스 [포인터 이동, Esc] 가 오면, Then 그 요청에
-    /// 포인터 이동은 있고 Esc 는 없으며 포커스가 남는다.
+    /// T-4b-1: Given Ignore 선언 plugin 키 주인(접히지 않음), When 한 패스 [포인터 이동, Esc] 가 오면, Then 그 Esc 는
+    /// 부모 경로로 가 창이 처리하지 않고, 그 요청에 포인터 이동은 있고 Esc 는 없으며 포커스가 남는다.
     #[test]
     fn an_ignore_plugin_popup_gets_no_escape_on_the_wire() {
         use tasty_plugin_protocol::popup_decl::PopupEscape;
         let mut scene = plugin_scene(PopupEscape::Ignore, false);
         let at = scene.center();
-        assert!(scene.escape_pass(vec![Event::PointerMoved(at)], false, Vec::new()));
+        assert!(!scene.escape_pass(vec![Event::PointerMoved(at)], false, Vec::new()));
         let events = the_request(&mut scene);
         assert!(
             events.iter().any(is_wire_pointer_move),
@@ -2211,14 +2218,14 @@ mod tests {
         assert!(scene.closed());
     }
 
-    /// T-4b-5: Given Ignore 선언 plugin 키 주인, When 한 패스 [넘긴 Esc 누름, Esc 뗌, Shift+Esc 누름] 이 오면, Then 넘긴
-    /// 누름만 빠지고 뗌과 Shift+Esc 는 wire 에 간다.
+    /// T-4b-5: Given Ignore 선언 plugin 키 주인, When 한 패스 [Esc 누름, Esc 뗌, Shift+Esc 누름] 이 오면, Then 그 누름은
+    /// 부모 경로로 가 wire 에 없고 뗌과 Shift+Esc 는 wire 에 간다.
     #[test]
-    fn only_the_handed_escape_press_is_dropped() {
+    fn an_ignore_plugin_popup_keeps_the_release_and_other_escapes_on_the_wire() {
         use tasty_plugin_protocol::popup_decl::PopupEscape;
         let mut scene = plugin_scene(PopupEscape::Ignore, false);
         let at = scene.center();
-        assert!(scene.escape_pass(
+        assert!(!scene.escape_pass(
             vec![Event::PointerMoved(at)],
             false,
             vec![esc_release(), shift_esc_press()],
@@ -2262,29 +2269,33 @@ mod tests {
         assert!(!scene.closed());
     }
 
-    /// T-4b-8: Given 접힌 Ignore 선언 plugin 키 주인, When Esc 가 오면, Then 포커스가 남고 열린 채다.
+    /// T-4b-8: Given 접힌 Ignore 선언 plugin 키 주인, When Esc 가 오면, Then 그 Esc 는 부모 경로로 가 창이 처리하지
+    /// 않고 포커스가 남으며 열린 채다.
     #[test]
     fn escape_keeps_focus_of_a_collapsed_ignore_plugin_popup() {
-        let scene = collapsed_escape(tasty_plugin_protocol::popup_decl::PopupEscape::Ignore);
+        let mut scene = plugin_scene(tasty_plugin_protocol::popup_decl::PopupEscape::Ignore, true);
+        assert!(!scene.escape_pass(Vec::new(), false, Vec::new()));
+        assert!(scene.sent().is_empty(), "접힌 팝업은 wire 요청이 없다");
         assert!(scene.focused(), "포커스가 남는다");
         assert!(!scene.closed());
     }
 
-    /// 몫 1 [넘긴 Esc 누름] 을 그린 Ignore 키 주인 장면. 넘긴 Esc 가 비지 않았는지와 패스 끝 Escape 눌림을 단정한다.
-    fn held_after_a_handed_press() -> PluginScene {
+    /// 몫 1 [Esc 누름] 을 그린 Ignore 키 주인 장면. 그 누름이 부모 경로로 가 창이 넘기지 않았고 egui 에 Escape 눌림이
+    /// 없는지 단정한다.
+    fn after_an_escape_sent_up_the_path() -> PluginScene {
         let mut scene = plugin_scene(
             tasty_plugin_protocol::popup_decl::PopupEscape::Ignore,
             false,
         );
         assert!(
-            scene.escape_pass(Vec::new(), false, Vec::new()),
-            "넘긴 Esc 가 있다"
+            !scene.escape_pass(Vec::new(), false, Vec::new()),
+            "넘긴 Esc 가 없다"
         );
         assert!(
-            scene
+            !scene
                 .ctx
                 .input(|i| i.keys_down.contains(&egui::Key::Escape)),
-            "몫 1 패스 끝에 Escape 가 눌려 있다"
+            "몫 1 패스 끝에 Escape 가 눌려 있지 않다"
         );
         drop(scene.state.take_pending_intents());
         scene
@@ -2296,38 +2307,42 @@ mod tests {
         the_request(scene).iter().filter_map(wire_escape).collect()
     }
 
-    /// T-4b-9: Given 몫 1 에 넘긴 Esc 누름을 그린 Ignore 키 주인, When 몫 2 [Shift+Esc 누름] 이 오면, Then egui 가 그
-    /// 누름을 반복으로 정해 wire 의 Shift+Esc 가 반복이다.
+    /// T-4b-9: Given 몫 1 의 Esc 누름이 부모 경로로 간 Ignore 키 주인, When 몫 2 [Shift+Esc 누름] 이 오면, Then egui 가
+    /// 앞 누름을 보지 않아 wire 의 Shift+Esc 는 반복이 아니다.
     #[test]
-    fn a_handed_escape_press_keeps_the_egui_key_state_for_the_next_share() {
-        let mut scene = held_after_a_handed_press();
-        assert_eq!(shift_escape_share(&mut scene), vec![(true, true, true)]);
+    fn an_escape_sent_up_the_path_leaves_no_egui_key_state_for_the_next_share() {
+        let mut scene = after_an_escape_sent_up_the_path();
+        assert_eq!(shift_escape_share(&mut scene), vec![(true, false, true)]);
     }
 
     /// T-4b-9r: Given T-4b-9 의 몫 1·2 뒤, When 몫 3 [Esc 뗌], 몫 4 [Shift+Esc 누름] 이 오면, Then 몫 4 의 Shift+Esc 는
     /// 반복이 아니다.
     #[test]
     fn a_new_press_after_the_release_is_not_a_repeat() {
-        let mut scene = held_after_a_handed_press();
+        let mut scene = after_an_escape_sent_up_the_path();
         drop(shift_escape_share(&mut scene));
         scene.pass(vec![esc_release()]);
         drop(scene.state.take_pending_intents());
         assert_eq!(shift_escape_share(&mut scene), vec![(true, false, true)]);
     }
 
-    /// T-4b-10: Given 앞 몫에서 Escape 를 누른 채인 Ignore 키 주인, When 한 몫 [창이 처리하지 않은 Esc 반복(Super+Esc),
-    /// 포인터 이동, 넘긴 Esc 반복] 이 오면, Then wire 에는 포인터 이동 앞 누름 하나만 있고, 거둔 뒤 egui `events`·
-    /// `raw.events` 도 포인터 이동 앞에만 Esc 누름이 하나 있으며 Escape 눌림이 남는다. 비-macOS 에서 Super 는 egui 사건에
-    /// 없어 두 누름의 값이 같다. 넘긴 누름은 값이 아니라 자리로 고른다.
+    /// T-4b-10: Given 펼친 plugin 키 주인, When 한 몫 [창이 처리하지 않은 Esc 누름(Super+Esc), 포인터 이동, 넘긴 Esc
+    /// 누름] 이 오면, Then wire 에는 포인터 이동 앞 누름 하나만 있고, 거둔 뒤 egui `events`·`raw.events` 도 포인터 이동
+    /// 앞에만 Esc 누름이 하나 있으며 Escape 눌림이 남는다. 비-macOS 에서 Super 는 egui 사건에 없어 두 누름의 값이 같다.
+    /// 넘긴 누름은 값이 아니라 자리로 고른다.
     #[cfg(not(target_os = "macos"))]
     #[test]
     fn the_handed_press_is_skipped_by_its_place_not_its_value() {
-        let mut scene = held_after_a_handed_press();
+        let mut scene = expanded_scene(tasty_plugin_protocol::popup_decl::PopupEscape::Close);
         let at = scene.center();
-        assert_eq!(esc_press(true), esc_press(true), "두 누름의 egui 값이 같다");
+        assert_eq!(
+            esc_press(false),
+            esc_press(false),
+            "두 누름의 egui 값이 같다"
+        );
         assert!(scene.escape_pass(
-            vec![esc_press(true), Event::PointerMoved(at)],
-            true,
+            vec![esc_press(false), Event::PointerMoved(at)],
+            false,
             Vec::new(),
         ));
         let events = the_request(&mut scene);

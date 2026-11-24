@@ -265,25 +265,23 @@ impl PopupManager {
         // 키 주인이 없는 프레임에는 포커스를 받지 않는 팝업(복원 안내 등)의 본문이 자기 위젯 키 포커스로 키를 읽는다.
         // 창이 묶은 주인이 그사이 닫혔으면 그 키는 처리한 노드에서 멈춘 것이므로 키 주인이 있는 프레임이다.
         let frame_has_key_owner = frame_keys.held();
+        // 그 몫에 키 출발점인 안내 인스턴스가 있으면 포커스를 받지 않는 팝업 가운데 그 인스턴스만 키를 받는다.
+        let pass_notice = self.pass_notice();
+        let unowned_keys = |instance| pass_notice.is_none_or(|notice| notice == instance);
         // 키 주인이 아닌 본문의 텍스트 포커스는 그린 뒤 놓는다(`text_focus`). 그리기 전 포커스와 본문마다 문 값을 모은다.
         let focus_at_start = ctx.memory(|m| m.focused());
         let mut bodies: Vec<text_focus::BodyKeys> = Vec::new();
         // 창이 처리한 Esc 는 egui 입력에 없다. 묶인 host 키 주인 본문이 읽도록 본문들을 그리는 동안만 원래 사건을
-        // 넣는다. plugin 키 주인 몫은 plugin 렌더가 꺼낸다. 별도 창은 넘긴 Esc 대신 창이 넣은 표지를 쓴다.
-        let window_escape = self.take_window_escape();
-        let handed_escape = if frame_keys.host.is_some() && window_escape.is_none() {
+        // 넣는다(메인 창과 별도 창이 같다). plugin 키 주인 몫은 plugin 렌더가 꺼낸다.
+        let handed_escape = if frame_keys.host.is_some() {
             self.take_handed_escape()
         } else {
             super::body_keys::HandedEscape::default()
         };
         let handed_escape = super::body_keys::hand_escape(ctx, &handed_escape);
-        let mut pass_escape = match window_escape {
-            Some(marks) => super::escape_step::PassEscape::from_window(marks),
-            None => super::escape_step::PassEscape {
-                event: !handed_escape.is_empty(),
-                marks: super::body_keys::handed_marks(ctx, &handed_escape),
-            },
-        };
+        // 이번 패스 키 주인이 받은 Esc 가 있는지와, 그 본문이 Esc 를 소비했는지.
+        let pass_escape = !handed_escape.is_empty();
+        let mut escape_consumed = false;
         let column_rect = self.place_column(&open_indices);
         let mut released: Vec<(PopupInstanceId, egui::Rect)> = Vec::new();
 
@@ -612,7 +610,7 @@ impl PopupManager {
                     }
                 }
                 // 보기 버튼은 Esc 를 쓰지 않는다.
-                if pass_escape.event
+                if pass_escape
                     && keys_at_start == Some(popup.instance)
                     && let Some(close) = super::escape_step::central_close(
                         popup.escape,
@@ -888,32 +886,34 @@ impl PopupManager {
                                 };
                                 // 키 주인이 아닌 본문은 키 입력을 보지 못한다(직접 읽기와 위젯 키 포커스 모두).
                                 let takes_keys = cx.focused
-                                    || (!frame_has_key_owner && !popup.arrange.takes_focus);
+                                    || (!frame_has_key_owner
+                                        && !popup.arrange.takes_focus
+                                        && unowned_keys(popup.instance));
+                                let escape_here = cx.focused && pass_escape;
                                 let keys = PopupKeys::new(ctx, takes_keys, popup.keyboard, edits)
                                     .refolding(refolds)
-                                    .with_window_route(routed_host == Some(popup.instance));
+                                    .with_window_route(routed_host == Some(popup.instance))
+                                    .with_handed_escape(escape_here);
                                 bodies.push(text_focus::BodyKeys {
                                     area: layer_id.id,
                                     instance: popup.instance,
                                     takes_keys,
                                     keyboard: popup.keyboard,
                                 });
-                                // 키 주인 통로는 이번 패스 Esc 표지로 Esc 를 맞춘다. 본문 전에 자식 팝업 열림을 읽는다.
-                                cx.keys = if cx.focused {
-                                    keys.with_escape_marks(std::mem::take(&mut pass_escape.marks))
-                                } else {
-                                    keys
-                                };
-                                let escape_here = cx.focused && pass_escape.event;
+                                // 본문 전에 자식 팝업 열림을 읽는다.
+                                cx.keys = keys;
                                 let child_open = escape_here
                                     && super::child_popup_ids::child_popup_open(ctx, cx.instance);
                                 let action =
                                     super::body_keys::with_body_keys(ctx, takes_keys, || {
                                         content_fn(&mut cx, ui)
                                     });
-                                if let Some(marks) = cx.keys.take_escape_marks() {
-                                    pass_escape.marks = marks;
-                                }
+                                escape_consumed |= escape_here
+                                    && cx.keys.consumed().contains(
+                                        &super::keys::ConsumedKey::Basic(
+                                            super::keys::BasicKey::Escape,
+                                        ),
+                                    );
                                 let close = if escape_here && expanded {
                                     if super::escape_step::central_refold(
                                         cx.keys.consumed(),
@@ -1008,7 +1008,7 @@ impl PopupManager {
         if let Some(iid) = bring_front {
             self.bring_to_front(iid);
         }
-        super::body_keys::withdraw_escape(ctx, &handed_escape, &pass_escape.marks);
+        super::body_keys::withdraw_escape(ctx, &handed_escape, escape_consumed);
         if let Some(iid) = expand_requested {
             self.expand(iid);
         }

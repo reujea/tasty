@@ -124,3 +124,90 @@ fn a_key_after_an_escape_to_the_terminal_shares_its_segment() {
     );
     assert_eq!(input.cut_count(), 0, "터미널로 간 Esc 뒤에서 끊지 않는다");
 }
+
+/// M-E0b-7 P: Given 선언 `Close` 인 R 검색창이 포커스 노드일 때, When bare Esc 가 오면, Then 사건 시점 수신자가 그
+/// 검색창이고(Ignore 가 아니라 건너뛰지 않는다) 창의 Esc 적용이 처리해 그 Esc 가 검색창을 닫는다.
+#[test]
+fn escape_on_a_close_popup_closes_it() {
+    let mut s = open_scene(|_| {});
+    let mut input = WindowInput::default();
+    {
+        let engine = s.session.borrow_mut();
+        let read = engine.read();
+        let egui_surface =
+            crate::adapters::ui::input::key_nodes::focused_surface_takes_egui(&s.state, &read);
+        let decision = crate::adapters::ui::input::key_nodes::bare_escape_decision(
+            &s.state,
+            &read,
+            egui_surface,
+        );
+        assert!(
+            matches!(
+                decision,
+                crate::adapters::ui::input::key_nodes::KeyDecision::Path(routed)
+                    if routed.receiver
+                        == crate::adapters::ui::input::key_route::KeyReceiver::Popup(s.search)
+            ),
+            "수신자는 검색창이다: {decision:?}"
+        );
+    }
+    assert!(window_escape(&mut s, &mut input), "창이 Esc 를 처리한다");
+    pass(&mut s, &mut input);
+    assert!(
+        !s.state.popups.instance(s.search).is_some_and(|p| p.open),
+        "Esc 가 검색창을 닫는다"
+    );
+}
+
+/// 창이 winit 키 사건으로 받은 Escape 자리 누름 하나(`WindowInput::winit_escape`). 창이 처리했으면 참이다.
+fn winit_escape(
+    s: &mut super::press_cut::Scene,
+    input: &mut WindowInput,
+    logical: winit::keyboard::Key,
+) -> bool {
+    let engine = s.session.borrow_mut();
+    input.winit_escape(&s.ctx, &mut s.state, &engine.read(), logical)
+}
+
+/// M-E0b-8 F: Given R 검색창이 포커스 노드일 때, When 논리 키를 모르는 배열에서 물리 Escape 자리를 수식키 없이 누르면,
+/// Then 단계 11 입구도 단계 4 와 같은 판정(논리 키가 없으면 물리 키)으로 그 누름을 bare Esc 로 보아 창이 처리하고 그
+/// Esc 가 검색창을 닫는다.
+#[test]
+fn a_physical_only_escape_closes_the_focused_popup() {
+    let mut s = open_scene(|_| {});
+    let mut input = WindowInput::default();
+    assert!(
+        winit_escape(
+            &mut s,
+            &mut input,
+            winit::keyboard::Key::Unidentified(winit::keyboard::NativeKey::Unidentified),
+        ),
+        "창이 물리 Escape 자리 누름을 처리한다"
+    );
+    pass(&mut s, &mut input);
+    assert!(
+        !s.state.popups.instance(s.search).is_some_and(|p| p.open),
+        "그 Esc 가 검색창을 닫는다"
+    );
+}
+
+/// M-E0b-8 P: Given R 검색창이 포커스 노드일 때, When 논리 키 Escape 를 수식키 없이 누르면, Then 창이 처리하고 그 Esc 가
+/// 검색창을 닫는다.
+#[test]
+fn a_logical_escape_closes_the_focused_popup() {
+    let mut s = open_scene(|_| {});
+    let mut input = WindowInput::default();
+    assert!(
+        winit_escape(
+            &mut s,
+            &mut input,
+            winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape),
+        ),
+        "창이 Esc 를 처리한다"
+    );
+    pass(&mut s, &mut input);
+    assert!(
+        !s.state.popups.instance(s.search).is_some_and(|p| p.open),
+        "그 Esc 가 검색창을 닫는다"
+    );
+}

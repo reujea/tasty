@@ -42,7 +42,9 @@ pub(crate) fn judged_window_event<V: View>(
             if let Some((gpu, popups)) = input(view)
                 && let Some(incoming) = incoming_of(event, mods, gpu.egui_modifiers())
             {
-                bind_window_input(&gpu.egui_ctx, popups, incoming);
+                let held = gpu.egui_escape_held();
+                let ctx = gpu.egui_ctx.clone();
+                bind_window_input(&ctx, popups, incoming, gpu.egui_input_events_mut(), held);
             }
         },
     };

@@ -45,6 +45,17 @@ pub(crate) trait View: sealed::Sealed + std::any::Any {
 
     fn poll_local_reads(&mut self, _owner: &mut crate::app::local_reads::ReadRequests) {}
 
+    /// 팝업 관리자를 가진 별도 창의 GPU 와 관리자. 사건 입구(`judged_window_event`, 별도 창 debug 키 주입)가 끊기·결속·
+    /// Esc 적용에 쓴다. 관리자가 없는 창은 `None` 이다.
+    fn window_input(
+        &mut self,
+    ) -> Option<(
+        &mut crate::gpu::GpuState,
+        &mut crate::adapters::ui::popup::PopupManager,
+    )> {
+        None
+    }
+
     /// MainView 다운캐스트. MainView가 아니면 `None`.
     fn as_main(&self) -> Option<&MainView> {
         self.as_any().downcast_ref::<MainView>()

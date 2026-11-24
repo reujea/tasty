@@ -1,5 +1,5 @@
 //! 별도 창(설정·플러그인·프리셋)의 egui 패스 주체. 메인 창 패스(`MainPass`)와 같이 끊은 자리로 입력을 나눠 꺼내고,
-//! `run` 전에 그 몫의 Esc 표지와 노드를 창 상태에 넘긴다(`view::window_input::WindowPass`).
+//! `run` 전에 그 몫의 노드를 창 상태에 넘긴다(`view::window_input::WindowPass`).
 
 use winit::window::Window;
 
@@ -59,8 +59,7 @@ impl<'s, T: WindowPopups> InputPassHost<WindowPass<'s, T>> for WindowHost<'_> {
         state: &mut WindowPass<'s, T>,
         mut ui: impl FnMut(&egui::Context, &mut WindowPass<'s, T>),
     ) -> egui::FullOutput {
-        let marks = self.gpu.take_window_escape_marks();
-        state.begin_run(&self.gpu.egui_ctx, marks);
+        state.begin_run(&self.gpu.egui_ctx);
         self.gpu.egui_ctx.run(raw_input, |ctx| ui(ctx, state))
     }
 

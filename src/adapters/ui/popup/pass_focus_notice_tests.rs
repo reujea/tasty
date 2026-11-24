@@ -279,3 +279,86 @@ fn a_seal_of_the_queue_tail_keeps_its_notice_focus() {
     assert!(slots[1].marked && !slots[2].marked);
     assert_eq!(slots[2].notice, None, "봉인한 새 몫");
 }
+
+/// 경로만 다른 안내 항목(같은 제목·원인이어도 경로가 다르면 따로 쌓인다).
+fn entry_at(id: u64, path: &str) -> RestoreNoticeEntry {
+    RestoreNoticeEntry {
+        id,
+        path: path.into(),
+        ..entry()
+    }
+}
+
+/// 항목 id 가 `id` 인 열린 안내의 인스턴스와 자리.
+fn notice_of(
+    s: &Scene,
+    id: u64,
+) -> Option<(crate::adapters::ui::popup::PopupInstanceId, egui::Rect)> {
+    s.state
+        .popups
+        .instances_of(RESTORE_NOTICE_POPUP_ID)
+        .find_map(|p| match &p.payload {
+            crate::adapters::ui::popup::PopupPayload::RestoreNotice(n) if n.entry.id == id => {
+                Some((p.instance, p.popup_rect()))
+            }
+            _ => None,
+        })
+}
+
+/// 창이 받은 bare Esc 누름 하나.
+fn notice_escape(s: &mut Scene, input: &mut WindowInput) {
+    let engine = s.session.borrow_mut();
+    let handled = input.escape(&s.ctx, &mut s.state, &engine.read(), true);
+    assert!(
+        !handled,
+        "안내가 받는 Esc 는 창이 처리하지 않고 egui 에 둔다"
+    );
+}
+
+/// M-E0b-4 F: Given 안내 A·B 가 떠 있고 B 안쪽이 포커스일 때, When bare Esc 가 온 뒤 그리기 전에 안쪽 포커스가 A 로
+/// 옮겨지면, Then 그 Esc 는 사건 시점 출발점 B 의 것이라 B 가 닫히고 A 는 열린 채다(그리기 때 포커스로 다시 고르지
+/// 않는다).
+#[test]
+fn escape_on_notice_b_reaches_b_after_focus_moves_to_a_before_drawing() {
+    let mut s = open_scene(|_| {});
+    close_search(&mut s);
+    let (mut l, mut r) = (Explorer::new(1), Explorer::new(2));
+    let mut input = WindowInput::default();
+    let mut bodies = Bodies::Explorers(&mut l, &mut r);
+    focus_left(&mut s, &mut input, &mut bodies);
+    assert!(push(&mut s.state, entry_at(1, "/restored-a")));
+    assert!(push(&mut s.state, entry_at(2, "/restored-b")));
+    for _ in 0..3 {
+        pass(&mut s, &mut input, &mut bodies);
+    }
+    let (b, rect) = notice_of(&s, 2).expect("B 가 떠 있다");
+    let point = egui::pos2(rect.center().x, rect.bottom() - 4.0);
+    {
+        let engine = s.session.borrow_mut();
+        input.press(&mut s.state, &engine.read(), point);
+    }
+    input.queue_mut().push(release_at(point));
+    drain(&mut s, &mut input, &mut bodies);
+    pass(&mut s, &mut input, &mut bodies);
+    assert_eq!(
+        crate::adapters::ui::restore_notice::focused_notice(&s.state.popups),
+        Some(b),
+        "B 안쪽이 포커스다"
+    );
+    notice_escape(&mut s, &mut input);
+    assert_eq!(s.state.pass_notice(), Some(b), "Esc 몫의 출발점은 B 다");
+    crate::adapters::ui::restore_notice::move_inside_focus(&s.ctx, &mut s.state.popups, 1);
+    drain(&mut s, &mut input, &mut bodies);
+    assert!(notice_of(&s, 2).is_none(), "B 가 닫힌다");
+    assert!(notice_of(&s, 1).is_some(), "A 는 열린 채다");
+}
+
+/// M-E0b-4 P: Given 안내 하나의 안쪽이 포커스일 때, When bare Esc 가 오면, Then 그 안내가 닫힌다.
+#[test]
+fn escape_on_a_single_notice_reaches_it() {
+    let (mut s, mut l, mut r, mut input) = notice_focused_scene();
+    let mut bodies = Bodies::Explorers(&mut l, &mut r);
+    notice_escape(&mut s, &mut input);
+    drain(&mut s, &mut input, &mut bodies);
+    assert!(notice_of(&s, 1).is_none(), "안내가 닫힌다");
+}

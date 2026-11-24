@@ -70,12 +70,12 @@ pub struct MainView {
     /// The edit a replayed key was already judged as (`edit_keys.rs`). Set by App only while it
     /// replays that key.
     pub(crate) edit_replay: Option<crate::adapters::ui::input::edit_key::EditKey>,
-    /// 마지막 키 사건이 egui 입력 큐에 적재되기 전 큐 길이. 적재하지 않았으면 None 이다. 창의 Esc 처리가 이번
-    /// 사건으로 들어온 범위에서만 Esc 누름을 고른다(`try_consume_escape_key`).
-    pub(crate) escape_loaded_from: Option<usize>,
     /// 지금 키 사건의 단계 4 결과(경로 키의 수신자). 사건마다 포커스 정규화 뒤에 정하고 egui 적재(K9)와 단축키·
     /// 끝 목적지 단계가 읽는다.
     pub(crate) key_decision: crate::adapters::ui::input::key_nodes::KeyDecision,
+    /// 지금 키 사건이 egui 입력에 실은 bare Esc 누름인지(단계 8 적재 결과). 단계 4 에서 지우고 egui 적재가 적으며 단계
+    /// 11 Esc 적용(`try_consume_escape_key`)이 읽는다.
+    pub(crate) escape_fed: bool,
     /// App 이 다음에 넘길 사건의 출발 노드를 plugin 단축키 단계 앞에서 이미 정했는지(`settle_key_event`). App 이 사건을
     /// 넘기기 직전에 적고(`App::dispatch_key_to_view`), 창은 그 사건 입구에서 꺼낸다(`handle_engine_event`). 참이면 창은
     /// 같은 사건에서 다시 정하지 않고 그 결과를 읽는다.
@@ -264,8 +264,8 @@ impl MainView {
             clipboard,
             pending_terminal_paste: None,
             edit_replay: None,
-            escape_loaded_from: None,
             key_decision: Default::default(),
+            escape_fed: false,
             key_settled: false,
             plugin_edit_ask: None,
             ime_preedit: None,
@@ -485,7 +485,6 @@ impl MainView {
             event,
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
         );
-        self.escape_loaded_from = None;
         let fed = self
             .state
             .window_feeds_key(self.key_decision, egui_surface, binds);
@@ -495,6 +494,7 @@ impl MainView {
             WindowEvent::KeyboardInput { event: key, .. } if self.bare_escape_press(key)
         );
         self.state.mark_escape_segment(fed.is_some(), bare_escape);
+        self.escape_fed = fed.is_some() && bare_escape;
         let Some(bound) = fed else {
             self.note_unfed_key(event);
             return (false, false);
@@ -506,7 +506,6 @@ impl MainView {
             .gpu
             .set_plugin_paste_target(self.state.plugin_popup_key_target());
         let from = self.base.gpu.egui_input_events_mut().len();
-        self.escape_loaded_from = Some(from);
         let result = self.base.gpu.handle_egui_event(&self.base.winit, event);
         self.remap_html_address_keys(engine, event, from, edit_judged);
         result
@@ -549,6 +548,7 @@ impl MainView {
     /// 단계 4: 키 사건의 수신자를 포커스 노드에서 정한다. 경로 키가 아니면(지금 경로로 남는 사건) `Current` 다.
     /// 재생하는 원래 키는 보류 때 붙은 편집 표시로 편집 바인딩 키를 가른다(표시는 단계 6 이 소비한다).
     fn decide_key_receiver(&mut self, engine: &EngineRead<'_>, event: &WindowEvent) {
+        self.escape_fed = false;
         self.key_decision = match event {
             WindowEvent::KeyboardInput { event: key, .. } => {
                 crate::adapters::ui::input::key_nodes::window_key_decision(
@@ -574,15 +574,21 @@ impl MainView {
 
     /// 이 키 사건이 수식키 없는 Esc 누름인지(`key_class::is_bare_escape_press`, 사건 시점 창 수식키).
     fn bare_escape_press(&self, key: &winit::event::KeyEvent) -> bool {
-        crate::adapters::ui::input::key_class::is_bare_escape_press(
-            &crate::adapters::ui::input::key_class::KeyEventValue {
-                logical: &key.logical_key,
-                physical: key.physical_key,
-                pressed: key.state == winit::event::ElementState::Pressed,
-                mods: self.base.state.modifiers,
-                egui_mods: self.base.gpu.egui_modifiers(),
-            },
-        )
+        crate::adapters::ui::input::key_class::is_bare_escape_press(&self.key_value(key))
+    }
+
+    /// 키 사건 하나의 판정 값. 수식키는 사건 시점 창의 winit 값과 그 창 egui-winit 값이다.
+    fn key_value<'k>(
+        &self,
+        key: &'k winit::event::KeyEvent,
+    ) -> crate::adapters::ui::input::key_class::KeyEventValue<'k> {
+        crate::adapters::ui::input::key_class::KeyEventValue {
+            logical: &key.logical_key,
+            physical: key.physical_key,
+            pressed: key.state == winit::event::ElementState::Pressed,
+            mods: self.base.state.modifiers,
+            egui_mods: self.base.gpu.egui_modifiers(),
+        }
     }
 
     /// 키·modifier 가 아닌 창 사건을 egui 에 보낸다.

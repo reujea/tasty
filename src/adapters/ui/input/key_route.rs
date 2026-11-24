@@ -106,8 +106,8 @@ pub(crate) struct ScopeKeyNode {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum KeyNode {
     Popup(PopupKeyNode),
-    /// 복원 안내(사건 시점에 안내 하나에 포커스가 있다).
-    Notice,
+    /// 복원 안내(사건 시점에 안쪽 포커스를 가진 안내 인스턴스).
+    Notice(PopupInstanceId),
     Tutorial,
     /// 주소 띠 입력칸. `keymap`은 주소 띠 키맵 수신 판정이다.
     HtmlAddress {
@@ -133,7 +133,8 @@ pub(crate) enum KeyEnd {
 pub(crate) enum KeyReceiver {
     Popup(PopupInstanceId),
     PluginPopup(u64),
-    Notice,
+    /// 사건 시점에 안쪽 포커스를 가진 복원 안내 인스턴스. 그리기는 이 인스턴스만 그 키를 받는다.
+    Notice(PopupInstanceId),
     Tutorial,
     HtmlAddress(u32),
     EguiSurface(u32),
@@ -153,7 +154,7 @@ impl KeyReceiver {
             self,
             KeyReceiver::Popup(_)
                 | KeyReceiver::PluginPopup(_)
-                | KeyReceiver::Notice
+                | KeyReceiver::Notice(_)
                 | KeyReceiver::Tutorial
                 | KeyReceiver::HtmlAddress(_)
                 | KeyReceiver::EguiSurface(_)
@@ -224,9 +225,9 @@ pub(crate) fn route_key(
                     KeyNode::Popup(p) => {
                         text_or_up(content, p.keyboard, key, KeyReceiver::popup(p.node), &up)
                     }
-                    KeyNode::Notice if content => KeyReceiver::Notice,
+                    KeyNode::Notice(iid) if content => KeyReceiver::Notice(*iid),
                     KeyNode::Tutorial if content => KeyReceiver::Tutorial,
-                    KeyNode::Notice | KeyNode::Tutorial => up(),
+                    KeyNode::Notice(_) | KeyNode::Tutorial => up(),
                     KeyNode::HtmlAddress { sid, .. } => text_or_up(
                         content,
                         PopupKeyboard::Text,
@@ -275,7 +276,7 @@ fn start_takes(node: &KeyNode, key: RouteKey, edits: &EditBindings) -> bool {
                 || consumes_key(p.keyboard, key.key, key.modifiers, key.super_held, edits)
         }
         // 안내 위젯은 수식키와 무관하게 이 키들을 읽는다.
-        KeyNode::Notice => matches!(
+        KeyNode::Notice(_) => matches!(
             key.key,
             egui::Key::Escape
                 | egui::Key::Enter
@@ -359,7 +360,7 @@ fn route_escape(
                 from_attached = !p.covers;
                 continue;
             }
-            KeyNode::Notice => return KeyReceiver::Notice,
+            KeyNode::Notice(iid) => return KeyReceiver::Notice(*iid),
             KeyNode::Tutorial => return KeyReceiver::Tutorial,
             KeyNode::HtmlAddress { sid, .. } => return KeyReceiver::HtmlAddress(*sid),
             KeyNode::Stage { .. } => return KeyReceiver::Stage,

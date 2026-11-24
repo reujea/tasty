@@ -113,3 +113,53 @@ fn an_injected_escape_with_the_real_super_held_is_not_a_bare_escape() {
         "Super+Esc 로는 팔레트가 닫히지 않는다"
     );
 }
+
+/// M-E0b-6 F: Given 팝업이 없는 터미널 포커스와 수식키 없는 Esc 에 묶은 host 단축키(`toggle_sidebar`), When debug
+/// 주입으로 수식키 없는 Esc 를 넣으면, Then 그 Esc 의 수신자는 경로의 단축키 단계지만 debug 입구는 egui 전용이라 단계
+/// 11 적용만 거치고 단축키·끝 목적지 단계는 돌지 않는다. 대기 요청이 없고 그 누름은 egui 입력에 남는다.
+#[test]
+fn a_debug_escape_runs_no_host_shortcut() {
+    crate::i18n::init("en");
+    let (mut state, mut session) = crate::state::tests::test_state();
+    {
+        let engine = session.borrow_mut();
+        assert!(
+            engine
+                .runtime
+                .settings
+                .keybindings
+                .set_field("toggle_sidebar", "escape")
+        );
+    }
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    drop(state.take_pending_intents());
+    let egui_surface =
+        crate::adapters::ui::input::key_nodes::focused_surface_takes_egui(&state, &read);
+    let decision =
+        crate::adapters::ui::input::key_nodes::bare_escape_decision(&state, &read, egui_surface);
+    assert!(
+        matches!(
+            decision,
+            crate::adapters::ui::input::key_nodes::KeyDecision::Path(routed)
+                if matches!(
+                    routed.receiver,
+                    crate::adapters::ui::input::key_route::KeyReceiver::Shortcut { .. }
+                )
+        ),
+        "Esc 의 수신자는 단축키 단계다: {decision:?}"
+    );
+    let mut input = WindowInput::default();
+    assert_eq!(
+        inject_key(&mut state, &read, &mut input, "Escape", true, None),
+        Some(PushedKey::Key)
+    );
+    assert!(
+        state.take_pending_intents().is_empty(),
+        "debug 입구는 host 단축키를 돌리지 않는다"
+    );
+    assert!(
+        input.queue_mut().iter().any(is_escape_press),
+        "그 누름은 egui 입력에 남는다"
+    );
+}

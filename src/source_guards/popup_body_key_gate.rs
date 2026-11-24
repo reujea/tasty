@@ -140,13 +140,15 @@ fn the_popup_body_is_called_once_inside_the_key_gate() {
         1,
         "{HOME} 의 키 입력 문은 본문 호출 자리 하나다"
     );
-    // 문의 키 플래그는 이번 프레임 키 주인 하나에서 나온다.
+    // 문의 키 플래그는 이번 프레임 키 주인 하나와, 주인이 없는 몫이면 그 몫의 안내 출발점에서 나온다.
     for fact in [
         "letframe_keys=self.take_frame_keys();",
         "letkeys_at_start:Option<PopupInstanceId>=frame_keys.host;",
         "letframe_has_key_owner=frame_keys.held();",
         "focused:super::frame_keys::receives_frame_keys(keys_at_start,popup.instance,),",
-        "lettakes_keys=cx.focused||(!frame_has_key_owner&&!popup.arrange.takes_focus);",
+        "letpass_notice=self.pass_notice();",
+        "letunowned_keys=|instance|pass_notice.is_none_or(|notice|notice==instance);",
+        "lettakes_keys=cx.focused||(!frame_has_key_owner&&!popup.arrange.takes_focus&&unowned_keys(popup.instance));",
     ] {
         assert_eq!(
             flat.matches(fact).count(),
