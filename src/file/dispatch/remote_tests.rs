@@ -1036,11 +1036,11 @@ fn a_downloaded_file_follows_the_place_its_request_chose() {
 }
 
 /// 원격 picker 의 표지는 picker 를 연 mirror 의 위치 값을 그릴 때마다 읽는다. 열 때 이미 재연결 중이면
-/// 재연결 형태로 시작하고, 위치 값이 바뀌면 따라가며, 위치 값이 빠지면 마지막 값을 둔다. 호스트 글자는
-/// 열 때 정한 값 그대로다.
+/// 재연결 형태로 시작하고, 위치 값이 바뀌면 따라가며, 위치 값이 빠지면 마지막 값을 둔다. 호스트 글자도
+/// 같은 값을 따른다.
 #[test]
 fn the_remote_picker_mark_follows_the_mirror_reconnecting_state() {
-    use crate::adapters::ui::popup::file_handler_picker::{opened_picker, remote_reconnecting};
+    use crate::adapters::ui::popup::file_handler_picker::{follow_remote_location, opened_picker};
     use crate::remote::state::MirrorLocation;
     let location = |reconnecting| MirrorLocation {
         host: "work-laptop-attach".into(),
@@ -1081,22 +1081,32 @@ fn the_remote_picker_mark_follows_the_mirror_reconnecting_state() {
     assert_eq!(picker.remote_host.as_deref(), Some("work-laptop-attach"));
     assert!(picker.remote_reconnecting);
     let engine = engine_session.borrow_mut();
-    assert!(remote_reconnecting(&mut picker, &engine.read()));
+    assert!(follow_remote_location(&mut picker, &engine.read()));
     // 다시 붙으면 평소 표지로 돌아오고, 다시 끊기면 재연결 형태가 된다.
     engine.remote.mirror_locations.insert(ws, location(false));
-    assert!(!remote_reconnecting(&mut picker, &engine.read()));
+    assert!(!follow_remote_location(&mut picker, &engine.read()));
     engine.remote.mirror_locations.insert(ws, location(true));
-    assert!(remote_reconnecting(&mut picker, &engine.read()));
-    // 위치 값이 빠지면 마지막으로 본 값을 둔다. 호스트 글자는 바뀌지 않는다.
+    assert!(follow_remote_location(&mut picker, &engine.read()));
+    // 호스트 글자가 바뀌면 따라간다.
+    engine.remote.mirror_locations.insert(
+        ws,
+        MirrorLocation {
+            host: "build-eu".into(),
+            reconnecting: true,
+        },
+    );
+    assert!(follow_remote_location(&mut picker, &engine.read()));
+    assert_eq!(picker.remote_host.as_deref(), Some("build-eu"));
+    // 위치 값이 빠지면 마지막으로 본 값(재연결 여부와 호스트 글자)을 둔다.
     engine.remote.mirror_locations.remove(&ws);
-    assert!(remote_reconnecting(&mut picker, &engine.read()));
-    assert_eq!(picker.remote_host.as_deref(), Some("work-laptop-attach"));
+    assert!(follow_remote_location(&mut picker, &engine.read()));
+    assert_eq!(picker.remote_host.as_deref(), Some("build-eu"));
     // 저장된 원격 행에서 연 picker 는 연결 여부와 관계없이 평소 표지다(행이 끊기면 picker 가 닫힌다).
     engine.remote.mirror_locations.insert(ws, location(true));
     for linked in [true, false] {
         picker.row_link = Some((ws, linked));
         assert!(
-            !remote_reconnecting(&mut picker, &engine.read()),
+            !follow_remote_location(&mut picker, &engine.read()),
             "{linked}"
         );
     }
@@ -1106,10 +1116,152 @@ fn the_remote_picker_mark_follows_the_mirror_reconnecting_state() {
     assert_eq!(picker.remote_host.as_deref(), Some(""));
     assert!(!picker.remote_reconnecting);
     let engine = engine_session.borrow_mut();
-    assert!(!remote_reconnecting(&mut picker, &engine.read()));
+    assert!(!follow_remote_location(&mut picker, &engine.read()));
     engine.remote.mirror_locations.insert(ws, location(true));
-    assert!(remote_reconnecting(&mut picker, &engine.read()));
+    assert!(follow_remote_location(&mut picker, &engine.read()));
+    assert_eq!(picker.remote_host.as_deref(), Some("work-laptop-attach"));
     // 로컬 대상 picker 에는 원격 표지가 없으므로 재연결 형태도 없다.
     picker.remote_host = None;
-    assert!(!remote_reconnecting(&mut picker, &engine.read()));
+    assert!(!follow_remote_location(&mut picker, &engine.read()));
+}
+
+/// 사용자가 연 원격 picker 와 그 엔진. `location` 이 Some 이면 열기 전에 출처 mirror 의 위치를 게시한다.
+fn open_user_remote_picker(
+    location: Option<crate::remote::state::MirrorLocation>,
+) -> (
+    crate::state::RequestContext,
+    crate::runtime::engine_session::EngineSession,
+    crate::adapters::ui::popup::PopupPayload,
+    u32,
+) {
+    let (mut core, mut state, mut engine_session, sid) = mirror_with_ipc_first();
+    let mut engine = engine_session.borrow_mut();
+    let ws = engine.workspace_at(0).expect("mirror workspace").id;
+    if let Some(location) = location {
+        engine.remote.mirror_locations.insert(ws, location);
+    }
+    apply_identify_result(
+        &mut core,
+        &mut state,
+        &mut engine,
+        FileTarget::new("/remote/doc.md"),
+        Some(DetectorId::new("remote-test")),
+        Some(sid),
+        crate::file::dispatch::FileDispatchPolicy {
+            dispatch_origin: FileDispatchOrigin::User,
+            ignore_size_limit: false,
+            run: None,
+            result_place: Default::default(),
+        },
+    );
+    let picker = crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state)
+        .expect("user open shows the remote picker");
+    drop(engine);
+    (
+        state,
+        engine_session,
+        crate::adapters::ui::popup::PopupPayload::HandlerPicker(Box::new(picker)),
+        ws,
+    )
+}
+
+/// 다른 mirror workspace(에이전트 mirror) 하나를 더 두고 그 id 를 돌려준다.
+fn push_other_mirror(engine_session: &mut crate::runtime::engine_session::EngineSession) -> u32 {
+    let engine = engine_session.borrow_mut();
+    let id = 900_002;
+    let mut workspace =
+        crate::model::Workspace::new_with_terminal_marker(id, "other".into(), id, id, id);
+    workspace.mirror = true;
+    engine.core.push_mirror_workspace(workspace);
+    id
+}
+
+/// picker 를 실제 그리기 함수로 한 프레임 그리고 칠한 글자들을 돌려준다.
+fn painted_picker(
+    state: &mut crate::state::RequestContext,
+    engine_session: &mut crate::runtime::engine_session::EngineSession,
+    payload: &mut crate::adapters::ui::popup::PopupPayload,
+) -> Vec<String> {
+    use crate::adapters::ui::popup::file_handler_picker::{
+        PICKER_POPUP_ID, draw_file_handler_picker,
+    };
+    let engine = engine_session.borrow_mut();
+    let read = engine.read();
+    let ctx = egui::Context::default();
+    egui_extras::install_image_loaders(&ctx);
+    let out = ctx.run(egui::RawInput::default(), |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let mut cx = crate::adapters::ui::popup::PopupCx {
+                id: PICKER_POPUP_ID,
+                instance: crate::adapters::ui::popup::PopupInstanceId::NONE,
+                focused: false,
+                keys: crate::adapters::ui::popup::keys::PopupKeys::new(
+                    ctx,
+                    false,
+                    crate::adapters::ui::popup::PopupKeyboard::Keys,
+                    &crate::adapters::ui::input::edit_key::EditBindings::default(),
+                ),
+                payload,
+            };
+            let _action = draw_file_handler_picker(ui, state, &read, &mut cx);
+        });
+    });
+    let mut texts = Vec::new();
+    for clipped in &out.shapes {
+        if let egui::Shape::Text(text) = &clipped.shape {
+            texts.push(text.galley.text().to_owned());
+        }
+    }
+    texts
+}
+
+/// 그리는 경로가 프레임마다 출처 mirror 의 위치 값을 읽는다. 열린 동안 재연결이 되면 상태 단어가 붙고,
+/// 호스트 글자가 바뀌면 표지가 따라가며, 위치 값이 빠지면 마지막으로 본 값을 그린다.
+#[test]
+fn the_drawn_remote_mark_follows_the_location_while_the_picker_is_open() {
+    use crate::remote::state::MirrorLocation;
+    crate::i18n::init("en");
+    let word = crate::i18n::t("status_bar.remote_reconnecting");
+    let (mut state, mut engine_session, mut payload, ws) =
+        open_user_remote_picker(Some(MirrorLocation {
+            host: "work-laptop-attach".into(),
+            reconnecting: false,
+        }));
+    let texts = painted_picker(&mut state, &mut engine_session, &mut payload);
+    assert!(texts.iter().any(|t| t == "work-laptop-attach"), "{texts:?}");
+    assert!(!texts.iter().any(|t| t == word), "{texts:?}");
+
+    let set = |session: &mut crate::runtime::engine_session::EngineSession, host: &str, r| {
+        session.borrow_mut().remote.mirror_locations.insert(
+            ws,
+            MirrorLocation {
+                host: host.into(),
+                reconnecting: r,
+            },
+        );
+    };
+    // 열려 있는 동안 재연결이 되면 상태 단어를 그린다.
+    set(&mut engine_session, "work-laptop-attach", true);
+    let texts = painted_picker(&mut state, &mut engine_session, &mut payload);
+    assert!(texts.iter().any(|t| t == word), "{texts:?}");
+    // 호스트 글자가 바뀌면 표지가 따라간다.
+    set(&mut engine_session, "build-eu", false);
+    let texts = painted_picker(&mut state, &mut engine_session, &mut payload);
+    assert!(texts.iter().any(|t| t == "build-eu"), "{texts:?}");
+    assert!(
+        !texts.iter().any(|t| t == "work-laptop-attach"),
+        "{texts:?}"
+    );
+    assert!(!texts.iter().any(|t| t == word), "{texts:?}");
+    // 위치 값이 빠지면(사라짐·동기화 전) 마지막으로 본 값을 그린다.
+    set(&mut engine_session, "build-eu", true);
+    let _seen = painted_picker(&mut state, &mut engine_session, &mut payload);
+    engine_session
+        .borrow_mut()
+        .remote
+        .mirror_locations
+        .remove(&ws);
+    let texts = painted_picker(&mut state, &mut engine_session, &mut payload);
+    assert!(texts.iter().any(|t| t == "build-eu"), "{texts:?}");
+    assert!(texts.iter().any(|t| t == word), "{texts:?}");
 }

@@ -287,10 +287,11 @@ pub struct FileHandlerPickerData {
     /// 최종 결과를 기다리는 요청의 run. 선택 없이 사라지면 `cancelled`로 끝난다.
     pub(crate) run: Option<crate::request_runs::RunGuard>,
     /// 대상이 mirror 원격 호스트의 경로이면 그 호스트 글자(비면 `Remote` 낱말). 로컬 대상은 None.
-    /// 열 때 한 번 정하고 연결이 끊겨도 바꾸지 않는다.
+    /// 열 때 그 mirror 의 위치 값으로 시작하고, 재연결 여부처럼 그릴 때마다
+    /// [`FileHandlerPickerData::follow_location`] 이 갱신한다. 위치 값이 없으면 마지막으로 본 값을 쓴다.
     pub(crate) remote_host: Option<String>,
     /// 원격 표지가 마지막으로 본 재연결 여부. 열 때 그 mirror 의 위치 값으로 시작하고 그릴 때마다
-    /// [`FileHandlerPickerData::remote_reconnecting`] 이 갱신한다.
+    /// [`FileHandlerPickerData::follow_location`] 이 갱신한다.
     pub(crate) remote_reconnecting: bool,
     /// picker 를 연 요청의 출처 workspace. 사용자 조작은 그때의 활성 workspace, 출처 surface 가 있는
     /// 요청(IPC `file_handler.dispatch` 등)은 그 surface 의 workspace 다. 저장된 원격 행이 끊기면 그 행에서
@@ -302,15 +303,24 @@ pub struct FileHandlerPickerData {
 }
 
 impl FileHandlerPickerData {
-    /// 원격 표지를 재연결 형태로 그리는가. `location` 은 picker 를 연 mirror workspace(`opened_in`)의 지금
-    /// 위치 값이다. 값이 있으면 그 재연결 여부를 기록해 쓰고, 없으면(세션이 목록에서 빠진 회차 등)
-    /// 마지막으로 기록한 값을 쓴다. 로컬 대상과 저장된 원격 행에서 연 picker(`row_link`)는 늘 평소
-    /// 표지다 — 저장 행이 끊기면 picker 가 닫히고, 이미 끊긴 행에는 재연결 형태가 없다.
-    pub(crate) fn remote_reconnecting(
+    /// 원격 표지를 picker 를 연 mirror workspace(`opened_in`)의 지금 위치 값(`location`)에 맞추고, 재연결
+    /// 형태로 그리는지 돌려준다. 값이 있으면 그 호스트 글자와 재연결 여부를 기록해 쓰고, 없으면(동기화 전,
+    /// 세션이 목록에서 빠진 회차 등) 마지막으로 기록한 값을 쓴다. 로컬 대상은 바꾸지 않는다. 저장된 원격
+    /// 행에서 연 picker(`row_link`)는 호스트 글자만 따라가고 늘 평소 표지다 — 저장 행이 끊기면 picker 가
+    /// 닫히고, 이미 끊긴 행에는 재연결 형태가 없다.
+    pub(crate) fn follow_location(
         &mut self,
         location: Option<&crate::remote::state::MirrorLocation>,
     ) -> bool {
-        if self.remote_host.is_none() || self.row_link.is_some() {
+        let Some(host) = self.remote_host.as_mut() else {
+            return false;
+        };
+        if let Some(location) = location
+            && *host != location.host
+        {
+            host.clone_from(&location.host);
+        }
+        if self.row_link.is_some() {
             return false;
         }
         if let Some(location) = location {

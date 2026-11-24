@@ -908,16 +908,16 @@ pub(crate) fn picker_of(
     }
 }
 
-/// 이 프레임에 원격 표지를 재연결 형태로 그리는가. picker 를 연 mirror workspace 의 위치 값(App 이 회차마다
-/// 게시하는 스냅샷, 상태바와 같은 값)을 읽는다.
-pub(crate) fn remote_reconnecting(
+/// 이 프레임의 원격 표지(호스트 글자와 재연결 여부)를 picker 를 연 mirror workspace 의 위치 값(App 이 회차마다
+/// 게시하는 스냅샷, 상태바와 같은 값)에 맞추고, 재연결 형태로 그리는지 돌려준다.
+pub(crate) fn follow_remote_location(
     picker: &mut crate::state::FileHandlerPickerData,
     engine: &crate::runtime::engine_read::EngineRead<'_>,
 ) -> bool {
     let location = picker
         .opened_in
         .and_then(|ws| engine.mirror_location_in(ws));
-    picker.remote_reconnecting(location)
+    picker.follow_location(location)
 }
 
 pub(crate) fn picker_of_mut(
@@ -1031,7 +1031,7 @@ pub fn draw_file_handler_picker(
     engine: &crate::runtime::engine_read::EngineRead<'_>,
     cx: &mut crate::adapters::ui::popup::PopupCx<'_>,
 ) -> PopupAction {
-    let Some(reconnecting) = picker_of_mut(cx.payload).map(|p| remote_reconnecting(p, engine))
+    let Some(reconnecting) = picker_of_mut(cx.payload).map(|p| follow_remote_location(p, engine))
     else {
         return PopupAction::Close;
     };
