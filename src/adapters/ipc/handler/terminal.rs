@@ -736,7 +736,7 @@ pub(crate) fn handle_set_nickname(
         json!({
             "parent": parent_value,
             "child_index": child_index,
-            "surface_id": surface_id,
+            "child_surface_id": surface_id,
             "nickname": nickname,
         }),
     )
@@ -1785,7 +1785,7 @@ mod tests {
         ));
         assert_eq!(
             resp,
-            json!({ "parent": parent, "child_index": 0, "surface_id": 5911, "nickname": "lane a" })
+            json!({ "parent": parent, "child_index": 0, "child_surface_id": 5911, "nickname": "lane a" })
         );
         let list = ok(handle_children(
             &mut e,
