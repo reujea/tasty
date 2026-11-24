@@ -126,9 +126,10 @@ mod tests {
     }
 
     /// upgrade-builtins 계획: 서명이 없는 번들이어도 버전 사유가 먼저다(거절 순서).
-    /// debug 빌드는 서명 결과로 거절하지 않아, 이 시험이 서명 판정과의 순서를 가리는 것은
-    /// release 프로필로 돌릴 때뿐이다(자동 실행은 debug). 서명 파일 읽기·id 대조와의 순서는
-    /// 아래 시험들이 모든 빌드에서 가린다.
+    /// 계획은 서명 파일을 읽기 전에 버전을 판정하므로 이 시험은 그 앞선 판정을 잰다.
+    /// `verify_trust` 안의 순서는 `verify_trust_reports_the_version_before_identity_and_signature`가
+    /// 잰다. debug 빌드는 서명 결과로 거절하지 않아 서명 판정과의 순서는 release 프로필로
+    /// 돌릴 때만 가려진다(자동 실행은 debug).
     #[test]
     fn upgrade_plan_fails_an_unsigned_newer_bundle_with_the_version_reason_first() {
         crate::test_support::host_tasty_1_0_0();
@@ -255,6 +256,34 @@ mod tests {
         let reason = failed_reason(plan_html(home.path()));
         assert!(reason.contains("cannot read"), "{reason}");
         assert!(!home.path().join("installed/com.tasty.html").exists());
+    }
+
+    /// `verify_trust`(복사본 재확인·공개 `verify_builtin_bundle_trust`가 부른다) 안에서도
+    /// 버전 판정이 id 대조·서명 판정보다 먼저다. 계획의 앞선 판정을 거치지 않게 직접 부른다.
+    /// 서명과의 순서는 서명으로 거절하는 release 프로필에서만 가려진다.
+    #[test]
+    fn verify_trust_reports_the_version_before_identity_and_signature() {
+        crate::test_support::host_tasty_1_0_0();
+        let spec = crate::builtin::BUILTINS
+            .iter()
+            .find(|spec| spec.id == "com.tasty.html")
+            .expect("html builtin");
+        let known = crate::known_plugins::KnownPlugins::default();
+        for (name, declared, bad_signature) in [
+            ("another id", "com.tasty.other", false),
+            ("bad signature", "com.tasty.html", true),
+        ] {
+            let home = tempfile::tempdir().expect("tempdir");
+            let src = home.path().join("com.tasty.html");
+            plugin(&src, declared, r#"min_tasty_version = "99.0.0""#);
+            if bad_signature {
+                std::fs::write(src.join("tasty-plugin.toml.sig"), "not a signature").expect("sig");
+            }
+            let item = super::super::verify_trust(spec, &src, &home.path().join("dest"), &known)
+                .expect_err(name);
+            let reason = failed_reason(item.action);
+            assert!(reason.contains("99.0.0"), "{name}: {reason}");
+        }
     }
 
     /// 부팅·재탐색: 더 높은 Tasty를 요구하는 폴더는 어느 목록에도 들어가지 않는다.
