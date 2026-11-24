@@ -239,6 +239,24 @@ mod tests {
         assert!(!home.path().join("installed/com.tasty.html").exists());
     }
 
+    /// UTF-8로 풀리지 않는 번들 매니페스트는 복사 전에 거절한다(부팅 선택·업그레이드 계획).
+    #[test]
+    fn a_bundle_manifest_that_is_not_utf8_is_never_copied() {
+        crate::test_support::host_tasty_1_0_0();
+        let home = tempfile::tempdir().expect("tempdir");
+        let src = home.path().join("bundle/com.tasty.html");
+        plugin(&src, "com.tasty.html", "");
+        let mut bytes = std::fs::read(src.join("tasty-plugin.toml")).expect("read");
+        bytes.extend_from_slice(b"description = \"\xff\xfe\"\n");
+        std::fs::write(src.join("tasty-plugin.toml"), bytes).expect("write");
+        let err = crate::official::bundle_source(&home.path().join("bundle"), "com.tasty.html")
+            .expect_err("refused");
+        assert!(err.contains("cannot read"), "{err}");
+        let reason = failed_reason(plan_html(home.path()));
+        assert!(reason.contains("cannot read"), "{reason}");
+        assert!(!home.path().join("installed/com.tasty.html").exists());
+    }
+
     /// 부팅·재탐색: 더 높은 Tasty를 요구하는 폴더는 어느 목록에도 들어가지 않는다.
     #[test]
     fn discovery_leaves_out_a_plugin_requiring_a_newer_tasty() {

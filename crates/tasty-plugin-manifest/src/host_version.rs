@@ -123,12 +123,15 @@ impl Manifest {
         }
     }
 
-    /// 공식 번들을 복사하기 전의 판정. [`Manifest::admit_host_tasty`]에 더해
-    /// TOML로 읽히지 않는 매니페스트도 거절한다(복사한 뒤에야 load가 알리면 늦다).
+    /// 공식 번들을 복사하기 전의 판정. [`Manifest::admit_host_tasty`]에 더해 읽거나 UTF-8로
+    /// 풀지 못하는 매니페스트, TOML로 읽히지 않는 매니페스트도 거절한다(복사한 뒤에야 load가
+    /// 알리면 늦다). 파일이 없을 때만 통과하고, 그 경우는 호출자의 다음 단계가 다룬다.
     pub fn admit_bundle_host_tasty(dir: &Path) -> anyhow::Result<()> {
         let path = dir.join("tasty-plugin.toml");
-        let Ok(source) = read_source(&path) else {
-            return Ok(());
+        let source = match read_source(&path) {
+            Ok(source) => source,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => anyhow::bail!("cannot read {}: {e}", path.display()),
         };
         source
             .parse::<toml::Table>()

@@ -274,3 +274,17 @@ fn a_bundle_manifest_that_is_not_toml_is_refused_before_copy() {
     assert!(err.to_string().contains("invalid manifest"), "{err}");
     assert!(Manifest::admit_host_tasty(dir.path()).is_ok());
 }
+
+/// 공식 번들은 UTF-8로 풀리지 않는 매니페스트도 복사 전에 거절한다. 파일이 없으면 통과한다.
+#[test]
+fn a_bundle_manifest_that_is_not_utf8_is_refused_and_a_missing_one_passes() {
+    set_host_tasty_version("1.0.0", VersionShortfall::Refuse).expect("host version");
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut bytes = source_with("").into_bytes();
+    bytes.extend_from_slice(b"description = \"\xff\xfe\"\n");
+    std::fs::write(dir.path().join("tasty-plugin.toml"), bytes).expect("write");
+    let err = Manifest::admit_bundle_host_tasty(dir.path()).expect_err("refused");
+    assert!(err.to_string().contains("cannot read"), "{err}");
+    let empty = tempfile::tempdir().expect("tempdir");
+    assert!(Manifest::admit_bundle_host_tasty(empty.path()).is_ok());
+}
