@@ -12,6 +12,14 @@ pub(super) enum Operation {
     Reserve(ParentKey),
     Adopt(ParentKey, super::ChildEntry),
     Forget(u32),
+    /// 필드 차이(delta)가 비어도 값을 대입한다. 같은 값을 다시 정한 요청이 앞선 저장의 실패에 묻히지 않고,
+    /// 그 번호가 이미 다른 자식에게 넘어갔으면 저장하지 않고 실패한다.
+    SetNickname {
+        parent: ParentKey,
+        index: u32,
+        surface: u32,
+        nickname: Option<String>,
+    },
     #[cfg(feature = "gui")]
     ReleaseOwned(std::collections::HashSet<u32>),
     #[cfg(feature = "gui")]

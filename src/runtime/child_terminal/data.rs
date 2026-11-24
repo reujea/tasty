@@ -142,6 +142,17 @@ impl RegistryData {
                 self.unregister_child_by_surface(child);
                 Ok(None)
             }
+            persistence::Operation::SetNickname {
+                parent,
+                index,
+                surface,
+                nickname,
+            } => self
+                .set_child_nickname(&parent, index, surface, nickname)
+                .map(|_| None)
+                .ok_or_else(|| {
+                    format!("child {index} is no longer surface {surface}; nickname not saved")
+                }),
             #[cfg(feature = "gui")]
             persistence::Operation::ReleaseOwned(gone) => {
                 self.drop_surfaces(&gone);
@@ -372,6 +383,22 @@ impl RegistryData {
         self.owned.insert(entry.child_surface_id);
         f(entry);
         true
+    }
+
+    /// 부모·번호의 자식이 아직 `surface`일 때만 nickname을 바꾸고 이전 값을 돌려준다. 그 사이 번호가 다른
+    /// 자식에게 넘어갔거나 관계가 사라졌으면 None이고 아무것도 바꾸지 않는다.
+    pub(super) fn set_child_nickname(
+        &mut self,
+        parent: &ParentKey,
+        index: u32,
+        surface: u32,
+        nickname: Option<String>,
+    ) -> Option<Option<String>> {
+        let list = list_in(&mut self.children, &mut self.external_children, parent)?;
+        let entry = list
+            .iter_mut()
+            .find(|c| c.index == index && c.child_surface_id == surface)?;
+        Some(std::mem::replace(&mut entry.nickname, nickname))
     }
 
     pub fn parent_of_child(&self, child_surface: u32) -> Option<ParentKey> {

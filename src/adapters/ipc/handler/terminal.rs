@@ -702,17 +702,26 @@ pub(crate) fn handle_set_nickname(
             ),
         );
     }
-    let set = |nickname: &Option<String>| {
-        let nickname = nickname.clone();
-        move |e: &mut ChildEntry| e.nickname = nickname
-    };
-    let children = &mut engine.runtime.child_terminals;
-    children.update_child(&parent, child_index, set(&nickname));
-    let receipt = match children.submit() {
+    // 확인한 자식(surface)으로 대상을 고정한다. 확인과 수정 사이에 앞선 저장 결과가 들어와 같은 번호가
+    // 다른 자식을 가리키면, 그 자식을 이 창 소유로 기록하며 고치지 않고 거절한다.
+    let receipt = match engine.runtime.child_terminals.set_nickname(
+        &parent,
+        child_index,
+        surface_id,
+        nickname.clone(),
+    ) {
         Ok(ticket) => ticket,
-        Err(error) => {
-            // 접수되지 않은 변경을 조회에 남기면 오류로 답한 값이 다음 저장에 섞인다.
-            children.update_child(&parent, child_index, set(&entry.nickname));
+        Err(crate::runtime::child_terminal::NicknameRefused::ChildChanged) => {
+            return JsonRpcResponse::internal_error(
+                id,
+                format!(
+                    "child {child_index} under {} changed while renaming (it was surface \
+                     {surface_id}) — nothing was changed; list the children and retry",
+                    parent_label(&parent)
+                ),
+            );
+        }
+        Err(crate::runtime::child_terminal::NicknameRefused::NotAdmitted(error)) => {
             return JsonRpcResponse::internal_error(id, error);
         }
     };

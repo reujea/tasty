@@ -1,3 +1,4 @@
+mod nickname;
 mod state_intents;
 
 use super::*;

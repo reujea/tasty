@@ -17,6 +17,15 @@ use std::{
 };
 pub(crate) use transport::{Hub, Ticket};
 
+/// `set_nickname`이 값을 바꾸지 않은 이유.
+#[derive(Debug, PartialEq)]
+pub(crate) enum NicknameRefused {
+    /// 확인한 뒤 그 번호가 다른 자식에게 넘어갔거나 관계가 사라졌다.
+    ChildChanged,
+    /// 저장 명령이 접수되지 않았다.
+    NotAdmitted(String),
+}
+
 pub struct ChildTerminalRegistry {
     client: Arc<Mutex<transport::Client>>,
     hub: Arc<Hub>,
@@ -105,6 +114,33 @@ impl ChildTerminalRegistry {
         f: F,
     ) -> bool {
         self.edit(|s| s.update_child(parent, index, f))
+    }
+    /// 부모·번호의 자식이 아직 `surface`일 때 조회 값과 저장 둘 다에 nickname을 대입한다. 저장은 필드 차이가
+    /// 비어도 값을 쓰는 명령이라, 같은 값을 다시 정한 요청도 그 결과로 답한다. 접수되지 않으면 조회 값을 되돌린다.
+    pub(crate) fn set_nickname(
+        &mut self,
+        parent: &ParentKey,
+        index: u32,
+        surface: u32,
+        nickname: Option<String>,
+    ) -> Result<Ticket, NicknameRefused> {
+        let previous = self
+            .edit(|s| {
+                let previous = s.set_child_nickname(parent, index, surface, nickname.clone())?;
+                s.owned.insert(surface);
+                Some(previous)
+            })
+            .ok_or(NicknameRefused::ChildChanged)?;
+        let operation = persistence::Operation::SetNickname {
+            parent: parent.clone(),
+            index,
+            surface,
+            nickname,
+        };
+        self.hub.submit(&self.client, operation).map_err(|error| {
+            self.edit(|s| s.set_child_nickname(parent, index, surface, previous));
+            NicknameRefused::NotAdmitted(error)
+        })
     }
     pub fn parent_of_child(&self, child: u32) -> Option<ParentKey> {
         self.read(|s| s.parent_of_child(child))
