@@ -19,7 +19,7 @@ use tasty_ui_widgets::tokens::STRUCT_GAP_2;
 use super::surface::{Term, term_size, term_surface};
 
 // 시안 예제 틀의 크기(`--tasty-size-*`)다. 제품 치수가 아니다.
-const NARROW_TAB_W: LogicalPx = LogicalPx(120.0);
+pub(super) const NARROW_TAB_W: LogicalPx = LogicalPx(120.0);
 pub(super) const SCALE_TAB_W: LogicalPx = LogicalPx(140.0);
 const OVERFLOW_W: LogicalPx = LogicalPx(460.0);
 

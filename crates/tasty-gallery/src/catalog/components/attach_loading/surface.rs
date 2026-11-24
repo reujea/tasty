@@ -14,7 +14,7 @@ use crate::catalog::components::tab_bar::{self, CellCfg};
 use crate::catalog::components::{empty_surface, search_bar};
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 
-use super::matrix::{SCALE_TAB_W, lnb_bed, pair, per_theme, rail_bed, row, tab_bed};
+use super::matrix::{NARROW_TAB_W, SCALE_TAB_W, lnb_bed, pair, per_theme, rail_bed, row, tab_bed};
 
 // 시안 예제 틀의 크기(`--tasty-size-*`)다. 제품 치수가 아니다.
 const TERM_W: LogicalPx = LogicalPx(288.0);
@@ -343,7 +343,6 @@ pub(super) fn notice_window(
     let strip =
         egui::Rect::from_min_size(body.min, egui::vec2(body.width(), th.tab_height().value()));
     p.rect_filled(strip, 0.0, egui::Color32::from(th.surface_raised()));
-    let tab_w = th.tab_width.value();
     let tabs = [
         CellCfg {
             label: "vim",
@@ -355,12 +354,16 @@ pub(super) fn notice_window(
             ..CellCfg::TERMINAL
         },
     ];
+    // 시안 `Pane`의 탭 폭 기본값(size-120)이다. 탭은 스트립 밖에 칠하지 않는다.
+    let mut strip_ui = ui.new_child(egui::UiBuilder::new().max_rect(strip));
+    strip_ui.set_clip_rect(strip.intersect(ui.clip_rect()));
     for (i, cfg) in tabs.into_iter().enumerate() {
+        let left = LogicalPx(strip.left()) + NARROW_TAB_W * i as f32;
         let cell = egui::Rect::from_min_size(
-            egui::pos2(strip.left() + tab_w * i as f32, strip.top()),
-            egui::vec2(tab_w, strip.height()),
+            egui::pos2(left.value(), strip.top()),
+            egui::vec2(NARROW_TAB_W.value(), strip.height()),
         );
-        tab_bar::tab_cell(ui, th, cell, cfg);
+        tab_bar::tab_cell(&strip_ui, th, cell, cfg);
     }
     p.hline(strip.x_range(), strip.bottom(), sep);
     let surface = egui::Rect::from_min_max(egui::pos2(body.left(), strip.bottom()), body.max);
