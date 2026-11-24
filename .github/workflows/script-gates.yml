@@ -25,6 +25,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          clean: false
+
+      # 빌드 캐시(루트 target)를 남기고 나머지 미추적·무시 파일을 지운다. 그날 첫 잡이거나 디스크 여유가 부족하면 target도 지운다.
+      # 기준: docs/dev-guide/ci-gates.md#러너의-빌드-캐시
+      - name: prepare the working tree (build cache)
+        id: prepare
+        shell: bash
+        run: bash scripts/ci-prepare-workspace.sh
 
       - name: Setup PATH
         run: |
@@ -34,6 +43,7 @@ jobs:
       # 문자열을 검사 대상에서 제외하도록 공용 마스킹 도구를 먼저 빌드한다.
       # 구조 writer 래칫은 test 전용 코드를 지우는 도구도 함께 쓴다.
       - name: Build the masking judge
+        id: judge
         run: cargo build -p tasty-doc-guards --bin mask-source --bin strip-cfg-test
 
       - name: Intent discipline
@@ -41,25 +51,25 @@ jobs:
 
       # 예외 수가 늘거나 줄면 실패한다. 줄었을 때는 허용 상한도 함께 낮춘다.
       - name: Allow reason (ratchet)
-        if: always()
+        if: ${{ always() && steps.prepare.outcome == 'success' && steps.judge.outcome == 'success' }}
         run: bash scripts/check-allow-reason.sh
 
       # 앞 검사가 실패해도 공용 순회를 우회한 호출 수를 확인한다.
       - name: Shared walk (ratchet)
-        if: always()
+        if: ${{ always() && steps.prepare.outcome == 'success' && steps.judge.outcome == 'success' }}
         run: bash scripts/check-shared-walk-ratchet.sh
 
       # Core::apply 밖의 구조 상태 writer 수가 기준 파일보다 늘면 실패한다.
       - name: Core writer (ratchet)
-        if: always()
+        if: ${{ always() && steps.prepare.outcome == 'success' && steps.judge.outcome == 'success' }}
         run: bash scripts/check-core-writer-ratchet.sh
 
       # 검사 도구가 없으면 스크립트가 종료 코드 2로 실패하므로 먼저 설치한다.
       - name: Provision the shell checker
-        if: always()
+        if: ${{ always() && steps.prepare.outcome == 'success' }}
         run: bash scripts/install-shellcheck.sh
 
       # warning 이상이면 실패한다. 기준: docs/dev-guide/ci-gates.md#셸-검사와-커밋-범위
       - name: Shell assets (shellcheck)
-        if: always()
+        if: ${{ always() && steps.prepare.outcome == 'success' }}
         run: bash scripts/check-shell-assets.sh

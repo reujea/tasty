@@ -22,6 +22,15 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          clean: false
+
+      # 빌드 캐시(루트 target)를 남기고 나머지 미추적·무시 파일을 지운다. 그날 첫 잡이거나 디스크 여유가 부족하면 target도 지운다.
+      # 기준: docs/dev-guide/ci-gates.md#러너의-빌드-캐시
+      - name: prepare the working tree (build cache)
+        id: prepare
+        shell: bash
+        run: bash scripts/ci-prepare-workspace.sh
 
       - name: Setup PATH
         run: |
@@ -45,6 +54,15 @@ jobs:
     timeout-minutes: 185
     steps:
       - uses: actions/checkout@v4
+        with:
+          clean: false
+
+      # 빌드 캐시(루트 target)를 남기고 나머지 미추적·무시 파일을 지운다. 그날 첫 잡이거나 디스크 여유가 부족하면 target도 지운다.
+      # 기준: docs/dev-guide/ci-gates.md#러너의-빌드-캐시
+      - name: prepare the working tree (build cache)
+        id: prepare
+        shell: bash
+        run: bash scripts/ci-prepare-workspace.sh
 
       - name: Setup PATH
         run: |

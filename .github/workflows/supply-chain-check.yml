@@ -32,6 +32,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          clean: false
+
+      # 빌드 캐시(루트 target)를 남기고 나머지 미추적·무시 파일을 지운다. 그날 첫 잡이거나 디스크 여유가 부족하면 target도 지운다.
+      # 기준: docs/dev-guide/ci-gates.md#러너의-빌드-캐시
+      - name: prepare the working tree (build cache)
+        id: prepare
+        shell: bash
+        run: bash scripts/ci-prepare-workspace.sh
 
       - name: Setup PATH
         run: |
@@ -51,5 +60,5 @@ jobs:
       # workspace에서 제외한 크레이트는 자체 Cargo.lock을 쓰므로 --workspace에 잡히지 않는다.
       # 앞 단계가 실패해도 이 그래프의 결과를 따로 확인한다.
       - name: cargo deny check (tasty-plugin-sdk-wasm, workspace exclude)
-        if: success() || failure()
+        if: ${{ (success() || failure()) && steps.prepare.outcome == 'success' }}
         run: cargo deny --manifest-path crates/tasty-plugin-sdk-wasm/Cargo.toml check

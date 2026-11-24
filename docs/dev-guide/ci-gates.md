@@ -33,7 +33,7 @@ DPI 수동 변환 검사는 `src/`와 `crates/`의 파일 수 하한을 각각 �
 | 구조 mutation 지표와 지정 실행 entry (**기준 파일 래칫**, 판정기 `strip-cfg-test`·`mask-source` 선행) | `bash scripts/check-core-writer-ratchet.sh` | `script-gates.yml` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동. 범위와 한계는 [구조 writer 래칫](#구조-writer-래칫) | 등급 미정 |
 | 셸 자산 정적 검사 | `bash scripts/check-shell-assets.sh` | `script-gates.yml` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push(문서 제외) · PR · 수동. install-shellcheck.sh로 도구를 준비한다. 추적 셸 자산을 검사하며 staged 훅은 새 파일도 확인한다. warning 이상은 실패, 도구 부재는 rc 2다. | 등급 미정 |
 | plugin 버전 bump | `bash scripts/check-plugin-version-bump.sh --range <before> <after>` | `plugin-version-check.yml` (self-hosted Linux, x64·ARM64 공유) | develop·release·main push · PR · 수동. 매니페스트 id가 잠금 파일에 있는 공식 플러그인은 대상에서 뺀다. 문서는 제외하되 `src/`·`lang/`·`assets/` 아래 `.md`를 포함한다. path 의존성 변경도 검사하며 패턴 순서가 중요하다. 잡이 strip-cfg-test를 먼저 빌드하고 `cargo fetch --locked`로 모든 target의 의존을 받는다. staged 검사와 push 범위 검사는 구분한다([릴리스](release.md#플러그인-버전-비교)). `include_*!` 매크로와 크레이트 루트 `build.rs`의 `rerun-if-changed`로 읽는 입력이 비교 위치 밖에 있으면 문서 검사의 `plugin_build_inputs_are_judged`가 실패한다. 그 밖의 읽기와 링크 예외의 한계는 [릴리스](release.md#플러그인-버전-비교)에 있다. | [실측] |
-| 공급망 | `cargo deny --workspace check`, `cargo deny --manifest-path crates/tasty-plugin-sdk-wasm/Cargo.toml check` | `supply-chain-check.yml` | `--workspace`가 없으면 루트 패키지의 의존성만 보고 플러그인 전용 의존성을 놓친다. workspace에서 제외된 `tasty-plugin-sdk-wasm`은 자체 `Cargo.lock`을 쓰므로 `--workspace`에 잡히지 않아 `--manifest-path`로 따로 검사한다. 같은 잡의 두 번째 단계이며 앞 단계가 실패해도 실행한다. 루트 `deny.toml`을 함께 쓰므로 루트 그래프에만 있는 ignore 항목은 이 단계에서 `advisory-not-detected` 경고로 나오며 실패로 보지 않는다. develop·release·main push는 `Cargo.lock`·`deny.toml`, `crates/tasty-plugin-sdk-wasm/`의 `Cargo.toml`·`Cargo.lock`, 이 워크플로 파일 변경 시, 세 브랜치 대상 PR은 경로 필터 없이 실행한다. 매주 월 09:00 UTC와 수동 실행도 지원하며, 두 실행은 GitHub 기본 브랜치인 `develop`에서 돈다. 의존성 변경은 push에서, 새 외부 권고는 주기 실행에서 확인한다. 올릴 수 없는 공지의 예외는 `deny.toml` 주석에 공지별 근거와 재검토 조건을 적고, 라이선스는 전역 `allow` 대신 크레이트별 `exceptions`를 먼저 쓴다. | [실측] |
+| 공급망 | `cargo deny --workspace check`, `cargo deny --manifest-path crates/tasty-plugin-sdk-wasm/Cargo.toml check` | `supply-chain-check.yml` | `--workspace`가 없으면 루트 패키지의 의존성만 보고 플러그인 전용 의존성을 놓친다. workspace에서 제외된 `tasty-plugin-sdk-wasm`은 자체 `Cargo.lock`을 쓰므로 `--workspace`에 잡히지 않아 `--manifest-path`로 따로 검사한다. 같은 잡의 두 번째 단계이며 작업 트리 준비가 성공했으면 앞 단계가 실패해도 실행한다([러너의 빌드 캐시](#러너의-빌드-캐시)). 루트 `deny.toml`을 함께 쓰므로 루트 그래프에만 있는 ignore 항목은 이 단계에서 `advisory-not-detected` 경고로 나오며 실패로 보지 않는다. develop·release·main push는 `Cargo.lock`·`deny.toml`, `crates/tasty-plugin-sdk-wasm/`의 `Cargo.toml`·`Cargo.lock`, 이 워크플로 파일 변경 시, 세 브랜치 대상 PR은 경로 필터 없이 실행한다. 매주 월 09:00 UTC와 수동 실행도 지원하며, 두 실행은 GitHub 기본 브랜치인 `develop`에서 돈다. 의존성 변경은 push에서, 새 외부 권고는 주기 실행에서 확인한다. 올릴 수 없는 공지의 예외는 `deny.toml` 주석에 공지별 근거와 재검토 조건을 적고, 라이선스는 전역 `allow` 대신 크레이트별 `exceptions`를 먼저 쓴다. | [실측] |
 
 ### 로컬에서 이 게이트들을 돌리기 전에 — **판정기부터**
 
@@ -136,9 +136,9 @@ CI에 해당 캐시가 없었다면 그 실행으로 캐시가 있는 환경까�
 `test.yml`의 `test-linux-x64`(수동 실행)다. 공식 플러그인은 잠금 파일의 릴리스 산출물을 받고 mesh-demo만 workspace에서 빌드한다.
 `check-windows`·`check-macos`는 `--lib --bins`와 지목한 패키지만 돌려 번들이 필요 없으므로 이 단계가 없다.
 
-- 픽스처 대조: `check-headless`는 `cargo test (headless)` 바로 뒤 `check official plugin fixtures` 단계(`if: ${{ !cancelled() }}`라 앞 단계가 실패해도 돈다)에서 `bash scripts/sync-official-plugin-fixtures.sh --check --shared-cache`를 실행한다. `stage official plugins` 단계가 받은 압축 파일을 전용 폴더로 복사해 다시 검증하고 풀어, 호스트 시험 픽스처가 잠금 산출물과 바이트로 같은지 본다. 다르면 단계가 실패한다. headless 시험 뒤에 두어 픽스처가 어긋난 변경에서도 호스트 시험 결과가 남는다([플러그인 패키징](plugin-packaging.md#호스트-시험-픽스처)).
+- 픽스처 대조: `check-headless`는 `cargo test (headless)` 바로 뒤 `check official plugin fixtures` 단계(작업 트리 준비가 성공했으면 앞 단계가 실패해도 돈다)에서 `bash scripts/sync-official-plugin-fixtures.sh --check --shared-cache`를 실행한다. `stage official plugins` 단계가 받은 압축 파일을 전용 폴더로 복사해 다시 검증하고 풀어, 호스트 시험 픽스처가 잠금 산출물과 바이트로 같은지 본다. 다르면 단계가 실패한다. headless 시험 뒤에 두어 픽스처가 어긋난 변경에서도 호스트 시험 결과가 남는다([플러그인 패키징](plugin-packaging.md#호스트-시험-픽스처)).
 - 네트워크: 이 단계는 GitHub 릴리스에서 산출물을 받는다. 받기나 SHA-256 대조가 실패하면 단계가 실패하고 잡이 실패한다.
-- 캐시: `actions/cache`를 쓰지 않는다. 받은 압축 파일은 `target/official-plugins/<tag>/<platform>/`에 두고 해시가 맞으면 다시 받지 않지만, 체크아웃의 `git clean -ffdx`([self-hosted 러너의 작업 트리](#self-hosted-러너의-작업-트리))가 무시 파일인 `target`을 지우면 매번 받는다. 산출물은 8개 압축 파일이다.
+- 캐시: `actions/cache`를 쓰지 않는다. 받은 압축 파일은 `target/official-plugins/<tag>/<platform>/`에 두고 해시가 맞으면 다시 받지 않는다. 러너가 `target`을 남긴 실행에서는 이 파일을 SHA-256 대조 뒤 재사용하고, `target`을 지운 실행에서는 다시 받는다. 받아 푼 `builtin-plugins`는 잡마다 새로 놓는다([러너의 빌드 캐시](#러너의-빌드-캐시)). 산출물은 8개 압축 파일이다.
 - 계약 차이: 받은 산출물은 공식 플러그인 레포가 기준으로 삼은 tasty 커밋의 SDK·protocol로 빌드됐다. 이 레포가 그 뒤 계약을 바꿨다면 새 계약에 기대는 통합 시험은 받은 번들로 통과하지 않는다. 그런 시험은 공식 플러그인 레포가 새 계약으로 릴리스하고 잠금 파일을 갱신한 뒤에 켠다. 로컬에서는 `just build-plugins --from-checkout <체크아웃> --with-local-tasty`로 먼저 확인할 수 있다([build.md](build.md#plugin-빌드--스테이징)).
 
 #### 간헐 실패를 조사할 때
@@ -265,8 +265,9 @@ Linux self-hosted 러너는 x86_64 러너(`tasty-server-x64`, 라벨 `self-hoste
 #### 러너 비용
 
 self-hosted 잡들은 러너를 공유하므로 실행 대기와 빌드 시간을 함께 본다.
-checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌드 시간을 적용하지 않는다.
-해당 작업 디렉터리의 산출물은 정리되지만 Cargo 캐시나 다른 경로까지 비워진다는 뜻은 아니다.
+일반 검사 잡은 러너의 `target/`을 남겨 쓰지만 그날 첫 잡, 디스크 여유가 부족한 잡, 패키징 잡은 처음부터 빌드한다([러너의 빌드 캐시](#러너의-빌드-캐시)).
+그래서 잡 시간은 캐시 상태에 따라 갈리고, 로컬 증분 빌드 시간을 러너 비용으로 쓰지 않는다.
+`target`을 지워도 `~/.cargo`의 레지스트리와 받은 소스는 남는다.
 디스크 여유는 그 실행의 최고 사용량과 비교하고, 로그의 `df`·`du` 값에 측정 시점을 남긴다.
 
 ### 잡 시간 상한
@@ -276,8 +277,9 @@ checkout의 정리로 `target/`이 삭제되는 구성에는 로컬 증분 빌�
 
 상한은 성공·실패로 끝난 실행 가운데 가장 긴 시간에 배수를 곱해 5분 단위로 올리고, 10분보다
 작으면 10분으로 둔다. 배수는 3이다. 표본이 5회 미만이거나 같은 명령을 같은 러너(또는 같은
-호스트의 다른 러너)에서 실행하는 다른 잡의 실측을 대신 쓰는 잡은 5다. 측정한 실행은 checkout이 `target/`을 지운 뒤 처음부터
-빌드했으므로 실측값에 콜드 빌드가 이미 들어 있다. 배수는 공유 러너의 부하 차이를 흡수한다.
+호스트의 다른 러너)에서 실행하는 다른 잡의 실측을 대신 쓰는 잡은 5다. 2026-11-22에 잰 실행은 checkout이 `target/`을 지운 뒤 처음부터
+빌드했으므로 실측값에 콜드 빌드가 이미 들어 있다. 캐시를 지운 실행도 상한 안에 들어야 하므로, 다시 잴 때는
+준비 스텝 로그가 `action=wipe` 또는 `action=none`인 실행만 표본으로 쓴다([러너의 빌드 캐시](#러너의-빌드-캐시)). 배수는 공유 러너의 부하 차이를 흡수한다.
 
 - 실측: `gh run list --workflow=<파일>`로 실행을 고르고 `gh run view <run-id> --json jobs`의
   `startedAt`·`completedAt`으로 잡 시간을 잰다. 단계가 하나도 없는 취소 잡은 러너를 기다리다
@@ -431,8 +433,8 @@ push 범위의 모든 중간 커밋을 다시 빌드하도록 요구하지 않�
 
 ### self-hosted 러너의 작업 트리
 
-self-hosted 러너는 작업 디렉터리를 재사용한다. checkout의 `git clean -ffdx`는 미추적 파일을
-지우지만, 줄바꿈 정책이 바뀌었다고 모든 추적 파일을 다시 쓰지는 않는다. 따라서
+self-hosted 러너는 작업 디렉터리를 재사용한다. 잡 시작 때의 정리(checkout의 `git clean -ffdx` 또는
+[러너의 빌드 캐시](#러너의-빌드-캐시)의 준비 스텝)는 미추적 파일을 지우지만, 줄바꿈 정책이 바뀌었다고 모든 추적 파일을 다시 쓰지는 않는다. 따라서
 `.gitattributes`가 LF를 요구하고 `git status`가 깨끗해도 기존 CRLF 파일이 남을 수 있다.
 
 ```bash
@@ -446,6 +448,45 @@ Windows 잡의 정규화 단계는 CRLF 파일을 먼저 지운 뒤 `git checkou
 
 재현할 때도 인덱스가 CRLF 크기를 기록한 상태를 만들어야 한다. 파일에 CRLF만 넣으면
 stat 차이로 Git이 다시 쓰므로 원래 문제와 다른 조건이 된다.
+
+### 러너의 빌드 캐시
+
+self-hosted 러너에서 도는 일반 검사 잡은 이전 실행의 `target/`을 남겨 다시 쓴다. 해당 잡은
+`actions/checkout`을 `clean: false`로 부르고 바로 다음 `prepare the working tree (build cache)`
+스텝(id `prepare`)에서 `bash scripts/ci-prepare-workspace.sh`를 실행한다.
+
+- 하는 일: 루트 `target`만 빼고 `git reset --hard`와 `git clean -ffdx`를 되살린다. `crates/` 아래에 무시
+  파일만 남은 폴더도 여기서 지워진다. `target`을 남기면 그 안에서 Cargo가 관리하지 않는 상태(번들 폴더,
+  스테이징 잠금과 임시 폴더, 시험 하네스의 번들 스냅숏, 픽스처 대조 폴더)를 지워 처음부터 빌드한 실행과
+  같게 만든다. workspace 원천 번들 플러그인(mesh-demo)의 실행 파일도 지운다. debug 호스트가 그 파일로 번들을
+  다시 만들기 때문이다. 받기 캐시 `target/official-plugins`는 해시 대조 뒤에만 쓰므로 남긴다.
+- Windows: 두 Windows 잡은 `pwsh` 스텝에서 `git` 옆의 Git Bash로 같은 스크립트를 부른다. `shell: bash`는 잡의
+  PATH에서 bash를 찾으므로 WSL bash가 잡힐 수 있다.
+- `target`을 지우는 때: 그 작업 트리에서 그날(러너 머신의 지역 날짜) 처음 도는 잡, 표지가 없을 때,
+  빌드 캐시가 놓인 볼륨(`target`, 없으면 작업 트리)의 여유가 임계값 이하일 때다. 임계값은 150GB(10^9 바이트, `df -h`로는 약 140G)이고 러너 환경변수
+  `TASTY_CI_CACHE_MIN_FREE_GB`로 머신마다 바꾼다. 삭제는 표지부터 지운 뒤 한다. 표지는 `target/.ci-cache-day`이고 정확한 판정은
+  스크립트의 `decide` 함수와 `tests/ci_prepare_workspace_gate.rs`가 정본이다. 삭제가 실패하면 스텝이
+  실패한다. `target` 본체 삭제가 실패했으면 표지는 이미 지워져 다음 잡이 다시 지운다. `target`은 지울 수
+  있는 일반 디렉터리여야 한다(마운트 지점이면 삭제가 실패한다). `target`이 심볼릭 링크면 작업 트리 밖을
+  지울 수 있으므로 손대지 않고 스텝을 실패시키고, 링크인 표지는 표지로 인정하지 않는다. 종료 코드는
+  스크립트 머리말에 있다.
+- 잡이 없는 날에는 지우지 않는다. 다음 날 첫 잡이 지운다.
+- 준비 실패 뒤: 앞 실패 뒤에도 도는(`!cancelled()`·`always()`·`success() || failure()`) 판정 스텝은
+  `steps.prepare.outcome == 'success'`도 조건으로 둔다. 판정을 내지 않는 진단 스텝은 원인 확인을 위해
+  그대로 돈다. `script-gates`의 판정기를 쓰는 스텝은 판정기 빌드 스텝(id `judge`)의 성공도 조건이다.
+- 로그 줄: 준비 스텝은 `[ci-cache] action=<wipe|keep|none> reason=<…>` 한 줄에 표지 값, 삭제 전후 여유(GB, 버림.
+  삭제 뒤 값을 읽지 못하면 `unknown`), 임계값(GB), OS를 남긴다. `action=keep reason=cached`가 캐시를 쓴 실행이다. `action=none reason=target-absent`는
+  `target`이 없던 실행이다. `clean: false`여도 checkout은 원격 URL이 다르거나 기존 저장소를 준비하지 못하면
+  작업 폴더를 통째로 지우고(로그 `Deleting the contents of …`) 다시 받는다. 그때도 `Removing target/` 줄 없이
+  `target-absent`로 시작한다.
+- 처음부터 빌드하는 잡: `build-check.yml`(수동 패키징)은 checkout에 `clean: true`를 적어 둔다. `release.yml`은
+  기본값(`clean: true`)으로 태그 push와 수동 실행 모두 `target`을 지운다. 패키징 스크립트가 이전 실행의 산출물을
+  고를 수 있어서다(`scripts/build-linux.sh`의 `ls -t target/debian/…`, `scripts/build-windows.ps1`의 DLL 수집).
+  이 잡들은 표지 없이 `target`을 남기거나(빌드한 잡) 없애므로(빌드하지 않는 `create-release`·`publish-release`),
+  그 러너의 다음 일반 잡은 `no-marker`로 지우거나 `target-absent`로 시작한다.
+- 대상 밖: `doc-guards.yml`·`format-check.yml`은 GitHub 호스팅 러너라 작업 폴더가 남지 않는다.
+- 동시 실행: 러너 하나는 한 번에 잡 하나만 돌고 작업 트리는 러너마다 따로다. 준비 스텝은 자기 작업 트리만
+  다룬다. 같은 Windows 호스트의 두 러너도 작업 트리가 다르다.
 
 ### 트리거는 어느 ref 의 것인가 — 작업 트리와 원격이 갈린다
 
