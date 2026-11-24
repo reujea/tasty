@@ -18,11 +18,23 @@ const PREPARE_OK: &str = "steps.prepare.outcome == 'success'";
 const JUDGE_OK: &str = "steps.judge.outcome == 'success'";
 const UNSUPPORTED: &str = "지원하지 않는 표기";
 
-/// prepare 스텝이 준비 스크립트를 부르는 줄. Linux·macOS는 bash, Windows는 git 옆의 Git Bash(`$bash`)다.
-const PREPARE_CALLS: [&str; 2] = [
-    "bash scripts/ci-prepare-workspace.sh",
+/// Linux·macOS prepare 스텝의 `run` 값. 이 한 줄과 정확히 같아야 한다.
+const PREPARE_RUN_BASH: &str = "bash scripts/ci-prepare-workspace.sh";
+/// Windows prepare 스텝(`shell: pwsh`)의 `run: |` 블록. 들여쓰기 10칸을 뗀 줄이 이 목록과 정확히 같아야 한다.
+/// git 옆의 Git Bash를 찾아 준비 스크립트를 부르고 그 종료 코드를 스텝 결과로 넘긴다.
+const PREPARE_RUN_PWSH: [&str; 9] = [
+    "$gitRoot = Split-Path (Split-Path (Get-Command git -ErrorAction Stop).Source -Parent) -Parent",
+    "$bash = @(",
+    "  (Join-Path $gitRoot 'bin\\bash.exe'),",
+    "  (Join-Path (Split-Path $gitRoot -Parent) 'bin\\bash.exe'),",
+    "  'C:\\Program Files\\Git\\bin\\bash.exe'",
+    ") | Where-Object { Test-Path $_ } | Select-Object -First 1",
+    "if (-not $bash) { throw \"Git Bash not found next to $gitRoot\" }",
     "& $bash scripts/ci-prepare-workspace.sh",
+    "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
 ];
+/// prepare 스텝이 가질 수 있는 키. `if`·`continue-on-error`·`env` 등은 준비를 건너뛰거나 실패를 숨길 수 있어 받지 않는다.
+const PREPARE_KEYS: [&str; 4] = ["name", "id", "shell", "run"];
 
 /// 처음부터 빌드해야 하는 패키징 워크플로(사용자 결정 4·5). checkout 정리를 끄면 안 된다.
 const COLD_WORKFLOWS: [&str; 2] = ["build-check.yml", "release.yml"];
@@ -295,22 +307,11 @@ fn parse_steps(job: &str, steps: &Field, file: &str, errs: &mut Vec<String>) -> 
         .collect()
 }
 
-/// 작은·큰따옴표를 벗긴다. 작은따옴표 안의 `''`는 `'` 하나다.
-fn unquote(v: &str) -> String {
-    let v = v.trim();
-    if v.len() >= 2 && v.starts_with('\'') && v.ends_with('\'') {
-        return v[1..v.len() - 1].replace("''", "'");
-    }
-    if v.len() >= 2 && v.starts_with('"') && v.ends_with('"') {
-        return v[1..v.len() - 1].to_string();
-    }
-    v.to_string()
-}
-
 /// 판정에 쓰는 한 줄 스칼라를 좁은 꼴로만 읽는다. 받는 꼴은 셋이다.
 /// - 작은따옴표: `'…'`, 안의 작은따옴표는 `''`로만 쓴다.
 /// - 큰따옴표: `"…"`, 안에 역슬래시(이스케이프)와 큰따옴표가 없다.
 /// - 따옴표 없는 값: YAML 지시 문자(`!`·`&`·`*`·`[`·`{`·`|`·`>` 등)로 시작하지 않고, 주석(` #`)·`: `·탭이 없다.
+///
 /// 따옴표 값 뒤에 다른 글자(주석 포함)가 있으면 받지 않는다.
 fn narrow_scalar(raw: &str) -> Result<String, &'static str> {
     let v = raw.trim();
@@ -390,19 +391,6 @@ fn with_fields(file: &str, step: &Step, errs: &mut Vec<String>) -> Vec<Field> {
         return Vec::new();
     }
     fields_at(&w.children, 10, file, errs)
-}
-
-/// 스텝의 `run` 본문(한 줄 값 또는 블록의 각 줄, 앞뒤 공백 제거).
-fn run_lines(step: &Step) -> Vec<String> {
-    let Some(f) = step.fields.iter().find(|f| f.key == "run") else {
-        return Vec::new();
-    };
-    let mut out = Vec::new();
-    if !(f.inline.starts_with('|') || f.inline.starts_with('>')) {
-        out.push(unquote(&f.inline));
-    }
-    out.extend(f.children.iter().map(|(_, l)| l.trim().to_string()));
-    out
 }
 
 /// `${{ … }}`를 벗긴 식을 최상위 `&&` 항으로 나눈다. 최상위 `||`가 있으면 Err다.
@@ -614,16 +602,54 @@ fn check_cached_checkout(file: &str, job: &Job, k: usize, r: &mut Report) {
     }
 }
 
-/// prepare 스텝은 준비 스크립트를 부른다.
+/// prepare 스텝은 좁은 꼴 하나만 받는다. 키는 name·id·shell·run뿐이고, `shell: bash`면 run이
+/// [`PREPARE_RUN_BASH`] 한 줄, `shell: pwsh`면 run이 [`PREPARE_RUN_PWSH`] 블록과 정확히 같다.
 fn check_prepare_body(file: &str, s: &Step, r: &mut Report) {
-    let lines = run_lines(s);
-    if lines.iter().any(|l| l == PREPARE_CALLS[1]) {
-        r.windows_prepares += 1;
+    let p = &mut r.problems;
+    let at = format!("{file}:{} {}", s.line, s.job);
+    for f in &s.fields {
+        if !PREPARE_KEYS.contains(&f.key.as_str()) {
+            p.push(format!(
+                "{at} — prepare 스텝에 받지 않는 키 {}가 있다",
+                f.key
+            ));
+        }
     }
-    if !lines.iter().any(|l| PREPARE_CALLS.contains(&l.as_str())) {
-        r.problems.push(format!(
-            "{file}:{} {} — prepare 스텝이 준비 스크립트를 부르지 않는다",
-            s.line, s.job
+    let shell = match scalar(file, &s.fields, "shell") {
+        Ok(v) => v,
+        Err(e) => return p.push(e),
+    };
+    let Some(run) = s.fields.iter().find(|f| f.key == "run") else {
+        return p.push(format!("{at} — prepare 스텝에 run이 없다"));
+    };
+    let body: Vec<Option<&str>> = run
+        .children
+        .iter()
+        .map(|(_, l)| l.strip_prefix(&" ".repeat(10)))
+        .collect();
+    let exact = match shell.as_deref() {
+        Some("bash") => run.inline == PREPARE_RUN_BASH && run.children.is_empty(),
+        Some("pwsh") => {
+            let ok = run.inline == "|"
+                && body.len() == PREPARE_RUN_PWSH.len()
+                && body
+                    .iter()
+                    .zip(PREPARE_RUN_PWSH)
+                    .all(|(l, want)| *l == Some(want));
+            if ok {
+                r.windows_prepares += 1;
+            }
+            ok
+        }
+        _ => {
+            return p.push(format!(
+                "{at} — {UNSUPPORTED}: prepare 스텝의 shell은 bash나 pwsh다: {shell:?}"
+            ));
+        }
+    };
+    if !exact {
+        p.push(format!(
+            "{at} — prepare 스텝의 run이 정해진 준비 스크립트 호출과 다르다"
         ));
     }
 }
@@ -892,13 +918,19 @@ fn a_prepare_step_without_the_script_call_is_caught() {
         "        run: bash scripts/ci-prepare-workspace.sh\n",
         "        run: echo skipped\n",
     );
-    assert_caught(&all, "prepare 스텝이 준비 스크립트를 부르지 않는다");
+    assert_caught(
+        &all,
+        "prepare 스텝의 run이 정해진 준비 스크립트 호출과 다르다",
+    );
     let all = mutated(
         "crossplatform-check.yml",
         "          & $bash scripts/ci-prepare-workspace.sh\n",
         "          & $bash scripts/other.sh\n",
     );
-    assert_caught(&all, "prepare 스텝이 준비 스크립트를 부르지 않는다");
+    assert_caught(
+        &all,
+        "prepare 스텝의 run이 정해진 준비 스크립트 호출과 다르다",
+    );
 }
 
 /// 따옴표 친 호스팅 라벨과 블록 목록 라벨도 읽는다.
@@ -992,4 +1024,31 @@ fn unsupported_scalars_fail_instead_of_being_skipped() {
         "      - uses: \"actions/check\\u006fut@v4\"\n        with:\n          fetch-depth: 0\n          clean: false\n",
     );
     assert_caught(&all, "release.yml:22 지원하지 않는 표기");
+}
+
+/// M4: prepare는 if·continue-on-error 없이 정해진 한 줄(Linux·macOS) 또는 정해진 블록(Windows)만 받는다.
+#[test]
+fn a_prepare_step_that_can_be_skipped_or_short_circuited_is_caught() {
+    let call = "        run: bash scripts/ci-prepare-workspace.sh\n";
+    let with = |extra: &str| {
+        mutated(
+            "test.yml",
+            LINUX_PREPARE,
+            &LINUX_PREPARE.replace(call, &format!("{extra}{call}")),
+        )
+    };
+    assert_caught(&with("        continue-on-error: true\n"), "prepare 스텝");
+    assert_caught(&with("        if: false\n"), "prepare 스텝");
+    let all = mutated(
+        "test.yml",
+        call,
+        "        run: |\n          exit 0\n          bash scripts/ci-prepare-workspace.sh\n",
+    );
+    assert_caught(&all, "prepare 스텝");
+    let all = mutated(
+        "crossplatform-check.yml",
+        "          & $bash scripts/ci-prepare-workspace.sh\n",
+        "          exit 0\n          & $bash scripts/ci-prepare-workspace.sh\n",
+    );
+    assert_caught(&all, "prepare 스텝");
 }

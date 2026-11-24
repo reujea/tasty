@@ -483,7 +483,9 @@ self-hosted 러너에서 도는 일반 검사 잡은 이전 실행의 `target/`�
     조건이 `!cancelled()`뿐이고 `continue-on-error: true`라 판정을 내지 않는다.
   - 관측용 gui e2e 스텝(`cargo test (linux, gui, e2e — 관측용)`)은 `continue-on-error: true`지만 준비 성공을 조건으로 둔다.
 - 배선 가드: `crates/tasty-doc-guards/tests/ci_build_cache_prepare_is_wired.rs`가 워크플로 글자로 확인한다.
-  정리를 끈 checkout 바로 뒤의 준비 스텝, 그 스텝의 준비 스크립트 호출, 위 조건, 패키징 워크플로의 정리 유지를 본다.
+  정리를 끈 checkout 바로 뒤의 준비 스텝, 준비 스텝의 꼴, 위 조건, 패키징 워크플로의 정리 유지를 본다.
+  준비 스텝은 키가 `name`·`id`·`shell`·`run`뿐이다(`if`·`continue-on-error` 없음). `run`은 Linux·macOS에서
+  `bash scripts/ci-prepare-workspace.sh` 한 줄이고, Windows에서는 Git Bash를 찾아 부르고 종료 코드를 넘기는 지금 블록과 같다.
   좁은 표기만 읽고, 그 밖의 표기는 파일:행과 함께 `지원하지 않는 표기`로 실패한다.
   - 구조: 스텝은 6칸 `- `, 스텝 키는 8칸이다. 같은 키를 두 번 쓰지 않는다.
   - 판정에 쓰는 값(`uses`·`id`·`if`·`continue-on-error`·`with.clean`·`runs-on`): 한 줄이다. 따옴표 없는 값, 작은따옴표 값,
