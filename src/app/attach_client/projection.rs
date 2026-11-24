@@ -15,16 +15,13 @@ fn stable_mirror_id(
     remote: u32,
     next: impl FnOnce() -> anyhow::Result<u32>,
 ) -> anyhow::Result<u32> {
-    if remote != 0
-        && let Some(id) = ids.get(&remote)
-    {
-        return Ok(*id);
+    if remote == 0 {
+        return next();
     }
-    let id = next()?;
-    if remote != 0 {
-        ids.insert(remote, id);
+    match ids.entry(remote) {
+        std::collections::hash_map::Entry::Occupied(id) => Ok(*id.get()),
+        std::collections::hash_map::Entry::Vacant(slot) => Ok(*slot.insert(next()?)),
     }
-    Ok(id)
 }
 
 pub(super) fn mirror_id_needs(
