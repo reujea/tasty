@@ -394,7 +394,7 @@ fn with_fields(file: &str, step: &Step, errs: &mut Vec<String>) -> Vec<Field> {
 }
 
 /// `${{ … }}`를 벗긴 식을 최상위 `&&` 항으로 나눈다. 최상위 `||`가 있으면 Err다.
-/// 대괄호(인덱스)나 `&&`·`||`가 든 문자열 리터럴이 있으면 항 경계를 믿을 수 없으므로 받지 않는다.
+/// 대괄호(인덱스·리터럴 안 모두)나 `&&`·`||`가 든 문자열 리터럴이 있으면 항 경계를 믿을 수 없으므로 받지 않는다.
 fn top_level_and_terms(expr: &str) -> Result<Vec<String>, String> {
     let mut e = expr.trim();
     if let Some(inner) = e.strip_prefix("${{").and_then(|x| x.strip_suffix("}}")) {
@@ -402,6 +402,9 @@ fn top_level_and_terms(expr: &str) -> Result<Vec<String>, String> {
     }
     if e.contains("${{") {
         return Err(format!("{UNSUPPORTED}: 식 안에 `${{{{`가 또 있다"));
+    }
+    if e.contains(['[', ']']) {
+        return Err(format!("{UNSUPPORTED}: 식에 대괄호가 있다"));
     }
     let chars: Vec<char> = e.chars().collect();
     let mut depth = 0i32;
@@ -439,7 +442,6 @@ fn top_level_and_terms(expr: &str) -> Result<Vec<String>, String> {
                 in_str = true;
                 literal.clear();
             }
-            '[' | ']' => return Err(format!("{UNSUPPORTED}: 식에 대괄호가 있다")),
             '(' => depth += 1,
             ')' => depth -= 1,
             _ => {}
@@ -1068,4 +1070,15 @@ fn a_diagnostic_step_with_a_block_scalar_if_is_rejected() {
         "        if: >-\n          ${{ !cancelled() }}\n        continue-on-error: true\n",
     );
     assert_caught(&all, "crossplatform-check.yml:128 지원하지 않는 표기");
+}
+
+/// R2: 대상 식의 문자열 리터럴 안 대괄호도 받지 않는다.
+#[test]
+fn a_bracket_inside_a_literal_is_rejected() {
+    let all = mutated(
+        "supply-chain-check.yml",
+        SUPPLY_IF,
+        "        if: ${{ always() && steps.prepare.outcome == 'success' && github.ref != '[' }}\n",
+    );
+    assert_caught(&all, "지원하지 않는 표기: 식에 대괄호가 있다");
 }
