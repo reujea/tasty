@@ -2759,7 +2759,7 @@ fn file_picker_specs() -> Vec<Spec> {
         (
             "filepicker",
             "Native file picker — local & remote, one component",
-            "640×480 · PopupDef · differs only in header host badge + breadcrumb root",
+            "640×480 · PopupDef · differs only in the header host indicator · breadcrumb root is the path root in both",
             picker::draw as fn(&mut egui::Ui, &Theme),
         ),
         (

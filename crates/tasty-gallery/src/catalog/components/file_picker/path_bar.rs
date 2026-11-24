@@ -6,7 +6,7 @@ use tasty_ui_widgets::{
     ControlSize, IconButton, IconButtonVariant, MenuItemVariant, menu_item_with_hover,
 };
 
-use super::{CRUMB_GLYPH, HOST, Variant, path_bar_height};
+use super::{CRUMB_GLYPH, Variant, path_bar_height};
 use crate::catalog::icons;
 use crate::catalog::widgets::dialog as kit;
 use tasty_egui_theme::overlay_edge::BoxEdge;
@@ -113,8 +113,9 @@ const fn crumb(label: &'static str) -> Crumb {
 
 // 디자인 `FilePickerFrame` 의 crumbs seed. 마지막 성분이 현재 폴더다.
 const LOCAL: &[Crumb] = &[root("/"), crumb("Users"), crumb("maya"), crumb("projects")];
+// 원격도 경로 뿌리는 경로의 뿌리다(호스트가 아니다) — 디자인 `FilePickerFrame` remote crumbs.
 const REMOTE: &[Crumb] = &[
-    root(HOST),
+    root("/"),
     crumb("home"),
     crumb("deploy"),
     crumb("agents-prod"),

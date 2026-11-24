@@ -4,9 +4,10 @@
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 
-use super::{FpState, HOST, Variant, card, host_badge};
+use super::{FpState, Variant, card, host_badge, host_text};
 use crate::catalog::icons::{self, MockGlyph};
 use crate::catalog::spec::{self, StageVariant, TokenChip};
+use crate::i18n::t;
 
 /// C안의 프레임 위 띠 높이. 시안 `FilePickerFrame` 의 2px 리터럴이며 대응 토큰이 없다.
 const BORDER_STRIP_H: LogicalPx = LogicalPx(2.0);
@@ -112,13 +113,16 @@ pub(super) fn after_title(ui: &mut egui::Ui, theme: &Theme, v: Variant) {
         return;
     }
     match v.indicator {
-        Indicator::Badge => host_badge(ui, theme, HOST),
+        Indicator::Badge => host_badge(ui, theme, v.host, t("attach.mirror_pill_label")),
         Indicator::Glyph => {
+            let (text, font) = host_text(
+                v.host,
+                t("attach.mirror_pill_label"),
+                GLYPH_HOST_FONT_PRIMITIVE_12.value(),
+            );
             ui.label(
-                egui::RichText::new(HOST)
-                    .font(egui::FontId::monospace(
-                        GLYPH_HOST_FONT_PRIMITIVE_12.value(),
-                    ))
+                egui::RichText::new(text)
+                    .font(font)
                     .color(theme.accent_info_raised().to_egui()),
             );
         }

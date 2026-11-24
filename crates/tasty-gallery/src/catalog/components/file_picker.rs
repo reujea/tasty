@@ -42,7 +42,7 @@ const HOST_BADGE_H: LogicalPx = LogicalPx(22.0);
 /// 디자인에서 정한 13px 아이콘. 대응 Theme 크기 토큰이 없어 그대로 사용한다.
 const CRUMB_GLYPH: LogicalPx = LogicalPx(13.0);
 
-const HOST: &str = "deploy@10.0.4.12";
+const HOST: &str = "work-laptop-attach";
 
 /// 헤더 높이. 고정값이 없고 위아래 `fp-header-pad-y`와 sm IconButton으로 정해진다.
 /// host 배지(22)는 이 안에 들어간다.
@@ -188,6 +188,8 @@ struct Variant {
     remote: bool,
     /// 원격 표시 방식 — 디자인 `FilePickerFrame indicator`. 로컬이면 쓰지 않는다.
     indicator: Indicator,
+    /// 원격 호스트 글자 — 디자인 `FilePickerFrame host`. 비면 프로필 이름이 없는 attach 다.
+    host: &'static str,
     multi: bool,
     mode: Mode,
     /// 경로 데이터 — 디자인 `remote` · `deep` · `pathKind`.
@@ -210,6 +212,7 @@ impl Variant {
             state,
             remote,
             indicator: Indicator::Badge,
+            host: HOST,
             multi,
             mode: Mode::Open,
             path: if remote {
@@ -230,6 +233,7 @@ impl Variant {
             state: FpState::Loaded,
             remote: false,
             indicator: Indicator::Badge,
+            host: HOST,
             multi: false,
             mode: Mode::Save(save),
             path: if deep {
@@ -266,6 +270,12 @@ impl Variant {
         self
     }
 
+    /// 프로필 이름이 없는 attach — 디자인 `FilePickerFrame host=""`.
+    const fn hostless(mut self) -> Self {
+        self.host = "";
+        self
+    }
+
     const fn indicated(mut self, indicator: Indicator) -> Self {
         self.indicator = indicator;
         self
@@ -296,13 +306,72 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             card(ui, theme, Variant::open(FpState::Loaded, true, false));
         });
     });
+    // 디자인의 숨은 View `file-picker-remote-no-profile`. 카탈로그 Spec 에 View 칸이 없어 같은 Spec
+    // 아래에 라벨을 달아 둔다.
+    spec::stage(ui, theme, StageVariant::Wrap, |ui| {
+        ui.spacing_mut().item_spacing =
+            egui::vec2(theme.spacing_lg.value(), theme.spacing_lg.value());
+        spec::cluster(
+            ui,
+            theme,
+            "View · file-picker-remote-no-profile — no profile name (--ssh or --target-port from the CLI or IPC): the word Remote in the host badge, then the badge in every language",
+            |ui| {
+                card(
+                    ui,
+                    theme,
+                    Variant::open(FpState::Loaded, true, false).hostless(),
+                );
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = theme.spacing_md.value();
+                    for lang in std::iter::once("en").chain(crate::i18n::translated_languages()) {
+                        ui.vertical(|ui| {
+                            ui.spacing_mut().item_spacing.y = theme.spacing_xs.value();
+                            ui.label(
+                                egui::RichText::new(lang)
+                                    .size(theme.font_size_caption.value())
+                                    .color(theme.text_muted().to_egui()),
+                            );
+                            egui::Frame::new()
+                                .fill(theme.bg_panel().to_egui())
+                                .stroke(egui::Stroke::new(
+                                    theme.border_width.value(),
+                                    theme.border_strong().to_egui(),
+                                ))
+                                .corner_radius(theme.corner_radius.value())
+                                .inner_margin(egui::Margin::same(theme.spacing_sm.value() as i8))
+                                .show(ui, |ui| {
+                                    host_badge(
+                                        ui,
+                                        theme,
+                                        "",
+                                        crate::i18n::t_lang(lang, "attach.mirror_pill_label"),
+                                    );
+                                });
+                        });
+                    }
+                });
+            },
+        );
+    });
 
     spec::meta(
         ui,
         theme,
         &[
             ("frame", "640×480 · PopupDef · bg-panel"),
-            ("header", "glyph · title · host badge(remote) · ✕"),
+            ("header", "glyph · title · host indicator · ✕"),
+            (
+                "host text",
+                "badge: the host text rule (Dialogs › File handler › Remote path) — attach profile name (R-57), mono · never 127.0.0.1:<port>, the local end of the tunnel",
+            ),
+            (
+                "no host",
+                "no profile name (--ssh, --target-port, a profile saved with an empty name) → attach.mirror_pill_label in font-label, same ink, in the badge · glyph and chip unchanged · never elides",
+            ),
+            (
+                "breadcrumb root",
+                "the path root (/ or C:\\) for local and remote alike — never the host",
+            ),
             ("path bar", "breadcrumb + refresh · bg-sidebar"),
             ("row", "checkbox? · icon · name · size · modified"),
             ("footer", "name field · type filter · Cancel / Open"),
@@ -703,13 +772,14 @@ fn header(ui: &mut egui::Ui, theme: &Theme, v: Variant) {
     });
 }
 
-/// 원격 user@host를 표시하는 배지.
-fn host_badge(ui: &mut egui::Ui, theme: &Theme, host: &str) {
+/// 원격 호스트를 표시하는 배지. 호스트가 비면(프로필 이름이 없는 attach) `empty_label` 낱말을 label
+/// 글꼴로 쓴다. 글리프·채움·잉크는 같다.
+fn host_badge(ui: &mut egui::Ui, theme: &Theme, host: &str, empty_label: &str) {
     let info = theme.accent_info().to_egui();
-    let font = egui::FontId::monospace(theme.font_size_caption.value());
+    let (text, font) = host_text(host, empty_label, theme.font_size_caption.value());
     let galley = ui
         .painter()
-        .layout_no_wrap(host.to_owned(), font, egui::Color32::PLACEHOLDER);
+        .layout_no_wrap(text.to_owned(), font, egui::Color32::PLACEHOLDER);
     let glyph = theme.icon_glyph_size_xs.value();
     let gap = theme.spacing_xs.value();
     let pad_x = theme.spacing_sm.value();
@@ -738,6 +808,15 @@ fn host_badge(ui: &mut egui::Ui, theme: &Theme, host: &str) {
         rect.center().y - galley.rect.height() * 0.5,
     );
     ui.painter().galley(pos, galley, info);
+}
+
+/// 호스트 표시 글자와 글꼴. 이름은 mono, 빈 호스트의 낱말은 label 글꼴이다.
+fn host_text<'a>(host: &'a str, empty_label: &'a str, size: f32) -> (&'a str, egui::FontId) {
+    if host.is_empty() {
+        (empty_label, tasty_ui_widgets::label_font(size))
+    } else {
+        (host, egui::FontId::monospace(size))
+    }
 }
 
 /// 행 컬럼 x좌표 — list header 와 `row` 가 동일 레이아웃을 공유.
