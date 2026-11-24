@@ -202,33 +202,39 @@ pub fn draw_titlebar_view(ctx: &egui::Context, props: &TitlebarProps) -> Titleba
     }
 }
 
-/// 지금 드래그 후보를 만든 누름이 이 드래그 영역(`drag_rect`) 위의 왼쪽 버튼 누름인지. egui의 `drag_started_by`는
-/// 지금 그 버튼이 눌려 있는지만 본다. egui는 어느 버튼이든 떼면 드래그 후보를 비우고, 후보가 빈 동안의 첫 누름으로
-/// 후보를 정한다(`interaction.rs`의 `potential_drag_id`). 같은 순서로 그 첫 누름을 `id`의 임시 값에 적어, 오른쪽으로
-/// 시작한 드래그에 뒤늦은 왼쪽 누름이 더해져도 이동으로 보지 않는다.
+/// 이 드래그 영역(`drag_rect`)을 egui 드래그 후보로 만든 누름이 왼쪽 버튼인지. egui의 `drag_started_by`는 지금 그
+/// 버튼이 눌려 있는지만 보므로, 후보를 만든 누름의 버튼을 `id`의 임시 값에 따로 적는다.
+///
+/// egui 0.31(`interaction.rs`)은 후보가 빈 동안의 누름이 드래그 위젯을 맞히면 그 위젯을 후보로 정하고, 패스 첫머리의
+/// Escape, 어느 버튼의 뗌, 포인터가 창을 떠남으로 후보를 비운다. 같은 순서로, 기록이 빈 동안 이 영역 위의 누름만 그
+/// 버튼을 적고 Escape·뗌·`PointerGone`은 기록을 지운다. 영역 밖 누름(본문·닫기 버튼)은 적지 않는다. 다른 드래그 위젯이 후보인 동안 이 영역 위 누름을
+/// 적더라도, 그 후보가 풀리는 뗌·Escape가 기록도 지우고 그동안 이 영역의 드래그는 시작되지 않는다.
 fn drag_began_with_primary(ui: &egui::Ui, id: egui::Id, drag_rect: egui::Rect) -> bool {
     let key = id.with("drag_press_primary");
-    let mut first: Option<bool> = ui.data(|d| d.get_temp(key)).flatten();
+    let mut armed: Option<bool> = ui.data(|d| d.get_temp(key)).flatten();
     ui.input(|i| {
+        if i.key_pressed(egui::Key::Escape) {
+            armed = None;
+        }
         for event in &i.events {
-            if let egui::Event::PointerButton {
-                pos,
-                button,
-                pressed,
-                ..
-            } = event
-            {
-                if !*pressed {
-                    first = None;
-                } else if first.is_none() {
-                    first =
-                        Some(*button == egui::PointerButton::Primary && drag_rect.contains(*pos));
+            match event {
+                egui::Event::PointerButton { pressed: false, .. } | egui::Event::PointerGone => {
+                    armed = None
                 }
+                egui::Event::PointerButton {
+                    pos,
+                    button,
+                    pressed: true,
+                    ..
+                } if armed.is_none() && drag_rect.contains(*pos) => {
+                    armed = Some(*button == egui::PointerButton::Primary);
+                }
+                _ => {}
             }
         }
     });
-    ui.data_mut(|d| d.insert_temp(key, first));
-    first == Some(true)
+    ui.data_mut(|d| d.insert_temp(key, armed));
+    armed == Some(true)
 }
 
 /// DE 가변 버튼 클러스터를 측면에 그리고, 차지한 strip 폭(logical px)을 반환한다.

@@ -800,6 +800,58 @@ mod tests {
         assert_eq!(bar_actions(passes, true), Vec::new());
     }
 
+    /// Given 드래그 위젯이 없는 자리(본문·닫기 버튼)에서 오른쪽을 누른 채, When 빈 제목 줄에서 왼쪽을 눌러 끌면 Then
+    /// egui 드래그 후보는 왼쪽 누름이 만들었으므로 창 이동이다(메인 창과 같다).
+    #[test]
+    fn a_left_press_on_the_bar_moves_after_a_right_press_off_any_drag_widget() {
+        use egui::PointerButton::{Primary, Secondary};
+        let moved_to = |x: f32, y: f32| egui::Event::PointerMoved(egui::pos2(x, y));
+        let passes = |from: (f32, f32)| {
+            vec![
+                vec![moved_to(from.0, from.1)],
+                vec![pointer(from, Secondary, true)],
+                vec![moved_to(500.0, 18.0)],
+                vec![pointer((500.0, 18.0), Primary, true)],
+                vec![moved_to(540.0, 18.0)],
+                vec![moved_to(580.0, 18.0)],
+                vec![pointer((580.0, 18.0), Primary, false)],
+                vec![pointer((580.0, 18.0), Secondary, false)],
+            ]
+        };
+        let places = [("body", (500.0, 300.0)), ("close button", (1080.0, 18.0))];
+        let moved = |primary_drag_only: bool| -> Vec<(&str, Vec<TitlebarAction>)> {
+            places
+                .iter()
+                .map(|(place, from)| (*place, bar_actions(passes(*from), primary_drag_only)))
+                .collect()
+        };
+        let expected: Vec<_> = places
+            .iter()
+            .map(|(place, _)| (*place, vec![TitlebarAction::StartDrag]))
+            .collect();
+        assert_eq!(moved(true), expected);
+        assert_eq!(moved(false), expected, "main window");
+    }
+
+    /// Given 제목 줄에서 왼쪽을 누른 채, When Escape로 드래그 후보를 비우고 같은 자리에서 오른쪽을 더 눌러 끌면 Then
+    /// egui 드래그 후보는 오른쪽 누름이 만들었으므로 창 이동이 아니다.
+    #[test]
+    fn a_right_press_after_escape_does_not_move_with_the_left_still_held() {
+        use egui::PointerButton::{Primary, Secondary};
+        let moved_to = |x: f32| egui::Event::PointerMoved(egui::pos2(x, 18.0));
+        let passes = vec![
+            vec![moved_to(500.0)],
+            vec![pointer((500.0, 18.0), Primary, true)],
+            vec![key(egui::Key::Escape, true), key(egui::Key::Escape, false)],
+            vec![pointer((500.0, 18.0), Secondary, true)],
+            vec![moved_to(540.0)],
+            vec![moved_to(580.0)],
+            vec![pointer((580.0, 18.0), Secondary, false)],
+            vec![pointer((580.0, 18.0), Primary, false)],
+        ];
+        assert_eq!(bar_actions(passes, true), Vec::new());
+    }
+
     /// Given 설정창 제목 줄의 빈 영역, When 왼쪽 버튼으로 끌면 Then 창 이동이고, When 오른쪽 버튼으로 끌면 Then
     /// 아무것도 하지 않는다. 메인 창 설정(`primary_drag_only` 거짓)은 오른쪽 드래그도 이동으로 보고한다.
     #[test]
