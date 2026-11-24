@@ -41,7 +41,7 @@
 
 휠은 보조키와 관계없이 세로 스크롤한다. egui는 Ctrl·Cmd 휠을 확대, Shift 휠을 가로 이동으로 해석하므로 `modifier_free_wheel_y()`가 패널 위의 raw MouseWheel을 같은 단위로 다시 읽어 세로 성분을 `scroll_with_delta`에 전달한다. Alt·Option만 누른 경우에는 egui의 세로 처리를 사용해 중복 스크롤을 피한다.
 
-목록은 `build_hint_sections`가 `combos_containing_all`·`Combo::contains_all`로 만든다. 호스트 액션, 사용자 스크립트, 탭·workspace 전환·마우스 캡처 우회·링크 열기 역할을 조합 크기와 우선순위로 정렬한다. 여러 키를 누르면 첫 섹션은 현재 조합과 같다. plugin 단축키는 아직 이 목록에 포함하지 않는다.
+목록은 `build_hint_sections`가 `combos_containing_all`·`Combo::contains_all`로 만든다. 호스트 액션, 사용자 스크립트, 탭·workspace 전환·마우스 캡처 우회·링크 열기 역할을 조합 크기와 우선순위로 정렬한다. 링크 열기 역할은 실제로 클릭을 일으키는 키의 조합에 붙는다. macOS에서 링크 클릭 수식키 `alt`는 Option이므로 Option 줄에 보인다([터미널 링크](../terminal-link/index.md#트리거-사용자-행동)). 여러 키를 누르면 첫 섹션은 현재 조합과 같다. plugin 단축키는 아직 이 목록에 포함하지 않는다.
 
 바인딩과 역할이 없는 조합도 남겨 `modifier_hint.empty`로 표시한다. 단 macOS 밖에서 Win·Super(`option`)를 누른 동안 `option` 바인딩·역할이 하나도 없으면 패널을 띄우지 않는다(`silent_option_hold`). 키캡·아이콘·배경 없이 약한 텍스트를 사용하며 최소 높이는 20px, 내부 간격은 3px다. `combo_keycap_parts`는 표시 스타일이 symbol인 Alt·Option·Shift를 `CMD_KEY`·`OPTION_KEY`·`SHIFT_KEY` 벡터 아이콘으로 그린다. 해당 글리프가 폰트에 없을 때 빈 사각형이 되는 문제를 피한다([키 매핑](../../design/policies/key-mapping.md)).
 
