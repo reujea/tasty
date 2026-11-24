@@ -228,7 +228,9 @@ fn work(pool: &Arc<ShellPool>, first: mpsc::Receiver<ShellJob>) {
         }
         #[cfg(test)]
         if pool.unwind_after_job.swap(false, Ordering::SeqCst) {
-            panic!("test hook shell thread unwind");
+            // 패닉 훅을 거치지 않고 풀려 나간다. 훅은 프로세스 전역 출력 잠금 안에서 문구를 찍으므로,
+            // 같은 프로세스의 다른 시험이 그 잠금을 쥐고 backtrace를 찍는 동안 슬롯 반납이 늦어진다.
+            std::panic::resume_unwind(Box::new("test hook shell thread unwind"));
         }
         let mut state = pool.lock();
         match state.waiting.pop_front() {
@@ -775,7 +777,9 @@ mod tests {
                 let not_started = matches!(event, ShellEvent::NotStarted(_));
                 forward(event);
                 if not_started {
-                    panic!("test report panic while unwinding");
+                    // 풀려 나가는 중의 패닉이라 훅을 거치면 전체 backtrace를 기호화해 찍고, 그동안 남은 보고가
+                    // 늦어진다. 훅 없이 풀려 나가도 보고를 감싼 catch_unwind가 잡는 것은 같다.
+                    std::panic::resume_unwind(Box::new("test report panic while unwinding"));
                 }
             }
         };
