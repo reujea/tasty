@@ -192,8 +192,14 @@ fn fields_at(
             )),
         }
     }
+    // 끝의 빈 줄과, 키보다 깊지 않은 주석 줄(다음 스텝 앞 주석)만 뗀다. 키보다 깊은 `#` 줄은 블록 스칼라
+    // 본문일 수 있으므로 남긴다(예: run 블록 끝의 `#Requires`).
     for f in &mut out {
-        while f.children.last().is_some_and(|(_, l)| is_blank(l)) {
+        while f
+            .children
+            .last()
+            .is_some_and(|(_, l)| l.trim().is_empty() || (is_blank(l) && indent_of(l) <= indent))
+        {
             f.children.pop();
         }
     }
@@ -1081,4 +1087,18 @@ fn a_bracket_inside_a_literal_is_rejected() {
         "        if: ${{ always() && steps.prepare.outcome == 'success' && github.ref != '[' }}\n",
     );
     assert_caught(&all, "지원하지 않는 표기: 식에 대괄호가 있다");
+}
+
+/// R3: Windows prepare 블록 끝의 `#` 줄도 블록 본문이므로 비교에 넣는다.
+#[test]
+fn a_comment_line_inside_the_windows_prepare_block_is_caught() {
+    let all = mutated(
+        "crossplatform-check.yml",
+        "          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\n",
+        "          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\n          #Requires -Version 99.0\n",
+    );
+    assert_caught(
+        &all,
+        "prepare 스텝의 run이 정해진 준비 스크립트 호출과 다르다",
+    );
 }
