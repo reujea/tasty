@@ -291,15 +291,23 @@ fn constrained_pivot_pos(
     let window = egui::Rect::from_min_size(left_top, size).round_ui();
     // Along one axis: keep the window inside `screen`, unless it is larger, then let it hang out
     // by the excess on either side.
-    let along = |min: f32, len: f32, lo: f32, hi: f32| -> f32 {
-        let (min, len, lo, hi) = (LogicalPx(min), LogicalPx(len), LogicalPx(lo), LogicalPx(hi));
+    let along = |min: LogicalPx, len: LogicalPx, lo: LogicalPx, hi: LogicalPx| -> LogicalPx {
         let margin = (len - (hi - lo)).max(LogicalPx(0.0));
-        min.min(hi + margin - len).max(lo - margin).value()
+        min.min(hi + margin - len).max(lo - margin)
     };
-    let min = egui::pos2(
-        along(window.min.x, window.width(), screen.left(), screen.right()),
-        along(window.min.y, window.height(), screen.top(), screen.bottom()),
+    let x = along(
+        LogicalPx(window.min.x),
+        LogicalPx(window.width()),
+        LogicalPx(screen.left()),
+        LogicalPx(screen.right()),
     );
+    let y = along(
+        LogicalPx(window.min.y),
+        LogicalPx(window.height()),
+        LogicalPx(screen.top()),
+        LogicalPx(screen.bottom()),
+    );
+    let min = egui::pos2(x.value(), y.value());
     let min = egui::Rect::from_min_size(min, window.size()).round_ui().min;
     min + factor * size
 }
