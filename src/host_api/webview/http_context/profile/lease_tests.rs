@@ -731,6 +731,8 @@ fn release_after_retention_alone() {
 #[test]
 fn a_file_in_execution_or_mapped_executable_retains_the_root() {
     let dead = DeadRoot::new();
+    // Assumes /bin/cat is a real GNU or uutils coreutils executable that echoes one byte at once
+    // while its input stays open. A /bin/cat that is a BusyBox applet link is not a target.
     // A multi-call build (uutils coreutils, BusyBox) picks its tool by the executable's own file
     // name, so a copy under any other name exits at once and nothing would be executing.
     let tool = dead.path("data/cat");
