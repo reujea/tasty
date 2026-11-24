@@ -2,6 +2,8 @@
 //! Native windows, geometry caches and input handles remain owned by MainView.
 pub(crate) mod bed_focus;
 mod construction;
+#[cfg(test)]
+mod edge_tests;
 mod navigation;
 mod pending_work;
 mod reveal_wake;
@@ -201,6 +203,29 @@ fn edge_reserved(
     f64::from((below.y - leaf.y).value())
 }
 
+/// leaf 안 native 페이지의 물리 사각형. `insets`는 좌·우·아래 여백, `edge`는 포커스 띠 행 높이,
+/// `content_top`은 주소 띠·배너 높이다. 페이지는 `edge + content_top` 아래에서 시작한다.
+/// 띠 행이 남은 본문을 다 쓰면 `None`이다. 그 창은 드러내지 않는다. 띠가 없어도 본문이 없는 경우는
+/// 예전대로 1px 창을 둔다(띠 예약과 무관한 기존 동작).
+fn page_bounds(
+    leaf: crate::model::PhysicalRect,
+    [left, right, bottom]: [f64; 3],
+    edge: f64,
+    content_top: f64,
+) -> Option<crate::webview::PhysicalWebViewBounds> {
+    let top = edge + content_top;
+    let height = f64::from(leaf.height.value()) - bottom - top;
+    if edge > 0.0 && height < 1.0 && height + edge >= 1.0 {
+        return None;
+    }
+    Some(crate::webview::PhysicalWebViewBounds {
+        x: f64::from(leaf.x.value()) + left,
+        y: f64::from(leaf.y.value()) + top,
+        width: (f64::from(leaf.width.value()) - left - right).max(1.0),
+        height: height.max(1.0),
+    })
+}
+
 /// HTML surface 전체와 활성 surface의 영역을 수집한다. native 호출은 하지 않는다.
 /// 활성 surface의 영역은 플랫폼에 넘길 논리 좌표와 egui 툴팁 배치에 쓸 물리 사각형을 함께 돌려준다.
 fn collect_html_surfaces(
@@ -319,13 +344,14 @@ fn collect_html_surfaces(
                                 .map(|v| v.value() as f64);
                             // 물리 사각형을 만든 뒤 플랫폼 API에 맞는 논리 좌표로 변환한다.
                             // 띠 kind는 포커스 띠 행 아래(정수 물리 px)에서 시작한다. 그리기 전 첫 프레임도 같다.
-                            let edge = edge_reserved(surface, leaf_rect, scale_factor as f32);
-                            let top = edge + view.html_content_top(sid, scale_factor);
-                            let physical = crate::webview::PhysicalWebViewBounds {
-                                x: leaf_rect.x.value() as f64 + left,
-                                y: leaf_rect.y.value() as f64 + top,
-                                width: (leaf_rect.width.value() as f64 - left - right).max(1.0),
-                                height: (leaf_rect.height.value() as f64 - bottom - top).max(1.0),
+                            // 띠 행이 본문을 다 쓰면 창을 드러내지 않는다(bounds 목록에서 빠진다).
+                            let Some(physical) = page_bounds(
+                                leaf_rect,
+                                [left, right, bottom],
+                                edge_reserved(surface, leaf_rect, scale_factor as f32),
+                                view.html_content_top(sid, scale_factor),
+                            ) else {
+                                continue;
                             };
                             let bounds = crate::webview::WebViewBounds::from_physical(
                                 physical,
