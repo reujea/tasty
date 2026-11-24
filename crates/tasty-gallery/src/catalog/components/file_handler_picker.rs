@@ -239,18 +239,21 @@ struct RemotePathRow {
     path: &'static str,
     format: Option<&'static str>,
     state: FrameState,
+    /// agent mirror 가 다시 붙는 중이다. 표지는 중립 잉크 + 상태 단어다.
+    reconnecting: bool,
 }
 
 /// 디자인 Spec `file-handler-remote-path` 의 표본 줄, 정본 순서. 호스트 글자는 attach 프로필 이름이다.
 /// 이름으로 연 경로(Ctrl+click·탐색기·파일 열기 도구·plugin)는 이름이 정한 형식의 accent Tag 이고,
 /// 링크 메뉴의 열기 동작은 detector 가 없어 fallback(`format unknown`, 1 회성 띠, All handlers)이다.
-const REMOTE_PATH_ROWS: [RemotePathRow; 5] = [
+const REMOTE_PATH_ROWS: [RemotePathRow; 6] = [
     RemotePathRow {
         label: "local path — no mark",
         host: None,
         path: "docs/architecture.md",
         format: None,
         state: FrameState::Default,
+        reconnecting: false,
     },
     RemotePathRow {
         label: "remote path identified by name (path link Ctrl+click, mirror explorer, file open tool, plugin) — profile host, the format its name settled keeps the accent Tag · Ctrl+click opens it only when the first handler cannot open the file remotely and another can",
@@ -258,6 +261,7 @@ const REMOTE_PATH_ROWS: [RemotePathRow; 5] = [
         path: "docs/architecture.md",
         format: Some("markdown"),
         state: FrameState::Default,
+        reconnecting: false,
     },
     RemotePathRow {
         label: "remote path from the link menu's open action — no detector: format unknown, All handlers and the one-time strip, remote handlers only",
@@ -265,6 +269,15 @@ const REMOTE_PATH_ROWS: [RemotePathRow; 5] = [
         path: "src/main.rs",
         format: None,
         state: FrameState::Fallback,
+        reconnecting: false,
+    },
+    RemotePathRow {
+        label: "remote path · agent mirror reconnecting (resync, or drop → cleanup) — neutral ink + status word, as the status bar",
+        host: Some("work-laptop-attach"),
+        path: "docs/architecture.md",
+        format: Some("markdown"),
+        state: FrameState::Default,
+        reconnecting: true,
     },
     RemotePathRow {
         label: "93-char path beside work-laptop-attach (link menu) — 258px box, 43 chars: whole segments drop, the filename stays",
@@ -272,6 +285,7 @@ const REMOTE_PATH_ROWS: [RemotePathRow; 5] = [
         path: PATH_SAMPLES[1],
         format: None,
         state: FrameState::Fallback,
+        reconnecting: false,
     },
     RemotePathRow {
         label: "same path at the host cap (link menu) — 206px box, 34 chars: …/ + the 33-char file name is 35, so only the slash drops — … + the whole file name",
@@ -279,6 +293,7 @@ const REMOTE_PATH_ROWS: [RemotePathRow; 5] = [
         path: PATH_SAMPLES[1],
         format: None,
         state: FrameState::Fallback,
+        reconnecting: false,
     },
 ];
 
@@ -340,13 +355,14 @@ fn remote_path_row(
 
 pub fn draw_remote_path(ui: &mut egui::Ui, theme: &Theme) {
     let empty_label = crate::i18n::t("attach.mirror_pill_label");
+    let word = crate::i18n::t("status_bar.remote_reconnecting");
     spec::stage(ui, theme, StageVariant::Column, |ui| {
         theme_pair(ui, theme, "fh_remote_path", |ui, th| {
             for row in &REMOTE_PATH_ROWS {
                 let mark = row.host.map(|host| tasty_ui_widgets::RemoteMark {
                     host,
                     empty_label,
-                    reconnecting: None,
+                    reconnecting: row.reconnecting.then_some(word),
                 });
                 remote_path_row(ui, th, row, mark.as_ref());
             }
@@ -359,6 +375,7 @@ pub fn draw_remote_path(ui: &mut egui::Ui, theme: &Theme) {
             path: "docs/architecture.md",
             format: Some("markdown"),
             state: FrameState::Default,
+            reconnecting: false,
         };
         theme_pair(ui, theme, "fh_remote_no_host", |ui, th| {
             let mark = tasty_ui_widgets::RemoteMark {
@@ -413,11 +430,27 @@ pub fn draw_remote_path(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "path cap, unmeasured",
-                "floor((366 − min(6 × host chars, 160)) / 6): 'host' 57 · 'work-laptop-attach' 43 · at the cap 34 (also when the host width is unknown)",
+                "floor((366 − min(6 × host chars, 160)) / 6): 'host' 57 · 'work-laptop-attach' 43 · at the cap 34 (also when the host width is unknown) · reconnecting: also subtract 4 + the status word's width from 366; when its width is not known, take 6 per mono cell in en and ko (a Hangul syllable is two cells: reconnecting 72, 재연결 중 54) and 12 per character in ja and zh-Hans, one 11px em rounded up (再接続中 48, 重新连接中 60)",
+            ),
+            (
+                "reconnecting",
+                "glyph glyph-dim · host text-muted · then status_bar.remote_reconnecting in font-label, text-muted · gap 4 · no spinner, no pulse — the status bar's reconnecting form",
+            ),
+            (
+                "reconnecting path box",
+                "the word is part of the mark: 390 − (12 + 4 + host + 4 + word) − 8, measured — the word is font-label, mono in en and ko but UI sans in ja and zh-Hans, so a character count does not give its width",
+            ),
+            (
+                "state",
+                "agent mirror: follows its session state while the picker is open · saved remote row that drops while it is open, into reconnecting too: the picker closes, is not left under the scrim and does not open again when the row connects again (decided, Q1-a)",
             ),
             (
                 "disconnected",
                 "no form (user decision, R-58 Q1: the scrim takes the pointer, drawn on Layouts › Saved remote workspace) — on a saved remote row that is not connected, reconnecting included, nothing under the scrim answers, so no link opens the picker, so it has no form here · an agent mirror is closed once it drops (R-58 decision 23-4), so it has no disconnected form",
+            ),
+            (
+                "reconnecting form",
+                "the agent mirror's, with no scrim: while it attaches again after a resync (whatever its anchor or origin), and in the short span between its drop and its cleanup · both short, not measured",
             ),
             (
                 "format Tag",
@@ -443,9 +476,18 @@ pub fn draw_remote_path(ui: &mut egui::Ui, theme: &Theme) {
         ],
         &[
             TokenChip::new("fh-remote-fg", "host mark", theme.fh_remote_fg().to_egui()),
-            TokenChip::without_color("fh-remote-gap", "glyph ↔ host"),
+            TokenChip::without_color("fh-remote-gap", "glyph ↔ host ↔ word"),
+            TokenChip::new(
+                "glyph-dim",
+                "glyph, reconnecting",
+                theme.glyph_dim().to_egui(),
+            ),
             TokenChip::without_color("fh-remote-max-width", "host cap"),
-            TokenChip::new("text-muted", "path ink", theme.text_muted().to_egui()),
+            TokenChip::new(
+                "text-muted",
+                "path ink · host + word, reconnecting",
+                theme.text_muted().to_egui(),
+            ),
         ],
     );
     spec::dont(
@@ -759,7 +801,7 @@ mod tests {
                     })
                 };
                 let advance = tasty_type_geometry::length::LogicalPx(w("00") - w("0"));
-                for row in &REMOTE_PATH_ROWS[3..] {
+                for row in &REMOTE_PATH_ROWS[4..] {
                     let mark = tasty_ui_widgets::RemoteMark {
                         host: row.host.expect("remote row"),
                         empty_label: "Remote",
