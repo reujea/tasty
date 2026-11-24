@@ -286,7 +286,8 @@ fn draw_window_buttons(
             stroke,
         );
         if props.keyboard_focus && resp.has_focus() {
-            // 버튼 둘레에서 focus-ring-offset만큼 띄운 focus-ring-width 링. 버튼처럼 UI 배율 밖이다.
+            // 버튼 둘레에서 focus-ring-offset만큼 띄운 focus-ring-width 링. 띄움은 버튼처럼 UI 배율 밖이고 링 굵기
+            // (focus_ring_width)는 배율을 받는다.
             // epaint 원 획은 반지름 바깥으로 그리므로 반지름은 링의 안쪽 변이다.
             let ring = th.focus_ring_width.value();
             let offset = th.focus_ring_offset.value();
