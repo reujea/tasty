@@ -338,7 +338,7 @@ mod tests {
         let mut f = Some(f);
         let mut out = None;
         // 그린 도형은 보지 않고 프레임 안에서 잰 값만 쓴다.
-        let _ = ctx.run(egui::RawInput::default(), |ctx| {
+        let _output = ctx.run(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 if let Some(f) = f.take() {
                     out = Some(f(ui));
