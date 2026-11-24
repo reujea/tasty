@@ -475,8 +475,9 @@ self-hosted 러너에서 도는 일반 검사 잡은 이전 실행의 `target/`�
   지울 수 있으므로 손대지 않고 스텝을 실패시키고, 링크인 표지는 표지로 인정하지 않는다. 종료 코드는
   스크립트 머리말에 있다.
 - 잡이 없는 날에는 지우지 않는다. 다음 날 첫 잡이 지운다.
-- 준비 실패 뒤: 앞 실패 뒤에도 도는(`if`에 `failure()`·`always()`·`cancelled()`가 들어간) 판정 스텝은
-  `steps.prepare.outcome == 'success'`를 최상위 `&&` 항으로 조건에 둔다. `script-gates`의 판정기를 쓰는 스텝은
+- 준비 실패 뒤: 앞 실패 뒤에도 돌 수 있는(`if`에 상태 함수 `success`·`failure`·`always`·`cancelled`가 대소문자와
+  이름 뒤 공백에 상관없이 하나라도 들어간) 판정 스텝은 `steps.prepare.outcome == 'success'`를 최상위 `&&` 항으로
+  조건에 둔다. `script-gates`의 판정기를 쓰는 스텝은
   판정기 빌드 스텝(id `judge`)의 성공도 같은 방식으로 조건에 둔다.
   - 준비 결과와 상관없이 도는 스텝은 `crossplatform-check`의 진단 스텝 세 개(`desktop session`·`xvfb`·`disk`)뿐이다.
     조건이 `!cancelled()`뿐이고 `continue-on-error: true`라 판정을 내지 않는다.

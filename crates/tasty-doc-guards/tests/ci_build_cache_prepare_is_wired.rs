@@ -424,11 +424,18 @@ fn top_level_and_terms(expr: &str) -> Result<Vec<String>, String> {
     Ok(terms)
 }
 
-/// 앞 스텝이 실패해도 이 스텝을 돌릴 수 있는 조건인가. 상태 함수 하나라도 있으면 대상이다.
+/// 상태 함수. 식에 하나라도 있으면 GitHub가 기본 `success()`를 붙이지 않는다.
+const STATUS_FUNCTIONS: [&str; 4] = ["success", "failure", "always", "cancelled"];
+
+/// 앞 스텝이 실패해도 이 스텝을 돌릴 수 있는 조건인가. 상태 함수 이름(대소문자 무시) 뒤에 공백과 `(`가
+/// 오는 곳이 하나라도 있으면 대상이다. 부정·OR·문자열 안의 이름도 대상으로 보아 준비 조건을 요구한다(fail closed).
 fn runs_after_failure(expr: &str) -> bool {
-    ["failure()", "always()", "cancelled()"]
-        .iter()
-        .any(|f| expr.contains(f))
+    let lower = expr.to_ascii_lowercase();
+    STATUS_FUNCTIONS.iter().any(|name| {
+        lower
+            .match_indices(name)
+            .any(|(at, _)| lower[at + name.len()..].trim_start().starts_with('('))
+    })
 }
 
 /// `runs-on` 라벨. 한 줄 값, 흐름 목록, 블록 목록만 받는다.
@@ -868,4 +875,29 @@ fn an_or_before_the_prepare_or_judge_term_is_caught() {
         "steps.prepare.outcome == 'success' || steps.judge.outcome",
     );
     assert_caught(&all, "Allow reason (ratchet) — 최상위에 ||가 있다");
+}
+
+/// test.yml semver-guards의 prepare 바로 뒤에 `if: <cond>`인 판정 스텝을 끼운다.
+fn probe_after_prepare(cond: &str) -> Vec<(String, String)> {
+    mutated(
+        "test.yml",
+        LINUX_PREPARE,
+        &format!(
+            "{LINUX_PREPARE}\n      - name: probe\n        if: {cond}\n        run: cargo test --locked\n"
+        ),
+    )
+}
+
+/// M1: 상태 함수는 이름(대소문자 무시)과 `(` 사이 공백까지 읽는다. success()를 부정하거나 OR로 묶어도 대상이다.
+#[test]
+fn any_status_function_makes_the_step_need_the_prepare_term() {
+    for (cond, want) in [
+        ("${{ !success() }}", "최상위 && 항에 준비 성공 조건이 없다"),
+        ("${{ success() || true }}", "최상위에 ||가 있다"),
+        ("${{ Always() }}", "최상위 && 항에 준비 성공 조건이 없다"),
+        ("${{ always () }}", "최상위 && 항에 준비 성공 조건이 없다"),
+        ("${{ failure( ) }}", "최상위 && 항에 준비 성공 조건이 없다"),
+    ] {
+        assert_caught(&probe_after_prepare(cond), want);
+    }
 }
