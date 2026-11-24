@@ -78,6 +78,12 @@ impl ChildTerminalRegistry {
     pub(crate) fn test_hold_writer(&self) -> WriterHold {
         self.hub.test_hold_writer()
     }
+    /// 다음에 접수되는 저장 명령 하나를 writer 안에서 실패(panic)하게 한다.
+    pub(crate) fn test_fail_next_write(&self) {
+        self.hub
+            .panic_next
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
     #[cfg(all(unix, feature = "gui"))]
     pub(crate) fn flush_for_test(&mut self) {
         wait(self.submit().expect("real child file admission"))

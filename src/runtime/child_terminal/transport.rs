@@ -116,7 +116,7 @@ pub(crate) struct Hub {
     #[cfg(test)]
     pub(super) fixture_writer: Mutex<Option<crate::app::file_writer::FileWriterParts>>,
     #[cfg(test)]
-    panic_next: std::sync::atomic::AtomicBool,
+    pub(super) panic_next: std::sync::atomic::AtomicBool,
 }
 impl Hub {
     pub(crate) fn new(path: Option<PathBuf>) -> Arc<Self> {

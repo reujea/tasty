@@ -78,7 +78,9 @@ impl TerminalInputAccess<'_> {
         }
     }
 
-    /// respawn이 지정한 role·nickname을 반영하고 child를 active로 돌린 뒤 저장한다.
+    /// respawn이 지정한 role을 반영하고 child를 active로 돌린 뒤 저장한다. 지정한 nickname은 조회 값에 먼저
+    /// 넣지 않고 set_nickname과 같은 명시 대입으로 저장한다. role·상태는 그 저장의 필드 차이로 함께 간다.
+    /// 조회 값의 nickname은 쓰기가 성공한 뒤에 들어오고, 같은 자식의 nickname 요청은 접수 순서대로 쓰인다.
     pub(crate) fn record_respawn(
         &mut self,
         parent: &ParentKey,
@@ -87,15 +89,22 @@ impl TerminalInputAccess<'_> {
         role: Option<&str>,
         nickname: Option<&str>,
     ) {
-        self.children.update_child(parent, index, |entry| {
-            if let Some(role) = role {
+        if let Some(role) = role {
+            self.children.update_child(parent, index, |entry| {
                 entry.role = Some(role.to_owned());
-            }
-            if let Some(nickname) = nickname {
-                entry.nickname = Some(nickname.to_owned());
-            }
-        });
+            });
+        }
         self.children.set_idle(surface, false);
-        self.children.save();
+        match nickname {
+            Some(nickname) => {
+                if let Err(refused) =
+                    self.children
+                        .set_nickname(parent, index, surface, Some(nickname.to_owned()))
+                {
+                    tracing::warn!(?refused, "child respawn nickname not admitted");
+                }
+            }
+            None => self.children.save(),
+        }
     }
 }

@@ -912,3 +912,131 @@ fn a_cwd_respawn_naming_the_saved_nickname_wins_over_an_earlier_pending_set_nick
     assert_eq!(entry["nickname"].as_str(), Some("old"), "saved");
     assert_eq!(entry["cwd"].as_str(), cwd_text.as_deref(), "cwd saved");
 }
+
+/// 부모 surface에 nickname `old`로 저장된 자식 하나를 두고 (부모, 자식 surface)를 돌려준다.
+fn child_named_old(journal: &mut JournalApplication, session: &mut EngineSession) -> (u32, u32) {
+    use crate::runtime::child_terminal::ChildEntry;
+    let parent = terminal_workspace(journal, session);
+    let child = terminal_workspace(journal, session);
+    session.runtime.child_terminals.register_child(
+        parent,
+        ChildEntry {
+            child_surface_id: child,
+            index: 0,
+            cwd: None,
+            role: None,
+            nickname: Some("old".into()),
+        },
+    );
+    let saved = session.runtime.child_terminals.submit().expect("admitted");
+    settle_child_save(journal, session, &saved);
+    (parent, child)
+}
+
+/// `--cwd` 없는 respawn은 journal이 받지 않고 IPC 핸들러가 바로 처리한다(입력 전송과 관계 기록).
+fn direct_respawn(session: &mut EngineSession, params: serde_json::Value) -> JsonRpcResponse {
+    let mut engine = session.borrow_mut();
+    crate::adapters::ipc::handler::terminal::handle_respawn(
+        &mut engine,
+        serde_json::json!(1),
+        &params,
+    )
+}
+
+/// 앞선 저장이 모두 끝난 뒤 조회 값과 파일의 자식 0번 nickname을 돌려준다. 일반 저장(Merge)을 하나 더
+/// 접수해 끝까지 기다리므로, 조회 값에 남은 값이 있으면 그 저장이 파일에도 쓴다.
+fn settled_nickname(
+    journal: &mut JournalApplication,
+    session: &mut EngineSession,
+    parent: u32,
+) -> (Option<String>, Option<String>) {
+    use crate::runtime::child_terminal::ParentKey;
+    let flush = session.runtime.child_terminals.submit().expect("admitted");
+    settle_child_save(journal, session, &flush);
+    let shown = session
+        .runtime
+        .child_terminals
+        .find_child(&ParentKey::Surface(parent), 0)
+        .expect("child")
+        .nickname;
+    let file = tasty_utils::path::tasty_home()
+        .expect("isolated home")
+        .join("child-terminals.json");
+    let on_disk = std::fs::read_to_string(&file).expect("registry file");
+    let disk: serde_json::Value = serde_json::from_str(&on_disk).expect("registry json");
+    let saved = disk["children"][parent.to_string()]
+        .as_array()
+        .and_then(|list| list.iter().find(|c| c["index"] == 0))
+        .and_then(|c| c["nickname"].as_str())
+        .map(str::to_owned);
+    (shown, saved)
+}
+
+/// writer가 막힌 동안 `respawn --nickname temp`(저장 실패)와 `respawn --cwd --nickname final`을 차례로
+/// 접수하면, 실패한 temp는 조회 값에도 이후 저장에도 남지 않고 final이 남는다.
+#[test]
+fn a_failed_respawn_nickname_does_not_return_over_a_later_cwd_respawn_nickname() {
+    use crate::runtime::child_terminal::ParentKey;
+    let _home = crate::test_support::TastyHomeGuard::new();
+    let (mut session, mut journal) = boot();
+    let (parent, _) = child_named_old(&mut journal, &mut session);
+    let key = ParentKey::Surface(parent);
+    let hold = session.runtime.child_terminals.test_hold_writer();
+    session.runtime.child_terminals.test_fail_next_write();
+    let params = serde_json::json!({ "surface": parent, "child": 0, "nickname": "temp" });
+    let response = direct_respawn(&mut session, params);
+    assert!(response.error.is_none(), "{response:?}");
+    let cwd = tempfile::tempdir().expect("cwd");
+    let cwd_text = cwd.path().to_str().map(str::to_owned);
+    let params = serde_json::json!({
+        "surface": parent, "child": 0, "cwd": cwd.path(), "nickname": "final"
+    });
+    let second = send(&mut journal, request("terminal.respawn", params, None, 751));
+    // 설치는 관계 항목의 cwd를 조회 값에 바로 반영한다. 그때까지 펌프하고 writer를 푼다.
+    let mut stall = StallBudget::new(&journal);
+    loop {
+        turn(&mut journal, &mut session, None);
+        let shown = session.runtime.child_terminals.find_child(&key, 0);
+        if shown.is_some_and(|entry| entry.cwd == cwd_text) {
+            break;
+        }
+        stall.nap("replacing install");
+    }
+    hold.release();
+    let response = reply(&mut journal, &mut session, &second, |_, _| {});
+    assert!(response.error.is_none(), "{response:?}");
+    let (shown, saved) = settled_nickname(&mut journal, &mut session, parent);
+    assert_eq!(
+        (shown.as_deref(), saved.as_deref()),
+        (Some("final"), Some("final")),
+        "(shown, saved)"
+    );
+}
+
+/// set_nickname(new)이 대기하는 동안 `--cwd` 없는 `respawn --nickname old`(지금 확정 값과 같은 값)를
+/// 접수하면, 두 저장이 모두 성공한 뒤 요청 순서대로 뒤에 명시한 old가 남는다.
+#[test]
+fn a_respawn_naming_the_saved_nickname_wins_over_an_earlier_pending_set_nickname() {
+    use crate::runtime::child_terminal::ParentKey;
+    let _home = crate::test_support::TastyHomeGuard::new();
+    let (mut session, mut journal) = boot();
+    let (parent, child) = child_named_old(&mut journal, &mut session);
+    let key = ParentKey::Surface(parent);
+    let hold = session.runtime.child_terminals.test_hold_writer();
+    let renamed = session
+        .runtime
+        .child_terminals
+        .set_nickname(&key, 0, child, Some("new".into()))
+        .expect("set_nickname admitted");
+    let params = serde_json::json!({ "surface": parent, "child": 0, "nickname": "old" });
+    let response = direct_respawn(&mut session, params);
+    assert!(response.error.is_none(), "{response:?}");
+    hold.release();
+    settle_child_save(&mut journal, &mut session, &renamed);
+    let (shown, saved) = settled_nickname(&mut journal, &mut session, parent);
+    assert_eq!(
+        (shown.as_deref(), saved.as_deref()),
+        (Some("old"), Some("old")),
+        "(shown, saved)"
+    );
+}
