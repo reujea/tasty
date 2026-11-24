@@ -714,6 +714,34 @@ mod tests {
         ]
     }
 
+    fn pointer(pos: (f32, f32), button: egui::PointerButton, pressed: bool) -> egui::Event {
+        egui::Event::PointerButton {
+            pos: egui::pos2(pos.0, pos.1),
+            button,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+
+    /// Given 본문에서 왼쪽 버튼을 누른 채 제목 줄로 온 포인터, When 제목 줄에서 오른쪽 버튼을 새로 눌러 끌면 Then
+    /// 드래그를 시작한 누름이 오른쪽이라 창 이동이 아니다.
+    #[test]
+    fn a_drag_started_by_a_right_press_does_not_move_even_with_left_held() {
+        use egui::PointerButton::{Primary, Secondary};
+        let moved_to = |x: f32, y: f32| egui::Event::PointerMoved(egui::pos2(x, y));
+        let passes = vec![
+            vec![moved_to(500.0, 300.0)],
+            vec![pointer((500.0, 300.0), Primary, true)],
+            vec![moved_to(500.0, 18.0)],
+            vec![pointer((500.0, 18.0), Secondary, true)],
+            vec![moved_to(540.0, 18.0)],
+            vec![moved_to(580.0, 18.0)],
+            vec![pointer((580.0, 18.0), Secondary, false)],
+            vec![pointer((580.0, 18.0), Primary, false)],
+        ];
+        assert_eq!(bar_actions(passes, true), Vec::new());
+    }
+
     /// Given 설정창 제목 줄의 빈 영역, When 왼쪽 버튼으로 끌면 Then 창 이동이고, When 오른쪽 버튼으로 끌면 Then
     /// 아무것도 하지 않는다. 메인 창 설정(`primary_drag_only` 거짓)은 오른쪽 드래그도 이동으로 보고한다.
     #[test]

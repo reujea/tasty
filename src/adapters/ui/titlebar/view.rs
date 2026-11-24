@@ -166,7 +166,9 @@ pub fn draw_titlebar_view(ctx: &egui::Context, props: &TitlebarProps) -> Titleba
                     egui::Sense::click_and_drag(),
                 );
                 let drag_started = if props.primary_drag_only {
-                    resp.drag_started_by(egui::PointerButton::Primary)
+                    // 누름은 드래그가 시작되기 전 패스에 오므로 패스마다 적는다.
+                    let primary_press = last_press_was_primary(ui, resp.id);
+                    resp.drag_started_by(egui::PointerButton::Primary) && primary_press
                 } else {
                     resp.drag_started()
                 };
@@ -193,6 +195,29 @@ pub fn draw_titlebar_view(ctx: &egui::Context, props: &TitlebarProps) -> Titleba
         close_rect,
         panel_rect: panel.response.rect,
     }
+}
+
+/// 가장 최근 버튼 누름이 왼쪽 버튼이었는지. egui의 `drag_started_by`는 지금 그 버튼이 눌려 있는지만 보므로, 왼쪽을
+/// 누른 채 오른쪽을 새로 눌러 시작한 드래그를 가려내려고 누름 순서를 `id`의 임시 값으로 기억한다.
+fn last_press_was_primary(ui: &egui::Ui, id: egui::Id) -> bool {
+    let key = id.with("last_press_primary");
+    let latest = ui.input(|i| {
+        i.events.iter().rev().find_map(|e| match e {
+            egui::Event::PointerButton {
+                button,
+                pressed: true,
+                ..
+            } => Some(*button == egui::PointerButton::Primary),
+            _ => None,
+        })
+    });
+    ui.data_mut(|d| match latest {
+        Some(primary) => {
+            d.insert_temp(key, primary);
+            primary
+        }
+        None => d.get_temp(key).unwrap_or(false),
+    })
 }
 
 /// DE 가변 버튼 클러스터를 측면에 그리고, 차지한 strip 폭(logical px)을 반환한다.
