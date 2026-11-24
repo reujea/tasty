@@ -27,6 +27,7 @@ fn queue_header_pieces_sit_one_head_gap_apart() {
                 Some(&QueueHeader {
                     before: "On ",
                     host: HostMark {
+                        label_language: None,
                         name: "hostname",
                         empty_label: "Remote",
                         paint_glyph: &paint_glyph,

@@ -113,11 +113,18 @@ pub(super) fn after_title(ui: &mut egui::Ui, theme: &Theme, v: Variant) {
         return;
     }
     match v.indicator {
-        Indicator::Badge => host_badge(ui, theme, v.host, t("attach.mirror_pill_label")),
+        Indicator::Badge => host_badge(
+            ui,
+            theme,
+            v.host,
+            t("attach.mirror_pill_label"),
+            tasty_ui_widgets::label_font_family(),
+        ),
         Indicator::Glyph => {
             let (text, font) = host_text(
                 v.host,
                 t("attach.mirror_pill_label"),
+                tasty_ui_widgets::label_font_family(),
                 GLYPH_HOST_FONT_PRIMITIVE_12.value(),
             );
             ui.label(
@@ -169,6 +176,7 @@ pub(super) fn draw_no_profile_view(ui: &mut egui::Ui, theme: &Theme) {
                                         theme,
                                         "",
                                         crate::i18n::t_lang(lang, "attach.mirror_pill_label"),
+                                        tasty_ui_widgets::label_font_family_for(lang),
                                     );
                                 });
                         });
@@ -186,10 +194,21 @@ const HOST_BADGE_GAP: LogicalPx = LogicalPx(5.0);
 
 /// 원격 호스트를 표시하는 배지. 채움·테두리는 accent-info 틴트, 글리프와 글자 잉크는 accent-info-raised다.
 /// 호스트가 비면(프로필 이름이 없는 attach) `empty_label` 낱말을 label 글꼴로 쓴다. 글리프·채움·잉크는 같다.
-pub(super) fn host_badge(ui: &mut egui::Ui, theme: &Theme, host: &str, empty_label: &str) {
+pub(super) fn host_badge(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    host: &str,
+    empty_label: &str,
+    label_family: egui::FontFamily,
+) {
     let info = theme.accent_info().to_egui();
     let ink = theme.accent_info_raised().to_egui();
-    let (text, font) = host_text(host, empty_label, theme.font_size_caption.value());
+    let (text, font) = host_text(
+        host,
+        empty_label,
+        label_family,
+        theme.font_size_caption.value(),
+    );
     let galley = ui
         .painter()
         .layout_no_wrap(text.to_owned(), font, egui::Color32::PLACEHOLDER);
@@ -223,14 +242,15 @@ pub(super) fn host_badge(ui: &mut egui::Ui, theme: &Theme, host: &str, empty_lab
     ui.painter().galley(pos, galley, ink);
 }
 
-/// 호스트 표시 글자와 글꼴. 이름은 mono, 빈 호스트의 낱말은 label 글꼴이다.
+/// 호스트 표시 글자와 글꼴. 이름은 mono, 빈 호스트의 낱말은 `label_family`(그 낱말 언어의 label 글꼴)다.
 pub(super) fn host_text<'a>(
     host: &'a str,
     empty_label: &'a str,
+    label_family: egui::FontFamily,
     size: f32,
 ) -> (&'a str, egui::FontId) {
     if host.is_empty() {
-        (empty_label, tasty_ui_widgets::label_font(size))
+        (empty_label, egui::FontId::new(size, label_family))
     } else {
         (host, egui::FontId::monospace(size))
     }

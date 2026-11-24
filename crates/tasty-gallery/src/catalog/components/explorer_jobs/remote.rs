@@ -561,6 +561,7 @@ fn progress_cell(ui: &mut egui::Ui, theme: &Theme, host: &str, id: &str) {
     let title = t("explorer.remote.queue_title");
     let (before, after) = title.split_once("{}").unwrap_or((title, ""));
     let mark = HostMark {
+        label_language: None,
         name: host,
         empty_label: t("attach.mirror_pill_label"),
         paint_glyph: &remote,
@@ -643,6 +644,7 @@ pub fn draw_remote_progress(ui: &mut egui::Ui, theme: &Theme) {
                             &QueueHeader {
                                 before,
                                 host: HostMark {
+                                    label_language: Some(lang),
                                     name: "",
                                     empty_label: t_lang(lang, "attach.mirror_pill_label"),
                                     paint_glyph: &remote,

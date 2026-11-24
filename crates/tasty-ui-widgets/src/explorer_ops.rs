@@ -98,6 +98,9 @@ pub struct HostMark<'a> {
     pub name: &'a str,
     /// 이름이 비었을 때(프로필 이름이 없는 attach) 이름 자리에 쓰는 낱말(`attach.mirror_pill_label`).
     pub empty_label: &'a str,
+    /// `empty_label`의 언어. 그 언어의 label 글꼴로 낱말을 그린다. `None`이면 프로세스 언어의 label 글꼴이다.
+    /// 앱은 늘 `None`이다. 여러 언어를 한 화면에 나란히 그리는 갤러리 표본만 언어를 준다.
+    pub label_language: Option<&'a str>,
     pub paint_glyph: IconPainter<'a>,
 }
 
@@ -147,7 +150,11 @@ fn bounded_host(
     let (text, font) = if mark.name.is_empty() {
         (
             mark.empty_label,
-            crate::label_font(theme.font_size_caption.value()),
+            egui::FontId::new(
+                theme.font_size_caption.value(),
+                mark.label_language
+                    .map_or_else(crate::label_font_family, crate::label_font_family_for),
+            ),
         )
     } else {
         (mark.name, caption_mono(theme))

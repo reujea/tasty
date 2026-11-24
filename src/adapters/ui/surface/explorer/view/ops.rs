@@ -296,6 +296,7 @@ fn progress_line(
             show_label: t("explorer.op.show"),
             cancel_tip: t("explorer.op.cancel"),
             host: host.map(|name| HostMark {
+                label_language: None,
                 name,
                 empty_label: t("attach.mirror_pill_label"),
                 paint_glyph: &remote,
@@ -447,6 +448,7 @@ fn queue(
     let header = host.map(|name| QueueHeader {
         before,
         host: HostMark {
+            label_language: None,
             name,
             empty_label: t("attach.mirror_pill_label"),
             paint_glyph: &remote,

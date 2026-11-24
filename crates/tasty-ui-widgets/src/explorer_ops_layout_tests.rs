@@ -62,6 +62,7 @@ fn queue_preferred_width_fits_the_actual_clip_and_preserves_right_margin() {
                 Some(&QueueHeader {
                     before: "On ",
                     host: HostMark {
+                        label_language: None,
                         name: "127.0.0.1:34217",
                         empty_label: "Remote",
                         paint_glyph: &|_, _, _| {},
@@ -108,6 +109,7 @@ fn narrow_status_texts_and_host_have_disjoint_visible_bounds() {
                 show_label: "Show",
                 cancel_tip: "Cancel",
                 host: Some(HostMark {
+                    label_language: None,
                     name: "127.0.0.1:34217",
                     empty_label: "Remote",
                     paint_glyph: &|_, _, _| {},
@@ -168,6 +170,7 @@ fn wide_status_preserves_full_host_bytes_queue_and_operation() {
                 show_label: "Show",
                 cancel_tip: "Cancel",
                 host: Some(HostMark {
+                    label_language: None,
                     name: "127.0.0.1:34217",
                     empty_label: "Remote",
                     paint_glyph: &|_, _, _| {},
@@ -194,6 +197,7 @@ fn a_host_budget_smaller_than_the_ellipsis_cannot_paint_into_its_neighbor() {
                 ui,
                 theme,
                 &HostMark {
+                    label_language: None,
                     name: "long-remote-host.example",
                     empty_label: "Remote",
                     paint_glyph: &|ui, rect, color| {
@@ -273,6 +277,7 @@ fn a_narrow_status_exposes_the_full_host_when_its_glyph_is_hovered() {
                                 show_label: "Show",
                                 cancel_tip: "Cancel",
                                 host: Some(HostMark {
+                                    label_language: None,
                                     name,
                                     empty_label: "Remote",
                                     paint_glyph: &|_, _, _| {},
@@ -325,6 +330,7 @@ fn tiny_queue_frames_and_actions_stay_in_their_owner() {
                         remote.then_some(&QueueHeader {
                             before: "On ",
                             host: HostMark {
+                                label_language: None,
                                 name: "unabridged-host.example:34567",
                                 empty_label: "Remote",
                                 paint_glyph: &|_, _, _| {},
@@ -465,6 +471,7 @@ fn an_empty_host_mark_draws_the_no_host_word_in_the_label_font() {
                 ui,
                 theme,
                 &HostMark {
+                    label_language: None,
                     name,
                     empty_label: "Remote",
                     paint_glyph: &|_, _, _| {},
@@ -495,4 +502,53 @@ fn an_empty_host_mark_draws_the_no_host_word_in_the_label_font() {
         painted("build-eu"),
         vec![("build-eu".to_owned(), caption_mono(&th), ink)]
     );
+}
+
+/// 낱말 언어를 주면(갤러리의 언어별 비교 표본) 프로세스 언어와 상관없이 그 언어의 label 글꼴로 그린다.
+/// ja·zh-Hans는 UI sans 가족, en·ko는 고정폭이다. 이름이 있으면 언어와 상관없이 mono 이름이다.
+#[test]
+fn a_no_host_word_with_a_language_uses_that_language_label_font() {
+    let family = |name: &'static str, language: &'static str| -> Vec<(String, egui::FontFamily)> {
+        let output = render(400.0, |ui, theme| {
+            host_mark(
+                ui,
+                theme,
+                &HostMark {
+                    label_language: Some(language),
+                    name,
+                    empty_label: "Remote",
+                    paint_glyph: &|_, _, _| {},
+                },
+            );
+        });
+        output
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Text(t) => Some((
+                    t.galley.job.text.clone(),
+                    t.galley.job.sections.first()?.format.font_id.family.clone(),
+                )),
+                _ => None,
+            })
+            .collect()
+    };
+    let sans = egui::FontFamily::Name(egui::epaint::text::MONO_LINE_SANS_FAMILY.into());
+    for (language, expected) in [
+        ("en", egui::FontFamily::Monospace),
+        ("ko", egui::FontFamily::Monospace),
+        ("ja", sans.clone()),
+        ("zh-Hans", sans.clone()),
+    ] {
+        assert_eq!(
+            family("", language),
+            vec![("Remote".to_owned(), expected)],
+            "{language}"
+        );
+        assert_eq!(
+            family("build-eu", language),
+            vec![("build-eu".to_owned(), egui::FontFamily::Monospace)],
+            "{language}"
+        );
+    }
 }

@@ -79,6 +79,7 @@ mod tests {
                             Some(&tasty_ui_widgets::QueueHeader {
                                 before: "On ",
                                 host: tasty_ui_widgets::HostMark {
+                                    label_language: None,
                                     name: "host:34567",
                                     empty_label: "Remote",
                                     paint_glyph: &|_, _, _| {},

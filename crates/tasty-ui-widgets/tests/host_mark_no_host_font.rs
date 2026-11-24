@@ -11,6 +11,7 @@ const PROBE: &str = "HOST_MARK_NO_HOST_FONT_PROBE";
 fn painted(name: &str) -> Vec<(String, egui::FontFamily)> {
     let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
     let mark = HostMark {
+        label_language: None,
         name,
         empty_label: "Remote",
         paint_glyph: &|_, _, _| {},
