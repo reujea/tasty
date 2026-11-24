@@ -143,7 +143,8 @@ fn settings_latch_decision() -> KeyDecision {
 }
 
 /// egui 사건으로 들어온 bare Esc 누름(debug 주입)의 단계 4. winit 키와 같은 순서로 래치 중이면 래치 노드가 받고,
-/// 아니면 포커스 노드에서 시작한 경로의 Esc 수신자다(`route_escape`).
+/// 아니면 포커스 노드에서 시작한 경로의 Esc 수신자다(`route_escape`). 부르는 곳이 debug 주입과 시험뿐이다.
+#[cfg(any(debug_assertions, test))]
 pub(crate) fn bare_escape_decision(
     state: &MainViewState,
     engine: &EngineRead<'_>,

@@ -27,8 +27,7 @@ pub(crate) struct WindowInput {
     /// debug 키 주입이 유지하는 수식 키(`EguiKeySink::hold_modifiers`).
     #[cfg(debug_assertions)]
     debug_held: egui::Modifiers,
-    /// 창이 실물 Win·Super 를 누른 것으로 보는지(`EguiKeySink::super_held`).
-    #[cfg(debug_assertions)]
+    /// 창이 실물 Win·Super 를 누른 것으로 보는지(`EguiKeySink::super_held`, `hold_super`).
     debug_super: bool,
 }
 
@@ -129,8 +128,8 @@ impl crate::view::main::debug_input::EguiKeySink for WindowInput {
     }
 }
 
-// 부르는 시험(T-G3-1)이 비-macOS 전용이라 같은 조건으로 둔다. macOS 는 Super 가 egui 수식키(Cmd)에 있다.
-#[cfg(all(debug_assertions, not(target_os = "macos")))]
+// 부르는 시험(T-G3-1, T-4a3-K3b)이 비-macOS 전용이라 같은 조건으로 둔다. macOS 는 Super 가 egui 수식키(Cmd)에 있다.
+#[cfg(not(target_os = "macos"))]
 impl WindowInput {
     /// 창이 실물 Win·Super 를 누른 것으로 보게 한다(실제 창은 winit 수식키 변화로 기록한다).
     pub(crate) fn hold_super(&mut self, held: bool) {
@@ -379,10 +378,7 @@ impl WindowInput {
 
     /// 창이 실물 Win·Super 를 누른 것으로 보는지(debug 주입이 유지하는 값).
     fn held_super(&self) -> bool {
-        #[cfg(debug_assertions)]
-        return self.debug_super;
-        #[cfg(not(debug_assertions))]
-        false
+        self.debug_super
     }
 
     /// egui 게이트 앞에서 멈춘 창 키 하나(편집 판정이 붙잡은 키, `MainView::edit_key_gate`). 창처럼 키 분류와

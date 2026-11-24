@@ -302,6 +302,8 @@ pub enum UiIntent {
     /// 새 요청이 내용과 대상을 바꾼 팝업을 그 요청의 범위로 연다. 이미 다른 범위로 열려 있으면
     /// 닫고 새 범위로 다시 연다. 같은 범위로 열려 있으면 그대로 둔다.
     ReopenPopup(OpenRequest),
+    /// 선언 하나의 열린 인스턴스를 모두 닫는다. 보내는 곳이 debug IPC 와 시험뿐이라 그 빌드에만 둔다.
+    #[cfg(any(debug_assertions, test))]
     ClosePopup {
         id: PopupId,
     },

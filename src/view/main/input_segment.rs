@@ -1,6 +1,8 @@
 //! 누름·키가 창의 egui 입력 큐에 들어오기 전 입력 몫을 끊는 자리. debug 주입과 GPU 없이 창의 입력 순서를 밟는 시험이
 //! 같은 함수를 쓴다. 창 winit 경로는 `MainView::cut_input_segment` 가 같은 `MainViewState::cut_key_frame` 을 부른다.
+//! egui 입력 큐(`EguiPressSink`)는 별도 창 사건 입구(`view::window_input::settle_window_input`)도 쓴다.
 
+#[cfg(any(debug_assertions, test))]
 use crate::adapters::ui::popup::frame_keys::Incoming;
 
 /// 주입한 누름이 거치는 창 하나의 egui 입력 큐. 실제로는 그 창의 `GpuState`이고 시험은 가짜를 쓴다.
@@ -24,6 +26,7 @@ impl EguiPressSink for crate::gpu::GpuState {
 /// 주입한 누름 하나가 포커스 노드를 정한다. 창의 누름과 같은 순서다. 누름을 egui 입력에 넣기 전에 지금 몫을 끊고
 /// (`MainViewState::cut_key_frame`, 창은 `MainView::cut_input_segment`), 누름 스냅샷으로 포커스 노드를 옮겨(`take_press_snapshot`) 그 누름의 그리기 몫에
 /// 남긴다(`keep_press_snapshot`). 호출자는 이어서 누름 사건을 큐에 넣는다.
+#[cfg(any(debug_assertions, test))]
 pub(crate) fn press_focus(
     state: &mut crate::state::MainViewState,
     core: &crate::core::CoreState,
@@ -41,6 +44,7 @@ pub(crate) fn press_focus(
 /// 주입한 키·글자 사건 하나가 egui 입력 큐에 들어오기 전에 부른다. 창의 키와 같은 순서다. 사건 시점의 포커스 노드가
 /// 지금 몫의 노드와 다르거나 지금 몫의 마지막 입력이 누름이면 그 자리에서 끊는다(`MainViewState::cut_key_frame`).
 /// 호출자는 이어서 키 사건을 큐에 넣는다. 끊은 수를 돌려준다.
+#[cfg(any(debug_assertions, test))]
 pub(crate) fn key_focus(
     state: &mut crate::state::MainViewState,
     core: &crate::core::CoreState,
@@ -51,6 +55,7 @@ pub(crate) fn key_focus(
 
 /// [`key_focus`]와 같고 사건 종류(`incoming`)를 받는다. 수식키 없는 Esc 누름은 `Incoming::Escape` 로 자기 몫을
 /// 갖는다(조건 8).
+#[cfg(any(debug_assertions, test))]
 pub(crate) fn segment_focus(
     state: &mut crate::state::MainViewState,
     core: &crate::core::CoreState,

@@ -76,7 +76,7 @@ Popup 은 View 내부에 존재하는 가상 창이다 — 터미널과 공존�
 | 제목줄 닫기 버튼 | `CloseButton` |
 | 바깥 클릭 | `OutsideClick` |
 | 키 주인 Esc의 중앙 단계 닫기(선언 `escape = Close`, 본문이 그 Esc를 쓰지 않음, `popup::escape_step`) | `Escape` |
-| `UiIntent::ClosePopup`, 열린 팝업의 `UiIntent::TogglePopup`, App의 직접 `close()`, debug IPC | `Command` |
+| 열린 팝업의 `UiIntent::TogglePopup`, App의 직접 `close()`, debug IPC(`UiIntent::ClosePopup`, debug 빌드에만 있다) | `Command` |
 | 범위 대상·작용 대상 소멸 | `TargetGone` |
 | 부모 인스턴스가 닫힘 | `ParentClosed` |
 

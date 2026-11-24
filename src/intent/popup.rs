@@ -61,6 +61,7 @@ pub fn handle(
                 open(state, request, intent.origin.is_user());
             }
             UiIntent::ReopenPopup(request) => reopen(state, request, intent.origin.is_user()),
+            #[cfg(any(debug_assertions, test))]
             UiIntent::ClosePopup { id } => state.popups.close(id),
             #[cfg(debug_assertions)]
             UiIntent::CloseInstance { instance, reason } => {
