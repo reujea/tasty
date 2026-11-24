@@ -53,7 +53,8 @@ fn turn(
         .unwrap();
     for (ticket, request) in journal.requests_needing_resolution() {
         match request.method.as_str() {
-            "surface.respawn_terminal" | "pty.attach_surface" => {
+            // 실제 창(view_completion)과 같이 respawn·spawn도 공개 생성 경로로 푼다.
+            "surface.respawn_terminal" | "pty.attach_surface" | "terminal.respawn" => {
                 journal.resolve_public_creation(ticket, session)
             }
             "workspace.create" => journal.resolve_workspace_creation(ticket, session, None),
@@ -728,4 +729,109 @@ fn a_held_private_candidate_keeps_its_sent_installation_waiting() {
         installed_elsewhere(&session, pty_id, generation),
         Some(surface)
     );
+}
+
+/// 자식 관계의 registry 저장이 끝날 때까지 펌프를 돌린다.
+fn settle_child_save(
+    journal: &mut JournalApplication,
+    session: &mut EngineSession,
+    ticket: &crate::runtime::child_terminal::Ticket,
+) {
+    let mut stall = StallBudget::new(journal);
+    loop {
+        turn(journal, session, None);
+        if let Some(result) = ticket.poll() {
+            result.expect("child registry save");
+            return;
+        }
+        stall.nap("child registry save");
+    }
+}
+
+/// `respawn --cwd`는 준비 뒤 실제 교체 설치(Installation, replacing)에서 관계 항목을 고치고 저장한다.
+/// 준비와 설치 사이에 set_nickname·clear로 바뀐 값은 `--nickname` 없는 설치 뒤에도 남고, `--nickname`을
+/// 준 설치만 그 값으로 덮어 파일에 쓴다.
+#[test]
+fn a_cwd_respawn_install_keeps_a_nickname_set_after_preparation_unless_named() {
+    use crate::runtime::child_terminal::{ChildEntry, ParentKey};
+    let _home = crate::test_support::TastyHomeGuard::new();
+    let (mut session, mut journal) = boot();
+    let parent = terminal_workspace(&mut journal, &mut session);
+    let child = terminal_workspace(&mut journal, &mut session);
+    let key = ParentKey::Surface(parent);
+    session.runtime.child_terminals.register_child(
+        parent,
+        ChildEntry {
+            child_surface_id: child,
+            index: 0,
+            cwd: None,
+            role: None,
+            nickname: Some("old".into()),
+        },
+    );
+    let saved = session.runtime.child_terminals.submit().expect("admitted");
+    settle_child_save(&mut journal, &mut session, &saved);
+    let cwd = tempfile::tempdir().expect("cwd");
+    let file = tasty_utils::path::tasty_home()
+        .expect("isolated home")
+        .join("child-terminals.json");
+    let cases: [(u64, Option<&str>, Option<&str>, Option<&str>); 3] = [
+        (710, None, Some("renamed"), Some("renamed")),
+        (720, None, None, None),
+        (730, Some("given"), Some("renamed"), Some("given")),
+    ];
+    for (id, named, between, expected) in cases {
+        let mut params = serde_json::json!({ "surface": parent, "child": 0, "cwd": cwd.path() });
+        if let Some(nickname) = named {
+            params["nickname"] = serde_json::json!(nickname);
+        }
+        let rx = send(&mut journal, request("terminal.respawn", params, None, id));
+        // 첫 펌프에서 준비가 끝나고, 설치는 후보 PTY가 뜬 뒤의 펌프에서 일어난다.
+        turn(&mut journal, &mut session, None);
+        assert!(
+            rx.try_recv().is_err(),
+            "{id}: installed in the preparing turn"
+        );
+        assert!(
+            journal.requests_needing_resolution().is_empty(),
+            "{id}: prepared"
+        );
+        let surface = session
+            .runtime
+            .child_terminals
+            .find_child(&key, 0)
+            .expect("child")
+            .child_surface_id;
+        let renamed = session
+            .runtime
+            .child_terminals
+            .set_nickname(&key, 0, surface, between.map(str::to_owned))
+            .unwrap_or_else(|refused| panic!("{id}: {refused:?}"));
+        settle_child_save(&mut journal, &mut session, &renamed);
+        let response = reply(&mut journal, &mut session, &rx, |_, _| {});
+        assert!(response.error.is_none(), "{id}: {response:?}");
+        let installed = session
+            .runtime
+            .child_terminals
+            .find_child(&key, 0)
+            .expect("child");
+        assert_eq!(installed.nickname.as_deref(), expected, "{id}: shown");
+        assert_eq!(
+            installed.cwd.as_deref(),
+            cwd.path().to_str(),
+            "{id}: the install updated the entry"
+        );
+        let on_disk = std::fs::read_to_string(&file).expect("registry file");
+        let disk: serde_json::Value = serde_json::from_str(&on_disk).expect("registry json");
+        let entry = disk["children"][parent.to_string()]
+            .as_array()
+            .and_then(|list| list.iter().find(|c| c["index"] == 0))
+            .unwrap_or_else(|| panic!("{id}: child on disk: {on_disk}"));
+        assert_eq!(entry["nickname"].as_str(), expected, "{id}: saved");
+        assert_eq!(
+            entry["cwd"].as_str(),
+            cwd.path().to_str(),
+            "{id}: the install saved the entry"
+        );
+    }
 }
