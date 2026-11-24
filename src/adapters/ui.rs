@@ -1,7 +1,7 @@
 pub(crate) mod brand;
 pub(crate) mod divider;
 mod draw;
-mod egui_panels;
+pub(crate) mod egui_panels;
 pub(crate) mod icons;
 pub(crate) mod link_remote_tip;
 mod sidebar;

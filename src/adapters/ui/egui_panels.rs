@@ -878,7 +878,7 @@ where
 
 /// soft/hard 점유를 각각 Theme의 해당 색으로 표시한다.
 /// 포커스와 관계없이 표시하며 강제 해제 버튼은 hard 점유에만 제공한다.
-fn draw_occupied_overlays(
+pub(crate) fn draw_occupied_overlays(
     ctx: &egui::Context,
     state: &mut crate::state::MainViewState,
     active_ws: usize,

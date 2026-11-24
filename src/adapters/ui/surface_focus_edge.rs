@@ -210,6 +210,9 @@ fn subtract(rect: egui::Rect, holes: &[egui::Rect]) -> Vec<egui::Rect> {
 }
 
 #[cfg(test)]
+mod scene_tests;
+
+#[cfg(test)]
 mod tests {
     use super::{ComposedPopup, composited_bodies, edge_pieces, subtract};
     use crate::model::{PhysicalPx, PhysicalRect};
