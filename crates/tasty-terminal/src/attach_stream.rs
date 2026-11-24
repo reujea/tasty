@@ -195,6 +195,41 @@ impl vtparse::VTActor for SequenceEnd {
     }
 }
 
+const ESC: u8 = 0x1b;
+
+/// 효과 소유자에게 넘긴 바이트의 파서 상태. CSI·DCS·SOS·PM·APC를 ESC가 취소하면 vtparse 콜백이
+/// 오지 않으므로, 열린 시퀀스의 도입자를 ESC 뒤 원시 바이트로 기억해 그 ESC를 시퀀스의 끝으로 본다.
+pub(crate) struct EffectsScan {
+    parser: vtparse::VTParser,
+    /// 열린 시퀀스가 ESC에 끝나는 종류(CSI·DCS·SOS·PM·APC)다.
+    ends_at_esc: bool,
+    after_esc: bool,
+}
+impl EffectsScan {
+    fn new() -> Self {
+        Self {
+            parser: vtparse::VTParser::new(),
+            ends_at_esc: false,
+            after_esc: false,
+        }
+    }
+
+    /// 한 바이트를 넣는다. 열린 시퀀스가 이 바이트에서 끝났거나(dispatch·ESC 취소) ground면 true.
+    fn step(&mut self, byte: u8) -> bool {
+        let cancelled = byte == ESC && self.ends_at_esc;
+        let mut end = SequenceEnd::default();
+        self.parser.parse_byte(byte, &mut end);
+        if self.after_esc {
+            self.ends_at_esc = matches!(byte, b'[' | b'P' | b'X' | b'^' | b'_');
+        }
+        self.after_esc = byte == ESC;
+        if self.after_esc || self.parser.is_ground() {
+            self.ends_at_esc = false;
+        }
+        cancelled || end.ended || self.parser.is_ground()
+    }
+}
+
 impl TerminalState {
     /// 큐가 넘쳐 바이트를 잃은 스트림도 수신자가 닫힐 때까지 효과를 맡는다(손실 뒤 재동기화가 화면만
     /// 복구한다).
@@ -203,26 +238,25 @@ impl TerminalState {
             .retain(|tap| tap.send(Some(bytes), 0, 0) || tap.keeps_effects());
     }
     /// 앞에서부터 효과 소유자 몫인 바이트 수. 소유자가 있으면 전부다. 소유자가 떠났으면 그가 받은
-    /// 바이트로 시작해 아직 끝나지 않은 시퀀스를 끝내는 바이트까지다. 그래서 앞부분을 client에 넘긴
-    /// 시퀀스를 서버가 이어 받아 효과를 내지 않고, 그 끝 ESC로 시작한 다음 시퀀스는 서버 몫이다.
+    /// 바이트로 시작해 아직 끝나지 않은 시퀀스를 끝내거나 취소하는 바이트까지다. 그래서 앞부분을
+    /// client에 넘긴 시퀀스를 서버가 이어 받아 효과를 내지 않고, 그 끝 ESC로 시작한 다음 시퀀스는
+    /// 서버 몫이다.
     pub(crate) fn effects_held_prefix(&mut self, bytes: &[u8], owned: bool) -> usize {
         if owned {
-            let scan = self.effects_scan.get_or_insert_with(vtparse::VTParser::new);
-            scan.parse(bytes, &mut SequenceEnd::default());
+            let scan = self.effects_scan.get_or_insert_with(EffectsScan::new);
+            for &byte in bytes {
+                scan.step(byte);
+            }
             return bytes.len();
         }
         let Some(scan) = self.effects_scan.as_mut() else {
             return 0;
         };
-        if scan.is_ground() {
+        if scan.parser.is_ground() {
             self.effects_scan = None;
             return 0;
         }
-        let mut end = SequenceEnd::default();
-        let Some(last) = bytes.iter().position(|&byte| {
-            scan.parse_byte(byte, &mut end);
-            end.ended || scan.is_ground()
-        }) else {
+        let Some(last) = bytes.iter().position(|&byte| scan.step(byte)) else {
             return bytes.len();
         };
         self.effects_scan = None;

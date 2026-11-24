@@ -330,3 +330,39 @@ fn a_broken_stream_drops_the_unfinished_sequence() {
     assert_eq!(writes(false), 1);
     assert_eq!(writes(true), 0);
 }
+
+/// Given 효과를 맡은 구독이 CSI·SOS·PM·APC·DCS 시퀀스의 앞부분만 받았다, When 수신자가 닫힌 뒤 ESC가
+/// 그 시퀀스를 dispatch 없이 취소하며 OSC 52 쓰기를 시작한다, Then 새 쓰기는 서버 몫(표지 없음)이다.
+#[test]
+fn an_owner_sequence_cancelled_by_esc_leaves_the_next_sequence_to_the_server() {
+    let cases: [(&str, &[u8]); 7] = [
+        ("CSI", b"\x1b[1;"),
+        ("CSI 중간 바이트", b"\x1b[1 "),
+        ("SOS", b"\x1bXabc"),
+        ("PM", b"\x1b^abc"),
+        ("APC", b"\x1b_abc"),
+        ("DCS 머리", b"\x1bP1;"),
+        ("DCS 본문", b"\x1bPqabc"),
+    ];
+    let marks = |head: &[u8]| -> Vec<bool> {
+        let mut terminal = Terminal::new_detached(80, 24);
+        let subscription = terminal.snapshot_and_stream();
+        subscription.events.set_effects_owner(true);
+        terminal.feed_bytes(head);
+        drop(subscription);
+        terminal.feed_bytes(b"\x1b]52;c;Ymll\x07");
+        terminal
+            .try_take_events()
+            .expect("unlocked")
+            .iter()
+            .filter(|event| matches!(event.kind, crate::TerminalEventKind::ClipboardSet(_)))
+            .map(|event| event.attach_streamed)
+            .collect()
+    };
+    let wrong: Vec<(&str, Vec<bool>)> = cases
+        .into_iter()
+        .map(|(kind, head)| (kind, marks(head)))
+        .filter(|(_, marks)| *marks != [false])
+        .collect();
+    assert!(wrong.is_empty(), "{wrong:?}");
+}

@@ -153,7 +153,7 @@ pub(crate) struct TerminalState {
     attach_streams: Vec<attach_stream::AttachStreamTap>,
     /// Parser state of the bytes handed to an effects owner. Kept after the owner goes away
     /// until the sequence it had started ends, so that tail stays the owner's effect.
-    effects_scan: Option<vtparse::VTParser>,
+    effects_scan: Option<attach_stream::EffectsScan>,
     /// Server-side resize subscribers. Each tap receives `(cols, rows)` whenever
     /// the grid actually changes so an attached client can keep its mirror grid
     /// in lockstep with the authoritative remote size. Empty in the common
