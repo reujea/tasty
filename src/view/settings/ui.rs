@@ -667,6 +667,9 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
     let mut result = None;
     let th = crate::theme::theme();
     let sep = egui::Stroke::new(th.border_width.value(), th.border_strong().to_egui());
+    // L1 띠는 mantle(bg-sidebar) 위라 아래 선은 그 바탕의 구분선 역할인 separator다.
+    let mut l1_sep = sep;
+    l1_sep.color = th.separator.to_egui_premultiplied();
 
     // 팝업이 키 주인(W1)이면 앞에 그리는 창 위젯은 그 키를 보지 않는다. 키는 팝업 그리기 전에 돌려놓는다.
     let window_takes_keys = pass_keys.owner.is_none();
@@ -682,15 +685,7 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
                     .frame(egui::Frame::NONE.fill(th.bg_sidebar().to_egui()))
                     .show_inside(ui, |ui| draw_l1_tab_band(ui, &th, ui_state));
                 let hr = header.response.rect;
-                // L1 띠는 mantle(bg-sidebar) 위라 아래 선은 그 바탕의 구분선 역할인 separator다.
-                ui.painter().hline(
-                    hr.x_range(),
-                    hr.bottom() - 0.5,
-                    egui::Stroke::new(
-                        th.border_width.value(),
-                        th.separator.to_egui_premultiplied(),
-                    ),
-                );
+                ui.painter().hline(hr.x_range(), hr.bottom() - 0.5, l1_sep);
 
                 // ── L2 영속 사이드바 (디자인 width200 / bg-sidebar / border-right) ──
                 let sections = build_l2_sections(ui_state);
@@ -730,12 +725,10 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
                             .frame(
                                 egui::Frame::NONE
                                     .fill(th.bg_panel().to_egui())
-                                    .inner_margin(egui::Margin {
-                                        left: SETTINGS_FOOTER_PAD_X,
-                                        right: SETTINGS_FOOTER_PAD_X,
-                                        top: th.spacing_md.value() as i8,
-                                        bottom: th.spacing_md.value() as i8,
-                                    }),
+                                    .inner_margin(egui::Margin::symmetric(
+                                        SETTINGS_FOOTER_PAD_X,
+                                        th.spacing_md.value() as i8,
+                                    )),
                             )
                             .show_inside(ui, |ui| {
                                 draw_settings_footer(ui, &th, settings, ui_state, &mut result);
