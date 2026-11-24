@@ -787,6 +787,9 @@ mod tests {
         let (tx, rx) = mpsc::channel();
         pool.submit(|| held_job(&dir, "held", tx.clone()))
             .expect("accepted");
+        // held와 queued는 두 슬롯에서 함께 돌아 둘이 order에 쓰는 순서는 보장되지 않는다.
+        // held가 먼저 쓴 것을 본 뒤 진행해, 끝 단정이 queued와 newer의 시작 순서만 재게 한다.
+        wait_lines(&dir.join("order"), 1);
         let (open, wait_open) = gate();
         pool.submit(|| {
             ShellJob::new(
