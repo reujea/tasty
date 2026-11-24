@@ -368,9 +368,17 @@ fn an_owner_sequence_cancelled_by_esc_leaves_the_next_sequence_to_the_server() {
     assert!(wrong.is_empty(), "{wrong:?}");
 }
 
-/// 효과를 맡은 구독에 `head`를 넘기고 수신자를 닫은 뒤 `tail`을 넣는다. OSC 52 쓰기·읽기와 제목 사건의
-/// attach 표지를 순서대로 돌려준다.
-fn effect_marks_after_owner_leaves(head: &[u8], tail: &[u8]) -> Vec<bool> {
+/// attach 표지를 함께 보는 사용자 쪽 효과 사건.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Effect {
+    ClipboardSet,
+    ClipboardQuery,
+    Title,
+}
+
+/// 효과를 맡은 구독에 `head`를 넘기고 수신자를 닫은 뒤 `tail`을 넣는다. OSC 52 쓰기·읽기와 제목 사건을
+/// 종류와 attach 표지로 순서대로 돌려준다.
+fn effect_marks_after_owner_leaves(head: &[u8], tail: &[u8]) -> Vec<(Effect, bool)> {
     let mut terminal = Terminal::new_detached(80, 24);
     let subscription = terminal.snapshot_and_stream();
     subscription.events.set_effects_owner(true);
@@ -381,15 +389,15 @@ fn effect_marks_after_owner_leaves(head: &[u8], tail: &[u8]) -> Vec<bool> {
         .try_take_events()
         .expect("unlocked")
         .iter()
-        .filter(|event| {
-            matches!(
-                event.kind,
-                crate::TerminalEventKind::ClipboardSet(_)
-                    | crate::TerminalEventKind::ClipboardQuery
-                    | crate::TerminalEventKind::TitleChanged(_)
-            )
+        .filter_map(|event| {
+            let effect = match event.kind {
+                crate::TerminalEventKind::ClipboardSet(_) => Effect::ClipboardSet,
+                crate::TerminalEventKind::ClipboardQuery => Effect::ClipboardQuery,
+                crate::TerminalEventKind::TitleChanged(_) => Effect::Title,
+                _ => return None,
+            };
+            Some((effect, event.attach_streamed))
         })
-        .map(|event| event.attach_streamed)
         .collect()
 }
 
@@ -410,16 +418,16 @@ fn an_owner_sequence_opened_by_a_c1_introducer_ends_at_the_esc_that_cancels_it()
         ("UTF-8 PM", b"\xc2\x9eabc"),
         ("UTF-8 APC", b"\xc2\x9fabc"),
     ];
-    let tails: [(&str, &[u8]); 2] = [
-        ("쓰기", b"\x1b]52;c;Ymll\x07"),
-        ("읽기", b"\x1b]52;c;?\x07"),
+    let tails: [(&[u8], Effect); 2] = [
+        (b"\x1b]52;c;Ymll\x07", Effect::ClipboardSet),
+        (b"\x1b]52;c;?\x07", Effect::ClipboardQuery),
     ];
     let mut wrong = Vec::new();
     for (kind, head) in heads {
-        for (op, tail) in tails {
+        for (tail, effect) in tails {
             let marks = effect_marks_after_owner_leaves(head, tail);
-            if marks != [false] {
-                wrong.push((kind, op, marks));
+            if marks != [(effect, false)] {
+                wrong.push((kind, effect, marks));
             }
         }
     }
@@ -440,7 +448,7 @@ fn a_control_byte_between_esc_and_the_introducer_keeps_the_cancel_boundary() {
     let wrong: Vec<_> = cases
         .into_iter()
         .map(|(kind, head, tail)| (kind, effect_marks_after_owner_leaves(head, tail)))
-        .filter(|(_, marks)| *marks != [false])
+        .filter(|(_, marks)| *marks != [(Effect::ClipboardSet, false)])
         .collect();
     assert!(wrong.is_empty(), "{wrong:?}");
 }
@@ -451,6 +459,6 @@ fn a_control_byte_between_esc_and_the_introducer_keeps_the_cancel_boundary() {
 fn an_esc_read_as_part_of_a_utf8_character_does_not_end_the_owner_osc() {
     assert_eq!(
         effect_marks_after_owner_leaves(b"\x1b[1;\x9d2;title\xc2", b"\x1b\x07"),
-        vec![true]
+        vec![(Effect::Title, true)]
     );
 }
