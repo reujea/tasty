@@ -80,6 +80,7 @@ mod tests {
                                 before: "On ",
                                 host: tasty_ui_widgets::HostMark {
                                     name: "host:34567",
+                                    empty_label: "Remote",
                                     paint_glyph: &|_, _, _| {},
                                 },
                                 after: " · one at a time",

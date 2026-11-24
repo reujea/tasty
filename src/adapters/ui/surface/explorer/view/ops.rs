@@ -297,6 +297,7 @@ fn progress_line(
             cancel_tip: t("explorer.op.cancel"),
             host: host.map(|name| HostMark {
                 name,
+                empty_label: t("attach.mirror_pill_label"),
                 paint_glyph: &remote,
             }),
         },
@@ -447,6 +448,7 @@ fn queue(
         before,
         host: HostMark {
             name,
+            empty_label: t("attach.mirror_pill_label"),
             paint_glyph: &remote,
         },
         after,

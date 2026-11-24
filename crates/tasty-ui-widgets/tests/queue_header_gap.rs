@@ -28,6 +28,7 @@ fn queue_header_pieces_sit_one_head_gap_apart() {
                     before: "On ",
                     host: HostMark {
                         name: "hostname",
+                        empty_label: "Remote",
                         paint_glyph: &paint_glyph,
                     },
                     after: " · one at a time",

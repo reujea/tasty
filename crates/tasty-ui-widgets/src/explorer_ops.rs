@@ -96,6 +96,8 @@ fn path_line(ui: &mut egui::Ui, text: &str, font: egui::FontId, color: egui::Col
 #[derive(Clone, Copy)]
 pub struct HostMark<'a> {
     pub name: &'a str,
+    /// 이름이 비었을 때(프로필 이름이 없는 attach) 이름 자리에 쓰는 낱말(`attach.mirror_pill_label`).
+    pub empty_label: &'a str,
     pub paint_glyph: IconPainter<'a>,
 }
 
@@ -141,7 +143,16 @@ fn bounded_host(
     let size = theme.workspace_mirror_icon_size();
     let gap = theme.workspace_mirror_gap();
     let color = theme.workspace_mirror_fg().to_egui();
-    let name = ui.fonts(|f| f.layout_no_wrap(mark.name.to_owned(), caption_mono(theme), color));
+    // 빈 이름(프로필 이름이 없는 attach)은 이름 자리에 낱말을 label 글꼴로 쓴다. 글리프·잉크·간격은 같다.
+    let (text, font) = if mark.name.is_empty() {
+        (
+            mark.empty_label,
+            crate::label_font(theme.font_size_caption.value()),
+        )
+    } else {
+        (mark.name, caption_mono(theme))
+    };
+    let name = ui.fonts(|f| f.layout_no_wrap(text.to_owned(), font.clone(), color));
     let (rect, response) = ui.allocate_exact_size(
         egui::vec2(
             (size + gap + LogicalPx(name.size().x)).min(width).value(),
@@ -158,19 +169,13 @@ fn bounded_host(
     child.spacing_mut().item_spacing.x = gap.value();
     let (glyph, glyph_response) =
         child.allocate_exact_size(egui::vec2(size.value(), size.value()), egui::Sense::hover());
-    glyph_response.on_hover_text(mark.name);
+    glyph_response.on_hover_text(text);
     (mark.paint_glyph)(&mut child, glyph, color);
     if width > size + gap {
-        bounded_line(
-            &mut child,
-            mark.name,
-            caption_mono(theme),
-            color,
-            width - size - gap,
-        );
+        bounded_line(&mut child, text, font, color, width - size - gap);
     } else {
         response.widget_info(|| {
-            egui::WidgetInfo::labeled(egui::WidgetType::Label, ui.is_enabled(), mark.name)
+            egui::WidgetInfo::labeled(egui::WidgetType::Label, ui.is_enabled(), text)
         });
     }
     response

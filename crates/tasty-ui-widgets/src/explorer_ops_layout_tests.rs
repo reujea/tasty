@@ -63,6 +63,7 @@ fn queue_preferred_width_fits_the_actual_clip_and_preserves_right_margin() {
                     before: "On ",
                     host: HostMark {
                         name: "127.0.0.1:34217",
+                        empty_label: "Remote",
                         paint_glyph: &|_, _, _| {},
                     },
                     after: " · one at a time",
@@ -108,6 +109,7 @@ fn narrow_status_texts_and_host_have_disjoint_visible_bounds() {
                 cancel_tip: "Cancel",
                 host: Some(HostMark {
                     name: "127.0.0.1:34217",
+                    empty_label: "Remote",
                     paint_glyph: &|_, _, _| {},
                 }),
             },
@@ -167,6 +169,7 @@ fn wide_status_preserves_full_host_bytes_queue_and_operation() {
                 cancel_tip: "Cancel",
                 host: Some(HostMark {
                     name: "127.0.0.1:34217",
+                    empty_label: "Remote",
                     paint_glyph: &|_, _, _| {},
                 }),
             },
@@ -192,6 +195,7 @@ fn a_host_budget_smaller_than_the_ellipsis_cannot_paint_into_its_neighbor() {
                 theme,
                 &HostMark {
                     name: "long-remote-host.example",
+                    empty_label: "Remote",
                     paint_glyph: &|ui, rect, color| {
                         ui.painter().rect_filled(rect, 0.0, color);
                     },
@@ -270,6 +274,7 @@ fn a_narrow_status_exposes_the_full_host_when_its_glyph_is_hovered() {
                                 cancel_tip: "Cancel",
                                 host: Some(HostMark {
                                     name,
+                                    empty_label: "Remote",
                                     paint_glyph: &|_, _, _| {},
                                 }),
                             },
@@ -321,6 +326,7 @@ fn tiny_queue_frames_and_actions_stay_in_their_owner() {
                             before: "On ",
                             host: HostMark {
                                 name: "unabridged-host.example:34567",
+                                empty_label: "Remote",
                                 paint_glyph: &|_, _, _| {},
                             },
                             after: " · one at a time",
@@ -447,4 +453,46 @@ fn a_tiny_queue_keeps_complete_cancel_and_remove_buttons_and_no_outside_hits() {
         }
         assert_eq!(picked, click_row, "width={width}");
     }
+}
+
+/// 프로필 이름이 없는 attach(빈 이름)의 호스트 표지는 글리프만 남기지 않고 이름 자리에 낱말을 label 글꼴·같은
+/// 잉크(workspace-mirror-fg)로 그린다. 이름이 있으면 mono 이름이다.
+#[test]
+fn an_empty_host_mark_draws_the_no_host_word_in_the_label_font() {
+    let painted = |name: &'static str| -> Vec<(String, egui::FontId, egui::Color32)> {
+        let output = render(400.0, |ui, theme| {
+            host_mark(
+                ui,
+                theme,
+                &HostMark {
+                    name,
+                    empty_label: "Remote",
+                    paint_glyph: &|_, _, _| {},
+                },
+            );
+        });
+        output
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Text(t) => Some((
+                    t.galley.job.text.clone(),
+                    t.galley.job.sections.first()?.format.font_id.clone(),
+                    t.fallback_color,
+                )),
+                _ => None,
+            })
+            .collect()
+    };
+    let th = theme();
+    let caption = th.font_size_caption.value();
+    let ink = th.workspace_mirror_fg().to_egui();
+    assert_eq!(
+        painted(""),
+        vec![("Remote".to_owned(), crate::label_font(caption), ink)]
+    );
+    assert_eq!(
+        painted("build-eu"),
+        vec![("build-eu".to_owned(), caption_mono(&th), ink)]
+    );
 }

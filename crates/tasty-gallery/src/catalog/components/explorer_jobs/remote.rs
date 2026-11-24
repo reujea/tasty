@@ -424,6 +424,7 @@ pub fn draw_remote_progress(ui: &mut egui::Ui, theme: &Theme) {
     let (before, after) = title.split_once("{}").unwrap_or((title, ""));
     let mark = HostMark {
         name: HOST,
+        empty_label: t("attach.mirror_pill_label"),
         paint_glyph: &remote,
     };
     spec::stage(ui, theme, StageVariant::Column, |ui| {
