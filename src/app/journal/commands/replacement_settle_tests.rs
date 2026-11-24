@@ -775,7 +775,14 @@ fn a_cwd_respawn_install_keeps_a_nickname_set_after_preparation_unless_named() {
     let file = tasty_utils::path::tasty_home()
         .expect("isolated home")
         .join("child-terminals.json");
-    let cases: [(u64, Option<&str>, Option<&str>, Option<&str>); 3] = [
+    // (요청 id, respawn의 --nickname, 준비 뒤 바꾼 값, 설치 뒤 기대 값)
+    type Case = (
+        u64,
+        Option<&'static str>,
+        Option<&'static str>,
+        Option<&'static str>,
+    );
+    let cases: [Case; 3] = [
         (710, None, Some("renamed"), Some("renamed")),
         (720, None, None, None),
         (730, Some("given"), Some("renamed"), Some("given")),
