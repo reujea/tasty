@@ -483,7 +483,7 @@ fn fh_group(
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = FH_GAP_SM.value();
                 let label_color = if attention {
-                    theme.accent_attention()
+                    theme.accent_attention_raised()
                 } else {
                     theme.text_secondary()
                 };
@@ -600,7 +600,7 @@ fn fh_fallback_strip(ui: &mut egui::Ui, theme: &Theme) {
                     ui,
                     icons::ALERT_TRIANGLE,
                     theme.icon_glyph_size_md,
-                    theme.accent_attention().to_egui(),
+                    theme.accent_attention_raised().to_egui(),
                 );
                 ui.add(
                     egui::Label::new(
@@ -609,7 +609,7 @@ fn fh_fallback_strip(ui: &mut egui::Ui, theme: &Theme) {
                              This screen shows again next time.",
                         )
                         .size(theme.font_size_caption.value())
-                        .color(theme.text_secondary_raised().to_egui()),
+                        .color(theme.text_secondary().to_egui()),
                     )
                     .wrap(),
                 );

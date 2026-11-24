@@ -522,12 +522,17 @@ pub fn draw_fallback(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::new(
                 "accent-attention",
                 "fallback tone",
-                theme.accent_attention().to_egui(),
+                theme.accent_attention_raised().to_egui(),
             ),
             TokenChip::new(
                 "surface-raised",
                 "notice strip",
                 theme.surface_raised().to_egui(),
+            ),
+            TokenChip::new(
+                "text-secondary",
+                "strip copy",
+                theme.text_secondary().to_egui(),
             ),
         ],
     );
