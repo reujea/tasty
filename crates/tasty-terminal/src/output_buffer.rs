@@ -69,6 +69,66 @@ pub struct OutputRead {
     pub stream: String,
 }
 
+/// One scanner-cursor read: the same continuity values as [`OutputRead`] plus, when
+/// requested and decidable, where each byte of `read.text` came from.
+#[derive(Debug)]
+pub struct ScanRead {
+    pub read: OutputRead,
+    /// `None` when origins were not requested, when no retained byte of this read has
+    /// a decidable origin, or when the description would exceed
+    /// [`crate::TEXT_ORIGINS_MAX_ENTRIES`] entries.
+    pub origins: Option<crate::TextOrigins>,
+}
+
+/// What the scanner read copies under the terminal state lock. Decoding, ANSI
+/// stripping and the origin mapping run on it after the lock is released.
+pub(crate) struct ScanSnapshot {
+    raw: Vec<u8>,
+    spans: Option<Vec<(u64, ChunkOrigin)>>,
+    cursor: u64,
+    skipped: u64,
+    retention_start: u64,
+    retention_end: u64,
+    stream: String,
+}
+
+impl ScanSnapshot {
+    /// Build the text the same way the other reads do (one lossy decode, then
+    /// `strip_ansi` when asked) and map its bytes to the snapshot's origins.
+    pub(crate) fn finish(self, strip_ansi: bool) -> ScanRead {
+        let decoded = String::from_utf8_lossy(&self.raw).to_string();
+        let origins = self.spans.as_deref().and_then(|spans| {
+            crate::text_origins::map_text_origins(
+                &self.raw,
+                self.cursor,
+                spans,
+                &decoded,
+                strip_ansi,
+                self.skipped > 0,
+            )
+        });
+        let text = if strip_ansi {
+            tasty_ansi::strip_ansi(&decoded)
+        } else {
+            decoded
+        };
+        let raw_bytes = self.raw.len();
+        ScanRead {
+            read: OutputRead {
+                text,
+                raw_bytes,
+                cursor: self.cursor,
+                next_cursor: self.cursor + raw_bytes as u64,
+                retention_start: self.retention_start,
+                retention_end: self.retention_end,
+                skipped: self.skipped,
+                stream: self.stream,
+            },
+            origins,
+        }
+    }
+}
+
 /// The supplied cursor cannot identify a valid continuation in this stream.
 #[derive(Debug, PartialEq, Eq)]
 pub enum OutputReadError {
@@ -176,20 +236,29 @@ impl OutputBuffer {
         ))
     }
 
-    /// Read and advance the scanner cursor in one operation so appended output cannot
-    /// fall between those steps. The start may split an escape sequence or UTF-8 character.
-    /// ANSI stripping can leave a partial sequence; lossy decoding replaces split characters.
-    /// Consumers needing intact sequences must preserve and decode raw bytes themselves.
-    pub fn take_since_scan_mark(&mut self, strip_ansi: bool) -> String {
-        let text = self
-            .read_from(
-                self.scan_mark.max(self.base),
-                OUTPUT_RETENTION_MAX_BYTES,
-                strip_ansi,
-            )
-            .text;
-        self.scan_mark = self.end();
-        text
+    /// Copy what the scanner cursor has not read yet and advance the cursor in one
+    /// operation so appended output cannot fall between those steps. The start may
+    /// split an escape sequence or UTF-8 character. ANSI stripping can leave a partial
+    /// sequence; lossy decoding replaces split characters. Consumers needing intact
+    /// sequences must preserve and decode raw bytes themselves.
+    ///
+    /// `skipped` counts from the cursor as it was, so bytes trimmed past an unread
+    /// cursor are reported. `with_origins` copies the chunk origins of the range.
+    pub(crate) fn take_scan_snapshot(&mut self, with_origins: bool) -> ScanSnapshot {
+        let start = self.scan_mark.max(self.base);
+        let end = self.end();
+        let snapshot = ScanSnapshot {
+            raw: self.buffer[(start - self.base) as usize..].to_vec(),
+            spans: with_origins.then(|| self.origins.slice(start, end)),
+            cursor: start,
+            skipped: start - self.scan_mark,
+            retention_start: self.base,
+            retention_end: end,
+            stream: self.stream.clone(),
+        };
+        self.scan_mark = end;
+        self.origins.drop_before(end);
+        snapshot
     }
 
     /// One past the newest retained position.
@@ -253,6 +322,11 @@ mod tests {
         /// Append output that arrived outside any resize redraw window.
         fn append_normal(&mut self, data: &[u8]) {
             self.append(data, crate::output_origins::ChunkOrigin::Normal);
+        }
+
+        /// The scanner read's text, as `surface.read_since_scan_mark` returns it.
+        fn take_since_scan_mark(&mut self, strip_ansi: bool) -> String {
+            self.take_scan_snapshot(true).finish(strip_ansi).read.text
         }
     }
 

@@ -200,3 +200,7 @@ pub fn flush_os_resize(terminal: &Terminal, pty: &mut Pty, throttled: bool) -> b
 #[cfg(test)]
 #[path = "resize_redraw_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "scan_origins_tests.rs"]
+mod scan_origins_tests;

@@ -53,8 +53,11 @@ impl TerminalState {
         self.output.renew_stream();
     }
 
-    pub(crate) fn take_since_output_scan_mark(&mut self, strip_ansi: bool) -> String {
-        self.output.take_since_scan_mark(strip_ansi)
+    pub(crate) fn take_output_scan_snapshot(
+        &mut self,
+        with_origins: bool,
+    ) -> crate::output_buffer::ScanSnapshot {
+        self.output.take_scan_snapshot(with_origins)
     }
 
     pub(crate) fn read_since_mark(&self, strip_ansi: bool) -> String {
@@ -268,9 +271,16 @@ impl Terminal {
 
     /// Return the output accumulated since the previous scan-cursor read and
     /// advance that cursor past it. Serves `surface.read_since_scan_mark`; see
-    /// `OutputBuffer::take_since_scan_mark` for why the two steps are one call.
-    pub fn take_since_output_scan_mark(&mut self, strip_ansi: bool) -> String {
-        self.lock_state().take_since_output_scan_mark(strip_ansi)
+    /// `OutputBuffer::take_scan_snapshot` for why the two steps are one call.
+    /// Only the copy and the cursor move happen under the state lock; decoding and
+    /// the origin mapping (`with_origins`) run after it is released.
+    pub fn take_since_output_scan_mark(
+        &mut self,
+        strip_ansi: bool,
+        with_origins: bool,
+    ) -> crate::ScanRead {
+        let snapshot = self.lock_state().take_output_scan_snapshot(with_origins);
+        snapshot.finish(strip_ansi)
     }
 
     /// Read output since the last mark. If no mark was set, reads from the beginning.

@@ -15,7 +15,7 @@ impl EngineMut<'_> {
         self.runtime
             .terminals
             .get_mut(surface_id)
-            .map(|t| t.take_since_output_scan_mark(strip_ansi))
+            .map(|t| t.take_since_output_scan_mark(strip_ansi, false).read.text)
             .unwrap_or_default()
     }
 

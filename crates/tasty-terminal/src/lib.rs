@@ -19,6 +19,7 @@ mod scrollback;
 mod sink;
 mod snapshot;
 mod spawn_error;
+mod text_origins;
 mod viewport;
 mod vte_handler;
 
@@ -49,6 +50,7 @@ pub use io::WriteAck;
 pub use mouse_report::encode_mouse_report;
 pub use output_buffer::{
     OUTPUT_RETENTION_MAX_BYTES, OutputCursor, OutputRead, OutputReadError, OutputReadRequest,
+    ScanRead,
 };
 pub use pty::{
     PlannedResize, Pty, PtyExit, PtyObservation, PtyPhase, PtyRetirement, PtyState, StandalonePty,
@@ -57,6 +59,9 @@ pub use pty::{
 pub use resize_redraw::{ResizeWindowToken, flush_os_resize};
 pub use scrollback::ScrollbackLine;
 pub use spawn_error::{SpawnError, SpawnStage};
+pub use text_origins::{
+    GapReason, OriginGap, OriginRange, TEXT_ORIGINS_MAX_ENTRIES, TextOrigin, TextOrigins,
+};
 pub use viewport::{ContentCut, ContentEpoch, TerminalViewport, ViewportInfo};
 
 /// Configuration for creating a new Terminal.

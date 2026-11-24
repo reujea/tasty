@@ -66,6 +66,24 @@ impl OriginSpans {
         }
     }
 
+    /// `[from, to)`를 덮는 구간의 복사본. 첫 구간의 시작은 `from`으로 당기고, 진행 중 청크는 지금은 정할 수
+    /// 없으므로 [`ChunkOrigin::Unknown`]으로 낸다.
+    pub(crate) fn slice(&self, from: u64, to: u64) -> Vec<(u64, ChunkOrigin)> {
+        let first = self.spans.iter().rposition(|s| s.0 <= from).unwrap_or(0);
+        let mut out: Vec<(u64, ChunkOrigin)> = Vec::new();
+        for &(start, origin) in self.spans[first..].iter().take_while(|s| s.0 < to) {
+            let origin = match origin {
+                ChunkOrigin::Pending => ChunkOrigin::Unknown,
+                other => other,
+            };
+            if out.last().is_some_and(|l| l.1 == origin) {
+                continue;
+            }
+            out.push((start.max(from), origin));
+        }
+        out
+    }
+
     fn merge_neighbours(&mut self) {
         self.spans.dedup_by(|later, earlier| later.1 == earlier.1);
     }
