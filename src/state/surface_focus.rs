@@ -4,7 +4,7 @@
 use crate::core::attach::OccupancyRegistry;
 use crate::runtime::surface_registry::builtins::is_host_builtin_kind;
 
-/// 포커스를 보이는 방법. 호스트가 바탕을 보장할 수 있는 kind만 바탕을 바꾼다. 나머지는 띠로 분류하며 아직 그리지 않는다.
+/// 포커스를 보이는 방법. 호스트가 바탕을 보장할 수 있는 kind만 바탕을 바꾼다. 나머지는 leaf 위쪽 띠다.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum FocusMark {
     Bed,
@@ -21,6 +21,66 @@ pub(crate) fn focus_mark(
         FocusMark::Bed
     } else {
         FocusMark::Edge
+    }
+}
+
+/// leaf 위에 띠 행을 예약하는 webview인지. 띠 kind인 webview kind만이다.
+#[cfg(feature = "gui")]
+pub(crate) fn webview_reserves_edge(
+    kind: &str,
+    capabilities: crate::runtime::surface_registry::KindCapabilities,
+) -> bool {
+    crate::runtime::surface_registry::webview_kind::is_webview_kind(kind)
+        && focus_mark(kind, capabilities) == FocusMark::Edge
+}
+
+/// leaf 위에 띠 행을 예약하는 surface인지. 띠 kind인 webview·로컬 mesh·mirror mesh만 예약한다.
+/// 로컬 mesh는 소유 plugin의 선언을, mirror mesh는 서버가 실은 선언을 본다. 그 밖의 surface는 띠가 없다.
+#[cfg(feature = "gui")]
+pub(crate) fn reserves_edge(
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    surface_id: u32,
+) -> bool {
+    use crate::runtime::surface_registry::KindCapabilities;
+    let Some(surface) = engine.find_surface_by_id(surface_id) else {
+        return false;
+    };
+    if let Some(webview) = surface.remote_webview() {
+        return webview_reserves_edge(webview.kind(), webview.capabilities());
+    }
+    if let Some(mesh) = surface.mesh() {
+        let capabilities = engine
+            .surface_registry
+            .owner_capabilities(mesh.kind_static, &mesh.plugin_id);
+        return focus_mark(mesh.kind_static, capabilities) == FocusMark::Edge;
+    }
+    if let Some(mesh) = surface.attach_mesh() {
+        let capabilities = KindCapabilities {
+            bed_focus: mesh.bed_focus,
+            ..KindCapabilities::default()
+        };
+        return focus_mark(mesh.kind_static, capabilities) == FocusMark::Edge;
+    }
+    false
+}
+
+/// 띠 leaf의 내용 영역: leaf에서 띠 행을 뺀 나머지다. 경계는 `surface_focus_edge_rows`가 물리 px로 정하고
+/// 띠가 leaf를 다 차지하면 높이 0이다.
+#[cfg(feature = "gui")]
+pub(crate) fn below_edge(
+    theme: &tasty_type_appearance::theme::Theme,
+    leaf: crate::model::PhysicalRect,
+    scale_factor: f32,
+) -> crate::model::PhysicalRect {
+    use crate::model::PhysicalPx;
+    let top = leaf.y.value();
+    let bottom = top + leaf.height.value();
+    let rows = tasty_ui_widgets::surface_focus_edge_rows(theme, top, bottom, scale_factor);
+    crate::model::PhysicalRect {
+        x: leaf.x,
+        y: PhysicalPx(rows.bottom),
+        width: leaf.width,
+        height: PhysicalPx((bottom - rows.bottom).max(0.0)),
     }
 }
 
@@ -68,6 +128,34 @@ mod tests {
         assert!(!bed_focused(Some(1), 1, &reg));
         assert!(!reg.is_hard_occupied(2));
         assert!(!bed_focused(Some(2), 2, &reg));
+    }
+
+    #[cfg(feature = "gui")]
+    #[test]
+    fn the_content_starts_below_the_edge_on_a_whole_physical_pixel() {
+        use crate::model::{PhysicalPx, PhysicalRect};
+        let theme = tasty_themes::mocha_fallback();
+        let leaf = PhysicalRect {
+            x: PhysicalPx(10.0),
+            y: PhysicalPx(100.75),
+            width: PhysicalPx(300.0),
+            height: PhysicalPx(200.0),
+        };
+        let below = below_edge(&theme, leaf, 1.25);
+        assert_eq!(below.y.value(), 103.0);
+        assert_eq!(
+            below.y.value() + below.height.value(),
+            300.75,
+            "bottom stays"
+        );
+        assert_eq!((below.x, below.width), (leaf.x, leaf.width));
+        let at_one = below_edge(&theme, leaf, 1.0);
+        assert_eq!(at_one.y.value(), 103.0);
+        let flat = PhysicalRect {
+            height: PhysicalPx(1.0),
+            ..leaf
+        };
+        assert_eq!(below_edge(&theme, flat, 2.0).height.value(), 0.0);
     }
 
     #[test]

@@ -73,6 +73,15 @@ impl KindCatalog {
     pub(crate) fn get_live(&self, kind: &str) -> Option<Arc<KindMetadata>> {
         self.0.metadata(kind, true)
     }
+    /// `plugin_id`가 등록한 `kind`의 능력. 다른 소유자의 정의이거나 없는 kind면 능력이 없다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn owner_capabilities(
+        &self,
+        kind: &str,
+        plugin_id: &str,
+    ) -> super::surface_registry::KindCapabilities {
+        self.0.owner_capabilities(kind, plugin_id)
+    }
     pub(crate) fn kinds_snapshot(&self) -> Vec<(&'static str, Arc<KindMetadata>)> {
         self.0.metadata_snapshot()
     }
