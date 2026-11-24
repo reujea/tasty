@@ -6,6 +6,7 @@
 
 use std::time::{Duration, Instant};
 
+use crate::output_origins::ChunkOrigin;
 use crate::{Pty, Terminal, TerminalState};
 
 /// OS 크기 통지 뒤 재그리기 출력으로 보는 시간. 사용자 결정(2026-11-24)으로 700ms다. Codex가 크기 변경을
@@ -94,6 +95,43 @@ impl TerminalState {
             r.end = r.end.min(began);
         }
     }
+
+    /// 지금 들어온 청크의 출처. 침묵 판정([`Self::silence_since`])과 같은 경계(`output_start`)와 술어로
+    /// 가르므로 그 판정이 재그리기로 보는 마지막 청크는 여기서도 재그리기다. 투입 때 정한 값이 정의다.
+    /// 진행 중인 OS 적용이 있으면 성공하면 언제나 재그리기라(열기 시각 이후 청크, 확정이 끝을 늘린다)
+    /// 열기 전 구간도 포함하는 청크만 바로 재그리기로 두고 나머지는 적용 결과를 기다린다.
+    pub(crate) fn chunk_origin(&self, chunk_at: Instant) -> ChunkOrigin {
+        let within = |r: Option<ResizeRedraw>| {
+            r.is_some_and(|r| ResizeRedraw::contains(r.output_start, r.end, chunk_at))
+        };
+        match self.resize_in_flight {
+            None if within(self.resize_redraw) => ChunkOrigin::Redraw,
+            None => ChunkOrigin::Normal,
+            Some(before) if within(before) => ChunkOrigin::Redraw,
+            Some(_) => ChunkOrigin::Pending,
+        }
+    }
+
+    /// 로컬 OS 적용을 시작한다. 구간을 열고 결과가 나올 때까지 들어오는 청크를 잠정으로 둔다.
+    pub(crate) fn begin_os_resize(&mut self, now: Instant) -> ResizeWindowToken {
+        let token = self.open_resize_window(now);
+        self.resize_in_flight = Some(token.0);
+        token
+    }
+
+    /// 로컬 OS 적용이 성공했다. 잠정 청크는 재그리기다.
+    pub(crate) fn confirm_os_resize(&mut self, now: Instant) {
+        self.confirm_resize_window(now);
+        self.resize_in_flight = None;
+        self.output.settle_pending_origins(ChunkOrigin::Redraw);
+    }
+
+    /// 로컬 OS 적용이 실패했다. 구간을 되돌리고 잠정 청크는 일반 출력이다.
+    pub(crate) fn restore_os_resize(&mut self, token: ResizeWindowToken) {
+        self.resize_redraw = token.0;
+        self.resize_in_flight = None;
+        self.output.settle_pending_origins(ChunkOrigin::Normal);
+    }
 }
 
 impl Terminal {
@@ -103,18 +141,18 @@ impl Terminal {
     pub fn open_resize_window(&self) -> ResizeWindowToken {
         let mut st = self.lock_state();
         let now = Instant::now();
-        st.open_resize_window(now)
+        st.begin_os_resize(now)
     }
 
     /// OS 적용이 끝난 시각부터 구간 끝을 다시 잰다.
     pub fn confirm_resize_window(&self) {
         let mut st = self.lock_state();
-        st.confirm_resize_window(Instant::now());
+        st.confirm_os_resize(Instant::now());
     }
 
     /// OS 적용이 실패했으면 구간을 열기 전으로 되돌린다.
     pub fn restore_resize_window(&self, token: ResizeWindowToken) {
-        self.lock_state().resize_redraw = token.0;
+        self.lock_state().restore_os_resize(token);
     }
 
     /// 크기 통지를 이미 받은 쪽(attach mirror의 서버 `Resize` 적용)이 받은 시각 `received`부터 구간을

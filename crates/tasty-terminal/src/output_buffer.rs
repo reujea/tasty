@@ -1,5 +1,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::output_origins::{ChunkOrigin, OriginSpans};
+
 /// Raw output retention limit (1 MiB). A read cannot cover more raw bytes than this.
 /// max_bytes may request less; decoded text can be longer than the raw bytes.
 pub const OUTPUT_RETENTION_MAX_BYTES: usize = 1_048_576;
@@ -91,6 +93,8 @@ pub(crate) struct OutputBuffer {
     read_mark: Option<u64>,
     scan_mark: u64,
     stream: String,
+    /// 스캔 읽기가 아직 읽지 않은 범위 `[max(base, scan_mark), end)`의 청크 출처.
+    origins: OriginSpans,
 }
 
 impl OutputBuffer {
@@ -101,19 +105,28 @@ impl OutputBuffer {
             read_mark: None,
             scan_mark: 0,
             stream: mint_stream_id(),
+            origins: OriginSpans::default(),
         }
     }
 
     /// Append raw bytes and trim to the retention size.
     ///
     /// No mark is adjusted: the marks are absolute and only `base` moves.
-    pub fn append(&mut self, data: &[u8]) {
+    /// `origin` is how the chunk was classified when it arrived (see `output_origins`).
+    pub fn append(&mut self, data: &[u8], origin: ChunkOrigin) {
+        self.origins.push(self.end(), origin);
         self.buffer.extend_from_slice(data);
         if self.buffer.len() > OUTPUT_RETENTION_MAX_BYTES {
             let excess = self.buffer.len() - OUTPUT_RETENTION_MAX_BYTES;
             self.buffer.drain(..excess);
             self.base += excess as u64;
+            self.origins.drop_before(self.base.max(self.scan_mark));
         }
+    }
+
+    /// Decide the chunks that arrived while an OS resize was being applied.
+    pub(crate) fn settle_pending_origins(&mut self, to: ChunkOrigin) {
+        self.origins.settle_pending(to);
     }
 
     /// Issue a new token when mirror output is no longer continuous, such as after
@@ -236,6 +249,13 @@ mod tests {
         mint_stream_id,
     };
 
+    impl OutputBuffer {
+        /// Append output that arrived outside any resize redraw window.
+        fn append_normal(&mut self, data: &[u8]) {
+            self.append(data, crate::output_origins::ChunkOrigin::Normal);
+        }
+    }
+
     /// Push `n` bytes of filler whose content is irrelevant to the assertion.
     fn filler(n: usize) -> Vec<u8> {
         vec![b'.'; n]
@@ -270,12 +290,12 @@ mod tests {
     #[test]
     fn a_renewed_stream_refuses_the_old_token_but_keeps_counting_positions() {
         let mut b = OutputBuffer::new();
-        b.append(b"before");
+        b.append_normal(b"before");
         let first = at(&b, 0);
         assert_eq!(first.text, "before");
 
         b.renew_stream();
-        b.append(b"after");
+        b.append_normal(b"after");
 
         let refused = b.read(&OutputReadRequest {
             from: OutputCursor::At(first.next_cursor),
@@ -302,14 +322,14 @@ mod tests {
     #[test]
     fn a_read_mark_the_trim_passed_still_reads_the_whole_buffer_and_now_says_what_it_lost() {
         let mut b = OutputBuffer::new();
-        b.append(b"head");
+        b.append_normal(b"head");
         b.set_mark();
-        b.append(b"tail");
+        b.append_normal(b"tail");
         assert_eq!(b.read_since_mark(false), "tail");
         assert_eq!(from_mark(&b).skipped, 0);
 
         // Overflow by more than the mark's offset, so the trim passes the mark.
-        b.append(&filler(OUTPUT_RETENTION_MAX_BYTES));
+        b.append_normal(&filler(OUTPUT_RETENTION_MAX_BYTES));
         assert_eq!(
             b.read_since_mark(false).len(),
             OUTPUT_RETENTION_MAX_BYTES,
@@ -328,9 +348,9 @@ mod tests {
     #[test]
     fn a_read_mark_outside_the_trimmed_region_shifts_by_the_trimmed_amount() {
         let mut b = OutputBuffer::new();
-        b.append(&filler(OUTPUT_RETENTION_MAX_BYTES));
+        b.append_normal(&filler(OUTPUT_RETENTION_MAX_BYTES));
         b.set_mark();
-        b.append(b"after");
+        b.append_normal(b"after");
         // Trimmed 5 bytes off the front; the mark sat at OUTPUT_RETENTION_MAX_BYTES, well
         // past that, so it survives and still points just before "after".
         assert_eq!(b.read_since_mark(false), "after");
@@ -339,27 +359,27 @@ mod tests {
     #[test]
     fn the_scan_cursor_advances_so_each_read_returns_only_what_arrived_since() {
         let mut b = OutputBuffer::new();
-        b.append(b"first");
+        b.append_normal(b"first");
         assert_eq!(b.take_since_scan_mark(false), "first");
         assert_eq!(
             b.take_since_scan_mark(false),
             "",
             "nothing was appended between the two reads"
         );
-        b.append(b"second");
+        b.append_normal(b"second");
         assert_eq!(b.take_since_scan_mark(false), "second");
     }
 
     #[test]
     fn the_two_cursors_do_not_move_each_other() {
         let mut b = OutputBuffer::new();
-        b.append(b"before");
+        b.append_normal(b"before");
         b.take_since_scan_mark(false);
 
         // The agent sets its mark; the scan cursor must not follow it.
-        b.append(b"between");
+        b.append_normal(b"between");
         b.set_mark();
-        b.append(b"after");
+        b.append_normal(b"after");
         assert_eq!(
             b.take_since_scan_mark(false),
             "betweenafter",
@@ -374,9 +394,9 @@ mod tests {
     #[test]
     fn trim_pulls_the_scan_cursor_back_instead_of_dropping_it() {
         let mut b = OutputBuffer::new();
-        b.append(&filler(OUTPUT_RETENTION_MAX_BYTES));
+        b.append_normal(&filler(OUTPUT_RETENTION_MAX_BYTES));
         b.take_since_scan_mark(false);
-        b.append(b"tail");
+        b.append_normal(b"tail");
         assert_eq!(
             b.take_since_scan_mark(false),
             "tail",
@@ -388,17 +408,17 @@ mod tests {
     #[test]
     fn strip_ansi_applies_to_the_scan_read_as_well() {
         let mut b = OutputBuffer::new();
-        b.append(b"\x1b[31mred\x1b[0m");
+        b.append_normal(b"\x1b[31mred\x1b[0m");
         assert_eq!(b.take_since_scan_mark(true), "red");
     }
 
     #[test]
     fn two_consumer_held_cursors_do_not_move_each_other_or_either_server_mark() {
         let mut b = OutputBuffer::new();
-        b.append(b"one");
+        b.append_normal(b"one");
         let a1 = at(&b, 0);
         assert_eq!(a1.text, "one");
-        b.append(b"two");
+        b.append_normal(b"two");
 
         // B reads the same region A already read. A's position is unaffected
         // because the buffer holds nothing on either consumer's behalf.
@@ -415,9 +435,9 @@ mod tests {
     #[test]
     fn a_cursor_the_trim_passed_reports_the_gap_instead_of_starting_over_in_silence() {
         let mut b = OutputBuffer::new();
-        b.append(b"lost");
+        b.append_normal(b"lost");
         let cursor = at(&b, 0).cursor;
-        b.append(&filler(OUTPUT_RETENTION_MAX_BYTES));
+        b.append_normal(&filler(OUTPUT_RETENTION_MAX_BYTES));
 
         let read = at(&b, cursor);
         assert_eq!(
@@ -432,7 +452,7 @@ mod tests {
     #[test]
     fn a_cursor_past_the_end_of_the_stream_is_refused_rather_than_answered_empty() {
         let mut b = OutputBuffer::new();
-        b.append(b"abc");
+        b.append_normal(b"abc");
         let err = b
             .read(&OutputReadRequest {
                 from: OutputCursor::At(9),
@@ -461,7 +481,7 @@ mod tests {
     #[test]
     fn a_cursor_carried_over_from_another_stream_is_refused() {
         let mut b = OutputBuffer::new();
-        b.append(b"abc");
+        b.append_normal(b"abc");
         let other = OutputBuffer::new();
         assert_ne!(
             b.stream, other.stream,
@@ -502,7 +522,7 @@ mod tests {
     #[test]
     fn max_bytes_caps_the_raw_region_and_the_next_cursor_counts_raw_bytes() {
         let mut b = OutputBuffer::new();
-        b.append("\x1b[31mred\x1b[0m".as_bytes());
+        b.append_normal("\x1b[31mred\x1b[0m".as_bytes());
         let read = b
             .read(&OutputReadRequest {
                 from: OutputCursor::At(0),
@@ -529,7 +549,7 @@ mod tests {
     fn a_cap_landing_mid_character_backs_off_so_neither_side_loses_it() {
         let mut b = OutputBuffer::new();
         // 'ㄱ' is three bytes; ask for four so the cap lands inside the second.
-        b.append("ㄱㄴ".as_bytes());
+        b.append_normal("ㄱㄴ".as_bytes());
         let first = b
             .read(&OutputReadRequest {
                 from: OutputCursor::At(0),
@@ -546,7 +566,7 @@ mod tests {
     #[test]
     fn a_cap_smaller_than_the_next_character_still_makes_progress() {
         let mut b = OutputBuffer::new();
-        b.append("ㄱ".as_bytes());
+        b.append_normal("ㄱ".as_bytes());
         let read = b
             .read(&OutputReadRequest {
                 from: OutputCursor::At(0),
@@ -566,7 +586,7 @@ mod tests {
     #[test]
     fn max_bytes_is_clamped_at_both_ends() {
         let mut b = OutputBuffer::new();
-        b.append(b"abcdef");
+        b.append_normal(b"abcdef");
         let zero = b
             .read(&OutputReadRequest {
                 from: OutputCursor::At(0),
@@ -593,9 +613,9 @@ mod tests {
     #[test]
     fn positions_keep_counting_across_a_trim() {
         let mut b = OutputBuffer::new();
-        b.append(&filler(OUTPUT_RETENTION_MAX_BYTES));
+        b.append_normal(&filler(OUTPUT_RETENTION_MAX_BYTES));
         assert_eq!(at(&b, 0).retention_start, 0);
-        b.append(b"tail");
+        b.append_normal(b"tail");
         let read = at(&b, 4);
         assert_eq!(read.retention_start, 4, "the window moved, not the numbers");
         assert_eq!(

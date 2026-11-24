@@ -10,6 +10,7 @@ mod io;
 mod modes;
 mod mouse_report;
 mod output_buffer;
+mod output_origins;
 mod pty;
 mod resize;
 mod resize_redraw;
@@ -219,6 +220,8 @@ pub(crate) struct TerminalState {
     last_activity_chunk_at: std::time::Instant,
     /// OS 크기 통지 뒤 재그리기 구간(`resize_redraw.rs`). 없으면 모든 출력이 일반 출력이다.
     resize_redraw: Option<resize_redraw::ResizeRedraw>,
+    /// 진행 중인 로컬 OS 크기 적용이 열기 전에 두었던 구간(`resize_redraw.rs`). 적용 중이 아니면 None.
+    resize_in_flight: Option<Option<resize_redraw::ResizeRedraw>>,
     /// Timestamp of the most recent user input sent to the PTY.
     last_input_at: std::time::Instant,
     /// Timestamp of the most recent output action that repositioned the cursor
@@ -458,6 +461,7 @@ impl TerminalState {
             last_activity_at: std::time::Instant::now(),
             last_activity_chunk_at: std::time::Instant::now(),
             resize_redraw: None,
+            resize_in_flight: None,
             // Start in the past so the first PTY output is never mistaken for echo.
             last_input_at: std::time::Instant::now() - INPUT_ECHO_WINDOW,
             last_screen_control_at: None,
@@ -493,7 +497,7 @@ impl TerminalState {
         if data.is_empty() {
             return false;
         }
-        self.output.append(data);
+        self.output.append(data, self.chunk_origin(chunk_at));
         self.last_output_at = chunk_at;
         self.first_output_at.get_or_insert(self.last_output_at);
         self.fan_out_to_taps(data);
