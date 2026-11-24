@@ -215,6 +215,22 @@ fn parse(file: &str, text: &str) -> (Vec<Job>, Vec<String>) {
         .enumerate()
         .map(|(i, l)| (i + 1, l.to_string()))
         .collect();
+    // 최상위(들여쓰기 0) 줄은 모두 키이고 한 번씩만 나온다. 두 번째 `jobs:` 같은 블록을 조용히 빼지 않는다.
+    let mut top_keys: Vec<String> = Vec::new();
+    for (no, l) in lines
+        .iter()
+        .filter(|(_, l)| !is_blank(l) && indent_of(l) == 0)
+    {
+        match split_key(l) {
+            Some((key, _)) if top_keys.contains(&key) => errs.push(format!(
+                "{file}:{no} {UNSUPPORTED}: 최상위 키 {key}가 두 번 있다"
+            )),
+            Some((key, _)) => top_keys.push(key),
+            None => errs.push(format!(
+                "{file}:{no} {UNSUPPORTED}: 최상위 줄이 키가 아니다: {l}"
+            )),
+        }
+    }
     let Some(start) = lines.iter().position(|(_, l)| l.starts_with("jobs:")) else {
         errs.push(format!(
             "{file}:1 {UNSUPPORTED}: 들여쓰기 없는 `jobs:` 줄이 없다"
@@ -1176,4 +1192,16 @@ fn every_notation_error_names_the_line_and_the_phrase() {
     );
     let all = mutated("test.yml", call, "        run: echo skipped\n");
     assert_caught(&all, "지원하지 않는 표기: prepare 스텝의 run이");
+}
+
+/// R6: 최상위 키(jobs 등)를 두 번 쓰면 실패한다. 두 번째 블록을 조용히 빼지 않는다.
+#[test]
+fn a_repeated_top_level_key_is_rejected() {
+    let mut all = workflows();
+    let (_, text) = all
+        .iter_mut()
+        .find(|(f, _)| f == "test.yml")
+        .expect("test.yml");
+    text.push_str("jobs:\n  extra:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          clean: false\n");
+    assert_caught(&all, "지원하지 않는 표기: 최상위 키 jobs가 두 번 있다");
 }
