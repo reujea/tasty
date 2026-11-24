@@ -9,6 +9,16 @@ use tasty_remote::client_session::{
     AttachClientSession, ClientSessionState, ClientTransport, MirrorOutbox, SessionState,
 };
 use tasty_terminal::Terminal;
+/// 다른 모듈 시험용: 원격 제어 이벤트 하나를 실제 적용 경로(`output`)로 반영한다.
+pub(crate) fn apply_control_event_in_window(
+    sess: &mut AttachClientSession,
+    state: &mut crate::state::MainViewState,
+    engine: &mut crate::runtime::engine_access::EngineMut<'_>,
+    event: &Value,
+) {
+    super::output::apply_control_event_in_window(sess, state, engine, event);
+}
+
 pub(crate) fn supply_ids(engine: &crate::runtime::engine_access::EngineMut<'_>) {
     engine
         .runtime

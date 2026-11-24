@@ -812,3 +812,19 @@ fn apply_mirror_structural_delta(
     }
     Ok(removed)
 }
+
+/// 시험 보조: 원격 제어 이벤트(JSON) 하나를 창 View 의 `state`·`engine`에 실제 적용 경로로 반영한다.
+/// 다른 모듈의 시험이 응답 결과를 상태에 직접 대입하지 않고 이 경로를 거치게 한다.
+#[cfg(test)]
+pub(super) fn apply_control_event_in_window(
+    sess: &mut AttachClientSession,
+    state: &mut crate::state::MainViewState,
+    engine: &mut EngineMut<'_>,
+    event: &Value,
+) {
+    let payload = serde_json::to_vec(event).expect("control event json");
+    let ev = super::wire::mirror_event_from_control(&payload).expect("a known control event");
+    let mut plugin_manager = None;
+    let mut host = MirrorHost::windowed(state, engine);
+    apply_mirror_events(sess, &mut host, &mut plugin_manager, vec![ev]);
+}

@@ -12,6 +12,7 @@ struct Fixture {
     state: crate::state::RequestContext,
     session: crate::runtime::engine_session::EngineSession,
     payload: PopupPayload,
+    iid: crate::adapters::ui::popup::PopupInstanceId,
     ws: u32,
 }
 
@@ -61,6 +62,7 @@ fn open_remote(location: Option<MirrorLocation>) -> Fixture {
         state,
         session,
         payload,
+        iid,
         ws,
     }
 }
@@ -70,8 +72,58 @@ impl Fixture {
         file_picker::instances::picker_of_mut(&mut self.payload).expect("picker payload")
     }
 
+    /// 첫 목록 요청에 원격이 오류로 답한 것을 실제 응답 경로(attach 출력의 list_dir_result)로 반영한다.
+    fn answer_the_first_listing_with_an_error(&mut self, reason: &str) {
+        let FpLoadState::Loading { request_id, .. } = self.data().load else {
+            panic!("the first listing is still pending");
+        };
+        // 응답은 열린 popup 인스턴스에서 기다리는 피커를 찾으므로 payload 를 되돌려 놓는다.
+        let iid = self.iid;
+        let payload = std::mem::replace(&mut self.payload, PopupPayload::None);
+        self.state
+            .popups
+            .instance_mut(iid)
+            .expect("instance")
+            .payload = payload;
+        let mut sess = crate::app::attach_client::tests::test_session(
+            self.ws,
+            std::collections::HashMap::new(),
+        );
+        {
+            let mut engine = self.session.borrow_mut();
+            crate::app::attach_client::tests::apply_control_event_in_window(
+                &mut sess,
+                &mut self.state,
+                &mut engine,
+                &serde_json::json!({
+                    "event": "list_dir_result",
+                    "request_id": request_id,
+                    "ok": false,
+                    "dir": "",
+                    "entries": [],
+                    "truncated": false,
+                    "reason": reason,
+                }),
+            );
+        }
+        self.payload = std::mem::replace(
+            &mut self
+                .state
+                .popups
+                .instance_mut(iid)
+                .expect("instance")
+                .payload,
+            PopupPayload::None,
+        );
+    }
+
     /// 피커를 한 프레임 그리고 칠한 글자들을 돌려준다.
     fn painted(&mut self) -> Vec<String> {
+        self.painted_passes().pop().expect("two passes")
+    }
+
+    /// 피커를 두 번 그리고(첫 pass 에서 글꼴이 준비된다) pass 마다 칠한 글자들을 돌려준다.
+    fn painted_passes(&mut self) -> Vec<Vec<String>> {
         let ctx = egui::Context::default();
         egui_extras::install_image_loaders(&ctx);
         let raw = egui::RawInput {
@@ -86,7 +138,6 @@ impl Fixture {
         let state = &mut self.state;
         let payload = &mut self.payload;
         let mut out = Vec::new();
-        // 첫 pass에서 글꼴이 준비되므로 두 번 돈다.
         for _ in 0..2 {
             let full = ctx.run(raw.clone(), |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
@@ -105,14 +156,15 @@ impl Fixture {
                     let _action = file_picker::draw_file_picker(ui, state, &read, &mut cx);
                 });
             });
-            out = full
-                .shapes
-                .iter()
-                .filter_map(|clipped| match &clipped.shape {
-                    egui::Shape::Text(text) => Some(text.galley.text().to_owned()),
-                    _ => None,
-                })
-                .collect();
+            out.push(
+                full.shapes
+                    .iter()
+                    .filter_map(|clipped| match &clipped.shape {
+                        egui::Shape::Text(text) => Some(text.galley.text().to_owned()),
+                        _ => None,
+                    })
+                    .collect(),
+            );
         }
         drop(read);
         out
@@ -131,7 +183,9 @@ fn the_first_loading_frame_draws_the_host_badge_and_the_remote_loading_body() {
         reconnecting: false,
     }));
     assert!(matches!(f.data().load, FpLoadState::Loading { .. }));
-    let texts = f.painted();
+    // 첫 그리기 호출의 출력을 본다(두 번째 pass 만 보면 첫 프레임이 비어도 지나간다).
+    let texts = f.painted_passes().swap_remove(0);
+    assert!(matches!(f.data().load, FpLoadState::Loading { .. }));
     assert!(has(&texts, t("attach.mirror_pill_label")), "{texts:?}");
     assert!(
         has(&texts, t("filepicker.loading_body_remote")),
@@ -146,7 +200,7 @@ fn the_first_loading_frame_draws_the_host_badge_and_the_remote_loading_body() {
         host: "work-laptop-attach".into(),
         reconnecting: false,
     }));
-    let texts = f.painted();
+    let texts = f.painted_passes().swap_remove(0);
     assert!(has(&texts, "work-laptop-attach"), "{texts:?}");
     assert!(
         has(&texts, t("filepicker.loading_body_remote")),
@@ -241,8 +295,12 @@ fn the_host_badge_stays_when_the_first_listing_fails_or_times_out() {
                 sent_at: std::time::Instant::now() - std::time::Duration::from_secs(3600),
             };
         } else {
-            f.data().load =
-                FpLoadState::ErrorConn(t("filepicker.error_conn.session_lost").to_string());
+            f.answer_the_first_listing_with_an_error("connection reset by peer");
+            assert!(
+                matches!(&f.data().load, FpLoadState::ErrorConn(reason) if reason == "connection reset by peer"),
+                "{:?}",
+                f.data().load
+            );
         }
         let texts = f.painted();
         assert!(
