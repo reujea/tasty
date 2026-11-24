@@ -64,19 +64,24 @@ fn only_the_composited_popups_are_decoded_before_the_pass() {
     );
 }
 
-/// 다시 그리기 요청 수를 세는 egui 문맥.
-fn counting_ctx() -> (Context, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+/// 다시 그리기 요청마다 그 지연(`RequestRepaintInfo::delay`)을 모으는 egui 문맥.
+type Delays = std::sync::Arc<std::sync::Mutex<Vec<std::time::Duration>>>;
+fn counting_ctx() -> (Context, Delays) {
     let ctx = Context::default();
-    let n = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let seen = n.clone();
-    ctx.set_request_repaint_callback(move |_| {
-        seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let delays = Delays::default();
+    let seen = delays.clone();
+    ctx.set_request_repaint_callback(move |info| {
+        seen.lock().expect("delays").push(info.delay);
     });
-    (ctx, n)
+    (ctx, delays)
+}
+
+fn taken(delays: &Delays) -> Vec<std::time::Duration> {
+    std::mem::take(&mut *delays.lock().expect("delays"))
 }
 
 /// Given 프레임을 받은 P 가 처음 합성 영역을 받을 때, When 그 프레임을 그리면, Then 디코드한 본문이 없으므로
-/// 다음 프레임을 요청한다. 다음 프레임은 P 를 디코드하므로 더 요청하지 않는다. 프레임을 받지 않은 팝업은 요청하지
+/// 바로 다음 프레임(지연 0)을 요청한다. 다음 프레임은 P 를 디코드하므로 더 요청하지 않는다. 프레임을 받지 않은 팝업은 요청하지
 /// 않는다(프레임이 오면 다시 그린다).
 #[test]
 fn a_popup_that_gets_a_region_without_a_body_asks_for_the_next_frame() {
@@ -107,18 +112,14 @@ fn a_popup_that_gets_a_region_without_a_body_asks_for_the_next_frame() {
         redraw_for_undecoded_bodies(&ctx, &decoded, &state.plugin_mesh_popup_regions, |id| {
             mgr.popup_mesh_frame(id).is_some()
         });
-        requests.push(n.load(std::sync::atomic::Ordering::SeqCst));
+        requests.push(taken(&n));
     }
     assert_eq!(
         requests,
-        vec![1, 0],
-        "첫 합성 프레임만 다음 프레임을 요청한다"
+        vec![vec![std::time::Duration::ZERO], vec![]],
+        "첫 합성 프레임만 바로 다음 프레임을 요청한다"
     );
     let (ctx, n) = counting_ctx();
     redraw_for_undecoded_bodies(&ctx, &[], &state.plugin_mesh_popup_regions, |_| false);
-    assert_eq!(
-        n.load(std::sync::atomic::Ordering::SeqCst),
-        0,
-        "프레임이 없는 팝업"
-    );
+    assert!(taken(&n).is_empty(), "프레임이 없는 팝업");
 }
