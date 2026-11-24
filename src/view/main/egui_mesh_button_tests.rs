@@ -238,3 +238,32 @@ fn a_release_of_a_vanished_leaf_is_consumed() {
         );
     }
 }
+
+/// mesh가 가져간 뗌은 왼쪽 버튼일 때만 창의 왼쪽 누름 상태를 끈다. 오른쪽·가운데 뗌 뒤에는 왼쪽 누름(선택 드래그
+/// 등)이 그대로다. 기록된 뗌 단계와 아래 단계가 같다.
+#[test]
+fn only_a_left_mesh_release_ends_the_window_left_press() {
+    let regions = [region(1, 10.0, MeshSide::Local)];
+    for other in [Right, MouseButton::Middle] {
+        for recorded in [true, false] {
+            let mut w = Window {
+                left_mouse_down: true,
+                ..Window::default()
+            };
+            if recorded {
+                assert!(w.button(&regions, Some((5.0, 20.0)), (other, true), false));
+            }
+            assert!(w.button(&regions, Some((5.0, 20.0)), (other, false), false));
+            assert!(
+                w.left_mouse_down,
+                "{other:?} release (recorded={recorded}) keeps the left press"
+            );
+        }
+    }
+    let mut w = Window {
+        left_mouse_down: true,
+        ..Window::default()
+    };
+    assert!(w.button(&regions, Some((5.0, 20.0)), (Left, false), false));
+    assert!(!w.left_mouse_down, "a left release ends it");
+}
