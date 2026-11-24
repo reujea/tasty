@@ -147,11 +147,10 @@ fn sites_of(name: &str) -> Vec<(String, Site)> {
             .expect("소스")
             .replace("\r\n", "\n");
         let masked = tasty_doc_guards::source_text::mask_comments(&raw);
-        let rel = path
-            .strip_prefix(&root)
-            .unwrap_or(&path)
-            .display()
-            .to_string();
+        let rel =
+            tasty_doc_guards::source_text::repo_relative(path.strip_prefix(&root).unwrap_or(&path))
+                .display()
+                .to_string();
         let mut caller = String::new();
         for (no, line) in masked.lines().enumerate() {
             if let Some(i) = line.find("fn ") {
