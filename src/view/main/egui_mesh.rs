@@ -88,13 +88,14 @@ impl MainView {
     }
 
     /// mesh에서 누른 버튼의 뗌을 누른 leaf로 보낸다(로컬·attach). 창의 버튼 처리가 다른 분기보다 먼저 부른다.
+    /// 판정과 전달은 [`route_mesh_button`]이 한다. 이 메서드는 조건 없이 그 단계로 넘긴다.
     pub(super) fn forward_recorded_mesh_release(
         &mut self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
         button: MouseButton,
         button_state: ElementState,
     ) -> bool {
-        self.forward_mesh_button(engine, button, button_state, MeshButtonStage::Recorded)
+        self.forward_mesh_button(engine, button, button_state, MeshPass::Recorded)
     }
 
     /// 위 층·분할선 판정 뒤의 버튼 사건을 포인터 아래 mesh leaf로 보낸다(로컬, 그다음 attach). 분할선 드래그
@@ -105,50 +106,36 @@ impl MainView {
         button: MouseButton,
         button_state: ElementState,
     ) -> bool {
-        let stage = MeshButtonStage::Below {
-            dragging_divider: self.dragging_divider.is_some(),
-        };
-        self.forward_mesh_button(engine, button, button_state, stage)
+        self.forward_mesh_button(engine, button, button_state, MeshPass::Below)
     }
 
-    /// 버튼 사건을 `stage` 판정([`crate::state::mesh_frames::mesh_button_target`])이 고른 leaf에 surface 기준
-    /// 좌표로 누적한다. 왼쪽 버튼 뗌이면 창의 왼쪽 누름 상태도 끈다.
+    /// 창 상태로 [`MeshButtonWindow`]를 만들어 [`route_mesh_button`]에 넘기고, 사건을 가져갔으면 다시 그린다.
     fn forward_mesh_button(
         &mut self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
         button: MouseButton,
         button_state: ElementState,
-        stage: MeshButtonStage,
+        pass: MeshPass,
     ) -> bool {
-        let Some(pos) = self.cursor_position else {
-            return false;
-        };
-        let (x, y) = (pos.x as f32, pos.y as f32);
         let regions = self.mesh_regions(engine);
-        let pressed = is_pressed(button_state);
-        let Some(r) = crate::state::mesh_frames::mesh_button_target(
-            &regions,
-            &mut self.state.mesh_press,
-            stage,
-            button,
-            (x, y),
-            pressed,
-        ) else {
-            return false;
+        let ppp = self.base.gpu.scale_factor().max(f32::EPSILON);
+        let modifiers = self.mesh_modifiers();
+        let window = MeshButtonWindow {
+            regions: &regions,
+            presses: &mut self.state.mesh_press,
+            local: &mut self.egui_mesh,
+            attach: &mut self.attach_mesh_input,
+            left_mouse_down: &mut self.left_mouse_down,
+            cursor: self.cursor_position.map(|p| (p.x as f32, p.y as f32)),
+            dragging_divider: self.dragging_divider.is_some(),
+            ppp,
+            modifiers,
         };
-        if !pressed && button == MouseButton::Left {
-            self.left_mouse_down = false;
+        let taken = route_mesh_button(window, pass, button, is_pressed(button_state));
+        if taken {
+            self.mark_dirty();
         }
-        match r.side {
-            MeshSide::Local => {
-                self.egui_mesh_push_pointer_button(r.id, r.rect, x, y, button, pressed)
-            }
-            MeshSide::Attach => {
-                self.attach_mesh_push_pointer_button(r.id, r.rect, x, y, button, pressed)
-            }
-        }
-        self.mark_dirty();
-        true
+        taken
     }
 
     /// 이번 배치의 mesh 프레임 영역(로컬·attach).
@@ -193,38 +180,7 @@ impl MainView {
 
     /// 화면 물리 좌표를 surface 기준 논리 좌표로 바꾼다.
     pub(super) fn mesh_local_point(&self, rect: PhysicalRect, x: f32, y: f32) -> (f32, f32) {
-        let ppp = self.base.gpu.scale_factor().max(f32::EPSILON);
-        let local_x = PhysicalPx(x) - rect.x;
-        let local_y = PhysicalPx(y) - rect.y;
-        (
-            local_x.to_logical(ppp).value(),
-            local_y.to_logical(ppp).value(),
-        )
-    }
-
-    /// 포인터 버튼 누름/뗌을 egui-mesh surface 에 누적.
-    pub(super) fn egui_mesh_push_pointer_button(
-        &mut self,
-        surface_id: u32,
-        rect: PhysicalRect,
-        x: f32,
-        y: f32,
-        button: MouseButton,
-        pressed: bool,
-    ) {
-        let Some(button) = map_button(button) else {
-            return;
-        };
-        let (lx, ly) = self.mesh_local_point(rect, x, y);
-        let modifiers = self.mesh_modifiers();
-        let st = self.egui_mesh.entry(surface_id).or_default();
-        st.events.push(RawInputEventWire::PointerButton {
-            x: lx,
-            y: ly,
-            button,
-            pressed,
-            modifiers,
-        });
+        local_point(rect, (x, y), self.base.gpu.scale_factor().max(f32::EPSILON))
     }
 
     /// 포인터 이동을 egui-mesh surface 에 누적(hover/interact_pos 추적용).
@@ -553,6 +509,89 @@ fn queue_edit_request(
     }
 }
 
+/// 화면 물리 좌표를 `rect` 기준 논리 좌표로 바꾼다.
+fn local_point(rect: PhysicalRect, (x, y): (f32, f32), ppp: f32) -> (f32, f32) {
+    let local_x = PhysicalPx(x) - rect.x;
+    let local_y = PhysicalPx(y) - rect.y;
+    (
+        local_x.to_logical(ppp).value(),
+        local_y.to_logical(ppp).value(),
+    )
+}
+
+/// 창 버튼 처리에서 mesh 판정을 부르는 자리.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum MeshPass {
+    /// 다른 분기보다 먼저. mesh가 기록한 버튼의 뗌만 본다.
+    Recorded,
+    /// 위 층·분할선 판정 뒤의 나머지 사건.
+    Below,
+}
+
+/// 창 버튼 사건 하나에 mesh 판정·전달이 쓰는 창 상태. MainView와 시험이 같은 [`route_mesh_button`]을 거친다.
+pub(super) struct MeshButtonWindow<'a> {
+    pub(super) regions: &'a [crate::state::mesh_frames::MeshFrameRegion],
+    pub(super) presses: &'a mut crate::state::mesh_frames::MeshPresses,
+    pub(super) local: &'a mut std::collections::HashMap<u32, MeshForwardState>,
+    pub(super) attach:
+        &'a mut std::collections::HashMap<u32, super::attach_mesh_input::AttachMeshForwardState>,
+    pub(super) left_mouse_down: &'a mut bool,
+    /// 창 안 포인터(물리 px). 창 밖으로 나갔으면 `None`이다.
+    pub(super) cursor: Option<(f32, f32)>,
+    pub(super) dragging_divider: bool,
+    pub(super) ppp: f32,
+    pub(super) modifiers: ModifiersWire,
+}
+
+/// 버튼 사건 하나를 mesh 판정([`crate::state::mesh_frames::mesh_button_target`])에 넘기고, 고른 leaf의 입력
+/// 큐(로컬 `local`, 원격 `attach`)에 surface 기준 좌표로 넣는다. 왼쪽 버튼 뗌이면 창의 왼쪽 누름 상태도 끈다.
+/// 사건을 가져갔으면 `true`다.
+pub(super) fn route_mesh_button(
+    w: MeshButtonWindow<'_>,
+    pass: MeshPass,
+    button: MouseButton,
+    pressed: bool,
+) -> bool {
+    let Some((x, y)) = w.cursor else {
+        return false;
+    };
+    let stage = match pass {
+        MeshPass::Recorded => MeshButtonStage::Recorded,
+        MeshPass::Below => MeshButtonStage::Below {
+            dragging_divider: w.dragging_divider,
+        },
+    };
+    let Some(r) = crate::state::mesh_frames::mesh_button_target(
+        w.regions,
+        w.presses,
+        stage,
+        button,
+        (x, y),
+        pressed,
+    ) else {
+        return false;
+    };
+    if !pressed && button == MouseButton::Left {
+        *w.left_mouse_down = false;
+    }
+    let Some(wire) = map_button(button) else {
+        return true;
+    };
+    let (lx, ly) = local_point(r.rect, (x, y), w.ppp);
+    let event = RawInputEventWire::PointerButton {
+        x: lx,
+        y: ly,
+        button: wire,
+        pressed,
+        modifiers: w.modifiers,
+    };
+    match r.side {
+        MeshSide::Local => w.local.entry(r.id).or_default().events.push(event),
+        MeshSide::Attach => w.attach.entry(r.id).or_default().push_event(event),
+    }
+    true
+}
+
 pub(super) fn map_button(button: MouseButton) -> Option<PointerButtonWire> {
     match button {
         MouseButton::Left => Some(PointerButtonWire::Primary),
@@ -797,6 +836,10 @@ impl MainView {
         self.base.state.dirty = true;
     }
 }
+
+#[cfg(test)]
+#[path = "egui_mesh_button_tests.rs"]
+mod button_tests;
 
 #[cfg(test)]
 mod tests {

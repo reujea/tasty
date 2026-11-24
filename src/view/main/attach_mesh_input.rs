@@ -2,8 +2,6 @@
 //! MainView에서 CoreState 큐에 넣고 App이 attach 세션으로 전송한다.
 //! 원격 surface는 이미 존재하므로 생성하지 않으며 전체 텍스처 복구 요청은 별도 경로에서 처리한다.
 
-use winit::event::MouseButton;
-
 use tasty_plugin_protocol::protocol::{RawInputEventWire, RawInputWire, ThemeWire};
 
 use crate::core::AttachMeshContextForward;
@@ -11,7 +9,7 @@ use crate::model::PhysicalRect;
 use crate::state::mesh_frames::MeshSide;
 
 use super::MainView;
-use super::egui_mesh::{key_wire_event, map_button};
+use super::egui_mesh::key_wire_event;
 
 /// 원격 mesh에 마지막으로 보낸 컨텍스트와 다음에 보낼 입력.
 #[derive(Default)]
@@ -27,6 +25,20 @@ pub(crate) struct AttachMeshForwardState {
     admitted: Option<std::time::Instant>,
 }
 
+impl AttachMeshForwardState {
+    /// 다음 전송에 사건 하나를 넣는다. 첫 사건 시각부터 전송 간격을 잰다.
+    pub(super) fn push_event(&mut self, event: RawInputEventWire) {
+        self.admitted.get_or_insert_with(std::time::Instant::now);
+        self.events.push(event);
+    }
+
+    /// 다음 전송에 실을 사건(시험용).
+    #[cfg(test)]
+    pub(super) fn events(&self) -> &[RawInputEventWire] {
+        &self.events
+    }
+}
+
 impl MainView {
     /// 포인터 위치의 원격 mesh surface와 영역. 버튼을 누른 채면 마지막으로 누른 leaf가 원격일 때만 그 leaf다.
     pub(super) fn attach_mesh_target_at(
@@ -39,32 +51,6 @@ impl MainView {
         let presses = &self.state.mesh_press;
         crate::state::mesh_frames::motion_target(&regions, presses, MeshSide::Attach, x, y)
             .map(|r| (r.id, r.rect))
-    }
-
-    /// 포인터 버튼 누름/뗌을 attach mesh surface 에 누적.
-    pub(super) fn attach_mesh_push_pointer_button(
-        &mut self,
-        surface_id: u32,
-        rect: PhysicalRect,
-        x: f32,
-        y: f32,
-        button: MouseButton,
-        pressed: bool,
-    ) {
-        let Some(button) = map_button(button) else {
-            return;
-        };
-        let (lx, ly) = self.mesh_local_point(rect, x, y);
-        let modifiers = self.mesh_modifiers();
-        let st = self.attach_mesh_input.entry(surface_id).or_default();
-        st.admitted.get_or_insert_with(std::time::Instant::now);
-        st.events.push(RawInputEventWire::PointerButton {
-            x: lx,
-            y: ly,
-            button,
-            pressed,
-            modifiers,
-        });
     }
 
     /// 포인터 이동을 attach mesh surface 에 누적.

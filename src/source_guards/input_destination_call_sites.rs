@@ -141,3 +141,36 @@ fn the_window_button_path_sends_a_recorded_mesh_release_first() {
         );
     }
 }
+
+/// 창의 두 mesh 버튼 메서드는 조건 없이 공용 전달로 넘기고, 공용 전달은 창 상태를 [`route_mesh_button`]에
+/// 넘긴다. 판정·전달은 MainView 없이 그 함수를 거치는 시험(`view::main::egui_mesh::button_tests`)이 잰다.
+/// 메서드 안에 분할선 드래그 등으로 건너뛰는 조건이 생기면 그 시험은 보지 못하므로 모양을 여기서 고정한다.
+#[test]
+fn the_window_mesh_button_methods_hand_off_without_conditions() {
+    let src = read("src/view/main/egui_mesh.rs");
+    for (name, pass) in [
+        ("fn forward_recorded_mesh_release(", "Recorded"),
+        ("fn try_forward_mesh_button(", "Below"),
+    ] {
+        let body = squeeze(&fn_body(&src, name).expect(name));
+        let call = format!("self.forward_mesh_button(engine,button,button_state,MeshPass::{pass})");
+        assert!(
+            body.matches(call.as_str()).count() == 1
+                && !body.contains("if")
+                && !body.contains("return")
+                && !body.contains("dragging"),
+            "{name} 은 조건 없이 공용 전달로 넘긴다: {body}"
+        );
+    }
+    let body = squeeze(&fn_body(&src, "fn forward_mesh_button(").expect("forward_mesh_button"));
+    assert_eq!(
+        body.matches("route_mesh_button(window,pass,button,is_pressed(button_state))")
+            .count(),
+        1
+    );
+    let ifs = body.matches("if").count() - body.matches("modifiers").count();
+    assert!(
+        !body.contains("return") && ifs == 1 && body.contains("iftaken{self.mark_dirty();}"),
+        "공용 전달은 가져간 사건에 다시 그리기만 더한다: {body}"
+    );
+}
