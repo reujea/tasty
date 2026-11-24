@@ -85,7 +85,7 @@ fn a_not_acted_reply_replays_the_key_before_the_queued_input() {
     assert!(holds.queue(window(1), &key(1)));
     assert!(holds.queue(window(1), &WindowEvent::HoveredFile("a".into())));
     assert!(
-        !holds.queue(window(1), &WindowEvent::Focused(true)),
+        !holds.queue(window(1), &WindowEvent::Moved((0, 0).into())),
         "창 상태는 줄 서지 않는다"
     );
     assert!(!holds.queue(window(2), &key(2)), "다른 창은 보류가 없다");

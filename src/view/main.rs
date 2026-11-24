@@ -340,6 +340,12 @@ impl MainView {
         self.pending_menu.is_some()
     }
 
+    /// 창 포커스 사건의 창 상태 몫. 보류 중인 입력과 상관없이 도착 때 적용한다(App `apply_window_focus_observation`).
+    pub(crate) fn note_window_focus(&mut self, focused: bool) {
+        self.base.state.focused = focused;
+        crate::stall_watchdog::record_window_focused(focused);
+    }
+
     /// Request this window to close (will be handled by the event loop).
     pub(crate) fn request_close(&mut self) {
         self.base.state.close_requested = true;
@@ -703,9 +709,8 @@ impl MainView {
                 }
                 self.mark_dirty();
             }
+            // 창 상태 몫(`note_window_focus`)은 App 이 도착 때 적용했다. 여기는 입력 순서 몫이라 보류 뒤에 줄을 선다.
             WindowEvent::Focused(focused) => {
-                self.base.state.focused = focused;
-                crate::stall_watchdog::record_window_focused(focused);
                 // 포커스가 바뀌면 누름·뗌 짝이 끊길 수 있어 double-tap 추적을 초기화한다.
                 self.double_tap.reset();
                 if !focused {

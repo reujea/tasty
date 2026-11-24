@@ -278,6 +278,77 @@ fn a_wheel_after_a_queued_pointer_move_waits_too() {
     assert_eq!(release.queued, vec![moved, wheel, pinch]);
 }
 
+/// A focus loss while a key is held queues behind it like the keys before it. The modifiers it
+/// clears stay for the queued key until the focus loss itself replays, so a queued Alt+C is still
+/// judged as a copy, and only the input after the focus loss sees them cleared.
+#[test]
+fn a_focus_loss_while_held_keeps_the_replayed_edit_modifiers() {
+    let ctx = egui::Context::default();
+    let settings = crate::settings::KeybindingSettings {
+        copy: vec!["alt+c".into()],
+        ..Default::default()
+    };
+    let mut state = EditKeyState::<WindowEvent>::default();
+    state.set_bindings(Some(EditBindings::from_settings(&settings)));
+    state.set_modifiers(alt());
+    let now = Instant::now();
+    let owner = EditKeyOwner::EguiOnly;
+    state.hold_key(
+        &WindowEvent::RedrawRequested,
+        EditKey::Paste,
+        Phase::Settle,
+        now,
+        owner,
+        false,
+    );
+    // The queued key stands for Alt+C: winit key events cannot be built outside winit.
+    let queued_key = WindowEvent::Ime(winit::event::Ime::Commit("alt+c".into()));
+    let arrivals = [
+        queued_key.clone(),
+        WindowEvent::Focused(false),
+        WindowEvent::Focused(true),
+    ];
+    for event in &arrivals {
+        let mut events = Vec::new();
+        let mut clipboard = |_tag: u64| ClipText::Empty;
+        let cx = KeyCx {
+            ctx: &ctx,
+            events: &mut events,
+            clipboard: &mut clipboard,
+        };
+        // The window runs a free event at once, which applies its modifiers (`GpuState`).
+        if state.judge(event, owner, now, cx) == EguiKey::Free
+            && let Some(modifiers) = window_modifiers(event)
+        {
+            state.set_modifiers(modifiers);
+        }
+    }
+    assert_eq!(
+        state.modifiers,
+        alt(),
+        "the held focus loss has not run yet"
+    );
+    state.resolve_now(Outcome::NotActed);
+    let release = state.take_release(owner).expect("released");
+    assert_eq!(release.queued, arrivals);
+    let mut seen = Vec::new();
+    for event in release.queued {
+        if event == queued_key {
+            let lookup = tasty_key_match::shortcut_lookup_key(
+                &Key::Character("c".into()),
+                &physical_of(&Key::Character("c".into())),
+                state.modifiers,
+            );
+            let bindings = state.bindings.as_ref().expect("bound");
+            seen.push(bindings.binding(&lookup, state.modifiers));
+        } else if let Some(modifiers) = window_modifiers(&event) {
+            state.set_modifiers(modifiers);
+        }
+    }
+    assert_eq!(seen, [Some(EditKey::Copy)]);
+    assert_eq!(state.modifiers, ModifiersState::default());
+}
+
 /// A click a Wayland read let through is still unprocessed when the read finishes. Its pass runs
 /// first: a click into another field drops the text and the key whatever the read returned, and a
 /// click inside the same field still gets the paste.

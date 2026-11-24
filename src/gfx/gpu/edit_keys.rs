@@ -102,7 +102,7 @@ impl HeldEvent for WindowEvent {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum HeldOrder {
-    /// Keys, IME and modifiers.
+    /// Keys, IME, modifiers and the input part of a focus change.
     Queue,
     /// Input that acts where the pointer is: its position, buttons, wheel, touch and gestures, and
     /// files dragged over or dropped at the pointer.
@@ -115,9 +115,12 @@ enum HeldOrder {
 /// winit event has to be placed here.
 fn held_order(event: &WindowEvent) -> HeldOrder {
     match event {
+        // A focus change also clears the modifiers and resets key tracking, so its input part keeps
+        // its place. The window state it carries is applied on arrival by the App.
         WindowEvent::KeyboardInput { .. }
         | WindowEvent::Ime(_)
-        | WindowEvent::ModifiersChanged(_) => HeldOrder::Queue,
+        | WindowEvent::ModifiersChanged(_)
+        | WindowEvent::Focused(_) => HeldOrder::Queue,
         WindowEvent::CursorMoved { .. }
         | WindowEvent::CursorEntered { .. }
         | WindowEvent::CursorLeft { .. }
@@ -138,12 +141,22 @@ fn held_order(event: &WindowEvent) -> HeldOrder {
         | WindowEvent::Moved(_)
         | WindowEvent::CloseRequested
         | WindowEvent::Destroyed
-        | WindowEvent::Focused(_)
         | WindowEvent::AxisMotion { .. }
         | WindowEvent::ScaleFactorChanged { .. }
         | WindowEvent::ThemeChanged(_)
         | WindowEvent::Occluded(_)
         | WindowEvent::RedrawRequested => HeldOrder::Free,
+    }
+}
+
+/// The modifiers a window event leaves for key judgment: a modifier change gives its state, and a
+/// focus loss clears them because a key let go outside the window sends no modifier change. The
+/// window applies it when the event runs, so a held focus loss clears them only in its place.
+pub(crate) fn window_modifiers(event: &WindowEvent) -> Option<ModifiersState> {
+    match event {
+        WindowEvent::ModifiersChanged(m) => Some(m.state()),
+        WindowEvent::Focused(false) => Some(ModifiersState::default()),
+        _ => None,
     }
 }
 

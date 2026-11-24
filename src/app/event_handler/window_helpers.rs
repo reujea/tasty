@@ -13,6 +13,13 @@ impl App {
             tracing::warn!("agent window: clearing the initial focus hint failed: {e}");
         }
 
+        // 포커스 사건의 창 상태 몫은 도착 때 적용한다. 입력 순서 몫(수식키·키 추적 초기화)은 창 입력으로 가서 보류
+        // 뒤에 줄을 선다(`held_order`).
+        if let WindowEvent::Focused(focused) = *event
+            && let Some(main) = self.view.views.get_mut(&id).and_then(|v| v.as_main_mut())
+        {
+            main.note_window_focus(focused);
+        }
         if let WindowEvent::Focused(true) = event {
             self.handle_window_focused(id);
         }

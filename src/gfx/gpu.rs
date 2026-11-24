@@ -365,16 +365,9 @@ impl GpuState {
     ) -> (bool, bool) {
         // egui 는 비-macOS 의 Win·Super 를 모르므로 option 축 판정용으로 따로 남긴다.
         // 포커스를 잃은 채 키를 떼면 ModifiersChanged 가 오지 않을 수 있어 그때 비운다.
-        match event {
-            winit::event::WindowEvent::ModifiersChanged(m) => {
-                tasty_key_match::note_modifiers(&self.egui_ctx, m.state());
-                self.edit_keys.set_modifiers(m.state());
-            }
-            winit::event::WindowEvent::Focused(false) => {
-                tasty_key_match::note_modifiers(&self.egui_ctx, Default::default());
-                self.edit_keys.set_modifiers(Default::default());
-            }
-            _ => {}
+        if let Some(modifiers) = edit_keys::window_modifiers(event) {
+            tasty_key_match::note_modifiers(&self.egui_ctx, modifiers);
+            self.edit_keys.set_modifiers(modifiers);
         }
         self.route_paste_key(event);
         let response = self.egui_state.on_window_event(window, event);
