@@ -549,8 +549,8 @@ pub(super) struct MeshButtonWindow<'a> {
 }
 
 /// 버튼 사건 하나를 mesh 판정([`crate::state::mesh_frames::mesh_button_target`])에 넘기고, 고른 leaf의 입력
-/// 큐(로컬 `local`, 원격 `attach`)에 surface 기준 좌표로 넣는다. 왼쪽 버튼 뗌이면 창의 왼쪽 누름 상태도 끈다.
-/// 사건을 가져갔으면 `true`다.
+/// 큐(로컬 `local`, 원격 `attach`)에 surface 기준 좌표로 넣는다. 창 밖(좌표 없음)에서 보낸 기록된 뗌 뒤에는 같은
+/// leaf에 `PointerGone`을 다시 넣는다. 왼쪽 버튼 뗌이면 창의 왼쪽 누름 상태도 끈다. 사건을 가져갔으면 `true`다.
 pub(super) fn route_mesh_button(
     w: MeshButtonWindow<'_>,
     pass: MeshPass,
@@ -586,9 +586,13 @@ pub(super) fn route_mesh_button(
         pressed,
         modifiers: w.modifiers,
     };
-    match r.side {
-        MeshSide::Local => w.local.entry(r.id).or_default().events.push(event),
-        MeshSide::Attach => w.attach.entry(r.id).or_default().push_event(event),
+    // 창 밖에서 보낸 뗌은 SDK가 그 좌표로 포인터를 안에 둔다. CursorLeft가 보낸 PointerGone을 다시 보낸다.
+    let gone = w.cursor.is_none().then_some(RawInputEventWire::PointerGone);
+    for event in std::iter::once(event).chain(gone) {
+        match r.side {
+            MeshSide::Local => w.local.entry(r.id).or_default().events.push(event),
+            MeshSide::Attach => w.attach.entry(r.id).or_default().push_event(event),
+        }
     }
     true
 }

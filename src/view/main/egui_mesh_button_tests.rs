@@ -72,22 +72,33 @@ impl Window {
             || (!above && self.pass(regions, cursor, MeshPass::Below, event))
     }
 
-    /// `side` leaf `id`의 입력 큐에 든 버튼 사건 (버튼, 누름, 논리 y).
-    pub(super) fn buttons(&self, side: MeshSide, id: u32) -> Vec<(PointerButtonWire, bool, f32)> {
+    /// `side` leaf `id`의 입력 큐에 든 사건 순서. 버튼·이동·떠남 밖의 사건도 [`Seen::Other`]로 남긴다.
+    pub(super) fn events(&self, side: MeshSide, id: u32) -> Vec<Seen> {
         let events: &[RawInputEventWire] = match side {
             MeshSide::Local => self.local.get(&id).map_or(&[], |s| &s.events),
             MeshSide::Attach => self.attach.get(&id).map_or(&[], |s| s.events()),
         };
         events
             .iter()
-            .filter_map(|e| match e {
+            .map(|e| match e {
                 RawInputEventWire::PointerButton {
                     button, pressed, y, ..
-                } => Some((*button, *pressed, *y)),
-                _ => None,
+                } => Seen::Button(*button, *pressed, *y),
+                RawInputEventWire::PointerMoved { x, y } => Seen::Moved(*x, *y),
+                RawInputEventWire::PointerGone => Seen::Gone,
+                _ => Seen::Other,
             })
             .collect()
     }
+}
+
+/// 입력 큐에 든 사건 하나. 버튼은 (버튼, 누름, 논리 y), 이동은 논리 (x, y)다.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum Seen {
+    Button(PointerButtonWire, bool, f32),
+    Moved(f32, f32),
+    Gone,
+    Other,
 }
 
 /// mesh leaf를 오른쪽으로 누른 뒤 분할선 드래그가 시작되고, 위 층이 사건을 가져가는 자리에서 오른쪽을 떼도 뗌은
@@ -105,14 +116,14 @@ fn a_recorded_release_lands_in_the_pressed_leafs_queue() {
                 "{side:?} dragging={dragging} above={above}"
             );
             assert_eq!(
-                w.buttons(side, 1),
+                w.events(side, 1),
                 vec![
-                    (PointerButtonWire::Secondary, true, 10.0),
-                    (PointerButtonWire::Secondary, false, 70.0)
+                    Seen::Button(PointerButtonWire::Secondary, true, 10.0),
+                    Seen::Button(PointerButtonWire::Secondary, false, 70.0)
                 ],
                 "{side:?} dragging={dragging} above={above}"
             );
-            assert!(w.buttons(MeshSide::Local, 3).is_empty());
+            assert!(w.events(MeshSide::Local, 3).is_empty());
             assert_eq!(w.presses, MeshPresses::default(), "record cleared");
         }
     }
@@ -132,10 +143,10 @@ fn unrecorded_events_go_below_and_skip_the_local_mesh_during_a_drag() {
     assert!(!w.button(&regions, Some((5.0, 20.0)), (Left, false), false));
     assert!(w.button(&regions, Some((5.0, 80.0)), (Left, true), false));
     assert_eq!(
-        w.buttons(MeshSide::Attach, 3),
-        vec![(PointerButtonWire::Primary, true, 10.0)]
+        w.events(MeshSide::Attach, 3),
+        vec![Seen::Button(PointerButtonWire::Primary, true, 10.0)]
     );
-    assert!(w.buttons(MeshSide::Local, 1).is_empty());
+    assert!(w.events(MeshSide::Local, 1).is_empty());
 }
 
 /// 누름 기록에 넣는 버튼은 wire로 보낼 수 있는 버튼과 같다.
@@ -174,7 +185,7 @@ fn an_extra_button_does_not_move_the_held_target() {
         (MouseButton::Back, true),
         false,
     );
-    assert!(w.buttons(MeshSide::Attach, 3).is_empty());
+    assert!(w.events(MeshSide::Attach, 3).is_empty());
     for y in [80.0, 20.0] {
         assert_eq!(
             motion_target(&regions, &w.presses, MeshSide::Local, 5.0, y).map(|r| r.id),
@@ -186,7 +197,8 @@ fn an_extra_button_does_not_move_the_held_target() {
 }
 
 /// 누른 뒤 포인터가 창 밖으로 나가 좌표가 비고 뗌이 오면, 기록을 지우고 뗌을 그 leaf가 마지막으로 받은 포인터
-/// 위치로 그 leaf에 보낸다. 누른 뒤 받은 이동이 있으면 그 위치, 없으면 누른 위치다. 로컬과 attach가 같다.
+/// 위치로 그 leaf에 보낸다. 누른 뒤 받은 이동이 있으면 그 위치, 없으면 누른 위치다. 창 밖 뗌의 좌표로 SDK가
+/// 포인터를 안에 두지 않도록 뗌 바로 뒤에 `PointerGone`이 다시 간다. 로컬과 attach가 같다.
 #[test]
 fn a_release_without_a_cursor_reaches_the_pressed_leaf_at_its_last_point() {
     use crate::state::mesh_frames::MeshPress;
@@ -204,10 +216,11 @@ fn a_release_without_a_cursor_reaches_the_pressed_leaf_at_its_last_point() {
             );
             let y = moved.map_or(20.0, |(_, y)| y) - 10.0;
             assert_eq!(
-                w.buttons(side, 1),
+                w.events(side, 1),
                 vec![
-                    (PointerButtonWire::Secondary, true, 10.0),
-                    (PointerButtonWire::Secondary, false, y)
+                    Seen::Button(PointerButtonWire::Secondary, true, 10.0),
+                    Seen::Button(PointerButtonWire::Secondary, false, y),
+                    Seen::Gone
                 ],
                 "{side:?} moved={moved:?}"
             );
@@ -230,7 +243,7 @@ fn a_release_of_a_vanished_leaf_is_consumed() {
             w.button(&after, Some((5.0, 80.0)), (Left, false), false),
             "{side:?} the release is taken"
         );
-        assert!(w.buttons(side, 3).is_empty(), "{side:?} B gets no release");
+        assert!(w.events(side, 3).is_empty(), "{side:?} B gets no release");
         assert_eq!(w.presses, MeshPresses::default(), "{side:?} record cleared");
         assert!(
             !w.left_mouse_down,
