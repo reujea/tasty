@@ -58,6 +58,7 @@ pub(crate) mod window_input_test_support;
 #[path = "popup/window_key_gate_tests.rs"]
 mod window_key_gate_tests;
 pub(crate) mod window_keys;
+pub(crate) mod window_segments;
 pub use arrange::NoticeColumn;
 #[cfg(test)]
 pub(crate) use child_popup_ids::{child_overlay_entry, child_popup_ids};
@@ -924,6 +925,8 @@ pub struct PopupManager {
     /// 이 창의 포커스 위치가 팝업이면 그 노드(`focus.rs`). 창마다 하나다. 없으면 포커스 위치는 팝업이 아니다
     /// (엔진 포커스 surface, html 주소 띠, tutorial 말풍선).
     focus: Option<focus::PopupNode>,
+    /// 별도 창의 몫별 노드와 패스 뒤 egui 포커스 기록(`window_segments.rs`). 메인 창은 쓰지 않는다.
+    window: window_segments::WindowSegments,
 }
 
 impl PopupManager {
@@ -937,6 +940,7 @@ impl PopupManager {
             prepared: None,
             keys: Default::default(),
             focus: None,
+            window: Default::default(),
         }
     }
 
@@ -1530,6 +1534,7 @@ mod tests {
             prepared: None,
             keys: Default::default(),
             focus,
+            window: Default::default(),
         }
     }
 

@@ -18,8 +18,6 @@ pub struct PluginsView {
     pub snapshot: PluginsSnapshot,
     pub pending_actions: Vec<PluginsAction>,
     ui_state: PluginsUiState,
-    /// 직전 `run_egui` 뒤의 egui 포커스 기록. 다음 프레임 키 주인(W1)을 정한다.
-    key_record: crate::adapters::ui::popup::window_keys::WindowFocusRecord,
     shown: bool,
     should_close: bool,
     pub(crate) toasts: ToastManager,
@@ -40,7 +38,6 @@ impl PluginsView {
             snapshot,
             pending_actions: Vec::new(),
             ui_state: PluginsUiState::default(),
-            key_record: Default::default(),
             shown: false,
             should_close: false,
             toasts: ToastManager::new(),
@@ -109,40 +106,31 @@ impl View for PluginsView {
         }
         self.base.begin_frame();
 
-        let raw_input = self.base.gpu.take_egui_input(&self.base.winit);
-        let marks = self.base.gpu.take_window_escape_marks();
-        // 키 주인과 Esc 표지는 입력을 열기 전에 한 번 정해 다시 그리는 패스에도 같은 값을 넣는다.
-        let pass_keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
-            owner: self
-                .ui_state
-                .folder_chooser
-                .key_owner(&self.base.gpu.egui_ctx, self.key_record),
-            marks,
-        };
         let snapshot = &self.snapshot;
-        let ui_state = &mut self.ui_state;
         let actions = &mut self.pending_actions;
         let toasts = &mut self.toasts;
 
-        let full_output = self.base.gpu.run_egui(raw_input, |ctx| {
-            plugins_ui::draw_plugins_panel(ctx, snapshot, ui_state, actions, &pass_keys);
+        let window = &self.base.winit;
+        let ui_state = &mut self.ui_state;
+        let full_output = self
+            .base
+            .gpu
+            .run_window_pass(window, ui_state, |ctx, pass| {
+                plugins_ui::draw_plugins_panel(ctx, snapshot, pass.state, actions, &pass.keys);
 
-            let empty_layout = LayoutContext {
-                active_workspace: 0,
-                active_workspace_id: 0,
-                pane_rects: Vec::new(),
-                surface_rects: Vec::new(),
-                active_tabs: Vec::new(),
-                active_tab_ids: Vec::new(),
-                workspace_rect: None,
-                surface_owners: Vec::new(),
-                tab_content_rects: Vec::new(),
-            };
-            toasts.draw(ctx, &empty_layout, false);
-        });
-        self.key_record = crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(
-            &self.base.gpu.egui_ctx,
-        );
+                let empty_layout = LayoutContext {
+                    active_workspace: 0,
+                    active_workspace_id: 0,
+                    pane_rects: Vec::new(),
+                    surface_rects: Vec::new(),
+                    active_tabs: Vec::new(),
+                    active_tab_ids: Vec::new(),
+                    workspace_rect: None,
+                    surface_owners: Vec::new(),
+                    tab_content_rects: Vec::new(),
+                };
+                toasts.draw(ctx, &empty_layout, false);
+            });
 
         self.base.finish_egui_frame(full_output);
         if crate::clipboard::copy::copy_egui_text(
@@ -189,7 +177,25 @@ impl PluginsView {
         // request_redraw → RedrawRequested 무한 루프(busy-loop)가 된다. 렌더는
         // 아래 RedrawRequested arm 이 담당하므로 egui input 으로 넘기지 않는다.
         let to_egui = !matches!(&event, WindowEvent::RedrawRequested);
-        crate::view::judged_window_event(self, event, judged, to_egui, Self::own_event)
+        crate::view::judged_window_event(
+            self,
+            event,
+            judged,
+            to_egui,
+            Self::own_event,
+            Self::window_input,
+        )
+    }
+
+    /// 끊기와 결속에 쓰는 GPU 와 관리자(`judged_window_event`).
+    fn window_input(
+        &mut self,
+    ) -> Option<(
+        &mut crate::gpu::GpuState,
+        &mut crate::adapters::ui::popup::PopupManager,
+    )> {
+        use crate::view::window_input::WindowPopups;
+        Some((&mut self.base.gpu, self.ui_state.window_popups()))
     }
 
     /// 편집 키 판정과 egui를 지난 이벤트의 창 자체 처리.

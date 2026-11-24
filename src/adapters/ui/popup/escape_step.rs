@@ -6,20 +6,20 @@
 //! 창이 포커스를 풀지 않고 넘기며, 쓰지 않았으면 선언과 무관하게 그 Esc 에 묶인 인스턴스를 다시 접는다(닫지 않는다).
 //!
 //! 별도 창에는 창의 Esc 판정이 없다. 그 창이 egui 에 적재한 Esc 누름마다 사건 시점 수식키를 표지로 남기고(`Gpu`),
-//! 창 `render` 가 W1 키 주인과 함께 패스마다 관리자에 넣는다(`WindowPassKeys`). 그 패스 사건은 "W1 키 주인이 있고 표지
-//! 수식키가 없는 Esc 누름이 있다" 이다.
+//! 공용 패스가 그 몫의 표지를 W1 노드와 함께 관리자를 그리는 함수에 넘긴다(`WindowPassKeys`). 그 패스 사건은 "그 패스
+//! 키 주인이 있고 표지 수식키가 없는 Esc 누름이 있다" 이다.
 
 use super::body_keys::{EscapeMarks, is_escape_press};
 use super::keys::{BasicKey, ConsumedKey};
 use super::{PopupAction, PopupCloseReason, PopupEscape, PopupInstanceId, PopupManager};
 
-/// 별도 창이 이번 프레임 패스마다 그 관리자에 넣는 키 값. `render` 가 `run_egui` 전에 한 번 정하고 다시 그리는 패스에도
-/// 같은 값을 넣는다.
+/// 별도 창이 이번 egui 패스마다 그 관리자에 넣는 키 값. 공용 패스(`view::window_input::WindowPass`)가 `run` 전에 한 번
+/// 정하고 다시 그리는 패스에도 같은 값을 넣는다.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct WindowPassKeys {
-    /// W1 키 주인(`PopupManager::window_key_owner`). 없으면 그 창 팝업은 키를 받지 않는다.
+    /// 결속이 없는 몫의 키 주인: `run` 시작 때 노드(`PopupManager::window_key_node`)의 인스턴스.
     pub(crate) owner: Option<PopupInstanceId>,
-    /// 이번 입력 묶음이 egui 에 적재한 Esc 누름마다 사건 시점 수식키(`Gpu::take_window_escape_marks`).
+    /// 이번 패스 몫이 egui 에 적재한 Esc 누름마다 사건 시점 수식키(`Gpu::take_window_escape_marks`).
     pub(crate) marks: Vec<tasty_key_match::KeyMods>,
 }
 
@@ -58,6 +58,23 @@ pub(crate) fn pair_window_marks(
             events: presses,
         }
     }
+}
+
+/// 별도 창 표지를 이번 패스 몫(`raw`)과 뒤 몫으로 나눈다. 끊은 자리에서 나눈 패스(`split`)면 `raw` 의 Esc 누름 수만큼이
+/// 이번 패스 것이고 나머지는 `loaded` 에 남아 뒤 몫이 받는다. 나누지 않은 패스는 모두 이번 패스 것이다.
+pub(crate) fn split_pass_marks(
+    loaded: &mut Vec<tasty_key_match::KeyMods>,
+    raw: &[egui::Event],
+    split: bool,
+) -> Vec<tasty_key_match::KeyMods> {
+    let pass = if split {
+        let presses = raw.iter().filter(|e| is_escape_press(e)).count();
+        presses.min(loaded.len())
+    } else {
+        loaded.len()
+    };
+    let later = loaded.split_off(pass);
+    std::mem::replace(loaded, later)
 }
 
 /// 본문이 이 패스 Esc 를 썼는지((a)(b)(c)).
@@ -112,10 +129,15 @@ impl PopupManager {
         self.host_key_owner().map(|p| (p.instance, p.escape))
     }
 
-    /// 별도 창이 이번 패스 키 값을 넣는다. 관리자를 그리는 함수가 팝업을 그리기 전에 패스마다 부른다. W1 키 주인을 그
-    /// 패스 키 주인으로 정하고, 표지를 그 패스 입력에 맞춰 둔다. 수가 다르면 경고를 남기고 표지를 붙이지 않는다.
-    pub(crate) fn put_window_pass_keys(&mut self, ctx: &egui::Context, keys: &WindowPassKeys) {
-        self.decide_frame_keys_for(keys.owner);
+    /// 별도 창이 이번 패스 키 값을 넣는다. 관리자를 그리는 함수가 팝업을 그리기 전에 패스마다 부른다. 그 몫의 결속이
+    /// 있으면 그것을, 없으면 W1 노드를 그 패스 키 주인으로 정하고(`decide_window_frame_keys`), 표지를 그 패스 입력에
+    /// 맞춰 둔다. 수가 다르면 경고를 남기고 표지를 붙이지 않는다. 창 위젯이 이 패스 키를 받으면(키 주인 없음) 참이다.
+    pub(crate) fn put_window_pass_keys(
+        &mut self,
+        ctx: &egui::Context,
+        keys: &WindowPassKeys,
+    ) -> bool {
+        let frame = self.decide_window_frame_keys(ctx, keys.owner);
         let (pairing, presses) = ctx.input(|i| {
             (
                 pair_window_marks(&keys.marks, &i.raw.events, &i.events),
@@ -136,6 +158,7 @@ impl PopupManager {
             }
         };
         self.keys.window_escape = Some(marks);
+        !frame.held()
     }
 
     /// 별도 창이 이번 패스에 넣은 표지. 넣지 않은 관리자(메인 창)는 `None` 이다.

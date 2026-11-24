@@ -478,15 +478,6 @@ impl SettingsUiState {
         }
     }
 
-    /// 설정 창의 키 주인(W1). `record`는 직전 `run_egui` 뒤의 포커스 기록이다. `render`가 `run_egui` 전에 한 번 정한다.
-    pub(crate) fn window_key_owner(
-        &self,
-        ctx: &egui::Context,
-        record: crate::adapters::ui::popup::window_keys::WindowFocusRecord,
-    ) -> Option<crate::adapters::ui::popup::PopupInstanceId> {
-        self.popups.window_key_owner(ctx, record)
-    }
-
     /// 설정 창 안에서 로컬 파일 선택 popup 을 연다. 결과는 `consumer` 키로
     /// `file_chooser.take_outcome` 해 가져간다. 이미 열려 있던 선택은 취소로 끝난다.
     ///
@@ -564,6 +555,12 @@ impl SettingsUiState {
 
     pub fn take_import_export_toast(&mut self) -> Option<String> {
         self.import_export.take_toast()
+    }
+}
+
+impl crate::view::window_input::WindowPopups for SettingsUiState {
+    fn window_popups(&mut self) -> &mut PopupManager {
+        &mut self.popups
     }
 }
 
@@ -645,8 +642,8 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
         file_handler,
         pass_keys,
     } = panel;
-    // 팝업을 그리기 전에 패스마다 이번 프레임 키 값을 관리자에 넣는다.
-    ui_state.popups.put_window_pass_keys(ctx, pass_keys);
+    // 팝업을 그리기 전에 패스마다 이번 패스 키 값을 관리자에 넣는다. 창 위젯 차단도 그 몫의 같은 결과를 읽는다.
+    let window_takes_keys = ui_state.popups.put_window_pass_keys(ctx, pass_keys);
     if ui_state.draft.is_none() {
         ui_state.draft = Some(settings.clone());
         // 새 오픈마다 Scripts 관리 창 상호작용 상태·changed 캐시 리셋(다음 draw 에서
@@ -672,8 +669,7 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
     let mut l1_sep = sep;
     l1_sep.color = th.separator.to_egui_premultiplied();
 
-    // 팝업이 키 주인(W1)이면 앞에 그리는 창 위젯은 그 키를 보지 않는다. 키는 팝업 그리기 전에 돌려놓는다.
-    let window_takes_keys = pass_keys.owner.is_none();
+    // 팝업이 이 패스 키 주인이면 앞에 그리는 창 위젯은 그 키를 보지 않는다. 키는 팝업 그리기 전에 돌려놓는다.
     crate::adapters::ui::popup::body_keys::with_body_keys(ctx, window_takes_keys, || {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(th.bg_panel().to_egui()))

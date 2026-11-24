@@ -167,21 +167,26 @@ impl GpuState {
         self.take_pass_input(window, false)
     }
 
-    /// `take_egui_input` 과 같다. `main_pass` 면 끊은 자리부터는 그다음 패스 몫으로 남긴다. 끊은 자리마다 메인 창
-    /// 상태의 입력 몫·누름 스냅샷이 하나씩 쌓이므로, 나누기는 그것을 함께 꺼내는 `run_main_pass` 만 한다.
+    /// `take_egui_input` 과 같다. `main_pass` 면 끊은 자리부터는 그다음 패스 몫으로 남긴다. 끊은 자리마다 창 상태의
+    /// 입력 몫이 하나씩 쌓이므로, 나누기는 그것을 함께 꺼내는 공용 패스(`run_main_pass`·`run_window_pass`)만 한다.
     pub(super) fn take_pass_input(&mut self, window: &Window, main_pass: bool) -> egui::RawInput {
         self.edit_keys_before_input(window);
         let mut raw_input = self.egui_state.take_egui_input(window);
-        if main_pass
+        let split = main_pass
             && self.egui_input_cuts.split_pass(
                 &mut raw_input.events,
                 &mut self.egui_state.egui_input_mut().events,
-            )
-        {
+            );
+        if split {
             self.egui_ctx.request_repaint();
         }
         self.edit_keys.input_taken(&raw_input.events);
-        self.pass_escape_marks = std::mem::take(&mut self.loaded_escape_marks);
+        // Esc 표지도 원시 사건과 같이 몫별로 나눈다.
+        self.pass_escape_marks = crate::adapters::ui::popup::escape_step::split_pass_marks(
+            &mut self.loaded_escape_marks,
+            &raw_input.events,
+            split,
+        );
         let focused = self.focus_tag();
         if self.plugin_paste_target.is_some()
             && self
@@ -199,8 +204,8 @@ impl GpuState {
         raw_input
     }
 
-    /// 마지막으로 꺼낸 입력이 적재한 Esc 누름마다 사건 시점 수식키. 관리자가 있는 별도 창 `render` 가 입력을 꺼낸 바로
-    /// 뒤 부른다.
+    /// 마지막으로 꺼낸 입력이 적재한 Esc 누름마다 사건 시점 수식키. 별도 창 공용 패스(`run_window_pass`)가 입력을 꺼낸
+    /// 뒤 `run` 전에 부른다.
     pub fn take_window_escape_marks(&mut self) -> Vec<tasty_key_match::KeyMods> {
         std::mem::take(&mut self.pass_escape_marks)
     }

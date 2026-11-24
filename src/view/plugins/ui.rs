@@ -239,6 +239,12 @@ impl AddTrustState {
     }
 }
 
+impl crate::view::window_input::WindowPopups for PluginsUiState {
+    fn window_popups(&mut self) -> &mut crate::adapters::ui::popup::PopupManager {
+        self.folder_chooser.window_popups()
+    }
+}
+
 /// 모달 자체 상태 (탭, 선택, 검색 입력 등).
 #[derive(Debug, Default)]
 pub struct PluginsUiState {
@@ -344,8 +350,8 @@ pub fn draw_plugins_panel(
     // 예약 id 폴더를 지우는 중에는 취소 경로가 없으므로 그 확인으로는 Esc 를 소비하지 않는다.
     let remove_cancellable =
         ui_state.confirm_remove_folder.is_some() && ui_state.removing_folder.is_none();
-    // 폴더 선택 창이 키 주인(W1)이면 Esc 는 그 창 것이다.
-    let window_takes_keys = keys.owner.is_none();
+    // 폴더 선택 창이 이 패스 키 주인이면 Esc 는 그 창 것이다.
+    let window_takes_keys = ui_state.folder_chooser.window_takes_keys(ctx, keys);
     if window_takes_keys
         && (ui_state.confirm_uninstall_id.is_some() || remove_cancellable)
         && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))

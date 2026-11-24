@@ -16,6 +16,7 @@ pub(crate) mod settings;
 pub(crate) mod state;
 pub(crate) mod sync_hold;
 pub(crate) mod ui;
+pub(crate) mod window_input;
 
 pub(crate) use base::ViewBase;
 pub(crate) use judged_event::judged_window_event;

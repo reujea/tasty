@@ -19,6 +19,7 @@ mod screenshot;
 mod shell_setup;
 mod surface_lifecycle;
 pub(crate) mod text_selection;
+mod window_pass;
 
 use crate::runtime::engine_read::EngineRead;
 #[cfg(test)]

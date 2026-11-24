@@ -164,7 +164,7 @@ impl QuitView {
         // request_redraw → RedrawRequested 무한 루프(busy-loop)가 된다. 렌더는
         // 아래 RedrawRequested arm 이 담당하므로 egui input 으로 넘기지 않는다.
         let to_egui = !matches!(&event, WindowEvent::RedrawRequested);
-        crate::view::judged_window_event(self, event, judged, to_egui, Self::own_event)
+        crate::view::judged_window_event(self, event, judged, to_egui, Self::own_event, |_| None)
     }
 
     /// 편집 키 판정과 egui를 지난 이벤트의 창 자체 처리.

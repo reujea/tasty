@@ -23,8 +23,6 @@ pub struct SettingsView {
     pub base: ViewBase,
     pub settings: Settings,
     settings_ui_state: SettingsUiState,
-    /// 직전 `run_egui` 뒤의 egui 포커스 기록. 다음 프레임 키 주인(W1)을 정한다.
-    key_record: crate::adapters::ui::popup::window_keys::WindowFocusRecord,
     /// `FileHandler` 탭의 Extension Mapping sub-tab 에서 사용. Save 시 user TOML 에 직접 저장.
     file_format: FileFormatRegistry,
     /// 같은 사용자 TOML의 handler 섹션을 함께 내보내 저장 시 보존한다.
@@ -85,7 +83,6 @@ impl SettingsView {
             opened_settings: settings.clone(),
             settings,
             settings_ui_state: SettingsUiState::new(),
-            key_record: Default::default(),
             file_format,
             file_handler,
             shown: false,
@@ -244,18 +241,8 @@ impl View for SettingsView {
         }
         self.base.begin_frame();
 
-        let raw_input = self.base.gpu.take_egui_input(&self.base.winit);
-        let marks = self.base.gpu.take_window_escape_marks();
-        // 키 주인과 Esc 표지는 입력을 열기 전에 한 번 정해 다시 그리는 패스에도 같은 값을 넣는다.
-        let pass_keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
-            owner: self
-                .settings_ui_state
-                .window_key_owner(&self.base.gpu.egui_ctx, self.key_record),
-            marks,
-        };
         let mut settings = self.settings.clone();
         let reduced_motion = settings.accessibility.reduced_motion;
-        let ui_state = &mut self.settings_ui_state;
         let captured_dt = &mut self.captured_double_tap;
         let toasts = &mut self.toasts;
         let mut action: Option<bool> = None;
@@ -272,44 +259,45 @@ impl View for SettingsView {
         // 이유: 제목 줄을 그리는 곳이 Linux뿐이라 다른 OS에서는 값이 바뀌지 않는다.
         #[cfg_attr(not(target_os = "linux"), allow(unused_mut))]
         let mut titlebar_close = false;
-        // 팝업이 키 주인이면 제목 줄도 본문처럼 키를 보지 않는다(`draw_settings_panel`의 `with_body_keys`).
-        #[cfg(target_os = "linux")]
-        let titlebar_keys = pass_keys.owner.is_none();
-        let full_output = self.base.gpu.run_egui(raw_input, |ctx| {
-            #[cfg(target_os = "linux")]
-            {
-                titlebar_close |= chrome.draw_titlebar(ctx, &winit, size, titlebar_keys);
-            }
-            action = settings_ui::draw_settings_panel(
-                ctx,
-                settings_ui::SettingsPanelCtx {
-                    settings: &mut settings,
-                    ui_state,
-                    captured_double_tap: captured_dt,
-                    file_format: &file_format,
-                    file_handler: &file_handler,
-                    pass_keys: &pass_keys,
-                },
-            );
+        let window = &self.base.winit;
+        let ui_state = &mut self.settings_ui_state;
+        let full_output = self
+            .base
+            .gpu
+            .run_window_pass(window, ui_state, |ctx, pass| {
+                // 팝업이 키 주인이면 제목 줄도 본문처럼 키를 보지 않는다(`draw_settings_panel`의 `with_body_keys`).
+                #[cfg(target_os = "linux")]
+                {
+                    let titlebar_keys = pass.keys.owner.is_none();
+                    titlebar_close |= chrome.draw_titlebar(ctx, &winit, size, titlebar_keys);
+                }
+                action = settings_ui::draw_settings_panel(
+                    ctx,
+                    settings_ui::SettingsPanelCtx {
+                        settings: &mut settings,
+                        ui_state: pass.state,
+                        captured_double_tap: captured_dt,
+                        file_format: &file_format,
+                        file_handler: &file_handler,
+                        pass_keys: &pass.keys,
+                    },
+                );
 
-            let empty_layout = LayoutContext {
-                active_workspace: 0,
-                active_workspace_id: 0,
-                pane_rects: Vec::new(),
-                surface_rects: Vec::new(),
-                active_tabs: Vec::new(),
-                active_tab_ids: Vec::new(),
-                workspace_rect: None,
-                surface_owners: Vec::new(),
-                tab_content_rects: Vec::new(),
-            };
-            toasts.draw(ctx, &empty_layout, reduced_motion);
-            #[cfg(target_os = "linux")]
-            chrome.finish_pass(ctx, &winit, size);
-        });
-        self.key_record = crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(
-            &self.base.gpu.egui_ctx,
-        );
+                let empty_layout = LayoutContext {
+                    active_workspace: 0,
+                    active_workspace_id: 0,
+                    pane_rects: Vec::new(),
+                    surface_rects: Vec::new(),
+                    active_tabs: Vec::new(),
+                    active_tab_ids: Vec::new(),
+                    workspace_rect: None,
+                    surface_owners: Vec::new(),
+                    tab_content_rects: Vec::new(),
+                };
+                toasts.draw(ctx, &empty_layout, reduced_motion);
+                #[cfg(target_os = "linux")]
+                chrome.finish_pass(ctx, &winit, size);
+            });
 
         self.settings_ui_state.invalidate_edited_export();
         self.settings = settings;
@@ -420,7 +408,19 @@ impl SettingsView {
             judged,
             !skip_egui && !is_redraw,
             Self::own_event,
+            Self::window_input,
         )
+    }
+
+    /// 끊기와 결속에 쓰는 GPU 와 관리자(`judged_window_event`).
+    fn window_input(
+        &mut self,
+    ) -> Option<(
+        &mut crate::gpu::GpuState,
+        &mut crate::adapters::ui::popup::PopupManager,
+    )> {
+        use crate::view::window_input::WindowPopups;
+        Some((&mut self.base.gpu, self.settings_ui_state.window_popups()))
     }
 
     /// 편집 키 판정과 egui를 지난 이벤트의 창 자체 처리.

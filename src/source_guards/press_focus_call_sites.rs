@@ -170,8 +170,8 @@ fn a_debug_pointer_press_moves_the_focus_node_through_the_press_snapshot() {
     );
 }
 
-/// 메인 창의 egui 패스(일반 프레임과 전체 화면 무대)는 모두 `run_main_pass` 하나로 열고 닫는다. 그 함수만 끊은 자리로
-/// 입력을 나누고, 같은 자리에서 입력 몫과 누름 스냅샷을 꺼낸다. 패스 하나 = 끊은 자리 하나 = 몫 하나가 깨지지 않게
+/// 메인 창의 egui 패스(일반 프레임과 전체 화면 무대)는 모두 `run_main_pass` 하나로, 별도 창 패스는 `run_window_pass`
+/// 하나로 열고 닫는다. 두 함수만 끊은 자리로 입력을 나누고, 같은 자리에서 입력 몫과 누름 스냅샷을 꺼낸다. 패스 하나 = 끊은 자리 하나 = 몫 하나가 깨지지 않게
 /// 호출부와 나누는 자리를 고정한다. 몫을 함께 꺼내는 동작은 `press_cut_tests` 의 무대 장면 시험이 잰다.
 #[test]
 fn every_main_window_pass_opens_and_closes_through_one_function() {
@@ -200,6 +200,20 @@ fn every_main_window_pass_opens_and_closes_through_one_function() {
         concat!("{self.gpu.take_pass_input", "(self.window,true)}"),
         "나눈 입력 꺼내기"
     );
+    // 별도 창 패스(설정·플러그인·프리셋)도 같은 순서 함수로 열고 같은 나누기로 입력을 꺼낸다.
+    let window = read("src/gfx/gpu/window_pass.rs");
+    let pass = squeeze(&fn_body(&window, "fn run_window_pass<").expect("run_window_pass"));
+    at(
+        &pass,
+        "run_input_pass(&mutWindowHost{gpu:self,window},&mutpass,|_|{},ui)",
+        "별도 창 공유 패스 순서",
+    );
+    let take = squeeze(&impl_fn(&window, "for WindowHost<'_>", "fn take_input("));
+    assert_eq!(
+        take,
+        concat!("{self.gpu.take_pass_input", "(self.window,true)}"),
+        "별도 창 나눈 입력 꺼내기"
+    );
     let mut splitting = Vec::new();
     for (path, text) in super::rust_sources() {
         let code = squeeze(&strip_comments(&text));
@@ -214,8 +228,10 @@ fn every_main_window_pass_opens_and_closes_through_one_function() {
     }
     let allowed = [
         "src/gfx/gpu/egui_bridge.rs",
+        "src/gfx/gpu/window_pass.rs",
         "src/gfx/gpu/text_selection.rs",
         "src/adapters/ui/popup/window_input_test_support.rs",
+        "src/view/window_input_tests.rs",
     ];
     assert!(
         splitting

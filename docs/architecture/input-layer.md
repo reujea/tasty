@@ -255,8 +255,8 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 
 키보드 입력은 좌표가 아니라 창의 포커스 노드에서 시작한다. 키 하나는 포커스 노드에서 engine 쪽으로 오르는
 노드 목록(키 경로)을 따라가고, 그 키를 처음 쓰는 노드가 받는다. 팝업이 쓰지 않는 키는 그 팝업이 붙은 노드와
-그 위 level의 단축키로 올라간다. 메인 창에 적용하고, 설정·plugins·preset·quit 같은 별도 창은 지금 그 창의
-입구(`judged_window_event`)대로 처리한다.
+그 위 level의 단축키로 올라간다. 메인 창에 적용하고, 설정·plugins·preset·quit 같은 별도 창은 그 창의
+입구(`judged_window_event`)와 [별도 창 입력 패스](#별도-창-입력-패스)대로 처리한다.
 
 ### 키 사건 순서
 
@@ -270,6 +270,15 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 `run_key_event`(`src/view/key_event.rs`)와 메인 창 단계 구현 `MainKeySteps`(`src/view/main/key_event_steps.rs`)이고
 `source_guards::edit_key_judgment_order`·`press_focus_call_sites`가 고정한다. egui 적재는 `MainViewState::window_feeds_key`,
 터미널로 보낼지는 `MainViewState::window_key_holds_terminal`이 정한다. vi 복사 모드는 지금 자리 그대로다.
+
+### 별도 창 입력 패스
+
+설정·plugins·preset 창의 키 사건 노드는 팝업 인스턴스 하나이거나 창 위젯이다. 노드를 정하는 함수는
+`PopupManager::window_key_node`(`src/adapters/ui/popup/window_segments.rs`) 하나다. 누름·키 사건은 egui 입력에 들어가기 전에
+그 노드로 입력을 끊고 누름은 그 자리에서 포커스를 옮긴다(`view::window_input::settle_window_input`, 끊는 조건은 메인 창과 같은
+`PopupManager::cut_key_frame`). egui 에 실은 키의 몫은 그 노드로 묶인다(`bind_window_key`). 패스는 메인 창과 같은 순서
+함수로 열고 닫으며(`GpuState::run_window_pass`), 그리기 입구(`put_window_pass_keys`)와 창 위젯 차단이 그 몫의 결속을 함께
+읽는다. quit 창은 팝업 관리자가 없어 노드가 창 위젯 하나다.
 
 ### 경로 키
 

@@ -256,7 +256,8 @@ fn keys_input(events: Vec<egui::Event>) -> egui::RawInput {
 
 /// 직전 패스 뒤 포커스 기록으로 정한 이 창의 W1 값.
 fn next_owner(ctx: &egui::Context, st: &SettingsUiState) -> Option<PopupInstanceId> {
-    st.window_key_owner(ctx, WindowFocusRecord::read(ctx))
+    st.popups
+        .window_key_owner(ctx, WindowFocusRecord::read(ctx))
 }
 
 /// 설정 창 `render`처럼 W1 값과 이번 입력의 Esc 표지(모두 수식키 없음)를 `run` 전에 정하고, 패스마다 `draw`에

@@ -209,9 +209,9 @@ fn window_escape_marks_follow_the_egui_load() {
     }
 }
 
-/// 별도 창 키 값(W1 주인과 Esc 표지)은 관리자를 그리는 함수가 팝업을 그리기 전에 패스마다 넣는다. 창 `render` 는
-/// `run_egui` 전에 표지를 꺼내기만 하고 넣지 않는다. 소스 자리와 순서만 본다. 그리기 함수 안에서 조건을 걸어 첫 패스에만
-/// 넣는 잘못은 잡지 못한다.
+/// 별도 창 키 값(결속 없는 몫의 노드와 그 몫의 Esc 표지)은 관리자를 그리는 함수가 팝업을 그리기 전에 패스마다 넣는다.
+/// 창 `render` 는 공용 패스(`run_window_pass`)로만 패스를 열고 입력·표지를 직접 꺼내지 않는다. 공용 패스 주체가 `run`
+/// 전에 표지를 꺼낸다. 소스 자리와 순서만 본다. 그리기 함수 안에서 조건을 걸어 첫 패스에만 넣는 잘못은 잡지 못한다.
 #[test]
 fn window_pass_keys_are_put_in_every_pass() {
     const PUT: &str = "put_window_pass_keys(";
@@ -228,12 +228,23 @@ fn window_pass_keys_are_put_in_every_pass() {
         "src/view/plugins.rs",
     ] {
         let body = body(rel, "fn render(");
-        for put in [PUT, "decide_frame_keys_for("] {
+        for put in [
+            PUT,
+            "take_egui_input(",
+            "take_window_escape_marks(",
+            "run_egui(",
+        ] {
             assert!(
                 !body.contains(put),
-                "{rel}: `render` 가 `{put}` 를 부른다. 넣기는 관리자를 그리는 함수가 패스마다 한다."
+                "{rel}: `render` 가 `{put}` 를 부른다. 패스는 공용 패스가 열고 넣기는 관리자를 그리는 함수가 한다."
             );
         }
-        assert_before(&body, "take_window_escape_marks(", "run_egui(", rel);
+        assert!(
+            body.contains("run_window_pass("),
+            "{rel}: `render` 가 공용 패스로 패스를 열지 않는다."
+        );
     }
+    let host = "src/gfx/gpu/window_pass.rs";
+    let run = body(host, "fn run(");
+    assert_before(&run, "take_window_escape_marks(", ".run(raw_input", host);
 }

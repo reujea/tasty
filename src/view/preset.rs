@@ -46,8 +46,6 @@ pub struct PresetView {
     /// 열려 있는 surface 설정 화면(대상 leaf + draft). `None` 이면 미리보기가 보인다.
     surface_cfg: Option<SurfaceCfg>,
     file_chooser: crate::view::file_chooser::WindowFileChooser,
-    /// 직전 `run_egui` 뒤의 egui 포커스 기록. 다음 프레임 키 주인(W1)을 정한다.
-    key_record: crate::adapters::ui::popup::window_keys::WindowFocusRecord,
     pending_browse: Option<crate::adapters::ui::preset::surface_settings::FieldBrowseRequest>,
     pub(crate) toasts: ToastManager,
     /// This window's clipboard: egui widget copies go through the copy door with it.
@@ -89,7 +87,6 @@ impl PresetView {
             selected_node: None,
             surface_cfg: None,
             file_chooser: Default::default(),
-            key_record: Default::default(),
             pending_browse: None,
             toasts: ToastManager::new(),
             pending_presentation: None,
@@ -236,8 +233,6 @@ impl View for PresetView {
         }
         self.base.begin_frame();
 
-        let raw_input = self.base.gpu.take_egui_input(&self.base.winit);
-        let marks = self.base.gpu.take_window_escape_marks();
         let drafts = &mut self.drafts;
         if !drafts.is_pending() {
             self.pending_presentation = Some(PendingPresentation {
@@ -258,13 +253,6 @@ impl View for PresetView {
             .as_ref()
             .map(KindCatalog::from_registry)
             .unwrap_or_default();
-        // 키 주인과 Esc 표지는 입력을 열기 전에 한 번 정해 다시 그리는 패스에도 같은 값을 넣는다.
-        let pass_keys = crate::adapters::ui::popup::escape_step::WindowPassKeys {
-            owner: self
-                .file_chooser
-                .key_owner(&self.base.gpu.egui_ctx, self.key_record),
-            marks,
-        };
         let active_kind = &mut self.active_kind;
         let sel_ws = &mut self.selected_workspace;
         let sel_tab = &mut self.selected_tab;
@@ -272,15 +260,17 @@ impl View for PresetView {
         let editing = &mut self.editing;
         let selected_node = &mut self.selected_node;
         let surface_cfg = &mut self.surface_cfg;
-        let chooser = &mut self.file_chooser;
         let pending_browse = &mut self.pending_browse;
         let toasts = &mut self.toasts;
         let keybindings = &self.keybindings;
 
-        let full_output = self.base.gpu.run_egui(raw_input, |ctx| {
+        let window = &self.base.winit;
+        let chooser = &mut self.file_chooser;
+        let full_output = self.base.gpu.run_window_pass(window, chooser, |ctx, pass| {
+            let chooser = &mut *pass.state;
             reconcile_browse(surface_cfg, chooser, pending_browse, &catalog);
-            // 파일 선택 창이 키 주인이면 앞에 그리는 창 위젯은 그 키를 보지 않는다.
-            let window_takes_keys = pass_keys.owner.is_none();
+            // 파일 선택 창이 이 패스 키 주인이면 앞에 그리는 창 위젯은 그 키를 보지 않는다.
+            let window_takes_keys = chooser.window_takes_keys(ctx, &pass.keys);
             crate::adapters::ui::popup::body_keys::with_body_keys(ctx, window_takes_keys, || {
                 crate::preset_ui::draw_preset_panel(
                     ctx,
@@ -304,7 +294,7 @@ impl View for PresetView {
             {
                 *pending_browse = Some(request);
             }
-            chooser.draw(ctx, &pass_keys);
+            chooser.draw(ctx, &pass.keys);
             if let Some(outcome) = chooser.take_outcome("preset.field")
                 && let (Some(request), Some(cfg), Some(path)) = (
                     pending_browse.take(),
@@ -328,9 +318,6 @@ impl View for PresetView {
             };
             toasts.draw(ctx, &empty_layout, false);
         });
-        self.key_record = crate::adapters::ui::popup::window_keys::WindowFocusRecord::read(
-            &self.base.gpu.egui_ctx,
-        );
 
         if let Some(previous) = &mut self.pending_presentation {
             previous.toolbar.retain_input(&self.base.gpu.egui_ctx);
@@ -391,7 +378,25 @@ impl PresetView {
         // request_redraw → RedrawRequested 무한 루프(busy-loop)가 된다. 렌더는
         // 아래 RedrawRequested arm 이 담당하므로 egui input 으로 넘기지 않는다.
         let to_egui = !matches!(&event, WindowEvent::RedrawRequested);
-        crate::view::judged_window_event(self, event, judged, to_egui, Self::own_event)
+        crate::view::judged_window_event(
+            self,
+            event,
+            judged,
+            to_egui,
+            Self::own_event,
+            Self::window_input,
+        )
+    }
+
+    /// 끊기와 결속에 쓰는 GPU 와 관리자(`judged_window_event`).
+    fn window_input(
+        &mut self,
+    ) -> Option<(
+        &mut crate::gpu::GpuState,
+        &mut crate::adapters::ui::popup::PopupManager,
+    )> {
+        use crate::view::window_input::WindowPopups;
+        Some((&mut self.base.gpu, self.file_chooser.window_popups()))
     }
 
     /// 편집 키 판정과 egui를 지난 이벤트의 창 자체 처리.

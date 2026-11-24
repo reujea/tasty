@@ -106,6 +106,8 @@ pub(crate) struct KeySlots {
     pass_escape_released: bool,
     /// 별도 창이 이번 패스에 넣은 Esc 표지(`PopupManager::put_window_pass_keys`). 그리기가 꺼낸다.
     pub(super) window_escape: Option<super::body_keys::EscapeMarks>,
+    /// 별도 창이 이번 `run` 에 정한 키 주인과 그 `run` 번호(`decide_window_frame_keys`).
+    window_frame: Option<(u64, FrameKeys)>,
 }
 
 impl PopupManager {
@@ -303,16 +305,36 @@ impl PopupManager {
         keys
     }
 
-    /// 별도 창이 정한 이번 패스 키 주인(W1)을 받은 그대로 남긴다. 다시 읽지 않는다. 별도 창에는 묶인 값이 없으므로
-    /// 패스 몫은 꺼내 버린다. 다시 그리는 패스마다 창이 같은 값으로 다시 부른다.
-    pub(crate) fn decide_frame_keys_for(&mut self, host: Option<PopupInstanceId>) {
-        drop(self.take_pass_segment());
-        self.keys.frame_escape = HandedEscape::default();
-        self.keys.frame = Some(FrameKeys {
-            owner: host.map(|_| PopupKeyOwner::Host),
-            host,
-            bound: false,
-        });
+    /// 별도 창 키 사건이 실린 몫의 결속을 그 사건 시점 노드로 적는다. `node` 가 없으면 팝업이 아닌 노드(창 위젯)다.
+    /// 그 몫에 먼저 묶인 값이 있으면 그대로 둔다.
+    pub(crate) fn bind_window_key_node(&mut self, node: Option<PopupNode>) {
+        let bound = node.map_or(Bound::NoPopup, Bound::Popup);
+        match self.keys.after_cut.back_mut() {
+            Some(after) => after.bound.get_or_insert(bound),
+            None => self.keys.bound.get_or_insert(bound),
+        };
+    }
+
+    /// 별도 창의 이번 패스 키 주인을 정한다. 그 몫의 결속이 있으면 그것이고, 없으면 `owner`(W1 노드의 인스턴스)다
+    /// (`decide_frame_keys`). egui 가 같은 `run` 안에서 패스를 다시 돌리거나 그리기가 두 번 물어도 몫은 한 번만
+    /// 꺼내고 같은 값을 쓴다.
+    pub(crate) fn decide_window_frame_keys(
+        &mut self,
+        ctx: &egui::Context,
+        owner: Option<PopupInstanceId>,
+    ) -> FrameKeys {
+        let run = ctx
+            .cumulative_pass_nr()
+            .saturating_sub(ctx.output(|o| o.num_completed_passes) as u64);
+        if let Some((at, keys)) = self.keys.window_frame
+            && at == run
+        {
+            self.keys.frame = Some(keys);
+            return keys;
+        }
+        let keys = self.decide_frame_keys(owner.map(|_| PopupKeyOwner::Host));
+        self.keys.window_frame = Some((run, keys));
+        keys
     }
 
     /// 이번 패스 그리기가 키를 줄 host 인스턴스. 넣은 값이 없으면 `take_frame_keys`의 대신 정하기와 같은 값이다.
