@@ -526,25 +526,19 @@ fn load_initial_url(
 /// 페이지가 계속 숨겨져 있으면 surface별로 한 번 경고한다.
 /// 상태 변경이나 재로드는 하지 않는다.
 fn note_reveal_pending(view: &mut MainView, pending: &[(u32, crate::webview::NavState)]) {
-    let now = std::time::Instant::now();
-    for &(sid, nav) in pending {
-        let entry = view
-            .webview_reveal_pending
-            .entry(sid)
-            .or_insert((now, false, nav));
-        entry.2 = nav;
-        if !entry.1 && now.duration_since(entry.0) >= REVEAL_PENDING_WARN_AFTER {
-            entry.1 = true;
+    reveal_wake::record_pending(
+        &mut view.webview_reveal_pending,
+        pending,
+        std::time::Instant::now(),
+        REVEAL_PENDING_WARN_AFTER,
+        |sid, nav| {
             tracing::warn!(
                 "WebView surface {sid}: still hidden {:?} after it became active \
                  (nav_state={nav:?}); the pane shows host chrome, not the page",
                 REVEAL_PENDING_WARN_AFTER
             );
-        }
-    }
-    // 드러났거나 사라진 surface 는 추적에서 뺀다 — 다시 보류되면 시계가 새로 시작한다.
-    view.webview_reveal_pending
-        .retain(|sid, _| pending.iter().any(|(p, _)| p == sid));
+        },
+    );
 }
 
 /// web content process가 끝난 WebView 중 호스트가 HTML 본문을 실은 페이지는 다음 동기화에서
