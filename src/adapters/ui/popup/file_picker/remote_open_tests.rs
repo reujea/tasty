@@ -235,7 +235,7 @@ fn a_picker_opened_before_the_location_sync_picks_up_the_host_later() {
 fn an_open_picker_badge_follows_its_mirror_location_every_frame() {
     let set = |f: &mut Fixture, host: Option<&str>| {
         let ws = f.ws;
-        let mut engine = f.session.borrow_mut();
+        let engine = f.session.borrow_mut();
         match host {
             Some(host) => {
                 engine.remote.mirror_locations.insert(
