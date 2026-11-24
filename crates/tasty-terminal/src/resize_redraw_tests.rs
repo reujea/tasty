@@ -193,3 +193,16 @@ fn a_mirror_classifies_output_by_the_time_it_was_received() {
     t.feed_bytes_at(b"work", late);
     assert_eq!(t.silence_since(), late, "구간이 지난 뒤 받은 출력");
 }
+
+/// Given 옛 재그리기 구간, When 새 연결이 시작한 시각(`began`)과 같은 시각에 받은 출력이 오면, Then 옛 구간
+/// 밖이라 침묵을 깬다. sender는 reader보다 먼저 만들어져 두 시각이 같을 수 있다.
+#[test]
+fn output_received_when_the_new_connection_began_is_not_a_redraw() {
+    let mut t = idle_terminal();
+    let resized = Instant::now() - Duration::from_millis(100);
+    t.note_resize_redraw_at(resized);
+    let began = resized + Duration::from_millis(10);
+    t.bind_external_input(std::sync::Arc::new(|_| Ok(())), Some(began));
+    t.feed_bytes_at(b"new connection", began);
+    assert_eq!(t.silence_since(), began);
+}

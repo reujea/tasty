@@ -19,15 +19,17 @@ pub(crate) struct ResizeRedraw {
     activity_start: Instant,
     /// 침묵 판정이 재그리기로 보는 출력 청크의 시작 경계.
     output_start: Instant,
-    /// 구간 끝. 마지막 통지 + 창, 재연결이면 그 시각까지로 닫힌다.
+    /// 구간 끝(구간 밖). 마지막 통지 + 창, 재연결이면 새 연결이 시작한 시각으로 당겨진다.
     end: Instant,
     /// 구간을 처음 열 때 침묵 판정이 쓰던 출력 시각. 구간 안 출력 대신 이 값을 쓴다.
     silence_base: Instant,
 }
 
 impl ResizeRedraw {
+    /// 끝 시각은 구간 밖이다. 재연결은 새 연결이 시작한 시각에 구간을 닫는데, 새 연결의 출력은 그 시각과
+    /// 같은 시각에 받았을 수 있다.
     fn contains(start: Instant, end: Instant, t: Instant) -> bool {
-        start <= t && t <= end
+        start <= t && t < end
     }
 }
 
