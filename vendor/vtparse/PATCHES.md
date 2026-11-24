@@ -9,7 +9,7 @@ crates.io의 `vtparse` 0.6.2(상류 커밋 `edeae72b5fc55c7fa4aa1d08bbefd08c5493
 
 ## 패치 — 파서 상태 조회
 
-상류는 파서 상태를 `is_ground()`로만 알린다. 열린 시퀀스를 final 바이트 없이 떠날 때(ESC, C1 도입자, CAN·SUB) 콜백이 오는지는 떠나는 상태의 exit 동작이 정한다(`src/transitions.rs`의 `EXIT`). OSC 문자열(`OscEnd` → `osc_dispatch`), APC 문자열(`ApcEnd` → `apc_dispatch`), DCS 본문(`Unhook` → `dcs_unhook`)은 무엇으로 떠나든 콜백이 온다. Escape·Escape 중간 바이트, CSI 네 상태, DCS 머리 네 상태(entry·param·intermediate·ignore), SOS/PM 문자열은 exit 동작이 없어 ESC나 C1 도입자로 떠나면 콜백이 없다. CAN·SUB는 `execute_c0_or_c1`만 부르고 ground로 간다. attach 효과 소유자가 떠난 뒤 그가 시작한 시퀀스가 어느 바이트에서 끝나는지 판정하려면 바이트마다 상태를 읽어야 한다(`effects_held_prefix`, `crates/tasty-terminal/src/attach_stream.rs`).
+상류는 파서 상태를 `is_ground()`로만 알린다. 열린 시퀀스를 final 바이트 없이 떠날 때(ESC, C1 도입자, CAN·SUB) 콜백이 오는지는 떠나는 상태의 exit 동작이 정한다(`src/transitions.rs`의 `EXIT`). OSC 문자열(`OscEnd` → `osc_dispatch`), APC 문자열(`ApcEnd` → `apc_dispatch`), DCS 본문(`Unhook` → `dcs_unhook`)은 무엇으로 떠나든 콜백이 온다. Escape·Escape 중간 바이트, CSI 네 상태, DCS 머리 네 상태(entry·param·intermediate·ignore), SOS/PM 문자열은 exit 동작이 없어 ESC나 C1 도입자로 떠나면 콜백이 없다. CAN·SUB는 어느 상태에서든 ground로 가며 `execute_c0_or_c1`을 부른다. 상태가 바뀔 때 `parse_byte`가 떠나는 상태의 exit 동작을 먼저 부르므로, OSC 문자열·APC 문자열·DCS 본문에서는 그 dispatch 콜백이 `execute_c0_or_c1`보다 먼저 오고, exit 동작이 없는 상태에서는 `execute_c0_or_c1`만 온다. attach 효과 소유자가 떠난 뒤 그가 시작한 시퀀스가 어느 바이트에서 끝나는지 판정하려면 바이트마다 상태를 읽어야 한다(`effects_held_prefix`, `crates/tasty-terminal/src/attach_stream.rs`).
 
 - `src/lib.rs`: `State`를 `pub use`로 공개하고 `VTParser::state()`를 더한다. 현재 상태를 돌려주기만 한다.
 - `src/enums.rs`: `State::from_u16`을 `pub(crate)`로 좁힌다. 이 함수는 검사 없는 transmute라 `State`가 공개되면 안전한 코드에서 잘못된 값을 만들 수 있다.
