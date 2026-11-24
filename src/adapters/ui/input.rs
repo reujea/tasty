@@ -3,6 +3,7 @@
 pub mod click_cursor;
 pub mod double_tap;
 pub(crate) mod edit_key;
+pub(crate) mod edit_target;
 #[cfg(target_os = "linux")]
 pub(crate) mod explorer_ime;
 pub(crate) mod key_class;

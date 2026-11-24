@@ -176,8 +176,8 @@ Tasty가 소비한다. 설정되지 않았거나 동작하지 못했으면 원�
 
 ### host egui 입력칸
 
-메인 창의 오버레이(host 팝업·모달·HTML 주소 띠·전체화면 무대)와 egui로 그리는 탐색기 surface의 입력칸(주소·이름),
-설정·Preset·Plugins·종료 확인 창, 셸 경로 설정·부팅 오류·홈 사용 중 화면이 대상이다. 판정은 egui-winit이 키를
+메인 창에서 키의 수신자가 host egui 노드(host 팝업·모달·HTML 주소 띠·전체화면 무대)인 키와 egui로 그리는 탐색기
+surface의 입력칸(주소·이름), 설정·Preset·Plugins·종료 확인 창, 셸 경로 설정·부팅 오류·홈 사용 중 화면이 대상이다. 판정은 egui-winit이 키를
 자기 기본 편집으로 바꾸기 전에 한다(`src/gfx/gpu/edit_keys.rs`). egui-winit의 기본 키 변환은 걷어내지 않는다.
 
 - 바인딩이 없으면 `NoBinding`이다. egui-winit 기본 키(Ctrl/⌘+C·X·V 등)는 바인딩에서 지워도 egui 입력의 원래 동작을 한다.
@@ -290,8 +290,11 @@ Tasty가 소비한다. 설정되지 않았거나 동작하지 못했으면 원�
   쓰지 않고 버려진다. surface 대상 보류는 그 창의 키를 지금도 그 surface 가 받을 때만 살아 있다
   (`hold_target_live`, `MainView::plugin_surface_key_target`). 닫힌 surface 는 포커스를 가질 수 없으므로 같은 판정으로 끝난다.
 - headless 실행은 키를 붙잡는 창이 없으므로 회신을 pump 직후 꺼내 버린다(`src/boot/headless_plugins.rs`).
+- 메인 창의 편집 키는 경로 키다. 편집 대상은 그 키의 수신자다([입력 계층의 경로 키](../../architecture/input-layer.md#경로-키),
+  `edit_target`). `Keys` 팝업이 포커스여도 편집 키는 그 팝업이 쓰지 않아 경로를 올라가고, 경로가 끝난 노드(단축키·
+  surface)가 받는다. 뗌처럼 경로 키가 아닌 사건은 오버레이 게이트와 키 주인 plugin 팝업으로 정한다.
 - 플러그인 팝업이 키를 받으면 메인 창이 egui-winit 보다 먼저 판정한다(`src/view/main/plugin_popup_keys.rs`). 키를 받는
-  팝업은 렌더와 같은 판정(`MainViewState::popup_key_owner`)으로 정한다. 호스트는 팝업 안 입력칸의 선택을 모르므로
+  팝업은 그 키의 수신자인 plugin 팝업이다. 플러그인 붙여넣기 대상도 같은 값이다. 호스트는 팝업 안 입력칸의 선택을 모르므로
   `Act`를 내지 않는다.
   - 바인딩이 없으면 `NoBinding`이다. egui-winit 기본 편집 키는 egui-winit 이 `Cut`·`Copy`·`Paste`로 바꿔 그 팝업에 간다.
   - 붙여넣기인데 클립보드에 글자가 없으면 `Pass`다. selection 읽기 오류도 경고 로그를 남기고 `Pass`다(호스트 egui
@@ -303,7 +306,7 @@ Tasty가 소비한다. 설정되지 않았거나 동작하지 못했으면 원�
     전에 그 팝업이 열려 있고 그 창의 키를 지금도 받는지 확인한다. 키 소유자가 바뀌었으면(다른 plugin 팝업이나 호스트 팝업이
     위로 왔다) 그 보류는 원래 키 재생과 복사 없이 끝나고 회신은 버려진다.
 - 플러그인 egui-mesh surface 가 키를 받으면 팝업 판정 다음, 호스트 입력칸 판정 앞에서 판정한다
-  (`src/view/main/plugin_surface_keys.rs`). 호스트 egui(팝업·모달·무대)가 키를 받는 동안은 판정하지 않는다.
+  (`src/view/main/plugin_surface_keys.rs`). 키의 수신자가 호스트 egui 노드(팝업·모달·무대)이면 판정하지 않는다.
   - 회신을 약속한 플러그인의 로컬 surface 만 판정한다. 약속 여부와 그 surface 의 플러그인은 직전 렌더가 기록한 값을 키
     시점에 읽는다. 판정은 팝업과 같다(바인딩 없음은 `NoBinding`, 빈 클립보드의 붙여넣기는 `Pass`, 그 밖은 원래 키를 App 에
     맡겨 요청과 보류로 바꾼다). 넘긴 키는 플러그인에 `Key`로 간다. 예외로 `egui_paste` kind 의 surface 는 글자가 없어도

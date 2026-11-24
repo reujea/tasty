@@ -96,7 +96,7 @@ impl MainView {
         let WindowEvent::KeyboardInput { event: key, .. } = event else {
             return None;
         };
-        let instance = self.state.plugin_popup_key_target()?;
+        let instance = self.plugin_popup_edit_target()?;
         if self.base.gpu.edit_keys_busy() {
             return None;
         }

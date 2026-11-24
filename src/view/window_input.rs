@@ -74,12 +74,10 @@ impl<T: WindowPopups> InputPassState for WindowPass<'_, T> {
 }
 
 /// 별도 창 사건이 egui 입력 큐에 들어오는 종류. 누름·키·IME 가 아니면 끊지 않는다. 수식키 없는 Esc 누름은 메인 창과
-/// 같은 판정(`key_class::is_bare_escape_press`)으로 가른다. `mods` 는 사건 시점 창의 winit 수식키, `egui_mods` 는 그 창
-/// egui-winit 의 수식키다.
+/// 같은 판정(`key_class::is_bare_escape_press`)으로 가른다. `mods` 는 사건 시점 창의 winit 수식키다.
 pub(crate) fn incoming_of(
     event: &winit::event::WindowEvent,
     mods: winit::keyboard::ModifiersState,
-    egui_mods: egui::Modifiers,
 ) -> Option<Incoming> {
     use crate::adapters::ui::input::key_class::{KeyEventValue, is_bare_escape_press};
     use winit::event::{ElementState, WindowEvent};
@@ -94,7 +92,6 @@ pub(crate) fn incoming_of(
                 physical: key.physical_key,
                 pressed: key.state == ElementState::Pressed,
                 mods,
-                egui_mods,
             }) =>
         {
             Some(Incoming::Escape)

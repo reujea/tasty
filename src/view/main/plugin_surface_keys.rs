@@ -185,8 +185,14 @@ impl MainView {
         self.state.window_keys_to_overlay()
     }
 
+    /// 단계 6 의 plugin surface 편집 대상. host egui 가 막는지는 단계 4 수신자로 정한다
+    /// (`edit_target::host_egui_takes_edit`).
     fn surface_edit_target_now(&self, engine: &EngineRead<'_>) -> Option<SurfaceEditTarget> {
-        self.surface_edit_target_on(engine, self.state.focused_surface_id(engine))
+        let overlay = crate::adapters::ui::input::edit_target::host_egui_takes_edit(
+            self.key_decision,
+            self.host_egui_has_keys(),
+        );
+        self.surface_edit_target_with(engine, overlay, self.state.focused_surface_id(engine))
     }
 
     /// `sid` 가 이 판정의 대상(회신을 약속한 플러그인의 로컬 surface 또는 mirror)이면 그 대상이다.
@@ -195,7 +201,15 @@ impl MainView {
         engine: &EngineRead<'_>,
         sid: Option<u32>,
     ) -> Option<SurfaceEditTarget> {
-        let overlay = self.host_egui_has_keys();
+        self.surface_edit_target_with(engine, self.host_egui_has_keys(), sid)
+    }
+
+    fn surface_edit_target_with(
+        &self,
+        engine: &EngineRead<'_>,
+        overlay: bool,
+        sid: Option<u32>,
+    ) -> Option<SurfaceEditTarget> {
         let surface = sid.and_then(|sid| engine.find_surface_by_id(sid).map(|s| (sid, s)));
         let local = surface.as_ref().and_then(|(sid, surface)| {
             let sid = *sid;

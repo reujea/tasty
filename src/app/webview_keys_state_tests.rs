@@ -470,12 +470,12 @@ fn clipboard_combo_window(w: &mut Window) {
 }
 
 /// T-12b-7 클립보드 조합 갈래. Given 위 설정과 다른 곳의 덮지 않는 팝업 포커스, When 받은 WebView 가 Ctrl+Shift+C 를
-/// 넘기면, Then 그 누름은 클립보드 조합이라 지금 게이트에 막혀(`Gated`) sidebar 가 그대로이고 페이지로 다시 넣지 않는다.
+/// 넘기면, Then 클립보드 조합도 경로 키라 받은 surface 경로가 덮이지 않아 처리되고(`Handled`) sidebar 가 바뀐다.
 #[test]
-fn a_forwarded_clipboard_combo_keeps_the_window_gate() {
+fn a_forwarded_clipboard_combo_takes_the_received_surface_path() {
     if crate::test_support::rerun_alone(
         module_path!(),
-        "a_forwarded_clipboard_combo_keeps_the_window_gate",
+        "a_forwarded_clipboard_combo_takes_the_received_surface_path",
     ) {
         return;
     }
@@ -485,9 +485,12 @@ fn a_forwarded_clipboard_combo_keeps_the_window_gate() {
     clipboard_combo_window(&mut w);
     let collapsed = w.state.sidebar_collapsed;
     let batch = vec![w.key(1, "C", ctrl_shift())];
-    assert_eq!(w.consume(batch), [ForwardedKeyOutcome::Gated]);
-    assert_eq!(w.state.sidebar_collapsed, collapsed, "단축키가 돌았다");
-    assert_eq!(w.resent(), [(1, false)], "Gated 를 페이지로 다시 넣었다");
+    assert_eq!(w.consume(batch), [ForwardedKeyOutcome::Handled]);
+    assert_eq!(
+        w.state.sidebar_collapsed, !collapsed,
+        "단축키가 돌지 않았다"
+    );
+    assert_eq!(w.resent(), [(1, false)]);
 }
 
 /// T-12b-7 클립보드 조합 대조. Given 같은 창, When 받은 WebView 가 클립보드 조합이 아닌 Ctrl+B 를 넘기면, Then 받은

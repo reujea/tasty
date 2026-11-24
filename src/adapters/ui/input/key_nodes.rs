@@ -5,7 +5,7 @@
 
 use winit::keyboard::{Key, ModifiersState};
 
-use super::edit_key::{EditBindings, edit_binding};
+use super::edit_key::EditBindings;
 use super::key_class::{KeyClass, KeyEventValue, classify_key};
 use super::key_level::{FieldLevel, KEYBINDING_LEVELS, KeyLevel, NumericAxis, numeric_axis_level};
 use super::key_route::{
@@ -72,7 +72,8 @@ pub(crate) fn settle_key(
     else {
         return settled(KeyDecision::Current, !state.window_keys_to_overlay());
     };
-    let decision = route_decision(state, engine, key, &path, &lookup, value.mods);
+    let edits = EditBindings::from_settings(&engine.settings.keybindings).with_judged(replay_edit);
+    let decision = route_decision(state, engine, key, &path, &lookup, value.mods, &edits);
     let gate_open = if key.bare_escape() {
         matches!(
             decision,
@@ -84,11 +85,7 @@ pub(crate) fn settle_key(
             })
         )
     } else {
-        !start_node_ends_key(
-            &path,
-            key,
-            &EditBindings::from_settings(&engine.settings.keybindings),
-        )
+        !start_node_ends_key(&path, key, &edits)
     };
     settled(decision, gate_open)
 }
@@ -114,6 +111,14 @@ fn settings_latch_ends(
     value.pressed
         && crate::adapters::ui::input::key_path::key_start_node(state, engine)
             == FocusNode::SettingsRequest
+}
+
+/// 경로 키의 단계 4 수신자. 지금 경로로 남는 사건은 `None` 이다. 단계 6 편집 대상과 단계 8 붙여넣기 대상이 읽는다.
+pub(crate) fn path_receiver(decision: KeyDecision) -> Option<KeyReceiver> {
+    match decision {
+        KeyDecision::Path(routed) => Some(routed.receiver),
+        KeyDecision::Current => None,
+    }
 }
 
 /// 단계 4 수신자가 설정 열기 요청 래치 노드인지. 단계 6(편집 판정)·단계 11(래치 끝, Esc 적용)이 같은 판정 값으로
@@ -156,8 +161,9 @@ pub(crate) fn bare_escape_decision(
     };
     let lookup = Key::Named(winit::keyboard::NamedKey::Escape);
     let mods = ModifiersState::empty();
-    let path = window_key_path(state, engine, key, &lookup, mods, egui_surface);
-    route_decision(state, engine, key, &path, &lookup, mods)
+    let path = window_key_path(state, engine, key, &lookup, mods, egui_surface, false);
+    let edits = EditBindings::from_settings(&engine.settings.keybindings);
+    route_decision(state, engine, key, &path, &lookup, mods, &edits)
 }
 
 /// 경로 키 하나와 그 노드 목록의 수신자.
@@ -168,6 +174,7 @@ fn route_decision(
     path: &[KeyNode],
     lookup: &Key,
     mods: ModifiersState,
+    edits: &EditBindings,
 ) -> KeyDecision {
     let kb = &engine.settings.keybindings;
     let matching = matching_levels(
@@ -177,12 +184,7 @@ fn route_decision(
         lookup,
         mods,
     );
-    KeyDecision::Path(route_key(
-        path,
-        key,
-        &EditBindings::from_settings(kb),
-        &matching,
-    ))
+    KeyDecision::Path(route_key(path, key, edits, &matching))
 }
 
 /// 시험: 창이 지금 상태에서 정한 App plugin 게이트([`settle_key`]).
@@ -206,8 +208,8 @@ pub(crate) fn focused_surface_takes_egui(state: &MainViewState, engine: &EngineR
 }
 
 /// native WebView 가 넘긴 키의 분류. 전달 키는 조회 키와 수식키만 가지므로 그 조회 키를 논리 키로 넣어 winit 입구와
-/// 같은 판정(`classify_key`)을 한다. 경로 키가 아닌 것(클립보드 조합, 편집 바인딩 키, egui 키 없는 누름)은 지금
-/// 게이트를 쓴다. bare Esc 는 경로 키라 받은 surface 덮임 게이트를 쓴다. 설정 열기 요청 래치는 창 전체 차단이 먼저 본다.
+/// 같은 판정(`classify_key`)을 한다. 경로 키가 아닌 것(egui 키 없는 누름)은 지금 게이트를 쓴다. 클립보드 조합과
+/// 편집 바인딩 키는 경로 키다. bare Esc 는 경로 키라 받은 surface 덮임 게이트를 쓴다. 설정 열기 요청 래치는 창 전체 차단이 먼저 본다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ForwardedKey {
     Path,
@@ -215,11 +217,7 @@ pub(crate) enum ForwardedKey {
 }
 
 /// 전달 키 하나를 한 번 분류한다. 바깥 게이트와 plugin 게이트가 이 값을 함께 쓴다.
-pub(crate) fn forwarded_key_class(
-    kb: &KeybindingSettings,
-    key: &Key,
-    mods: ModifiersState,
-) -> ForwardedKey {
+pub(crate) fn forwarded_key_class(key: &Key, mods: ModifiersState) -> ForwardedKey {
     let value = KeyEventValue {
         logical: key,
         physical: winit::keyboard::PhysicalKey::Unidentified(
@@ -227,9 +225,8 @@ pub(crate) fn forwarded_key_class(
         ),
         pressed: true,
         mods,
-        egui_mods: super::key_class::egui_modifiers(mods),
     };
-    match classify_key(&value, edit_binding(kb, key, mods).is_some()) {
+    match classify_key(&value) {
         KeyClass::Path(_) => ForwardedKey::Path,
         KeyClass::Current(_) => ForwardedKey::Current,
     }
@@ -258,13 +255,19 @@ fn window_path_key(
     replay_edit: bool,
     egui_surface: bool,
 ) -> Option<(RouteKey, Vec<KeyNode>, Key)> {
-    let kb = &engine.settings.keybindings;
     let lookup = tasty_key_match::shortcut_lookup_key(value.logical, &value.physical, value.mods);
-    let edit = replay_edit || edit_binding(kb, &lookup, value.mods).is_some();
-    match classify_key(value, edit) {
+    match classify_key(value) {
         KeyClass::Current(_) => None,
         KeyClass::Path(key) => {
-            let path = window_key_path(state, engine, key, &lookup, value.mods, egui_surface);
+            let path = window_key_path(
+                state,
+                engine,
+                key,
+                &lookup,
+                value.mods,
+                egui_surface,
+                replay_edit,
+            );
             Some((key, path, lookup))
         }
     }
@@ -279,6 +282,7 @@ pub(crate) fn window_key_path(
     lookup: &Key,
     mods: ModifiersState,
     egui_surface: bool,
+    replay_edit: bool,
 ) -> Vec<KeyNode> {
     use crate::adapters::ui::input::key_path::{key_start_node, start_scope_levels};
     let kb = &engine.settings.keybindings;
@@ -311,7 +315,8 @@ pub(crate) fn window_key_path(
         },
         (FocusNode::Surface(Some(sid)), None) => {
             if let Some(KeyNode::Scope(surface)) = scopes.first_mut() {
-                surface.content = surface_content(state, engine, sid, key, egui_surface);
+                surface.content =
+                    surface_content(state, engine, sid, key, egui_surface, replay_edit);
             }
             return scopes;
         }
@@ -433,12 +438,13 @@ fn surface_content(
     sid: u32,
     key: RouteKey,
     egui: bool,
+    replay_edit: bool,
 ) -> ScopeContent {
     if !egui {
         return ScopeContent::Yielding(sid);
     }
     let typing = crate::shortcuts::focused_explorer_typing(state, engine);
-    let edits = EditBindings::from_settings(&engine.settings.keybindings);
+    let edits = EditBindings::from_settings(&engine.settings.keybindings).with_judged(replay_edit);
     let takes = typing
         && (crate::adapters::ui::popup::keys::consumes_key(
             PopupKeyboard::Text,

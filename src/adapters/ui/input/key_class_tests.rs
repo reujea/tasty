@@ -66,21 +66,16 @@ fn the_egui_key_tables_match_the_locked_egui_winit() {
     }
 }
 
-/// T-12b-2: 클립보드 조합 판정 셋이 egui-winit 의 `is_cut_command`·`is_copy_command`·`is_paste_command` 와 같다.
+/// T-12b-2: 디버그 입력 기록의 클립보드 조합 판정 셋이 egui-winit 의 `is_cut_command`·`is_copy_command`·
+/// `is_paste_command` 와 같다.
 #[test]
 fn the_clipboard_combos_match_the_locked_egui_winit() {
     let theirs = egui_winit_source();
-    let ours = include_str!("key_class.rs");
+    let ours = include_str!("../../../view/main/debug_input.rs");
     for name in ["is_cut_command", "is_copy_command", "is_paste_command"] {
-        assert_eq!(body(ours, name), body(&theirs, name), "{name}");
-    }
-    // egui-winit 이 수식키 사건에서 정하는 값과 같은 식이다.
-    let modifiers = body(&theirs, "on_window_event");
-    for line in [
-        "self.egui_input.modifiers.mac_cmd=cfg!(target_os=\"macos\")&&super_;",
-        "self.egui_input.modifiers.command=ifcfg!(target_os=\"macos\"){super_}else{ctrl};",
-    ] {
-        assert!(modifiers.contains(line), "{line}");
+        // 상류는 키 인자 이름이 `keycode` 다.
+        let theirs = body(&theirs, name).replace("keycode", "key");
+        assert_eq!(body(ours, name), theirs, "{name}");
     }
 }
 
@@ -90,12 +85,11 @@ fn value(logical: &Key, code: KeyCode, mods: ModifiersState) -> KeyEventValue<'_
         physical: PhysicalKey::Code(code),
         pressed: true,
         mods,
-        egui_mods: egui_modifiers(mods),
     }
 }
 
 fn class(logical: Key, code: KeyCode, mods: ModifiersState) -> KeyClass {
-    classify_key(&value(&logical, code, mods), false)
+    classify_key(&value(&logical, code, mods))
 }
 
 /// 경로 키와 지금 경로로 남는 사건의 경계.
@@ -112,7 +106,7 @@ fn only_pressed_egui_keys_outside_the_current_path_are_path_keys() {
     let mut released = value(&down, KeyCode::ArrowDown, ModifiersState::empty());
     released.pressed = false;
     assert_eq!(
-        classify_key(&released, false),
+        classify_key(&released),
         KeyClass::Current(CurrentReason::Release)
     );
     assert_eq!(
@@ -161,22 +155,11 @@ fn only_pressed_egui_keys_outside_the_current_path_are_path_keys() {
         ),
         KeyClass::Current(CurrentReason::NoEguiKey)
     );
-    assert_eq!(
-        classify_key(
-            &value(
-                &Key::Character("v".into()),
-                KeyCode::KeyV,
-                ModifiersState::ALT
-            ),
-            true
-        ),
-        KeyClass::Current(CurrentReason::EditBinding)
-    );
 }
 
-/// 클립보드 조합은 egui `command`(Linux·Windows Ctrl, macOS Cmd)+C·X·V 다. Shift 는 보지 않는다.
+/// 클립보드 조합(egui `command`+C·X·V, Shift 포함)도 경로 키다. 편집 대상은 경로의 수신자가 정한다.
 #[test]
-fn command_c_x_v_are_clipboard_combos() {
+fn command_c_x_v_are_path_keys() {
     let command = if cfg!(target_os = "macos") {
         ModifiersState::SUPER
     } else {
@@ -188,53 +171,23 @@ fn command_c_x_v_are_clipboard_combos() {
         ("v", KeyCode::KeyV),
     ] {
         for mods in [command, command | ModifiersState::SHIFT] {
-            assert_eq!(
-                class(Key::Character(text.into()), code, mods),
-                KeyClass::Current(CurrentReason::Clipboard),
+            assert!(
+                matches!(
+                    class(Key::Character(text.into()), code, mods),
+                    KeyClass::Path(_)
+                ),
                 "{text} {mods:?}"
             );
         }
     }
     // 논리 키가 egui 키가 아니면 물리 키로 판정한다(라틴 문자가 없는 배열).
-    assert_eq!(
+    assert!(matches!(
         class(Key::Character("ㅊ".into()), KeyCode::KeyC, command),
-        KeyClass::Current(CurrentReason::Clipboard)
-    );
-    if !cfg!(target_os = "macos") {
-        assert!(matches!(
-            class(
-                Key::Character("v".into()),
-                KeyCode::KeyV,
-                ModifiersState::ALT
-            ),
-            KeyClass::Path(_)
-        ));
-    }
-}
-
-/// 클립보드 조합은 egui-winit 이 그 창에 가진 수식키로 가른다. 창 값(`mods`)이 비었어도 egui-winit 에 command 가 남아
-/// 있으면 egui-winit 은 그 누름을 `Copy` 로 바꾸므로 지금 경로다. 반대로 egui-winit 에 수식키가 없으면 경로 키다.
-#[test]
-fn the_clipboard_combo_reads_the_egui_winit_modifiers() {
-    let c = Key::Character("c".into());
-    let command = if cfg!(target_os = "macos") {
-        ModifiersState::SUPER
-    } else {
-        ModifiersState::CONTROL
-    };
-    let stale = KeyEventValue {
-        egui_mods: egui_modifiers(command),
-        ..value(&c, KeyCode::KeyC, ModifiersState::empty())
-    };
-    assert_eq!(
-        classify_key(&stale, false),
-        KeyClass::Current(CurrentReason::Clipboard)
-    );
-    let cleared = KeyEventValue {
-        egui_mods: egui::Modifiers::NONE,
-        ..value(&c, KeyCode::KeyC, command)
-    };
-    assert!(matches!(classify_key(&cleared, false), KeyClass::Path(_)));
+        KeyClass::Path(RouteKey {
+            key: egui::Key::C,
+            ..
+        })
+    ));
 }
 
 /// M-E0b-9 F: 수식키 없는 Esc 가 사용자 편집 바인딩과 겹쳐도 편집 바인딩 판정보다 앞에서 Esc 경로 키다. 물리 키로만
@@ -248,18 +201,12 @@ fn a_bare_escape_bound_as_an_edit_key_takes_the_escape_route() {
     });
     let escape = Key::Named(NamedKey::Escape);
     assert_eq!(
-        classify_key(
-            &value(&escape, KeyCode::Escape, ModifiersState::empty()),
-            true
-        ),
+        classify_key(&value(&escape, KeyCode::Escape, ModifiersState::empty())),
         bare
     );
     let unknown = Key::Unidentified(winit::keyboard::NativeKey::Unidentified);
     assert_eq!(
-        classify_key(
-            &value(&unknown, KeyCode::Escape, ModifiersState::empty()),
-            false
-        ),
+        classify_key(&value(&unknown, KeyCode::Escape, ModifiersState::empty())),
         bare
     );
 }

@@ -36,6 +36,9 @@ pub(crate) struct EditBindings {
     copy: Vec<String>,
     cut: Vec<String>,
     paste: Vec<String>,
+    /// 판정할 키가 이미 편집으로 판정된 키인지(편집 보류 뒤 재생하는 원래 키). 그 키는 지금 바인딩과 무관하게 편집
+    /// 키로 본다.
+    judged: bool,
 }
 
 impl EditBindings {
@@ -44,7 +47,19 @@ impl EditBindings {
             copy: kb.copy.clone(),
             cut: kb.cut.clone(),
             paste: kb.paste.clone(),
+            judged: false,
         }
+    }
+
+    /// 재생하는 원래 키의 판정. `judged` 면 이 키는 보류 때 판정한 편집 키다(재생 사이 설정이 바뀌어도 그 판정을 쓴다).
+    pub(crate) fn with_judged(mut self, judged: bool) -> Self {
+        self.judged = judged;
+        self
+    }
+
+    /// 판정할 키가 이미 편집으로 판정된 키인지.
+    pub(crate) fn judged(&self) -> bool {
+        self.judged
     }
 
     /// 한 편집 동작의 바인딩 목록.

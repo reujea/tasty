@@ -69,7 +69,6 @@ fn decide(
             physical: PhysicalKey::Code(code),
             pressed: true,
             mods,
-            egui_mods: crate::adapters::ui::input::key_class::egui_modifiers(mods),
         },
         false,
         false,
@@ -97,7 +96,6 @@ fn gate(
             physical: PhysicalKey::Code(code),
             pressed: true,
             mods,
-            egui_mods: crate::adapters::ui::input::key_class::egui_modifiers(mods),
         },
     )
 }
@@ -208,7 +206,6 @@ fn a_key_under_the_settings_latch_ends_at_the_latch_node() {
             physical: PhysicalKey::Code(code),
             pressed: false,
             mods: CTRL,
-            egui_mods: crate::adapters::ui::input::key_class::egui_modifiers(CTRL),
         },
         false,
         false,
@@ -223,7 +220,6 @@ fn press_value(logical: &Key, code: KeyCode, mods: ModifiersState) -> KeyEventVa
         physical: PhysicalKey::Code(code),
         pressed: true,
         mods,
-        egui_mods: crate::adapters::ui::input::key_class::egui_modifiers(mods),
     }
 }
 
@@ -512,23 +508,26 @@ fn a_text_popup_takes_a_command_key_only_when_no_shortcut_on_the_path_uses_it() 
     );
 }
 
-/// 편집 바인딩 키·클립보드 조합·egui 키 없는 누름·뗌·재생 편집 표시는 지금 경로다.
+/// egui 키 없는 누름과 뗌만 지금 경로다. 편집 바인딩 키·클립보드 조합·재생 편집 표시가 붙은 키는 경로 키다.
 #[test]
-fn edit_clipboard_and_non_egui_keys_stay_on_the_current_path() {
+fn only_non_egui_keys_and_releases_stay_on_the_current_path() {
     let (state, mut session) = scene();
     bind(&mut session, "copy", "ctrl+f9");
     let engine = session.borrow_mut();
     let read = engine.read();
-    assert_eq!(decide(&state, &read, f_key(9), CTRL), KeyDecision::Current);
+    assert!(matches!(
+        decide(&state, &read, f_key(9), CTRL),
+        KeyDecision::Path(_)
+    ));
     let command = if cfg!(target_os = "macos") {
         ModifiersState::SUPER
     } else {
         CTRL
     };
-    assert_eq!(
+    assert!(matches!(
         decide(&state, &read, letter("v", KeyCode::KeyV), command),
-        KeyDecision::Current
-    );
+        KeyDecision::Path(_)
+    ));
     assert_eq!(
         decide(
             &state,
@@ -544,17 +543,11 @@ fn edit_clipboard_and_non_egui_keys_stay_on_the_current_path() {
         physical: PhysicalKey::Code(code),
         pressed: true,
         mods: CTRL,
-        egui_mods: crate::adapters::ui::input::key_class::egui_modifiers(CTRL),
     };
     assert!(matches!(
-        window_key_decision(&state, &read, &value, false, false),
+        window_key_decision(&state, &read, &value, true, false),
         KeyDecision::Path(_)
     ));
-    assert_eq!(
-        window_key_decision(&state, &read, &value, true, false),
-        KeyDecision::Current,
-        "재생하는 원래 키의 편집 표시"
-    );
     let released = KeyEventValue {
         pressed: false,
         ..value
@@ -587,21 +580,18 @@ fn a_bound_key_owner_is_the_start_node() {
     );
 }
 
-/// T-12b-7: 전달 키 분류. 보통 단축키 키와 bare Esc 는 경로 키, 클립보드 조합·편집 바인딩 키는 지금 경로다.
+/// T-12b-7: 전달 키 분류. 보통 단축키 키, bare Esc, 편집 바인딩 키, 클립보드 조합 모두 경로 키다. egui 키 없는
+/// 누름만 지금 경로다.
 #[test]
 fn forwarded_keys_are_classified_like_window_keys() {
-    let (_state, mut session) = scene();
-    bind(&mut session, "copy", "ctrl+f9");
-    let engine = session.borrow_mut();
-    let kb = &engine.read().settings.keybindings;
-    let class = |key: Key, mods| forwarded_key_class(kb, &key, mods);
+    let class = |key: Key, mods| forwarded_key_class(&key, mods);
     assert_eq!(class(Key::Character("b".into()), CTRL), ForwardedKey::Path);
     assert_eq!(class(f_key(6).0, CTRL), ForwardedKey::Path);
     assert_eq!(class(escape().0, NONE), ForwardedKey::Path);
     assert_eq!(class(escape().0, ModifiersState::SHIFT), ForwardedKey::Path);
     assert_eq!(
         class(f_key(9).0, CTRL),
-        ForwardedKey::Current,
+        ForwardedKey::Path,
         "편집 바인딩 키"
     );
     let command = if cfg!(target_os = "macos") {
@@ -611,8 +601,13 @@ fn forwarded_keys_are_classified_like_window_keys() {
     };
     assert_eq!(
         class(Key::Character("c".into()), command),
-        ForwardedKey::Current,
+        ForwardedKey::Path,
         "클립보드 조합"
+    );
+    assert_eq!(
+        class(Key::Named(winit::keyboard::NamedKey::Shift), NONE),
+        ForwardedKey::Current,
+        "egui 키 없는 누름"
     );
 }
 
@@ -660,7 +655,7 @@ fn a_forwarded_escape_under_a_focused_notification_reaches_the_received_surface(
     let sid = state.focused_surface_id(&read).expect("surface");
     open_focused(&mut state, "notifications");
     assert!(state.window_keys_to_overlay(), "지금 게이트는 막는다");
-    let class = forwarded_key_class(&read.settings.keybindings, &escape().0, NONE);
+    let class = forwarded_key_class(&escape().0, NONE);
     assert_eq!(class, ForwardedKey::Path);
     assert!(
         !received_key_blocked(&state, &read, class, sid),

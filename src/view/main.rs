@@ -515,7 +515,7 @@ impl MainView {
         }
         self.base
             .gpu
-            .set_plugin_paste_target(self.state.plugin_popup_key_target());
+            .set_plugin_paste_target(self.plugin_popup_edit_target());
         let from = self.base.gpu.egui_input_events_mut().len();
         let result = self.base.gpu.handle_egui_event(&self.base.winit, event);
         self.remap_html_address_keys(engine, event, from, edit_judged);
@@ -571,7 +571,6 @@ impl MainView {
                         physical: key.physical_key,
                         pressed: key.state == winit::event::ElementState::Pressed,
                         mods: self.base.state.modifiers,
-                        egui_mods: self.base.gpu.egui_modifiers(),
                     },
                     self.edit_replay.is_some(),
                     crate::adapters::ui::input::key_nodes::focused_surface_takes_egui(
@@ -601,7 +600,6 @@ impl MainView {
             physical: key.physical_key,
             pressed: key.state == winit::event::ElementState::Pressed,
             mods: self.base.state.modifiers,
-            egui_mods: self.base.gpu.egui_modifiers(),
         }
     }
 

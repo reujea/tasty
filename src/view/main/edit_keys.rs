@@ -72,16 +72,27 @@ impl MainView {
         }
     }
 
-    /// 키를 host egui 입력칸이 받는지. 오버레이(팝업·모달·주소 띠·무대)가 열렸거나, egui로 그리는
-    /// 탐색기 surface의 입력칸이 포커스를 가졌을 때다. 탐색기 파일 목록의 편집 키는 기존 디스패치가 맡는다.
+    /// 키를 host egui 입력칸이 받는지(`edit_target::host_edit_target`). 지금 경로로 남는 사건(뗌 등)은 오버레이가
+    /// 열렸거나 egui 로 그리는 탐색기 surface 의 입력칸이 포커스일 때다. 탐색기 파일 목록의 편집 키는 기존
+    /// 디스패치가 맡는다.
     fn edit_key_target(&self, engine: &EngineRead<'_>) -> bool {
-        if self.state.window_keys_to_overlay() {
-            return true;
-        }
-        self.state
-            .focused_surface_type(engine)
-            .kind_capability(engine, |d| d.consumes_egui_input)
-            && crate::shortcuts::focused_explorer_typing(&self.state, engine)
+        let typing = || crate::shortcuts::focused_explorer_typing(&self.state, engine);
+        crate::adapters::ui::input::edit_target::host_edit_target(self.key_decision, typing, || {
+            self.state.window_keys_to_overlay()
+                || (self
+                    .state
+                    .focused_surface_type(engine)
+                    .kind_capability(engine, |d| d.consumes_egui_input)
+                    && typing())
+        })
+    }
+
+    /// 단계 6·8 의 plugin 팝업 편집 대상(`edit_target::plugin_popup_edit_target`).
+    pub(super) fn plugin_popup_edit_target(&self) -> Option<u64> {
+        crate::adapters::ui::input::edit_target::plugin_popup_edit_target(
+            self.key_decision,
+            self.state.plugin_popup_key_target(),
+        )
     }
 }
 

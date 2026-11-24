@@ -291,11 +291,7 @@ fn forwarded_gate_and_plugin_steps(
     ev: &crate::webview::WebViewKeyEvent,
 ) -> Option<ForwardedKeyOutcome> {
     // 경로 분류는 여기서 한 번 정해 두 게이트에 같은 값으로 넘긴다.
-    let class = crate::adapters::ui::input::key_nodes::forwarded_key_class(
-        &engine.runtime.settings.keybindings,
-        &ev.key,
-        ev.mods,
-    );
+    let class = crate::adapters::ui::input::key_nodes::forwarded_key_class(&ev.key, ev.mods);
     if !forwarded_key_gate_open(state, engine, modal_active, class, ev.surface_id) {
         return Some(ForwardedKeyOutcome::Gated);
     }

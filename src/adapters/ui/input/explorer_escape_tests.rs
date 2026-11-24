@@ -72,7 +72,6 @@ fn escape_receiver(s: &mut Scene) -> KeyReceiver {
         physical: PhysicalKey::Code(KeyCode::Escape),
         pressed: true,
         mods: ModifiersState::empty(),
-        egui_mods: egui::Modifiers::NONE,
     };
     let egui_surface = focused_surface_takes_egui(&s.state, &read);
     assert!(egui_surface, "탐색기는 egui 로 입력을 받는다");

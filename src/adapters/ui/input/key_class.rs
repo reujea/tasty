@@ -1,23 +1,20 @@
-//! 키 사건 하나의 경로 분류(계약 E0 단계 4의 입력). 경로 키(egui 키가 있는 누름이고 클립보드 조합·편집 바인딩 키가
-//! 아닌 것. bare Esc 는 언제나 경로 키. 설정 열기 요청 래치 중 누름은 분류 전에 래치 노드가 끝낸다)만 포커스 노드에서 시작한 키 경로(`route_key`)로 수신자를
-//! 정하고, 나머지 사건은 그 입구의 지금 경로를 그대로 지난다. egui 키와 클립보드 조합 판정은 egui-winit이 같은
-//! 사건을 egui 사건으로 바꾸는 규칙과 같다(시험이 잠금 파일의 egui-winit 소스와 갈래를 대조한다). 규칙:
-//! `docs/architecture/input-layer.md`의 "경로 키".
+//! 키 사건 하나의 경로 분류(계약 E0 단계 4의 입력). 경로 키(egui 키가 있는 누름. 클립보드 조합과 편집 바인딩
+//! 키도 경로 키다. 설정 열기 요청 래치 중 누름은 분류 전에 래치 노드가 끝낸다)만 포커스 노드에서 시작한 키
+//! 경로(`route_key`)로 수신자를 정하고, 나머지 사건(뗌, egui 키 없는 누름)은 그 입구의 지금 경로를 그대로 지난다.
+//! egui 키 판정은 egui-winit이 같은 사건을 egui 사건으로 바꾸는 규칙과 같다(시험이 잠금 파일의 egui-winit 소스와
+//! 갈래를 대조한다). 규칙: `docs/architecture/input-layer.md`의 "경로 키".
 
 use winit::keyboard::{Key, KeyCode, ModifiersState, NamedKey, PhysicalKey};
 
 use super::key_route::RouteKey;
 
-/// 키 사건 하나의 값. `mods`는 사건 시점 창의 winit 수식키, `egui_mods`는 그 사건을 egui 사건으로 바꿀 egui-winit 이
-/// 그 창에 가진 수식키다(클립보드 조합 판정의 입력). 둘은 출처가 달라 갈릴 수 있다(창 포커스를 잃을 때 창 값만
-/// 비운다).
+/// 키 사건 하나의 값. `mods`는 사건 시점 창의 winit 수식키다.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct KeyEventValue<'a> {
     pub(crate) logical: &'a Key,
     pub(crate) physical: PhysicalKey,
     pub(crate) pressed: bool,
     pub(crate) mods: ModifiersState,
-    pub(crate) egui_mods: egui::Modifiers,
 }
 
 /// 지금 경로로 남는 사건의 종류.
@@ -26,10 +23,6 @@ pub(crate) enum CurrentReason {
     Release,
     /// egui 키가 없는 누름(수식키 단독, egui 키 없이 글자만 내는 키).
     NoEguiKey,
-    /// egui-winit이 `Event::Cut`·`Copy`·`Paste`로 바꾸는 누름.
-    Clipboard,
-    /// 창 편집 바인딩(복사·잘라내기·붙여넣기)에 맞는 누름.
-    EditBinding,
 }
 
 /// 키 사건의 분류.
@@ -39,9 +32,9 @@ pub(crate) enum KeyClass {
     Current(CurrentReason),
 }
 
-/// 키 사건을 가른다. `edit_binding`은 그 누름이 편집 바인딩 키인지(재생하는
-/// 원래 키는 보류 때 붙은 편집 표시로 정한다)다.
-pub(crate) fn classify_key(value: &KeyEventValue<'_>, edit_binding: bool) -> KeyClass {
+/// 키 사건을 가른다. 클립보드 조합(egui-winit 이 `Event::Cut`·`Copy`·`Paste`로 바꾸는 누름)과 창 편집 바인딩
+/// 키도 경로 키다. 편집 대상은 그 경로의 수신자다.
+pub(crate) fn classify_key(value: &KeyEventValue<'_>) -> KeyClass {
     let current = KeyClass::Current;
     if !value.pressed {
         return current(CurrentReason::Release);
@@ -49,22 +42,11 @@ pub(crate) fn classify_key(value: &KeyEventValue<'_>, edit_binding: bool) -> Key
     let Some(key) = egui_key(value.logical, value.physical) else {
         return current(CurrentReason::NoEguiKey);
     };
-    let route = RouteKey {
+    KeyClass::Path(RouteKey {
         key,
         modifiers: egui_modifiers(value.mods),
         super_held: !cfg!(target_os = "macos") && value.mods.super_key(),
-    };
-    // bare Esc 는 클립보드·편집 바인딩보다 먼저 경로 키다(편집 바인딩과 겹쳐도 Esc 경로로 간다).
-    if route.bare_escape() {
-        return KeyClass::Path(route);
-    }
-    if is_clipboard_combo(key, value.egui_mods) {
-        return current(CurrentReason::Clipboard);
-    }
-    if edit_binding {
-        return current(CurrentReason::EditBinding);
-    }
-    KeyClass::Path(route)
+    })
 }
 
 /// 이 사건이 수식키 없는 Esc 누름인지(`RouteKey::bare_escape`). 래치와 무관하게 사건 값으로만 정한다. 입력 몫을 끊는
@@ -109,31 +91,6 @@ pub(crate) fn egui_modifiers(mods: ModifiersState) -> egui::Modifiers {
             mods.control_key()
         },
     }
-}
-
-/// egui-winit이 `Event::Cut`·`Copy`·`Paste`로 바꾸는(또는 빈 클립보드면 사건을 남기지 않는) 누름.
-pub(crate) fn is_clipboard_combo(key: egui::Key, modifiers: egui::Modifiers) -> bool {
-    is_cut_command(modifiers, key)
-        || is_copy_command(modifiers, key)
-        || is_paste_command(modifiers, key)
-}
-
-fn is_cut_command(modifiers: egui::Modifiers, keycode: egui::Key) -> bool {
-    keycode == egui::Key::Cut
-        || (modifiers.command && keycode == egui::Key::X)
-        || (cfg!(target_os = "windows") && modifiers.shift && keycode == egui::Key::Delete)
-}
-
-fn is_copy_command(modifiers: egui::Modifiers, keycode: egui::Key) -> bool {
-    keycode == egui::Key::Copy
-        || (modifiers.command && keycode == egui::Key::C)
-        || (cfg!(target_os = "windows") && modifiers.ctrl && keycode == egui::Key::Insert)
-}
-
-fn is_paste_command(modifiers: egui::Modifiers, keycode: egui::Key) -> bool {
-    keycode == egui::Key::Paste
-        || (modifiers.command && keycode == egui::Key::V)
-        || (cfg!(target_os = "windows") && modifiers.shift && keycode == egui::Key::Insert)
 }
 
 fn key_from_named_key(named_key: NamedKey) -> Option<egui::Key> {

@@ -179,7 +179,6 @@ impl WindowInput {
             physical: winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::Escape),
             pressed: true,
             mods: winit::keyboard::ModifiersState::empty(),
-            egui_mods: egui::Modifiers::NONE,
         };
         let event = egui::Event::Key {
             key: egui::Key::Escape,
@@ -689,7 +688,6 @@ fn window_key_decision_held(
             physical,
             pressed: *pressed,
             mods: winit_mods_of(*modifiers, super_held),
-            egui_mods: *modifiers,
         },
         false,
         egui_surface,

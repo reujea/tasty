@@ -75,9 +75,10 @@ pub(crate) fn consumes_key(
     edits: &EditBindings,
 ) -> bool {
     use super::PopupKeyboard;
-    let edit = EditKey::ORDER.iter().any(|e| {
-        tasty_key_match::binding_matches_egui(edits.combos(*e), key, modifiers, super_held)
-    });
+    let edit = edits.judged()
+        || EditKey::ORDER.iter().any(|e| {
+            tasty_key_match::binding_matches_egui(edits.combos(*e), key, modifiers, super_held)
+        });
     let command = modifiers.ctrl || modifiers.alt || modifiers.mac_cmd || super_held;
     match keyboard {
         PopupKeyboard::None => false,

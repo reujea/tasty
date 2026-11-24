@@ -329,7 +329,7 @@ fn forwarded_webview_keys_go_through_the_window_steps_the_state_test_calls() {
     // 경로 분류는 게이트 앞에서 한 번 정하고 두 게이트가 같은 값을 받는다.
     let class = at(
         &steps,
-        "letclass=crate::adapters::ui::input::key_nodes::forwarded_key_class(&engine.runtime.settings.keybindings,&ev.key,ev.mods,);",
+        "letclass=crate::adapters::ui::input::key_nodes::forwarded_key_class(&ev.key,ev.mods);",
         "전달 키 분류",
     );
     assert!(class < gate, "분류가 게이트 뒤에 있다");

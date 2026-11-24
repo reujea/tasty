@@ -312,9 +312,12 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 
 ### 경로 키
 
-키 경로를 지나는 사건은 경로 키뿐이다. 경로 키인지와 지금 경로로 남는 사유는 `key_class::classify_key`가 정한다.
-클립보드 조합은 그 창의 egui-winit 수식키로 본다(`KeyEventValue::egui_mods`). egui-winit 변환과 같은지는
-`key_class_tests.rs`가 잠금 버전 소스와 대조한다. 경로 키가 아닌 사건은 키 경로 이전의
+키 경로를 지나는 사건은 경로 키뿐이다. 경로 키인지와 지금 경로로 남는 사유(뗌, egui 키 없는 누름)는
+`key_class::classify_key`가 정한다. egui 키 판정이 egui-winit 변환과 같은지는 `key_class_tests.rs`가 잠금 버전 소스와
+대조한다. 클립보드 조합(Ctrl/⌘+C·X·V)과 편집 바인딩 키도 경로 키이고, 편집 대상은 그 수신자다
+(`edit_target`: 단계 6 의 host egui 편집 판정·plugin 팝업 편집 요청·plugin surface 편집 요청, 단계 8 의 plugin 붙여넣기
+대상). 그래서 `Keys` 팝업이 포커스여도 편집 키는 그 팝업이 쓰지 않아 경로를 올라간다. 보류했다 재생하는 원래 키는 보류 때
+판정한 편집으로 경로를 정한다(`EditBindings::with_judged`). 재생 사이에 설정이 바뀌어도 그 판정을 쓴다. 경로 키가 아닌 사건은 키 경로 이전의
 게이트(`window_feeds_egui`·`window_holds_terminal_keys`·`window_keys_to_overlay`)를 그대로 지난다. 수식키 없는 Esc 도
 경로 키다. 그 판정은 `RouteKey::bare_escape` 하나이고(논리 키가 없으면 물리 키) 편집 바인딩보다
 먼저 본다. 수신자는 `key_route::route_escape`가 정하고, 그 결과는 단계 11 `MainViewState::apply_escape_key`가 적용한다.

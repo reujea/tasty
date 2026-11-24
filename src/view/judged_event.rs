@@ -36,7 +36,7 @@ pub(crate) fn judged_window_event<V: View>(
         settle: |view: &mut V, event: &WindowEvent| {
             let mods = view.base_mut().state.modifiers;
             if let Some((gpu, popups)) = input(view)
-                && let Some(incoming) = incoming_of(event, mods, gpu.egui_modifiers())
+                && let Some(incoming) = incoming_of(event, mods)
             {
                 let ctx = gpu.egui_ctx.clone();
                 settle_window_input(gpu, &ctx, popups, incoming);
@@ -45,7 +45,7 @@ pub(crate) fn judged_window_event<V: View>(
         bind: |view: &mut V, event: &WindowEvent| {
             let mods = view.base_mut().state.modifiers;
             if let Some((gpu, popups)) = input(view)
-                && let Some(incoming) = incoming_of(event, mods, gpu.egui_modifiers())
+                && let Some(incoming) = incoming_of(event, mods)
             {
                 let held = gpu.egui_escape_held();
                 let ctx = gpu.egui_ctx.clone();

@@ -11,7 +11,7 @@ use std::sync::Arc;
 use winit::keyboard::{Key, KeyCode, ModifiersState, NamedKey, PhysicalKey};
 
 use super::{PluginKeyGate, plugin_shortcut_in_window};
-use crate::adapters::ui::input::key_class::{KeyEventValue, egui_modifiers};
+use crate::adapters::ui::input::key_class::KeyEventValue;
 use crate::adapters::ui::input::key_nodes::ForwardedKey;
 use crate::adapters::ui::popup::PopupScope;
 use crate::adapters::ui::popup::command_palette::COMMAND_PALETTE_POPUP_ID;
@@ -163,7 +163,6 @@ fn settle_winit_key(
         physical: PhysicalKey::Code(code),
         pressed: true,
         mods,
-        egui_mods: egui_modifiers(mods),
     };
     let read = engine.read();
     let egui_surface =
