@@ -389,6 +389,22 @@ fn apply_texture_deltas(
     }
 }
 
+/// 합성할 도형. 캐시 도형을 대상 영역 원점만큼 옮기고 그 영역으로 자른다(`ppp` 논리 px). 포커스 띠가 비우는
+/// 팝업 본문 영역(`surface_focus_edge::composited_bodies`)도 같은 평행이동·자르기다.
+fn placed_primitives(
+    prims: &[ClippedPrimitive],
+    rect: PhysicalRect,
+    ppp: f32,
+) -> Vec<ClippedPrimitive> {
+    let logical = rect.to_logical(ppp);
+    let offset = egui::vec2(logical.x.value(), logical.y.value());
+    let bounds = egui::Rect::from_min_size(
+        egui::pos2(logical.x.value(), logical.y.value()),
+        egui::vec2(logical.width.value(), logical.height.value()),
+    );
+    offset_and_clip(prims, offset, bounds)
+}
+
 /// 전용 pass에서 캐시 도형을 대상 영역에 합성한다. 호출 순서는 surface·팝업 경로에서 정한다.
 fn composite_mesh_target(
     device: &wgpu::Device,
@@ -415,13 +431,7 @@ fn composite_mesh_target(
     ];
     let key = (target.generation, rect_bits);
     if target.translated_key != Some(key) {
-        let logical = rect.to_logical(ppp);
-        let offset = egui::vec2(logical.x.value(), logical.y.value());
-        let bounds = egui::Rect::from_min_size(
-            egui::pos2(logical.x.value(), logical.y.value()),
-            egui::vec2(logical.width.value(), logical.height.value()),
-        );
-        target.translated = offset_and_clip(&target.primitives, offset, bounds);
+        target.translated = placed_primitives(&target.primitives, rect, ppp);
         target.translated_key = Some(key);
     }
     let clipped;
@@ -1325,6 +1335,87 @@ mod tests {
 
         assert_eq!(classify_decode(false, false, true, true), NeedsFull);
         assert_eq!(classify_decode(false, true, false, true), NeedsFull);
+    }
+
+    /// plugin 팝업 한 프레임의 mesh 바이트. 100x100 화면에 `clip`으로 자른 사각형 하나를 배율 `ppp`로 그린다.
+    fn popup_frame_bytes(clip: Rect, ppp: f32) -> Vec<u8> {
+        let ctx = egui::Context::default();
+        let raw_input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(100.0, 100.0))),
+            ..Default::default()
+        };
+        let out = ctx.run(raw_input, |ctx| {
+            ctx.layer_painter(egui::LayerId::background())
+                .with_clip_rect(clip)
+                .rect_filled(
+                    Rect::from_min_size(Pos2::ZERO, egui::vec2(100.0, 100.0)),
+                    0.0,
+                    Color32::WHITE,
+                );
+        });
+        let prims = ctx.tessellate(out.shapes, ppp);
+        tasty_plugin_protocol::mesh_wire::encode_paint(&prims, &out.textures_delta, ppp)
+    }
+
+    /// Given 빈 캐시에서 시작해 두 프레임 사이 팝업 본문의 clip이 바뀔 때, When 프레임마다 그 프레임 본문을 한 번
+    /// 디코드해 캐시에 두면, Then 포커스 띠가 비우는 영역과 합성이 그리는 잘림 영역이 그 캐시 하나에서 나와 각 프레임
+    /// 같다. 첫 프레임(빈 캐시)과 clip이 바뀐 둘째 프레임 모두다. GPU 프레임 순서(디코드 → 띠 → 합성, 합성은 다시
+    /// 디코드하지 않음)는 `source_guards::frame_draw_order`가 고정한다.
+    #[test]
+    fn the_edge_hole_and_the_composite_clip_match_in_each_frame() {
+        use crate::adapters::ui::surface_focus_edge::composited_bodies;
+        let ppp = 1.75;
+        // 논리 (120, 40)에 놓인 100x100 팝업.
+        let region = PhysicalRect {
+            x: tasty_type_geometry::length::PhysicalPx(210.0),
+            y: tasty_type_geometry::length::PhysicalPx(70.0),
+            width: tasty_type_geometry::length::PhysicalPx(175.0),
+            height: tasty_type_geometry::length::PhysicalPx(175.0),
+        };
+        let frames = [
+            (
+                Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(50.0, 100.0)),
+                Rect::from_min_max(Pos2::new(120.0, 40.0), Pos2::new(170.0, 140.0)),
+            ),
+            (
+                Rect::from_min_max(Pos2::new(20.0, 10.0), Pos2::new(90.0, 60.0)),
+                Rect::from_min_max(Pos2::new(140.0, 50.0), Pos2::new(210.0, 100.0)),
+            ),
+        ];
+        let mut cache: Option<(Vec<ClippedPrimitive>, f32)> = None;
+        for (clip, expected) in frames {
+            let decoded =
+                tasty_plugin_protocol::mesh_wire::decode_paint(&popup_frame_bytes(clip, ppp))
+                    .expect("decode");
+            assert_eq!(
+                classify_decode(true, cache.is_some(), true, true),
+                DecodeOutcome::Accepted,
+                "전체 텍스처 프레임은 빈 캐시에서도 채택한다"
+            );
+            cache = Some((decoded.primitives, decoded.pixels_per_point));
+            let (prims, body_ppp) = cache.as_ref().expect("decoded this frame");
+            let composed =
+                HashMap::from([(7, composed_body(true, *body_ppp, prims).expect("body"))]);
+            let holes = composited_bodies(&[(7, region)], &composed, |_| true, ppp);
+            let drawn: Vec<Rect> = placed_primitives(prims, region, *body_ppp)
+                .iter()
+                .map(|p| p.clip_rect)
+                .filter(|r| r.is_positive())
+                .collect();
+            assert_eq!(drawn.len(), 1, "one clipped shape per frame");
+            assert_eq!(holes.len(), drawn.len(), "one hole per drawn clip");
+            for (hole, draw) in holes.iter().zip(&drawn) {
+                for (h, d, e) in [
+                    (hole.min, draw.min, expected.min),
+                    (hole.max, draw.max, expected.max),
+                ] {
+                    assert!(
+                        (h - d).length() < 1e-3 && (h - e).length() < 1e-3,
+                        "hole {hole:?} and composite clip {draw:?} must both be {expected:?}"
+                    );
+                }
+            }
+        }
     }
 
     /// 디코드 출력(mesh_wire) → offset_and_clip 통합: 실제 tessellate 한 mesh 가

@@ -143,8 +143,8 @@ fn edge_pieces(row: egui::Rect, host_popup_on_top: bool, bodies: &[egui::Rect]) 
 }
 
 /// 합성될 plugin 팝업 본문이 칠하는 영역(host 논리 px). 프레임이 있고 GPU가 본문을 가진 팝업에서
-/// primitive 잘림 영역을 팝업 영역 안으로 자른 것만 든다. 합성 경로와 같은 평행이동·자르기다.
-fn composited_bodies(
+/// primitive 잘림 영역을 팝업 영역 안으로 자른 것만 든다. 합성 경로(`placed_primitives`)와 같은 평행이동·자르기다.
+pub(crate) fn composited_bodies(
     regions: &[(u64, PhysicalRect)],
     composed: &std::collections::HashMap<u64, ComposedPopup>,
     has_frame: impl Fn(u64) -> bool,
