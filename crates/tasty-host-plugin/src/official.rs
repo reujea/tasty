@@ -62,8 +62,9 @@ pub(crate) fn bundle_identity_mismatch(expected: &str, dir: &Path) -> Option<Str
     })
 }
 
-/// 번들에서 공식 id `id`의 폴더를 고른다. 폴더가 없으면 `Ok(None)`, 매니페스트가 더 높은 Tasty를
-/// 요구하거나(TOML·형식 오류 포함) 다른 id를 선언하면 복사·권한 기록 전에 실패(`Err`)로 돌려준다.
+/// 번들에서 공식 id `id`의 폴더를 고른다. 폴더가 없으면 `Ok(None)`이다. 매니페스트를 읽거나
+/// UTF-8·TOML로 풀지 못하거나(파일이 없는 경우 제외), `min_tasty_version`이 형식 오류이거나 더 높은
+/// Tasty를 요구하거나, 다른 id를 선언하면 복사·권한 기록 전에 실패(`Err`)로 돌려준다.
 pub(crate) fn bundle_source(bundle: &Path, id: &str) -> Result<Option<std::path::PathBuf>, String> {
     let src = bundle.join(id);
     if !src.is_dir() {

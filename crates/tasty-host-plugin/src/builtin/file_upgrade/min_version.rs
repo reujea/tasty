@@ -6,11 +6,11 @@ use std::path::Path;
 
 use tasty_plugin_manifest::Manifest;
 
-/// 번들 원본의 매니페스트가 TOML이 아니거나, `min_tasty_version`이 형식 오류이거나 실행 중인
-/// Tasty보다 높은 버전을 요구해 받아들일 수 없으면 그 거절을 돌려준다. 버전 부족을 경고만 하는
-/// 빌드에서는 그 경우만 `None`이다. 로그는 Display(영어), 사용자 보고는
-/// [`crate::manifest_error::describe`]로 쓴다. 매니페스트 파일을 읽지 못하면 `None`이다.
-/// 번들 경로는 이 판정을 id 대조·서명 읽기보다 먼저 한다.
+/// 번들 원본을 받아들일 수 없으면 그 거절을 돌려준다. 거절 사유는 매니페스트 읽기 실패(파일이
+/// 없는 경우 제외)·UTF-8 디코딩 실패·TOML 오류·`min_tasty_version` 형식 오류, 그리고 실행 중인
+/// Tasty보다 높은 요구 버전이다. 매니페스트 파일이 없으면 `None`이고, 버전 부족을 경고만 하는
+/// 빌드에서는 높은 요구 버전도 `None`이다. 로그는 Display(영어), 사용자 보고는
+/// [`crate::manifest_error::describe`]로 쓴다. 번들 경로는 이 판정을 id 대조·서명 읽기보다 먼저 한다.
 pub(crate) fn bundle_requires_newer_tasty(src: &Path) -> Option<anyhow::Error> {
     Manifest::admit_bundle_host_tasty(src).err()
 }
@@ -258,7 +258,8 @@ mod tests {
         assert!(!home.path().join("installed/com.tasty.html").exists());
     }
 
-    /// `verify_trust`(복사본 재확인·공개 `verify_builtin_bundle_trust`가 부른다) 안에서도
+    /// `verify_trust`(upgrade 쓰기 전후의 `validate_prepared`, 공개 진입점 `upgrade_builtins`가 쓰는
+    /// 비공개 도우미 `verify_builtin_bundle_trust`가 부른다) 안에서도
     /// 버전 판정이 id 대조·서명 판정보다 먼저다. 계획의 앞선 판정을 거치지 않게 직접 부른다.
     /// 서명과의 순서는 서명으로 거절하는 release 프로필에서만 가려진다.
     #[test]
