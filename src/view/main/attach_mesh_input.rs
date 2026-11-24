@@ -7,7 +7,7 @@ use winit::event::MouseButton;
 use tasty_plugin_protocol::protocol::{RawInputEventWire, RawInputWire, ThemeWire};
 
 use crate::core::AttachMeshContextForward;
-use crate::model::{PhysicalPx, PhysicalRect};
+use crate::model::PhysicalRect;
 use crate::state::mesh_frames::MeshSide;
 
 use super::MainView;
@@ -35,12 +35,29 @@ impl MainView {
         x: f32,
         y: f32,
     ) -> Option<(u32, PhysicalRect)> {
-        let terminal_rect = self.compute_terminal_rect();
-        self.state
-            .mesh_frame_regions(engine, terminal_rect, self.base.gpu.scale_factor())
-            .into_iter()
-            .find(|r| r.side == MeshSide::Attach && r.rect.contains(PhysicalPx(x), PhysicalPx(y)))
+        let regions = self.mesh_regions(engine);
+        let press = self.state.mesh_press;
+        crate::state::mesh_frames::pointer_target(&regions, press, MeshSide::Attach, x, y)
             .map(|r| (r.id, r.rect))
+    }
+
+    /// 버튼 사건의 원격 mesh 대상. 누른 leaf를 기억해 뗌을 그 leaf로 보낸다.
+    pub(super) fn attach_mesh_button(
+        &mut self,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        x: f32,
+        y: f32,
+        state: winit::event::ElementState,
+    ) -> Option<(u32, PhysicalRect)> {
+        let regions = self.mesh_regions(engine);
+        crate::state::mesh_frames::button_target(
+            &regions,
+            &mut self.state.mesh_press,
+            MeshSide::Attach,
+            (x, y),
+            super::egui_mesh::is_pressed(state),
+        )
+        .map(|r| (r.id, r.rect))
     }
 
     /// 포인터 버튼 누름/뗌을 attach mesh surface 에 누적.

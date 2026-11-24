@@ -72,22 +72,49 @@ struct MeshTarget {
 }
 
 impl MainView {
-    /// 합성과 같은 surface 영역으로 포인터 대상을 찾는다.
+    /// 합성과 같은 surface 영역으로 포인터 대상을 찾는다. 로컬 mesh를 누른 채면 그 leaf다.
     pub(super) fn egui_mesh_target_at(
         &self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
         x: f32,
         y: f32,
     ) -> Option<(u32, String, PhysicalRect)> {
+        let regions = self.mesh_regions(engine);
+        let press = self.state.mesh_press;
+        let r = crate::state::mesh_frames::pointer_target(&regions, press, MeshSide::Local, x, y)?;
+        let ms = engine.find_surface_by_id(r.id)?.mesh()?;
+        Some((r.id, ms.plugin_id.clone(), r.rect))
+    }
+
+    /// 버튼 사건의 로컬 mesh 대상. 누른 leaf를 기억해 뗌을 그 leaf로 보낸다.
+    pub(super) fn mesh_button(
+        &mut self,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        x: f32,
+        y: f32,
+        state: ElementState,
+    ) -> Option<(u32, String, PhysicalRect)> {
+        let regions = self.mesh_regions(engine);
+        let press = &mut self.state.mesh_press;
+        let r = crate::state::mesh_frames::button_target(
+            &regions,
+            press,
+            MeshSide::Local,
+            (x, y),
+            is_pressed(state),
+        )?;
+        let ms = engine.find_surface_by_id(r.id)?.mesh()?;
+        Some((r.id, ms.plugin_id.clone(), r.rect))
+    }
+
+    /// 이번 배치의 mesh 프레임 영역(로컬·attach).
+    pub(super) fn mesh_regions(
+        &self,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+    ) -> Vec<crate::state::mesh_frames::MeshFrameRegion> {
         let terminal_rect = self.compute_terminal_rect();
         self.state
             .mesh_frame_regions(engine, terminal_rect, self.base.gpu.scale_factor())
-            .into_iter()
-            .filter(|r| r.side == MeshSide::Local && r.rect.contains(PhysicalPx(x), PhysicalPx(y)))
-            .find_map(|r| {
-                let ms = engine.find_surface_by_id(r.id)?.mesh()?;
-                Some((r.id, ms.plugin_id.clone(), r.rect))
-            })
     }
 
     /// wire에 전달할 색·is_light·UI 배율. 현재 reduced_motion은 포함하지 않는다.

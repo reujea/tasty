@@ -596,7 +596,7 @@ impl MainView {
     ) -> bool {
         if let Some(pos) = self.cursor_position {
             let (x, y) = (pos.x as f32, pos.y as f32);
-            if let Some((sid, _plugin_id, rect)) = self.egui_mesh_target_at(engine, x, y) {
+            if let Some((sid, _plugin_id, rect)) = self.mesh_button(engine, x, y, button_state) {
                 let pressed = super::egui_mesh::is_pressed(button_state);
                 if !pressed {
                     self.left_mouse_down = false;
@@ -618,7 +618,7 @@ impl MainView {
     ) -> bool {
         if let Some(pos) = self.cursor_position {
             let (x, y) = (pos.x as f32, pos.y as f32);
-            if let Some((sid, rect)) = self.attach_mesh_target_at(engine, x, y) {
+            if let Some((sid, rect)) = self.attach_mesh_button(engine, x, y, button_state) {
                 let pressed = super::egui_mesh::is_pressed(button_state);
                 if !pressed {
                     self.left_mouse_down = false;

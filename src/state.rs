@@ -423,6 +423,8 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             surface_focus_edges: Vec::new(),
             #[cfg(feature = "gui")]
+            mesh_press: None,
+            #[cfg(feature = "gui")]
             html_address: Default::default(),
             pending_intents: Vec::new(),
         }
