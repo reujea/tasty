@@ -381,6 +381,9 @@ pub fn draw_egui_panels(
                 let mirror = html_sid.is_some_and(|sid| engine.is_mirror_surface(sid));
                 let received = targets.receive.and_then(|sid| engine.html_receive(sid));
                 let html_snapshot = targets.script.and_then(|sid| engine.html_script(sid));
+                let chrome_top = info.surface_id.and_then(|sid| {
+                    crate::adapters::ui::surface_focus_edge::chrome_top(state, sid)
+                });
                 let content_inset = draw_panel_frame(
                     ctx,
                     &format!("webview_chrome_{}", id_suffix),
@@ -390,18 +393,10 @@ pub fn draw_egui_panels(
                     |ui| {
                         let th = theme::theme();
                         // 띠 kind는 leaf 위 포커스 띠 행을 비우고 그 아래부터 주소 띠·배너·tile을 둔다.
-                        // native 페이지의 위 끝(`webview_sync`)과 같은 물리 경계를 쓴다.
-                        let panel = if crate::state::surface_focus::webview_reserves_edge(
-                            remote.kind(),
-                            remote.capabilities(),
-                        ) {
-                            let leaf = ui.max_rect();
-                            let ppp = ui.ctx().pixels_per_point();
-                            leaf.with_min_y(tasty_ui_widgets::surface_focus_content_top(
-                                &th, leaf, ppp,
-                            ))
-                        } else {
-                            ui.max_rect()
+                        // 띠를 모을 때 물리 leaf에서 정한 경계라 native 페이지의 위 끝(`webview_sync`)과 같다.
+                        let panel = match chrome_top {
+                            Some(top) => ui.max_rect().with_min_y(top),
+                            None => ui.max_rect(),
                         };
                         // 시안 순서: 주소 띠 → 크기 배너 → 원격 배너 → 스크립트 배너 → 페이지.
                         let band = html_sid.map(|sid| {

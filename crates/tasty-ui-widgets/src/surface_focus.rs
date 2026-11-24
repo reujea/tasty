@@ -42,17 +42,10 @@ pub fn surface_focus_edge_rows(
     }
 }
 
-/// 논리 좌표 leaf에서 [`surface_focus_edge_rows`]를 구한다. 경계는 물리 px로 정하고 논리 px로 돌려준다.
-fn logical_rows(theme: &Theme, leaf: egui::Rect, ppp: f32) -> (f32, f32) {
-    let physical = |y: f32| LogicalPx(y).to_physical(ppp).value();
+/// 물리 행 경계를 논리 좌표로 옮긴다. 다시 반올림하지 않아 host가 정한 정수 물리 경계를 그대로 쓴다.
+fn logical_rows(rows: SurfaceFocusEdgeRows, ppp: f32) -> (f32, f32) {
     let logical = |y: f32| PhysicalPx(y).to_logical(ppp).value();
-    let rows = surface_focus_edge_rows(theme, physical(leaf.top()), physical(leaf.bottom()), ppp);
     (logical(rows.bottom), logical(rows.lit_top))
-}
-
-/// 띠 kind leaf에서 내용(주소 띠·페이지)이 시작하는 논리 y. 띠 행 바로 아래다.
-pub fn surface_focus_content_top(theme: &Theme, leaf: egui::Rect, ppp: f32) -> f32 {
-    logical_rows(theme, leaf, ppp.max(f32::EPSILON)).0
 }
 
 /// 띠 kind의 포커스 띠. 상태와 무관하게 같은 행을 차지하므로 포커스가 바뀌어도 내용이 움직이지 않는다.
@@ -78,10 +71,15 @@ enum Layer {
 
 impl SurfaceFocusEdge {
     /// 켜진 띠는 링 위에 놓이고, 링이 있으면 아래 행만 써서 링의 위 행을 남긴다.
-    /// 행 경계는 [`surface_focus_edge_rows`]로 `ppp`의 물리 px에 맞춘다.
-    fn layers(&self, theme: &Theme, leaf: egui::Rect, ppp: f32) -> Vec<Layer> {
-        let ppp = ppp.max(f32::EPSILON);
-        let (bottom, lit_top) = logical_rows(theme, leaf, ppp);
+    /// 행 경계는 물리 px `rows`를 `ppp`로 나눈 값 그대로다.
+    fn layers(
+        &self,
+        theme: &Theme,
+        leaf: egui::Rect,
+        rows: SurfaceFocusEdgeRows,
+        ppp: f32,
+    ) -> Vec<Layer> {
+        let (bottom, lit_top) = logical_rows(rows, ppp.max(f32::EPSILON));
         let full = egui::Rect::from_min_max(leaf.min, egui::pos2(leaf.right(), bottom));
         let mut layers = vec![Layer::Row {
             rect: full,
@@ -114,10 +112,27 @@ impl SurfaceFocusEdge {
         layers
     }
 
-    /// `leaf` 전체를 기준으로 띠와 링을 칠한다. 내용은 띠 행 아래에 놓는 것이 호출자의 일이다.
+    /// `leaf` 전체를 기준으로 띠와 링을 칠한다. 행 경계는 논리 leaf에서 구한다(시안·갤러리용).
+    /// 내용은 띠 행 아래에 놓는 것이 호출자의 일이다.
     pub fn paint(&self, painter: &egui::Painter, theme: &Theme, leaf: egui::Rect) {
+        let ppp = painter.ctx().pixels_per_point().max(f32::EPSILON);
+        let physical = |y: f32| LogicalPx(y).to_physical(ppp).value();
+        let rows =
+            surface_focus_edge_rows(theme, physical(leaf.top()), physical(leaf.bottom()), ppp);
+        self.paint_rows(painter, theme, leaf, rows);
+    }
+
+    /// host가 물리 leaf에서 이미 정한 행 경계 `rows`(물리 px)로 칠한다. 같은 `rows`를 내용 예약에도 쓰면
+    /// 논리 좌표 왕복으로 경계가 1px 갈리지 않는다.
+    pub fn paint_rows(
+        &self,
+        painter: &egui::Painter,
+        theme: &Theme,
+        leaf: egui::Rect,
+        rows: SurfaceFocusEdgeRows,
+    ) {
         let radius = self.corner_radius.value().round().clamp(0.0, 255.0) as u8;
-        for layer in self.layers(theme, leaf, painter.ctx().pixels_per_point()) {
+        for layer in self.layers(theme, leaf, rows, painter.ctx().pixels_per_point()) {
             match layer {
                 Layer::Row {
                     rect,
@@ -166,6 +181,16 @@ mod tests {
         }
     }
 
+    /// 논리 leaf에서 행 경계를 구한다(배율 1·1.25 표본용).
+    fn rows_of(leaf: egui::Rect, ppp: f32) -> SurfaceFocusEdgeRows {
+        let physical = |y: f32| LogicalPx(y).to_physical(ppp).value();
+        surface_focus_edge_rows(&theme(), physical(leaf.top()), physical(leaf.bottom()), ppp)
+    }
+
+    fn layers(edge: SurfaceFocusEdge, ppp: f32) -> Vec<Layer> {
+        edge.layers(&theme(), leaf(), rows_of(leaf(), ppp), ppp)
+    }
+
     fn row(layer: Layer) -> (egui::Rect, egui::Color32) {
         match layer {
             Layer::Row { rect, color, .. } => (rect, color),
@@ -176,7 +201,7 @@ mod tests {
     #[test]
     fn the_unfocused_edge_is_one_full_row_pair() {
         let th = theme();
-        let layers = edge(false, false).layers(&th, leaf(), 1.0);
+        let layers = layers(edge(false, false), 1.0);
         assert_eq!(layers.len(), 1);
         let (rect, color) = row(layers[0]);
         assert_eq!(rect.height(), th.surface_focus_edge_width().value());
@@ -187,7 +212,7 @@ mod tests {
 
     #[test]
     fn a_ring_paints_over_the_unfocused_edge() {
-        let layers = edge(false, true).layers(&theme(), leaf(), 1.0);
+        let layers = layers(edge(false, true), 1.0);
         assert_eq!(layers.len(), 2);
         assert!(matches!(layers[0], Layer::Row { .. }));
         assert_eq!(layers[1], Layer::Ring);
@@ -196,7 +221,7 @@ mod tests {
     #[test]
     fn the_lit_edge_takes_both_rows_without_a_ring() {
         let th = theme();
-        let layers = edge(true, false).layers(&th, leaf(), 1.0);
+        let layers = layers(edge(true, false), 1.0);
         let (rect, color) = row(layers[layers.len() - 1]);
         assert_eq!(rect.height(), th.surface_focus_edge_width().value());
         assert_eq!(rect.min, leaf().min);
@@ -206,7 +231,7 @@ mod tests {
     #[test]
     fn the_lit_edge_sits_over_the_ring_on_the_lower_row_only() {
         let th = theme();
-        let layers = edge(true, true).layers(&th, leaf(), 1.0);
+        let layers = layers(edge(true, true), 1.0);
         assert_eq!(layers.len(), 3);
         assert_eq!(layers[1], Layer::Ring);
         let (rect, color) = row(layers[2]);
@@ -228,10 +253,39 @@ mod tests {
         let short = surface_focus_edge_rows(&th, 10.0, 11.0, 1.0);
         assert_eq!(short.bottom, 11.0);
         assert_eq!(short.lit_top, 10.0);
-        let layers = edge(true, true).layers(&th, leaf(), 1.25);
-        let (rect, _) = row(layers[2]);
+        let (rect, _) = row(layers(edge(true, true), 1.25)[2]);
         assert_eq!(rect.bottom() * 1.25, (leaf().top() * 1.25 + 2.5).round());
-        assert_eq!(surface_focus_content_top(&th, leaf(), 1.25), rect.bottom());
+    }
+
+    /// 소수 배율에서 칠하는 행은 host가 물리 leaf에서 정한 경계를 그대로 쓴다. 논리 leaf에서 다시 구하면
+    /// f32 왕복으로 1px 갈리는 자리(배율 1.75, 물리 top 117: 121이 120이 된다)가 표본에 있다.
+    #[test]
+    fn the_painted_rows_follow_the_host_boundary_at_fractional_scales() {
+        let th = theme();
+        for (ppp, top) in [(1.25, 62.0), (1.5, 61.0), (1.75, 117.0), (1.75, 57.0)] {
+            let rows = surface_focus_edge_rows(&th, top, top + 200.0, ppp);
+            let leaf = egui::Rect::from_min_size(
+                egui::pos2(0.0, PhysicalPx(top).to_logical(ppp).value()),
+                egui::vec2(100.0, PhysicalPx(200.0).to_logical(ppp).value()),
+            );
+            for (ring, lit) in [(false, 1), (true, 2)] {
+                let painted = edge(true, ring).layers(&th, leaf, rows, ppp);
+                let (rect, _) = row(painted[lit]);
+                let bottom = LogicalPx(rect.bottom()).to_physical(ppp).value();
+                assert!(
+                    (bottom - rows.bottom).abs() < 1e-3,
+                    "scale {ppp} top {top}: painted {bottom}, host {}",
+                    rows.bottom
+                );
+                if ring {
+                    let lit_top = LogicalPx(rect.top()).to_physical(ppp).value();
+                    assert!(
+                        (lit_top - rows.lit_top).abs() < 1e-3,
+                        "scale {ppp} top {top}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

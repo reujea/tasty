@@ -30,8 +30,10 @@ pub(crate) fn focus_mark(
 pub(crate) struct FocusEdgeLeaf {
     pub(crate) surface_id: u32,
     pub(crate) leaf: egui::Rect,
-    /// leaf에서 띠 행을 뺀 내용 영역. 링은 띠 leaf에서 이 영역만 칠한다.
+    /// leaf에서 띠 행을 뺀 내용 영역. 링은 띠 leaf에서 이 영역만 칠하고 chrome은 이 위 끝에서 시작한다.
     pub(crate) below: egui::Rect,
+    /// 물리 leaf에서 정한 행 경계. 띠는 이 값으로 칠해 내용 예약과 같은 물리 px에서 끝난다.
+    pub(crate) rows: tasty_ui_widgets::SurfaceFocusEdgeRows,
     /// 그 화면의 모델 포커스. hard 점유여도 포커스를 따른다.
     pub(crate) focused: bool,
     /// 띠 행 안에 다시 칠할 링.
@@ -78,7 +80,18 @@ pub(crate) fn reserves_edge(
     false
 }
 
-/// 띠 leaf의 내용 영역: leaf에서 띠 행을 뺀 나머지다. 경계는 `surface_focus_edge_rows`가 물리 px로 정하고
+/// 물리 leaf의 띠 행 경계(정수 물리 px). 내용 예약·띠 칠하기·chrome이 모두 이 값을 쓴다.
+#[cfg(feature = "gui")]
+pub(crate) fn edge_rows(
+    theme: &tasty_type_appearance::theme::Theme,
+    leaf: crate::model::PhysicalRect,
+    scale_factor: f32,
+) -> tasty_ui_widgets::SurfaceFocusEdgeRows {
+    let top = leaf.y.value();
+    tasty_ui_widgets::surface_focus_edge_rows(theme, top, top + leaf.height.value(), scale_factor)
+}
+
+/// 띠 leaf의 내용 영역: leaf에서 띠 행을 뺀 나머지다. 경계는 [`edge_rows`]가 물리 px로 정하고
 /// 띠가 leaf를 다 차지하면 높이 0이다.
 #[cfg(feature = "gui")]
 pub(crate) fn below_edge(
@@ -87,9 +100,8 @@ pub(crate) fn below_edge(
     scale_factor: f32,
 ) -> crate::model::PhysicalRect {
     use crate::model::PhysicalPx;
-    let top = leaf.y.value();
-    let bottom = top + leaf.height.value();
-    let rows = tasty_ui_widgets::surface_focus_edge_rows(theme, top, bottom, scale_factor);
+    let bottom = leaf.y.value() + leaf.height.value();
+    let rows = edge_rows(theme, leaf, scale_factor);
     crate::model::PhysicalRect {
         x: leaf.x,
         y: PhysicalPx(rows.bottom),

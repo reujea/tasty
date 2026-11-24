@@ -42,6 +42,7 @@ pub(crate) fn collect(
                     surface_id: r.id,
                     leaf: crate::adapters::ui::to_egui_rect(r.rect, scale_factor),
                     below: crate::adapters::ui::to_egui_rect(below, scale_factor),
+                    rows: crate::state::surface_focus::edge_rows(&theme, r.rect, scale_factor),
                     focused: is_focused,
                     ring: row_ring(engine, &theme, r.id, is_focused),
                 });
@@ -75,6 +76,12 @@ pub(crate) fn ring_clip(state: &MainViewState, surface_id: u32) -> Option<egui::
         .iter()
         .find(|e| e.surface_id == surface_id)
         .map(|e| e.below)
+}
+
+/// 띠 kind webview chrome이 시작하는 논리 y. 띠 행 아래 끝이며 native 페이지의 위 끝과 같은 물리 경계다.
+/// 띠 leaf가 아니면 `None`이다.
+pub(crate) fn chrome_top(state: &MainViewState, surface_id: u32) -> Option<f32> {
+    ring_clip(state, surface_id).map(|below| below.top())
 }
 
 /// 띠를 칠한다. plugin 팝업을 그린 뒤 부른다. host 팝업이 plugin 팝업 위일 때는 plugin 본문이 egui보다
@@ -111,7 +118,7 @@ pub(crate) fn paint(
             corner_radius: tasty_type_geometry::length::LogicalPx(0.0),
         };
         for piece in subtract(row, &bodies) {
-            widget.paint(&painter.with_clip_rect(piece), &theme, edge.leaf);
+            widget.paint_rows(&painter.with_clip_rect(piece), &theme, edge.leaf, edge.rows);
         }
     }
 }
