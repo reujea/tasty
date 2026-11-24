@@ -35,7 +35,7 @@ macOS 에서만 `alt` 토큰이 Cmd(⌘)에 매핑된다(물리 위치가 Win/Li
 
 - **캡처**: winit `ModifiersState` → 토큰. macOS `super_key() → "alt"` · `alt_key() → "option"`, 기타 `alt_key() → "alt"` · `super_key() → "option"`; `control_key() → "ctrl"`, `shift_key() → "shift"`. macOS 에서 ⌘+N 도, Windows 에서 Alt+N 도 동일하게 `"alt+n"` 저장. Windows 의 Win+K·Linux 의 Super+K·macOS 의 ⌥+K 는 모두 `"option+k"` 다.
 - **매칭**: winit `ModifiersState` 와 비교. `"ctrl" → control_key()`, `"alt" → macOS super_key() / 기타 alt_key()`, `"option" → macOS alt_key() / 기타 super_key()`, `"shift" → shift_key()`. 두 축의 대응은 `tasty_key_match::token_axes` 한 곳에서 정하고 녹화·단축키·전환 표시·보조키 도움말이 같이 쓴다.
-- **링크 클릭 수식키**: 설정 `general.link_click_modifier` 는 바인딩 토큰이 아니라 물리 키 이름이다. 값 `alt` 는 물리 Alt(macOS Option)다. `tasty_key_match::link_click_combo` 가 이 값을 토큰 조합(macOS `option`, 기타 `alt`)으로 옮기고, 클릭 판정(`link_click_modifiers_held`)과 보조키 도움말의 링크 안내가 이 조합을 `token_axes` 로 대조한다([터미널 링크](../../features/terminal-link/index.md#트리거-사용자-행동)).
+- **링크 클릭 수식키**: 설정 `general.link_click_modifier` 는 바인딩 토큰이 아니라 물리 키 이름이다. 값 `alt` 는 물리 Alt(macOS Option)다. 클릭 판정과 보조키 도움말이 함께 쓰는 것은 이 값을 토큰 조합(macOS `option`, 기타 `alt`)으로 옮기는 `tasty_key_match::link_click_combo`(OS를 인자로 받는 판 `link_click_combo_for`)다. 클릭 판정(`link_click_modifiers_held`)은 지금 키 상태를 `token_axes` 로 토큰 축으로 바꿔 그 조합과 대조하고, 도움말은 `ModifiersChanged` 에서 `token_axes` 로 만든 섹션 조합과 그 조합을 비교한다([터미널 링크](../../features/terminal-link/index.md#트리거-사용자-행동)).
 - **egui 경로**: egui-winit 은 Win·Super 를 macOS 에서만(`mac_cmd`) 담는다. 그래서 `GpuState::handle_egui_event` 가 `ModifiersChanged` 마다 `tasty_key_match::note_modifiers` 로 그 상태를 egui 문맥에 남기고, 창이 포커스를 잃으면 비운다. egui 입력으로 판정하는 단축키(`any_binding_pressed_egui`·`consume_binding_egui`)·워크스페이스 전환 키캡·explorer 드래그 반전은 `super_held` 로 그 값을 읽어 `token_axes_egui` 에 넘긴다.
 
 ### OS 키 이름 토큰

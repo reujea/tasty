@@ -25,7 +25,7 @@
 
 설정 `링크 클릭 수식키`의 기본값은 `Ctrl`이며 `Alt` 또는 `좌클릭 열기 끄기`를 선택할 수 있다.
 
-`Alt`는 물리 Alt 키다. macOS에서는 Option 키이며 Command가 아니다. 바인딩 토큰 `alt`가 macOS에서 Command인 것과 다르다([키 매핑](../../design/policies/key-mapping.md)). 클릭 판정과 수식키 도움말의 링크 열기 안내는 같은 변환(`tasty_key_match::link_click_combo`)으로 이 키를 바인딩 토큰 조합으로 옮긴다. 그래서 macOS의 안내는 Option 줄에, 다른 OS의 안내는 Alt 줄에 붙는다.
+`Alt`는 물리 Alt 키다. macOS에서는 Option 키이며 Command가 아니다. 바인딩 토큰 `alt`가 macOS에서 Command인 것과 다르다([키 매핑](../../design/policies/key-mapping.md)). 클릭 판정과 수식키 도움말의 링크 열기 안내는 이 키를 바인딩 토큰 조합으로 옮기는 같은 변환(`tasty_key_match::link_click_combo`, OS를 인자로 받는 판 `link_click_combo_for`)을 쓴다. 클릭 판정은 지금 누른 키를 `tasty_key_match::token_axes`로 토큰 축으로 바꿔 그 조합과 대조하고, 도움말은 수식키가 바뀔 때 같은 함수로 만든 섹션 조합과 그 조합을 비교한다. 그래서 macOS의 안내는 Option 줄에, 다른 OS의 안내는 Alt 줄에 붙는다.
 
 - `Ctrl`/`Alt`: 설정 수식키 조건이 맞으면 hover 하이라이트([터미널 색상](../../surfaces/terminal/index.md#색상--폰트))와 PointingHand 커서가 나타나고, 좌클릭으로 링크를 연다. 수식키+클릭이 링크 위가 아니면 no-op이며 selection을 시작/변경하지 않는다.
 - `좌클릭 열기 끄기`(`LinkModifier::None`, 저장값 `none`): 수식키 상태와 무관하게 좌클릭 링크 열기는 실행하지 않는다. 기존 포커스/selection 경로로 진행하며, 링크 위 우클릭 메뉴는 사용할 수 있다.
