@@ -33,12 +33,8 @@ const PPP_EPS: f32 = 1.0e-3;
 pub(super) struct EguiMeshRenderTarget {
     /// 이 surface 전용 egui_wgpu Renderer (TextureId 네임스페이스 격리).
     renderer: egui_wgpu::Renderer,
-    /// 디코드된 surface-local primitives (평행이동 전 원본).
-    primitives: Vec<ClippedPrimitive>,
-    /// 디코드된 pixels_per_point.
-    ppp: f32,
-    /// 마지막으로 디코드한 footer generation.
-    generation: u64,
+    /// 디코드해 채택한 도형과 합성 배치 캐시.
+    shapes: MeshShapes,
     /// 텍스처 delta까지 적용한 마지막 frame_seq. 도형만 채택한 프레임은 반영하지 않는다.
     last_seq: u64,
     /// 상주 텍스처의 크기. 전체 이미지로 갱신하며 부분 변경의 경계 검사·오래된 텍스처 정리에 사용한다.
@@ -47,6 +43,18 @@ pub(super) struct EguiMeshRenderTarget {
     /// 다시 보내고, attach mirror 경로는 `full_request`가 정한 간격으로 보낸다.
     awaiting_full: bool,
     full_request: FullRequestPacer,
+}
+
+/// 대상이 채택한 도형과 합성 배치 캐시. GPU 자원이 없어 장치 없이도 디코드 채택·띠 구멍·합성 배치를 같은 값으로
+/// 잴 수 있다.
+#[derive(Debug)]
+struct MeshShapes {
+    /// 디코드된 surface-local primitives (평행이동 전 원본).
+    primitives: Vec<ClippedPrimitive>,
+    /// 디코드된 pixels_per_point.
+    ppp: f32,
+    /// 마지막으로 디코드한 footer generation.
+    generation: u64,
     /// 한 번이라도 유효 mesh 를 디코드했는가. false 면 합성 skip.
     has_content: bool,
     /// window-global 좌표로 평행이동/클립한 합성용 primitives 캐시.
@@ -55,26 +63,80 @@ pub(super) struct EguiMeshRenderTarget {
     translated_key: Option<(u64, [u32; 4])>,
 }
 
-impl EguiMeshRenderTarget {
-    fn new(renderer: egui_wgpu::Renderer) -> Self {
+impl Default for MeshShapes {
+    fn default() -> Self {
         Self {
-            renderer,
             primitives: Vec::new(),
             ppp: 1.0,
             generation: 0,
-            last_seq: 0,
-            live_textures: HashMap::new(),
-            awaiting_full: false,
-            full_request: FullRequestPacer::default(),
             has_content: false,
             translated: Vec::new(),
             translated_key: None,
         }
     }
+}
+
+impl MeshShapes {
+    /// 디코드한 도형을 채택한다. 합성 배치 캐시는 다음 합성이 다시 만든다.
+    fn adopt(&mut self, primitives: Vec<ClippedPrimitive>, ppp: f32, generation: u64) {
+        self.primitives = primitives;
+        self.ppp = ppp;
+        self.generation = generation;
+        self.has_content = true;
+        self.translated_key = None;
+    }
+
+    /// 이 generation을 이미 채택했는지.
+    fn is_current(&self, generation: u64) -> bool {
+        self.has_content && self.generation == generation
+    }
+
+    /// 포커스 띠가 비울 본문. [`composed_body`]가 합성하지 않는 경우를 뺀다.
+    fn composed(&self) -> Option<crate::adapters::ui::surface_focus_edge::ComposedPopup> {
+        composed_body(self.has_content, self.ppp, &self.primitives)
+    }
+
+    /// `rect`에 합성할 도형([`placed_primitives`]). 같은 generation·영역이면 지난 배치를 다시 쓴다. 본문이 없거나
+    /// 배율이 0이면 `None`이다.
+    fn placed(&mut self, rect: PhysicalRect) -> Option<&[ClippedPrimitive]> {
+        if !self.has_content || self.ppp <= 0.0 {
+            return None;
+        }
+        let rect_bits = [
+            rect.x.value().to_bits(),
+            rect.y.value().to_bits(),
+            rect.width.value().to_bits(),
+            rect.height.value().to_bits(),
+        ];
+        let key = (self.generation, rect_bits);
+        if self.translated_key != Some(key) {
+            self.translated = placed_primitives(&self.primitives, rect, self.ppp);
+            self.translated_key = Some(key);
+        }
+        Some(&self.translated)
+    }
+}
+
+impl EguiMeshRenderTarget {
+    fn new(renderer: egui_wgpu::Renderer) -> Self {
+        Self {
+            renderer,
+            shapes: MeshShapes::default(),
+            last_seq: 0,
+            live_textures: HashMap::new(),
+            awaiting_full: false,
+            full_request: FullRequestPacer::default(),
+        }
+    }
 
     /// 메타데이터상 텍스처 변경을 적용할 수 있는지 확인한다.
     fn chain_accepts(&self, frame_seq: u64, full_textures: bool) -> bool {
-        chain_accepts(self.has_content, self.last_seq, frame_seq, full_textures)
+        chain_accepts(
+            self.shapes.has_content,
+            self.last_seq,
+            frame_seq,
+            full_textures,
+        )
     }
 }
 
@@ -321,7 +383,7 @@ fn decode_mesh_bytes_into_target(
 
     let refs_live = all_textures_live(&decoded.primitives, &target.live_textures);
     let deltas_fit = deltas_fit_live(&decoded.textures_delta, &target.live_textures);
-    let outcome = classify_decode(chain_ok, target.has_content, refs_live, deltas_fit);
+    let outcome = classify_decode(chain_ok, target.shapes.has_content, refs_live, deltas_fit);
     if outcome == DecodeOutcome::NeedsFull {
         return DecodeOutcome::NeedsFull;
     }
@@ -334,11 +396,9 @@ fn decode_mesh_bytes_into_target(
         apply_texture_deltas(target, device, queue, &decoded.textures_delta);
     }
 
-    target.primitives = decoded.primitives;
-    target.ppp = decoded.pixels_per_point;
-    target.generation = generation;
-    target.has_content = true;
-    target.translated_key = None; // 평행이동 캐시 무효화.
+    target
+        .shapes
+        .adopt(decoded.primitives, decoded.pixels_per_point, generation);
     if chain_ok {
         target.last_seq = frame_seq;
         target.awaiting_full = false;
@@ -415,32 +475,17 @@ fn composite_mesh_target(
     size_in_pixels: [u32; 2],
     page_clip: Option<&[egui::Rect]>,
 ) {
-    if !target.has_content {
+    let ppp = target.shapes.ppp;
+    let Some(placed) = target.shapes.placed(rect) else {
         return;
-    }
-    let ppp = target.ppp;
-    if ppp <= 0.0 {
-        return;
-    }
-
-    let rect_bits = [
-        rect.x.value().to_bits(),
-        rect.y.value().to_bits(),
-        rect.width.value().to_bits(),
-        rect.height.value().to_bits(),
-    ];
-    let key = (target.generation, rect_bits);
-    if target.translated_key != Some(key) {
-        target.translated = placed_primitives(&target.primitives, rect, ppp);
-        target.translated_key = Some(key);
-    }
+    };
     let clipped;
     let prims: &[ClippedPrimitive] = match page_clip {
         Some(pages) => {
-            clipped = clip_primitives_to_pages(&target.translated, pages);
+            clipped = clip_primitives_to_pages(placed, pages);
             &clipped
         }
-        None => &target.translated,
+        None => placed,
     };
     if prims.is_empty() {
         return;
@@ -604,9 +649,7 @@ impl GpuState {
     ) -> HashMap<u64, crate::adapters::ui::surface_focus_edge::ComposedPopup> {
         self.egui_mesh_popup_targets
             .iter()
-            .filter_map(|(iid, t)| {
-                composed_body(t.has_content, t.ppp, &t.primitives).map(|body| (*iid, body))
-            })
+            .filter_map(|(iid, t)| t.shapes.composed().map(|body| (*iid, body)))
             .collect()
     }
 
@@ -647,7 +690,7 @@ impl GpuState {
             let (needs_decode, chain_ok, awaiting) = {
                 let t = &self.egui_mesh_targets[sid];
                 (
-                    !t.has_content || t.generation != frame_generation,
+                    !t.shapes.is_current(frame_generation),
                     t.chain_accepts(frame_seq, frame_full),
                     t.awaiting_full,
                 )
@@ -737,7 +780,7 @@ impl GpuState {
             let (needs_decode, chain_ok, awaiting) = {
                 let t = &self.attach_mesh_targets[sid];
                 (
-                    !t.has_content || t.generation != frame.generation,
+                    !t.shapes.is_current(frame.generation),
                     t.chain_accepts(frame.frame_seq, frame.full_textures),
                     t.awaiting_full,
                 )
@@ -880,7 +923,7 @@ impl GpuState {
         let (needs_decode, chain_ok, awaiting) = {
             let t = &self.egui_mesh_popup_targets[&iid];
             (
-                !t.has_content || t.generation != frame_generation,
+                !t.shapes.is_current(frame_generation),
                 t.chain_accepts(frame_seq, frame_full),
                 t.awaiting_full,
             )
@@ -955,7 +998,7 @@ impl GpuState {
             let (needs_decode, chain_ok, awaiting) = {
                 let t = &self.egui_mesh_banner_targets[iid];
                 (
-                    !t.has_content || t.generation != frame_generation,
+                    !t.shapes.is_current(frame_generation),
                     t.chain_accepts(frame_seq, frame_full),
                     t.awaiting_full,
                 )
@@ -1357,10 +1400,12 @@ mod tests {
         tasty_plugin_protocol::mesh_wire::encode_paint(&prims, &out.textures_delta, ppp)
     }
 
-    /// Given 빈 캐시에서 시작해 두 프레임 사이 팝업 본문의 clip이 바뀔 때, When 프레임마다 그 프레임 본문을 한 번
-    /// 디코드해 캐시에 두면, Then 포커스 띠가 비우는 영역과 합성이 그리는 잘림 영역이 그 캐시 하나에서 나와 각 프레임
-    /// 같다. 첫 프레임(빈 캐시)과 clip이 바뀐 둘째 프레임 모두다. GPU 프레임 순서(디코드 → 띠 → 합성, 합성은 다시
-    /// 디코드하지 않음)는 `source_guards::frame_draw_order`가 고정한다.
+    /// Given 빈 대상 캐시에서 시작해 두 프레임 사이 팝업 본문의 clip이 바뀔 때, When 프레임마다 그 프레임 본문을 한
+    /// 번 디코드해 대상 캐시(`MeshShapes::adopt`, 제품 디코더가 대상을 채우는 함수)에 채택하면, Then 포커스 띠가
+    /// 비우는 영역(`MeshShapes::composed` → `composited_bodies`)과 합성이 그리는 잘림 영역(`MeshShapes::placed`,
+    /// 합성이 배치를 다시 쓰는 캐시 포함)이 그 캐시 하나에서 나와 각 프레임 같다. 첫 프레임(빈 캐시)과 clip이 바뀐
+    /// 둘째 프레임 모두다. 텍스처 적용과 GPU 프레임 순서(디코드 → 띠 → 합성, 합성은 다시 디코드하지 않음)는 장치가
+    /// 필요해 `source_guards::frame_draw_order`가 고정한다.
     #[test]
     fn the_edge_hole_and_the_composite_clip_match_in_each_frame() {
         use crate::adapters::ui::surface_focus_edge::composited_bodies;
@@ -1382,37 +1427,47 @@ mod tests {
                 Rect::from_min_max(Pos2::new(140.0, 50.0), Pos2::new(210.0, 100.0)),
             ),
         ];
-        let mut cache: Option<(Vec<ClippedPrimitive>, f32)> = None;
-        for (clip, expected) in frames {
+        let mut shapes = MeshShapes::default();
+        assert!(
+            shapes.composed().is_none() && shapes.placed(region).is_none(),
+            "빈 캐시"
+        );
+        for (generation, (clip, expected)) in (1u64..).zip(frames) {
             let decoded =
                 tasty_plugin_protocol::mesh_wire::decode_paint(&popup_frame_bytes(clip, ppp))
                     .expect("decode");
             assert_eq!(
-                classify_decode(true, cache.is_some(), true, true),
+                classify_decode(true, shapes.has_content, true, true),
                 DecodeOutcome::Accepted,
                 "전체 텍스처 프레임은 빈 캐시에서도 채택한다"
             );
-            cache = Some((decoded.primitives, decoded.pixels_per_point));
-            let (prims, body_ppp) = cache.as_ref().expect("decoded this frame");
-            let composed =
-                HashMap::from([(7, composed_body(true, *body_ppp, prims).expect("body"))]);
+            assert!(
+                !shapes.is_current(generation),
+                "새 프레임은 다시 디코드한다"
+            );
+            shapes.adopt(decoded.primitives, decoded.pixels_per_point, generation);
+            let composed = HashMap::from([(7, shapes.composed().expect("body"))]);
             let holes = composited_bodies(&[(7, region)], &composed, |_| true, ppp);
-            let drawn: Vec<Rect> = placed_primitives(prims, region, *body_ppp)
-                .iter()
-                .map(|p| p.clip_rect)
-                .filter(|r| r.is_positive())
-                .collect();
-            assert_eq!(drawn.len(), 1, "one clipped shape per frame");
-            assert_eq!(holes.len(), drawn.len(), "one hole per drawn clip");
-            for (hole, draw) in holes.iter().zip(&drawn) {
-                for (h, d, e) in [
-                    (hole.min, draw.min, expected.min),
-                    (hole.max, draw.max, expected.max),
-                ] {
-                    assert!(
-                        (h - d).length() < 1e-3 && (h - e).length() < 1e-3,
-                        "hole {hole:?} and composite clip {draw:?} must both be {expected:?}"
-                    );
+            for pass in ["first composite", "reused placement"] {
+                let drawn: Vec<Rect> = shapes
+                    .placed(region)
+                    .expect("composited")
+                    .iter()
+                    .map(|p| p.clip_rect)
+                    .filter(|r| r.is_positive())
+                    .collect();
+                assert_eq!(drawn.len(), 1, "one clipped shape per frame ({pass})");
+                assert_eq!(holes.len(), drawn.len(), "one hole per drawn clip ({pass})");
+                for (hole, draw) in holes.iter().zip(&drawn) {
+                    for (h, d, e) in [
+                        (hole.min, draw.min, expected.min),
+                        (hole.max, draw.max, expected.max),
+                    ] {
+                        assert!(
+                            (h - d).length() < 1e-3 && (h - e).length() < 1e-3,
+                            "{pass}: hole {hole:?} and composite clip {draw:?} must both be {expected:?}"
+                        );
+                    }
                 }
             }
         }
