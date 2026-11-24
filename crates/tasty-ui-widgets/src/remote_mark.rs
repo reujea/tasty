@@ -1,5 +1,5 @@
 //! 원격 위치 표지 — remote 글리프 + 호스트 글자. 핸들러 picker 경로 줄과 링크 툴팁이 쓴다.
-//! 호스트 글자는 mono, 비었을 때 그 자리에 쓰는 낱말은 font-label 이다. 끝을 `…` 로 줄인다.
+//! 호스트 글자는 mono 로 상한에서 끝을 `…` 로 줄인다. 비었을 때 그 자리에 쓰는 낱말은 font-label 이고 줄이지 않는다.
 //! 상태바 원격 항목은 바의 축소 규칙을 따르므로 `status_bar` 에 따로 있다.
 
 use std::sync::Arc;
@@ -30,13 +30,21 @@ fn host_galley(
     max_w: LogicalPx,
 ) -> Arc<egui::Galley> {
     let caption = th.font_size_caption.value();
-    let (text, font) = if mark.host.is_empty() {
-        (mark.empty_label, crate::label_font(caption))
-    } else {
-        (mark.host, egui::FontId::monospace(caption))
-    };
-    let mut job =
-        egui::text::LayoutJob::simple_singleline(text.to_owned(), font, egui::Color32::PLACEHOLDER);
+    if mark.host.is_empty() {
+        // 빈 호스트 자리의 낱말은 상한을 받지 않고 끝까지 그린다(정본 'no host' 행).
+        return ctx.fonts(|f| {
+            f.layout_no_wrap(
+                mark.empty_label.to_owned(),
+                crate::label_font(caption),
+                egui::Color32::PLACEHOLDER,
+            )
+        });
+    }
+    let mut job = egui::text::LayoutJob::simple_singleline(
+        mark.host.to_owned(),
+        egui::FontId::monospace(caption),
+        egui::Color32::PLACEHOLDER,
+    );
     job.wrap = egui::text::TextWrapping {
         max_width: max_w.max(LogicalPx(0.0)).value(),
         max_rows: 1,
@@ -259,6 +267,48 @@ pub fn link_tip_rect(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn theme() -> Theme {
+        Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0)
+    }
+
+    /// 한 프레임 안에서 `f` 를 부른다. 폭 계산에 글꼴이 필요하다.
+    fn in_frame<R>(f: impl FnOnce(&egui::Ui) -> R) -> R {
+        let ctx = egui::Context::default();
+        let mut f = Some(f);
+        let mut out = None;
+        // 그린 도형은 보지 않고 프레임 안에서 잰 값만 쓴다.
+        let _ = ctx.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                if let Some(f) = f.take() {
+                    out = Some(f(ui));
+                }
+            });
+        });
+        out.expect("frame ran")
+    }
+
+    /// 빈 호스트 자리의 낱말은 호스트 상한(160)으로 줄이지 않는다(정본 'no host' 행 "never elides").
+    #[test]
+    fn the_no_host_word_is_never_cut_by_the_host_cap() {
+        let th = theme();
+        let word = "Remote".repeat(8);
+        let (w, cap) = in_frame(|ui| {
+            let mark = RemoteMark {
+                host: "",
+                empty_label: &word,
+            };
+            (
+                fh_remote_mark_width(ui, &th, &mark),
+                th.fh_remote_max_width(),
+            )
+        });
+        let outside = th.icon_glyph_size_xs + th.fh_remote_gap();
+        assert!(
+            w > outside + cap,
+            "the word keeps its full width: mark {w:?}, cap {cap:?}"
+        );
+    }
 
     fn bounds() -> egui::Rect {
         egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))
