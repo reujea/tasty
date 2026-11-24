@@ -164,8 +164,8 @@ impl PendingIndicator<'_> {
                 format!("{} · {}", self.label, self.time),
             )
         });
-        // A forced bubble is drawn only while the chip and the bubble both fit the clip: the bubble layer is not clipped
-        // by a scroll area and the bubble would be pulled to the screen edge.
+        // A forced bubble is drawn only while the chip and the bubble both fit the clip: the bubble Area is not clipped by a
+        // scroll area and would be pulled to the screen edge.
         let open = self.open
             && ui
                 .clip_rect()
@@ -265,7 +265,8 @@ mod tests {
         let mut chip = egui::Rect::NOTHING;
         let mut bubble_text = None;
         let mut bubble = None;
-        let mut drawn_over = None;
+        let mut tooltip_layer = None;
+        let mut chip_id = None;
         for i in 0..20 {
             let mut events = Vec::new();
             if chip.is_positive() {
@@ -295,6 +296,7 @@ mod tests {
                         }
                         .show(ui, &theme);
                         chip = response.rect;
+                        chip_id = Some(response.id);
                     });
             });
             bubble_text = out.shapes.iter().find_map(|c| match &c.shape {
@@ -322,22 +324,27 @@ mod tests {
                 let fill = theme.surface_raised().to_egui();
                 bubble = out.shapes.iter().find_map(|c| raised(&c.shape, fill, at));
             }
-            // The bubble is painted over the chip: its frame comes after every chip shape.
-            let frame_at = bubble.and_then(|rect| {
-                out.shapes.iter().position(|c| {
-                    matches!(&c.shape, egui::Shape::Rect(r) if r.rect == rect)
-                        || matches!(&c.shape, egui::Shape::Vec(v)
-                            if v.iter().any(|s| matches!(s, egui::Shape::Rect(r) if r.rect == rect)))
+            // The bubble's own Area: a visible tooltip layer whose rect is the bubble frame.
+            let layer = chip_id.map(|id| {
+                egui::LayerId::new(egui::Order::Tooltip, egui::Id::new(id.with("detail")))
+            });
+            tooltip_layer = layer.and_then(|layer| {
+                ctx.memory(|m| {
+                    m.areas()
+                        .visible_layer_ids()
+                        .contains(&layer)
+                        .then(|| m.area_rect(layer.id))
+                        .flatten()
                 })
             });
-            let last_chip = out.shapes.iter().rposition(|c| {
-                chip.is_positive() && chip.contains_rect(c.shape.visual_bounding_rect())
-            });
-            drawn_over = frame_at.zip(last_chip).map(|(frame, chip)| frame > chip);
         }
         let (_, size) = bubble_text.expect("the hovered chip shows its detail lines");
         let bubble = bubble.expect("the bubble frame is drawn around the text");
-        assert_eq!(drawn_over, Some(true), "the bubble is drawn over the chip");
+        let layer_rect = tooltip_layer.expect("the bubble is on its tooltip layer");
+        assert!(
+            layer_rect.contains_rect(bubble),
+            "the bubble {bubble:?} is drawn in the tooltip layer {layer_rect:?}"
+        );
         assert!(
             bubble.top() >= chip.bottom(),
             "bubble {bubble:?} is below the chip {chip:?}"
