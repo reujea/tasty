@@ -93,24 +93,22 @@ pub(crate) struct ScanSnapshot {
 }
 
 impl ScanSnapshot {
-    /// Build the text the same way the other reads do (one lossy decode, then
-    /// `strip_ansi` when asked) and map its bytes to the snapshot's origins.
+    /// Build the same text the other reads give (one lossy decode, then the
+    /// `strip_ansi` result when asked) and, in the same pass over the escape
+    /// matches, map its bytes to the snapshot's origins.
     pub(crate) fn finish(self, strip_ansi: bool) -> ScanRead {
         let decoded = String::from_utf8_lossy(&self.raw).to_string();
-        let origins = self.spans.as_deref().and_then(|spans| {
-            crate::text_origins::map_text_origins(
+        let (text, origins) = match self.spans.as_deref() {
+            Some(spans) => crate::text_origins::map_text_origins(
                 &self.raw,
                 self.cursor,
                 spans,
-                &decoded,
+                decoded,
                 strip_ansi,
                 self.skipped > 0,
-            )
-        });
-        let text = if strip_ansi {
-            tasty_ansi::strip_ansi(&decoded)
-        } else {
-            decoded
+            ),
+            None if strip_ansi => (tasty_ansi::strip_ansi(&decoded), None),
+            None => (decoded, None),
         };
         let raw_bytes = self.raw.len();
         ScanRead {

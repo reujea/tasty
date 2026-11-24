@@ -514,3 +514,41 @@ fn the_scan_text_matches_the_previous_formula_for_arbitrary_bytes() {
         }
     }
 }
+
+/// Given 보존 한도를 3바이트 CSI로 채운 일반·재그리기 출력, When 지우고 읽으면,
+/// Then `text`는 같은 strip 결과이고 출처는 한 구간(재그리기면 지운 자리 표시 하나)이다.
+#[test]
+fn a_retention_full_of_short_csi_gives_the_same_text_and_origins() {
+    let csi_count = (OUTPUT_RETENTION_MAX_BYTES - 2) / 3;
+    let mut raw = b"A".to_vec();
+    raw.extend_from_slice(&b"\x1b[m".repeat(csi_count));
+    raw.push(b'B');
+    assert!(raw.len() <= OUTPUT_RETENTION_MAX_BYTES);
+    let expected = tasty_ansi::strip_ansi(&String::from_utf8_lossy(&raw));
+    assert_eq!(expected, "AB");
+
+    let t0 = Instant::now();
+    let mut normal = idle_terminal();
+    normal.feed_bytes_at(&raw, t0);
+    let read = scan(&mut normal, true);
+    assert_eq!(read.read.text, expected);
+    assert_eq!(ranges(&read), [(0, 2, "normal")]);
+    assert!(gaps(&read).is_empty());
+
+    let mut redraw = idle_terminal();
+    notify_at(&redraw, t0);
+    redraw.feed_bytes_at(&raw, t0 + 10 * MS);
+    let read = scan(&mut redraw, true);
+    assert_eq!(read.read.text, expected);
+    assert_eq!(ranges(&read), [(0, 2, "redraw")]);
+    assert_eq!(gaps(&read), [(1, "redraw_removed")]);
+
+    // 지운 자리마다 표시가 생겨 항목 상한을 넘어도 text는 끝까지 같은 strip 결과다.
+    let interleaved = b"\x1b[mx".repeat(OUTPUT_RETENTION_MAX_BYTES / 4);
+    let mut over = idle_terminal();
+    notify_at(&over, t0);
+    over.feed_bytes_at(&interleaved, t0 + 10 * MS);
+    let read = scan(&mut over, true);
+    assert_eq!(read.read.text, "x".repeat(OUTPUT_RETENTION_MAX_BYTES / 4));
+    assert!(read.origins.is_none());
+}
