@@ -302,6 +302,8 @@ fn theme_pair(ui: &mut egui::Ui, theme: &Theme, id: &str, add: impl Fn(&mut egui
                     .inner_margin(egui::Margin::same(th.spacing_md.value() as i8))
                     .show(ui, |ui| {
                         ui.vertical(|ui| {
+                            // 열은 프레임 폭이다. 긴 라벨은 이 폭에서 줄을 바꾼다.
+                            ui.set_width(FH_FRAME_WIDTH.value());
                             ui.spacing_mut().item_spacing.y = th.spacing_md.value();
                             ui.push_id((id, *label), |ui| add(ui, th));
                         });
@@ -320,10 +322,13 @@ fn remote_path_row(
 ) {
     ui.vertical(|ui| {
         ui.spacing_mut().item_spacing.y = th.spacing_xs.value();
-        ui.label(
-            egui::RichText::new(row.label)
-                .size(th.font_size_caption.value())
-                .color(th.text_muted().to_egui()),
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(row.label)
+                    .size(th.font_size_caption.value())
+                    .color(th.text_muted().to_egui()),
+            )
+            .wrap(),
         );
         let head = mark.map(|mark| RemoteHead {
             mark,
