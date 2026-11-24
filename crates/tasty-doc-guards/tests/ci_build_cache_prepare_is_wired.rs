@@ -570,9 +570,23 @@ struct Report {
     after_failure_steps: usize,
 }
 
+/// checkout 스텝인가. `actions/checkout`은 소문자 꼴만 받는다. 대소문자만 다른 꼴은 checkout일 수 있으므로
+/// 분류에서 빼지 않고 지원하지 않는 표기로 실패한다.
 fn is_checkout(file: &str, step: &Step, errs: &mut Vec<String>) -> bool {
     match scalar(file, &step.fields, "uses") {
-        Ok(v) => v.is_some_and(|u| u.starts_with("actions/checkout")),
+        Ok(Some(u)) if u.starts_with("actions/checkout") => true,
+        Ok(Some(u)) if u.to_ascii_lowercase().starts_with("actions/checkout") => {
+            let line = step
+                .fields
+                .iter()
+                .find(|f| f.key == "uses")
+                .map_or(step.line, |f| f.line);
+            errs.push(format!(
+                "{file}:{line} {UNSUPPORTED}: uses의 actions/checkout은 소문자로 쓴다: {u}"
+            ));
+            false
+        }
+        Ok(_) => false,
         Err(e) => {
             errs.push(e);
             false
@@ -1204,4 +1218,15 @@ fn a_repeated_top_level_key_is_rejected() {
         .expect("test.yml");
     text.push_str("jobs:\n  extra:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          clean: false\n");
     assert_caught(&all, "지원하지 않는 표기: 최상위 키 jobs가 두 번 있다");
+}
+
+/// R7: checkout은 소문자 `actions/checkout`만 받는다. 대소문자를 바꾼 꼴은 실패다.
+#[test]
+fn a_checkout_in_another_case_is_rejected() {
+    let all = mutated(
+        "release.yml",
+        "      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n",
+        "      - uses: Actions/Checkout@v4\n        with:\n          fetch-depth: 0\n          clean: false\n",
+    );
+    assert_caught(&all, "release.yml:22 지원하지 않는 표기");
 }
