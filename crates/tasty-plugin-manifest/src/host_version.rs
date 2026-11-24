@@ -123,6 +123,19 @@ impl Manifest {
         }
     }
 
+    /// 공식 번들을 복사하기 전의 판정. [`Manifest::admit_host_tasty`]에 더해
+    /// TOML로 읽히지 않는 매니페스트도 거절한다(복사한 뒤에야 load가 알리면 늦다).
+    pub fn admit_bundle_host_tasty(dir: &Path) -> anyhow::Result<()> {
+        let path = dir.join("tasty-plugin.toml");
+        let Ok(source) = read_source(&path) else {
+            return Ok(());
+        };
+        source
+            .parse::<toml::Table>()
+            .map_err(|e| anyhow::anyhow!("invalid manifest at {}: {e}", path.display()))?;
+        Self::admit_host_tasty_source(&source, dir)
+    }
+
     /// 원문 `source`로 최소 버전을 판정하고 정해진 부족 처리를 적용한다. `dir`은 경고에만 쓴다.
     fn admit_host_tasty_source(source: &str, dir: &Path) -> anyhow::Result<()> {
         let Some((host, shortfall)) = HOST.get() else {

@@ -6,13 +6,12 @@ use std::path::Path;
 
 use tasty_plugin_manifest::Manifest;
 
-/// 번들 원본의 `min_tasty_version`이 형식 오류이거나 실행 중인 Tasty보다 높은 버전을 요구해
-/// 받아들일 수 없으면 그 거절을 돌려준다. 버전 부족을 경고만 하는 빌드에서는 `None`이다.
-/// 로그는 Display(영어), 사용자 보고는 [`crate::manifest_error::describe`]로 쓴다.
-/// 매니페스트를 읽지 못하면 `None`이다. 그 경우는 기존 버전 비교·서명 검사가 다룬다.
+/// 번들 원본의 매니페스트가 TOML이 아니거나, `min_tasty_version`이 형식 오류이거나 실행 중인
+/// Tasty보다 높은 버전을 요구해 받아들일 수 없으면 그 거절을 돌려준다. 버전 부족을 경고만 하는
+/// 빌드에서는 그 경우만 `None`이다. 로그는 Display(영어), 사용자 보고는
+/// [`crate::manifest_error::describe`]로 쓴다. 매니페스트 파일을 읽지 못하면 `None`이다.
 pub(crate) fn bundle_requires_newer_tasty(src: &Path) -> Option<anyhow::Error> {
-    // 형식 오류도 '제약 없음'으로 넘기지 않고 복사 전에 거절한다.
-    Manifest::admit_host_tasty(src).err()
+    Manifest::admit_bundle_host_tasty(src).err()
 }
 
 /// 업그레이드 보고서의 실패 항목에 쓸 사유. 현재 언어 문장이다.
@@ -163,6 +162,49 @@ mod tests {
             }
             assert!(!home.path().join("installed/com.tasty.html").exists());
         }
+    }
+
+    /// `bundle`의 com.tasty.html 하나로 upgrade-builtins 계획을 세워 그 항목을 돌려준다.
+    fn plan_html(home: &Path) -> BuiltinUpgradeAction {
+        let plan = prepare(
+            home.join("installed"),
+            Some(home.join("bundle")),
+            home.join("known.toml"),
+            PluginsConfig::load_from(home.join("plugins.toml")),
+            false,
+            &[],
+            false,
+        )
+        .expect("plan");
+        plan.entries
+            .into_iter()
+            .find_map(|entry| match entry {
+                Entry::Done(item) if item.id == "com.tasty.html" => Some(item.action),
+                _ => None,
+            })
+            .expect("refused before any write")
+    }
+
+    fn failed_reason(action: BuiltinUpgradeAction) -> String {
+        match action {
+            BuiltinUpgradeAction::Failed { reason } => reason,
+            other => panic!("expected Failed, got {other:?}"),
+        }
+    }
+
+    /// TOML로 읽히지 않는 번들 매니페스트는 복사 전에 거절한다(부팅 선택·업그레이드 계획).
+    #[test]
+    fn a_bundle_manifest_that_is_not_toml_is_never_copied() {
+        crate::test_support::host_tasty_1_0_0();
+        let home = tempfile::tempdir().expect("tempdir");
+        let src = home.path().join("bundle/com.tasty.html");
+        plugin(&src, "com.tasty.html", "min_tasty_version = 0.15.0");
+        let err = crate::official::bundle_source(&home.path().join("bundle"), "com.tasty.html")
+            .expect_err("refused");
+        assert!(err.contains("invalid manifest"), "{err}");
+        let reason = failed_reason(plan_html(home.path()));
+        assert!(reason.contains("invalid manifest"), "{reason}");
+        assert!(!home.path().join("installed/com.tasty.html").exists());
     }
 
     /// 부팅·재탐색: 더 높은 Tasty를 요구하는 폴더는 어느 목록에도 들어가지 않는다.

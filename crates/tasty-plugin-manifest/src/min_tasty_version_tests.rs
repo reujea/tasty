@@ -257,3 +257,20 @@ fn load_for_host_reads_the_manifest_once() {
     Manifest::load_for_host(dir.path()).expect("loads");
     assert_eq!(host_version::SOURCE_READS.with(|n| n.get()), 1);
 }
+
+/// 공식 번들은 TOML로 읽히지 않는 매니페스트를 복사 전에 거절한다.
+/// 일반 받아들임 단계는 그 오류를 뒤의 load에 맡긴다.
+#[test]
+fn a_bundle_manifest_that_is_not_toml_is_refused_before_copy() {
+    set_host_tasty_version("1.0.0", VersionShortfall::Refuse).expect("host version");
+    let dir = tempfile::tempdir().expect("tempdir");
+    let source = source_with("min_tasty_version = 0.15.0");
+    assert!(
+        source.parse::<toml::Table>().is_err(),
+        "fixture must not be TOML"
+    );
+    std::fs::write(dir.path().join("tasty-plugin.toml"), source).expect("write");
+    let err = Manifest::admit_bundle_host_tasty(dir.path()).expect_err("refused");
+    assert!(err.to_string().contains("invalid manifest"), "{err}");
+    assert!(Manifest::admit_host_tasty(dir.path()).is_ok());
+}
