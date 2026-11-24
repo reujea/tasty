@@ -1,5 +1,6 @@
 //! 제품 상태 시험: App plugin 단축키 단계(`plugin_shortcut_in_window`)를 창 상태와 plugin 관리자로 부른다. winit 키는
-//! 사건 값(`PluginKeyGate::Winit`)으로, native WebView 가 넘긴 키는 그 입구의 분류와 받은 surface
+//! 창이 출발 노드를 정할 때 함께 정한 값(`PluginKeyGate::Settled`, `key_nodes::settle_key`)으로, native WebView 가 넘긴
+//! 키는 그 입구의 분류와 받은 surface
 //! (`PluginKeyGate::Forwarded`)로 부르고, 실행된 명령은 그 명령의 action(plugin 팝업 열기)이 남긴 열기 요청
 //! (`pending_popup_opens`의 팝업 id·대상 surface)으로 본다.
 //!
@@ -129,15 +130,27 @@ fn letter_a() -> (Key, KeyCode) {
 }
 
 /// winit 키 하나를 App 입구 순서로 처리한다. 처리했으면 참이다. App 은 plugin 단축키 단계 앞에서 그 사건의 출발 노드를
-/// 정한다(`App::route_window_input` → `MainView::settle_key_event`의 정규화·끊기). 끊기는 창과 같은 함수
-/// (`input_segment::key_focus`)를 빈 egui 큐로 부른다. 순서는 `press_focus_call_sites`가 고정한다.
+/// 정한다(`App::route_window_input` → `MainView::settle_key_event`의 정규화·끊기·판정). 끊기는 창과 같은 함수
+/// (`input_segment::key_focus`)를 빈 egui 큐로 부르고, 판정은 창과 같은 `key_nodes::settle_key` 다. plugin 단계는 그
+/// 값을 읽는다. 순서는 `press_focus_call_sites`가 고정한다.
 fn winit_key(
     state: &mut MainViewState,
     session: &mut crate::runtime::engine_session::EngineSession,
     mgr: &mut PluginManager,
-    (logical, code): (Key, KeyCode),
+    key: (Key, KeyCode),
     mods: ModifiersState,
 ) -> bool {
+    let step = settle_winit_key(state, session, key.clone(), mods);
+    run_plugin_step(state, session, mgr, key, mods, step)
+}
+
+/// App 이 winit 키 하나의 출발 노드를 정할 때 창이 함께 정하는 plugin 단계 값(정규화 → 끊기 → `settle_key`).
+fn settle_winit_key(
+    state: &mut MainViewState,
+    session: &mut crate::runtime::engine_session::EngineSession,
+    (logical, code): (Key, KeyCode),
+    mods: ModifiersState,
+) -> crate::adapters::ui::input::key_nodes::PluginKeyStep {
     let engine = session.borrow_mut();
     state.normalize_focus(&engine.read());
     crate::view::main::input_segment::key_focus(
@@ -152,7 +165,24 @@ fn winit_key(
         mods,
         egui_mods: egui_modifiers(mods),
     };
-    let lookup = crate::shortcuts::shortcut_lookup_key(&logical, &value.physical, mods);
+    let read = engine.read();
+    let egui_surface =
+        crate::adapters::ui::input::key_nodes::focused_surface_takes_egui(state, &read);
+    crate::adapters::ui::input::key_nodes::settle_key(state, &read, &value, false, egui_surface)
+        .plugin
+}
+
+/// App plugin 단계에 winit 키 하나를 그 사건의 plugin 단계 값 `step` 으로 넣는다. 처리했으면 참이다.
+fn run_plugin_step(
+    state: &mut MainViewState,
+    session: &mut crate::runtime::engine_session::EngineSession,
+    mgr: &mut PluginManager,
+    (logical, code): (Key, KeyCode),
+    mods: ModifiersState,
+    step: crate::adapters::ui::input::key_nodes::PluginKeyStep,
+) -> bool {
+    let engine = session.borrow_mut();
+    let lookup = crate::shortcuts::shortcut_lookup_key(&logical, &PhysicalKey::Code(code), mods);
     plugin_shortcut_in_window(
         state,
         &engine,
@@ -160,7 +190,7 @@ fn winit_key(
         |_| false,
         &lookup,
         mods,
-        PluginKeyGate::Winit(&value),
+        PluginKeyGate::Settled(step),
     )
 }
 
@@ -338,6 +368,36 @@ fn a_key_after_a_bare_escape_on_the_search_bar_runs_its_plugin_global_command() 
         NONE
     ));
     assert_eq!(names(&mut state), ["letter"]);
+}
+
+/// M-E30-1 F: Given 검색 띠 포커스(그 입력칸이 글자 `a` 를 쓴다), When 그 키가 보류됐다가 검색 띠가 닫혀 포커스가
+/// 터미널로 옮긴 뒤 재생되면, Then 재생은 그 입구 처음부터 지나 재생 시점에 다시 정한 값으로 새 노드의 plugin Global
+/// 명령이 돈다. 보류 때 정한 값은 게이트가 닫혀 있어 그 값을 다시 쓰면 명령이 돌지 않는다(대조).
+#[test]
+fn a_held_key_replayed_after_a_focus_move_runs_the_plugin_command_of_the_new_node() {
+    let (mut state, mut session) = scene(B);
+    let mut mgr = manager();
+    open_search(&mut state, &session, B);
+    let held = settle_winit_key(&mut state, &mut session, letter_a(), NONE);
+    assert!(!held.gate_open, "보류 때 검색 띠 입력칸이 그 글자를 쓴다");
+    state.popups.close(SEARCH_BAR_POPUP_ID);
+    assert!(
+        !run_plugin_step(&mut state, &mut session, &mut mgr, letter_a(), NONE, held),
+        "보류 때 값을 다시 쓰면 돌지 않는다"
+    );
+    assert!(names(&mut state).is_empty());
+    assert!(winit_key(
+        &mut state,
+        &mut session,
+        &mut mgr,
+        letter_a(),
+        NONE
+    ));
+    assert_eq!(
+        names(&mut state),
+        ["letter"],
+        "재생 시점의 노드(터미널)에서 돈다"
+    );
 }
 
 /// T-12b-6 (라): 무대에서 무대 종료 키와 같은 조합의 plugin Global 은 돌지 않는다(무대 종료 단계로 간다). 다른

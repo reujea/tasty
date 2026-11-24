@@ -277,12 +277,12 @@ fn ime_overlay_gate_knows_the_stage() {
 }
 
 /// 플러그인 단축키는 일반 키보드 처리 전에 실행되므로 따로 막는다. winit 경로 키는 포커스 노드(무대 중에는 무대
-/// 노드)에서 시작한 경로로 판정하고(`plugin_key_gate_open`, 무대가 쓰는 키와 종료 키는 닫힘), 나머지 키는 winit·WebView
-/// 입구 모두 무대를 아는 정면 함수(`window_keys_to_overlay`)로 막는다.
+/// 노드)에서 시작한 경로로 판정하고(창이 출발 노드를 정할 때 함께 정한 `key_nodes::settle_key` 의 게이트, 무대가 쓰는
+/// 키와 종료 키는 닫힘), 나머지 키는 winit·WebView 입구 모두 무대를 아는 정면 함수(`window_keys_to_overlay`)로 막는다.
 #[test]
 fn plugin_shortcut_gate_knows_the_stage() {
     let src = read("src/app/plugin_glue/shortcut.rs");
-    let expected = "PluginKeyGate::Winit(value) => crate::adapters::ui::input::key_nodes::plugin_key_gate_open(";
+    let expected = "PluginKeyGate::Settled(step) => (step.gate_open, None, step.levels),";
     assert!(
         src.contains(expected),
         "플러그인 단축키 경로에 무대 차단 조건이 없다(`{expected}`). 일반 키보드 처리보다 먼저 실행되므로 여기서 \
@@ -290,7 +290,7 @@ fn plugin_shortcut_gate_knows_the_stage() {
     );
     let nodes = read("src/adapters/ui/input/key_nodes.rs");
     for expected in [
-        "        None => !state.window_keys_to_overlay(),",
+        "        return settled(KeyDecision::Current, !state.window_keys_to_overlay());",
         "        ForwardedKey::Current => state.window_keys_to_overlay(),",
     ] {
         assert!(

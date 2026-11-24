@@ -409,7 +409,7 @@ NSMenuItem 은 key equivalent 를 하나만 가진다. 그래서 Window 메뉴�
 
 plugin의 `[[contributes.commands]]`(`CommandDecl`)는 호스트 `KeybindingSettings`보다 먼저 매칭한다. `App::try_plugin_shortcut`이 `dispatch_window_event_to_view`보다 먼저 실행되며, plugin 명령을 찾으면 이벤트를 소비해 호스트로 넘기지 않는다. 사용자가 활성화하고 설정한 plugin의 단축키 선택을 우선하는 정책이다.
 
-판정 자리와 순위는 그대로이고, 판정을 열지는 키 경로로 정한다. winit 키는 그 사건의 출발 노드(`MainView::settle_key_event`가 판정 앞에서 정한다)에서, native WebView가 넘긴 키는 받은 surface에서 시작한 경로로 판정한다. 조건의 정본은 `App::dispatch_plugin_shortcut_key`, `key_nodes::plugin_key_gate_open`·`key_nodes::received_key_blocked`와 `app::webview_keys`의 `forwarded_key_gate_open`이고, 장면별 기대는 `app/plugin_glue/shortcut_state_tests.rs`가 정본이다.
+판정 자리와 순위는 그대로이고, 판정을 열지는 키 경로로 정한다. winit 키는 그 사건의 출발 노드(`MainView::settle_key_event`가 판정 앞에서 정한다)에서, native WebView가 넘긴 키는 받은 surface에서 시작한 경로로 판정한다. 조건의 정본은 `App::dispatch_plugin_shortcut_key`, `key_nodes::settle_key`·`key_nodes::received_key_blocked`와 `app::webview_keys`의 `forwarded_key_gate_open`이고, 장면별 기대는 `app/plugin_glue/shortcut_state_tests.rs`가 정본이다.
 
 매칭 대상은 포커스에 따라 다르다. native WebView가 넘긴 키는 모델 포커스가 아니라 그 키를 받은 WebView의 surface를 포커스로 보고, 명령 대상도 그 surface로 정한다. attach 생성 대기 초안이 선택돼 있으면 포커스 surface가 없으므로 초안 뒤의 기존 plugin surface가 아니라 global 명령만 후보다.
 

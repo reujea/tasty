@@ -73,6 +73,9 @@ pub struct MainView {
     /// 지금 키 사건의 단계 4 결과(경로 키의 수신자). 사건마다 포커스 정규화 뒤에 정하고 egui 적재(K9)와 단축키·
     /// 끝 목적지 단계가 읽는다.
     pub(crate) key_decision: crate::adapters::ui::input::key_nodes::KeyDecision,
+    /// 지금 키 사건의 App plugin 단계 값(게이트·경로 level). 단계 4 와 같은 자리에서 한 번 정한다
+    /// (`key_nodes::settle_key`).
+    pub(crate) key_plugin_step: crate::adapters::ui::input::key_nodes::PluginKeyStep,
     /// 지금 키 사건이 egui 입력에 실은 bare Esc 누름인지(단계 8 적재 결과). 단계 4 에서 지우고 egui 적재가 적으며 단계
     /// 11 Esc 적용(`try_consume_escape_key`)이 읽는다.
     pub(crate) escape_fed: bool,
@@ -265,6 +268,7 @@ impl MainView {
             pending_terminal_paste: None,
             edit_replay: None,
             key_decision: Default::default(),
+            key_plugin_step: Default::default(),
             escape_fed: false,
             key_settled: false,
             plugin_edit_ask: None,
@@ -528,7 +532,7 @@ impl MainView {
     /// 새 몫에서 단계 4 수신자를 정한다. winit 키는 App 이 plugin 단축키 단계 앞에서 부르고
     /// (`App::route_window_input`), 그 밖의 사건과 편집 보류 재생은 창의 단계 3~5(`MainKeySteps::settle_key_node`)가
     /// 부른다(App 이 정했으면 `key_settled`). 창 view 의 단계는 그 결과(포커스 노드·끊긴 몫·`key_decision`)를 읽고,
-    /// plugin 명령 게이트(`plugin_key_gate_open`·`focus_path_levels`)는 그 정리 뒤 상태에서 경로를 구한다.
+    /// App plugin 단계는 같은 자리에서 정한 값(`key_plugin_step`)을 읽는다.
     pub(crate) fn settle_key_event(&mut self, engine: &EngineRead<'_>, event: &WindowEvent) {
         self.normalize_focus_on_key(engine, event);
         self.cut_input_segment(engine, event);
@@ -549,9 +553,9 @@ impl MainView {
     /// 재생하는 원래 키는 보류 때 붙은 편집 표시로 편집 바인딩 키를 가른다(표시는 단계 6 이 소비한다).
     fn decide_key_receiver(&mut self, engine: &EngineRead<'_>, event: &WindowEvent) {
         self.escape_fed = false;
-        self.key_decision = match event {
+        let settled = match event {
             WindowEvent::KeyboardInput { event: key, .. } => {
-                crate::adapters::ui::input::key_nodes::window_key_decision(
+                crate::adapters::ui::input::key_nodes::settle_key(
                     &self.state,
                     engine,
                     &crate::adapters::ui::input::key_class::KeyEventValue {
@@ -570,6 +574,8 @@ impl MainView {
             }
             _ => Default::default(),
         };
+        self.key_decision = settled.decision;
+        self.key_plugin_step = settled.plugin;
     }
 
     /// 이 키 사건이 수식키 없는 Esc 누름인지(`key_class::is_bare_escape_press`, 사건 시점 창 수식키).

@@ -1,5 +1,5 @@
 //! 단계 4(경로 키의 수신자)와 그 값을 읽는 게이트(K9 `window_feeds_key`, 터미널 게이트 `window_key_holds_terminal`,
-//! App plugin 게이트 `plugin_key_gate_open`). 창(winit·GPU)을 띄우지 않고 창이 부르는 같은 함수를 지금 상태로 부른다.
+//! App plugin 게이트 `settle_key`). 창(winit·GPU)을 띄우지 않고 창이 부르는 같은 함수를 지금 상태로 부른다.
 //! 단축키는 기본값과 겹치지 않는 조합으로 묶는다.
 
 use super::*;

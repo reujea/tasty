@@ -27,9 +27,74 @@ pub(crate) enum KeyDecision {
     Path(Routed),
 }
 
-/// 메인 창 키 사건 하나의 단계 4. `replay_edit`은 재생하는 원래 키에 보류 때 붙은 편집 표시가 있는지,
-/// `egui_surface`는 포커스 surface 가 egui 로 입력을 받는 host 위젯인지다(egui 적재 게이트와 같은 값,
-/// [`focused_surface_takes_egui`]).
+/// 키 사건 하나에 한 번 정한 판정. 메인 창이 단계 3~5 에서 정해 보관하고(`MainView::settle_key_event`), 창 view 의
+/// 단계는 `decision` 을, App plugin 단계는 `plugin` 을 읽는다. 편집 보류 뒤 재생하는 사건은 재생 시점에 다시 정한다
+/// (보류 때 값을 쓰지 않는다. 재생은 그 입구 처음부터 지난다).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct SettledKey {
+    pub(crate) decision: KeyDecision,
+    pub(crate) plugin: PluginKeyStep,
+}
+
+/// App plugin 단계가 읽는 사건 시점 값: 게이트가 열렸는지와 plugin 명령 후보를 거를 경로 level(`None` 이면 거르지
+/// 않는다, `key_path::focus_path_levels`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct PluginKeyStep {
+    pub(crate) gate_open: bool,
+    pub(crate) levels: Option<super::key_level::PathLevels>,
+}
+
+/// 메인 창 키 사건 하나의 단계 4 와 App plugin 게이트. `replay_edit`은 재생하는 원래 키에 보류 때 붙은 편집 표시가
+/// 있는지, `egui_surface`는 포커스 surface 가 egui 로 입력을 받는 host 위젯인지다(egui 적재 게이트와 같은 값,
+/// [`focused_surface_takes_egui`]). 노드 목록은 한 번만 만든다.
+///
+/// plugin 게이트: 설정 열기 요청 래치 중 누름이면 닫힌다(래치 노드가 끝낸다). 경로 키면 포커스 노드에서 시작한 경로가
+/// 출발 노드에서 그 키를 끝내지 않을 때 열고, 지금 경로로 남는 사건이면 지금 게이트(`window_keys_to_overlay`)다.
+/// bare Esc 는 그 경로의 수신자(`route_escape`)가 단축키 단계·받은 surface·버림이면 연다(출발 노드 안 수신자면
+/// 닫힌다). plugin 명령 level 은 매처가 거른다.
+pub(crate) fn settle_key(
+    state: &MainViewState,
+    engine: &EngineRead<'_>,
+    value: &KeyEventValue<'_>,
+    replay_edit: bool,
+    egui_surface: bool,
+) -> SettledKey {
+    let levels = crate::adapters::ui::input::key_path::focus_path_levels(state, engine);
+    let settled = |decision, gate_open| SettledKey {
+        decision,
+        plugin: PluginKeyStep { gate_open, levels },
+    };
+    if settings_latch_ends(state, engine, value) {
+        return settled(settings_latch_decision(), false);
+    }
+    let Some((key, path, lookup)) =
+        window_path_key(state, engine, value, replay_edit, egui_surface)
+    else {
+        return settled(KeyDecision::Current, !state.window_keys_to_overlay());
+    };
+    let decision = route_decision(state, engine, key, &path, &lookup, value.mods);
+    let gate_open = if key.bare_escape() {
+        matches!(
+            decision,
+            KeyDecision::Path(Routed {
+                receiver: KeyReceiver::Shortcut { .. }
+                    | KeyReceiver::Surface(_)
+                    | KeyReceiver::Drop,
+                ..
+            })
+        )
+    } else {
+        !start_node_ends_key(
+            &path,
+            key,
+            &EditBindings::from_settings(&engine.settings.keybindings),
+        )
+    };
+    settled(decision, gate_open)
+}
+
+/// 메인 창 키 사건 하나의 단계 4([`settle_key`]의 수신자). 제품은 [`settle_key`] 하나를 쓰고, 시험이 수신자만 읽는다.
+#[cfg(test)]
 pub(crate) fn window_key_decision(
     state: &MainViewState,
     engine: &EngineRead<'_>,
@@ -37,19 +102,10 @@ pub(crate) fn window_key_decision(
     replay_edit: bool,
     egui_surface: bool,
 ) -> KeyDecision {
-    if settings_latch_ends(state, engine, value) {
-        return settings_latch_decision();
-    }
-    let Some((key, path, lookup)) =
-        window_path_key(state, engine, value, replay_edit, egui_surface)
-    else {
-        return KeyDecision::Current;
-    };
-    route_decision(state, engine, key, &path, &lookup, value.mods)
+    settle_key(state, engine, value, replay_edit, egui_surface).decision
 }
 
-/// 이 누름이 설정 열기 요청 래치 노드(출발 노드 `FocusNode::SettingsRequest`)에서 끝나는지. 단계 4 판정과 App
-/// plugin 게이트가 같은 조건을 쓴다. 뗌은 지금 경로다.
+/// 이 누름이 설정 열기 요청 래치 노드(출발 노드 `FocusNode::SettingsRequest`)에서 끝나는지. 뗌은 지금 경로다.
 fn settings_latch_ends(
     state: &MainViewState,
     engine: &EngineRead<'_>,
@@ -129,36 +185,17 @@ fn route_decision(
     ))
 }
 
-/// App plugin 판정 게이트(winit 키). 설정 열기 요청 래치 중 누름이면 닫힌다(래치 노드가 끝낸다). 경로 키면 포커스 노드에서 시작한 경로가 출발 노드에서 그 키를 끝내지 않을
-/// 때 열고, 지금 경로로 남는 사건이면 지금 게이트(`window_keys_to_overlay`)다. bare Esc 는 그 경로의 수신자
-/// (`route_escape`)가 단축키 단계·받은 surface·버림이면 연다(출발 노드 안 수신자면 닫힌다). plugin 명령 level 은
-/// 매처가 거른다.
+/// 시험: 창이 지금 상태에서 정한 App plugin 게이트([`settle_key`]).
+#[cfg(test)]
 pub(crate) fn plugin_key_gate_open(
     state: &MainViewState,
     engine: &EngineRead<'_>,
     value: &KeyEventValue<'_>,
 ) -> bool {
     let egui_surface = focused_surface_takes_egui(state, engine);
-    if settings_latch_ends(state, engine, value) {
-        return false;
-    }
-    match window_path_key(state, engine, value, false, egui_surface) {
-        Some((key, _, _)) if key.bare_escape() => matches!(
-            window_key_decision(state, engine, value, false, egui_surface),
-            KeyDecision::Path(Routed {
-                receiver: KeyReceiver::Shortcut { .. }
-                    | KeyReceiver::Surface(_)
-                    | KeyReceiver::Drop,
-                ..
-            })
-        ),
-        Some((key, path, _)) => !start_node_ends_key(
-            &path,
-            key,
-            &EditBindings::from_settings(&engine.settings.keybindings),
-        ),
-        None => !state.window_keys_to_overlay(),
-    }
+    settle_key(state, engine, value, false, egui_surface)
+        .plugin
+        .gate_open
 }
 
 /// 포커스 surface 가 egui 로 입력을 받는 host 위젯(registry `consumes_egui_input`)인지.

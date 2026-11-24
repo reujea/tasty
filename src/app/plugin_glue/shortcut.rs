@@ -187,14 +187,9 @@ impl App {
         };
         let mods = main.base.state.modifiers;
         let shortcut_key = shortcuts::shortcut_lookup_key(&ke.logical_key, &ke.physical_key, mods);
-        let value = crate::adapters::ui::input::key_class::KeyEventValue {
-            logical: &ke.logical_key,
-            physical: ke.physical_key,
-            pressed: true,
-            mods,
-            egui_mods: main.base.gpu.egui_modifiers(),
-        };
-        self.dispatch_plugin_shortcut_key(id, &shortcut_key, mods, PluginKeyGate::Winit(&value))
+        // App 이 이 사건의 출발 노드를 정할 때(`settle_window_key`) 창이 함께 정한 값이다.
+        let step = main.key_plugin_step;
+        self.dispatch_plugin_shortcut_key(id, &shortcut_key, mods, PluginKeyGate::Settled(step))
     }
 
     /// winit과 native webview 입력이 같은 차단 조건·우선순위를 사용한다. 창의 판정·실행은
@@ -204,7 +199,7 @@ impl App {
         id: winit::window::WindowId,
         shortcut_key: &winit::keyboard::Key,
         mods: winit::keyboard::ModifiersState,
-        gate: PluginKeyGate<'_>,
+        gate: PluginKeyGate,
     ) -> bool {
         if self.view.is_modal_active() {
             return false;
@@ -225,22 +220,13 @@ impl App {
     }
 }
 
-/// plugin 명령 게이트가 볼 키 분류. winit 키는 사건 값으로 단계 4와 같이 분류하고, native WebView 가 넘긴 키는 그 입구가
-/// 한 번 정한 분류(`key_nodes::forwarded_key_class`)와 그 키를 받은 surface 를 받는다.
+/// plugin 명령 게이트가 볼 키 값. winit 키는 창이 그 사건의 출발 노드를 정할 때 단계 4 와 함께 정한 값
+/// (`key_nodes::settle_key`)이고, native WebView 가 넘긴 키는 그 입구가 한 번 정한 분류(`key_nodes::forwarded_key_class`)와
+/// 그 키를 받은 surface 다.
 #[derive(Clone, Copy)]
-pub(crate) enum PluginKeyGate<'a> {
-    Winit(&'a crate::adapters::ui::input::key_class::KeyEventValue<'a>),
+pub(crate) enum PluginKeyGate {
+    Settled(crate::adapters::ui::input::key_nodes::PluginKeyStep),
     Forwarded(crate::adapters::ui::input::key_nodes::ForwardedKey, u32),
-}
-
-impl PluginKeyGate<'_> {
-    /// native WebView 가 넘긴 키를 받은 surface. winit 키는 None 이다.
-    fn received_by(&self) -> Option<u32> {
-        match self {
-            Self::Winit(_) => None,
-            Self::Forwarded(_, sid) => Some(*sid),
-        }
-    }
 }
 
 /// 한 창에서 plugin 명령 단축키를 판정하고 실행한다. `has_webview` 는 surface 에 native WebView 가 있는지다. 처리했으면
@@ -252,38 +238,29 @@ pub(crate) fn plugin_shortcut_in_window(
     has_webview: impl Fn(u32) -> bool,
     shortcut_key: &winit::keyboard::Key,
     mods: winit::keyboard::ModifiersState,
-    gate: PluginKeyGate<'_>,
+    gate: PluginKeyGate,
 ) -> bool {
-    // 일반 창 키 처리보다 먼저 실행되므로 popup·overlay·전체화면 무대의 키를 여기서 보호한다. 호출자가 그 사건의 출발
-    // 노드를 먼저 정한다(winit 키는 `MainView::settle_key_event`, native WebView 가 넘긴 키는
-    // `forwarded_key_gate_open` 의 정규화). winit 키는 포커스 노드에서 시작한 경로가 출발 노드에서 그 키를 끝내면
-    // 닫는다. native WebView 가 넘긴 키는 받은 surface 에서 시작한 경로가 덮였으면 닫는다. 지금 경로로 남는 사건은
-    // 어느 입구든 지금 게이트다.
-    let received_by = gate.received_by();
-    let gate_open = match gate {
-        PluginKeyGate::Winit(value) => crate::adapters::ui::input::key_nodes::plugin_key_gate_open(
-            state,
-            &engine.read(),
-            value,
-        ),
-        PluginKeyGate::Forwarded(class, sid) => {
+    // 일반 창 키 처리보다 먼저 실행되므로 popup·overlay·전체화면 무대의 키를 여기서 보호한다. winit 키는 창이 그
+    // 사건의 출발 노드를 정할 때 함께 정한 게이트와 경로 level 을 읽는다(`MainView::settle_key_event`). native WebView
+    // 가 넘긴 키는 `forwarded_key_gate_open` 의 정규화 뒤 받은 surface 에서 시작한 경로가 덮였으면 닫는다. 지금 경로로
+    // 남는 사건은 어느 입구든 지금 게이트다. native WebView 가 넘긴 키는 그 키를 받은 surface 가 입력 시점 대상이고 키
+    // 경로는 그 surface 에서 시작한다. winit 키는 지금의 대상이고 경로는 포커스 노드에서 시작한다.
+    let (gate_open, received_by, path) = match gate {
+        PluginKeyGate::Settled(step) => (step.gate_open, None, step.levels),
+        PluginKeyGate::Forwarded(class, sid) => (
             !crate::adapters::ui::input::key_nodes::received_key_blocked(
                 state,
                 &engine.read(),
                 class,
                 sid,
-            )
-        }
+            ),
+            Some(sid),
+            Some(crate::adapters::ui::input::key_level::PathLevels::all()),
+        ),
     };
     if !gate_open {
         return false;
     }
-    // native WebView 가 넘긴 키는 그 키를 받은 surface 가 입력 시점 대상이고 키 경로는 그 surface 에서 시작한다.
-    // winit 키는 지금의 대상이고 경로는 포커스 노드에서 시작한다.
-    let path = match received_by {
-        Some(_) => Some(crate::adapters::ui::input::key_level::PathLevels::all()),
-        None => crate::adapters::ui::input::key_path::focus_path_levels(state, &engine.read()),
-    };
     let (focused, target) = match received_by {
         Some(sid) => (
             crate::plugin_bridge::key_dispatch::plugin_surface(&engine.as_ref(), sid),
