@@ -1,6 +1,8 @@
 //! A replacement publishes its structure without waiting for the replaced owner to retire, and an
 //! installation failure leaves only its own target unavailable instead of pausing observation.
-//! Every scenario runs the public respawn through the production journal pump.
+//! Respawns with cwd run the public request through the production journal pump. A respawn
+//! without cwd is not a journal request, so those scenarios call the IPC handle_respawn directly
+//! and use the journal pump only to settle later child registry saves.
 use super::*;
 use crate::plugin_bridge::host_cmd::HostCmd;
 use crate::plugin_bridge::remote_surface::RemoteSurface;
