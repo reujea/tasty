@@ -459,7 +459,8 @@ self-hosted 러너에서 도는 일반 검사 잡은 이전 실행의 `target/`�
   파일만 남은 폴더도 여기서 지워진다. `target`을 남기면 그 안에서 Cargo가 관리하지 않는 상태(번들 폴더,
   스테이징 잠금과 임시 폴더, 시험 하네스의 번들 스냅숏, 픽스처 대조 폴더)를 지워 처음부터 빌드한 실행과
   같게 만든다. workspace 원천 번들 플러그인(mesh-demo)의 실행 파일도 지운다. debug 호스트가 그 파일로 번들을
-  다시 만들기 때문이다. 받기 캐시 `target/official-plugins`는 해시 대조 뒤에만 쓰므로 남긴다.
+  다시 만들기 때문이다. 받기 캐시 `target/official-plugins`는 해시 대조 뒤에만 쓰므로 남긴다. 프로필 폴더나
+  교차 타깃 프로필 폴더가 심볼릭 링크면 링크 대상은 건드리지 않고 링크만 지운다.
 - Windows: 두 Windows 잡은 `pwsh` 스텝에서 `git` 옆의 Git Bash로 같은 스크립트를 부른다. `shell: bash`는 잡의
   PATH에서 bash를 찾으므로 WSL bash가 잡힐 수 있다.
 - `target`을 지우는 때: 그 작업 트리에서 그날(러너 머신의 지역 날짜) 처음 도는 잡, 표지가 없을 때,
@@ -473,8 +474,10 @@ self-hosted 러너에서 도는 일반 검사 잡은 이전 실행의 `target/`�
   스크립트 머리말에 있다.
 - 잡이 없는 날에는 지우지 않는다. 다음 날 첫 잡이 지운다.
 - 준비 실패 뒤: 앞 실패 뒤에도 도는(`!cancelled()`·`always()`·`success() || failure()`) 판정 스텝은
-  `steps.prepare.outcome == 'success'`도 조건으로 둔다. 판정을 내지 않는 진단 스텝은 원인 확인을 위해
-  그대로 돈다. `script-gates`의 판정기를 쓰는 스텝은 판정기 빌드 스텝(id `judge`)의 성공도 조건이다.
+  `steps.prepare.outcome == 'success'`도 조건으로 둔다. 판정을 내지 않는 진단 스텝(`continue-on-error: true`)은 원인 확인을
+  위해 준비 결과와 상관없이 돈다. `script-gates`의 판정기를 쓰는 스텝은 판정기 빌드 스텝(id `judge`)의 성공도
+  조건이다. 이 배선(정리를 끈 checkout 바로 뒤의 준비 스텝, 위 조건, 패키징 워크플로의 정리 유지)은
+  `crates/tasty-doc-guards/tests/ci_build_cache_prepare_is_wired.rs`가 워크플로 글자로 확인한다.
 - 로그 줄: 준비 스텝은 `[ci-cache] action=<wipe|keep|none> reason=<…>` 한 줄에 표지 값, 삭제 전후 여유(GB, 버림.
   삭제 뒤 값을 읽지 못하면 `unknown`), 임계값(GB), OS를 남긴다. `action=keep reason=cached`가 캐시를 쓴 실행이다. `action=none reason=target-absent`는
   `target`이 없던 실행이다. `clean: false`여도 checkout은 원격 URL이 다르거나 기존 저장소를 준비하지 못하면
