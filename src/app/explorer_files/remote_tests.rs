@@ -494,3 +494,21 @@ fn a_waiting_create_or_rename_resumes_editing_once_its_request_is_gone() {
     );
     assert!(!rename_waits(&state));
 }
+
+/// 결과를 모르는 카드의 제목은 호스트 글자가 비면(프로필 이름이 없는 attach) 호스트 없는 문구다. 본문은 같다.
+#[test]
+fn a_lost_card_without_a_host_name_uses_the_no_host_title() {
+    let lost = |host: &str| Lost {
+        host: host.into(),
+        verb: "explorer.remote.op_copy",
+    };
+    assert_eq!(
+        lost("build-eu").title(),
+        "Connection to build-eu lost · result unknown"
+    );
+    assert_eq!(
+        lost("").title(),
+        "Connection to remote Tasty lost · result unknown"
+    );
+    assert_eq!(lost("").body(), lost("build-eu").body());
+}

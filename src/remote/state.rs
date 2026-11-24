@@ -53,6 +53,10 @@ impl MirrorCapturePaste {
 #[cfg(feature = "gui")]
 pub(crate) fn explorer_write_refusal(host: Option<&ExplorerRemoteHost>) -> String {
     match host {
+        // 프로필 이름이 없는 attach(빈 호스트)는 자리표시 없는 문구다.
+        Some(host) if host.needs_update && host.label.is_empty() => {
+            crate::i18n::t("explorer.remote.write_needs_update_no_host").to_string()
+        }
         Some(host) if host.needs_update => {
             crate::i18n::t_fmt("explorer.remote.write_needs_update", &host.label)
         }
@@ -392,6 +396,45 @@ impl RemoteState {
 #[cfg(test)]
 mod tests {
     use super::RemoteState;
+
+    /// 호스트 자리를 가진 탐색기 원격 문구는 호스트 글자가 비면(프로필 이름이 없는 attach) 자리표시 없는
+    /// `_no_host` 문구를 고르고, 이름이 있으면 그 이름을 넣는다. 127.0.0.1:<port> 는 어디에도 없다.
+    #[cfg(feature = "gui")]
+    #[test]
+    fn the_explorer_remote_sentences_pick_the_no_host_form_for_an_empty_host() {
+        use super::{ExplorerRemoteHost, explorer_write_refusal};
+        use crate::adapters::ui::dialog::renaming_line;
+        use crate::adapters::ui::surface::explorer::create::remote_waiting;
+        let host = |label: &str, needs_update| ExplorerRemoteHost {
+            label: label.into(),
+            needs_update,
+        };
+        // 옛 Tasty: 이름이 있으면 이름을 넣고, 비면 호스트 없는 안내다.
+        assert_eq!(
+            explorer_write_refusal(Some(&host("build-eu", true))),
+            "Update Tasty on build-eu to change remote files."
+        );
+        assert_eq!(
+            explorer_write_refusal(Some(&host("", true))),
+            "Update remote Tasty to change remote files."
+        );
+        // 옛 Tasty가 아니거나 연결 정보가 없으면 호스트와 관계없이 미지원 문구다.
+        let unsupported = crate::i18n::t("explorer.state.remote_write_unsupported");
+        assert_eq!(explorer_write_refusal(Some(&host("", false))), unsupported);
+        assert_eq!(explorer_write_refusal(None), unsupported);
+        // 새 항목 줄의 대기 툴팁.
+        assert_eq!(
+            remote_waiting(Some(&host("build-eu", false))),
+            "Waiting for build-eu"
+        );
+        assert_eq!(
+            remote_waiting(Some(&host("", false))),
+            "Waiting for remote Tasty"
+        );
+        // 이름 바꾸기 팝업의 대기 줄.
+        assert_eq!(renaming_line("build-eu"), "Renaming on build-eu…");
+        assert_eq!(renaming_line(""), "Renaming remotely…");
+    }
 
     #[test]
     fn a_sent_structure_is_skipped_only_for_the_same_holder_and_value() {

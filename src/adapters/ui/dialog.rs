@@ -84,10 +84,7 @@ pub fn draw_rename_popup(
     if !rename_target_exists(target, engine) || rename.waiting.as_ref().is_some_and(|w| w.done) {
         return PopupAction::Close;
     }
-    let waiting = rename
-        .waiting
-        .as_ref()
-        .map(|w| crate::i18n::t_fmt("explorer.remote.renaming", &w.host));
+    let waiting = rename.waiting.as_ref().map(|w| renaming_line(&w.host));
     // 확인을 기다리는 동안 Esc 는 무시한다. 그 Esc 를 쓴 것으로 남겨 중앙 단계가 닫지 않게 한다.
     if waiting.is_some() {
         cx.keys
@@ -456,6 +453,16 @@ fn apply_rename_category_name(
         }
         .from_user_menu("rename_popup"),
     );
+}
+
+/// 원격 이름 바꾸기를 기다리는 팝업의 대기 줄. 호스트 글자가 비면(프로필 이름이 없는 attach) 자리표시
+/// 없는 문구다.
+pub(crate) fn renaming_line(host: &str) -> String {
+    if host.is_empty() {
+        crate::i18n::t("explorer.remote.renaming_no_host").to_string()
+    } else {
+        crate::i18n::t_fmt("explorer.remote.renaming", host)
+    }
 }
 
 #[cfg(test)]

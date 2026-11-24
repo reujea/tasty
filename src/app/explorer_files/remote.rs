@@ -51,8 +51,13 @@ pub(crate) struct Lost {
 }
 
 impl Lost {
+    /// 호스트 글자가 비면(프로필 이름이 없는 attach) 자리표시 없는 제목이다.
     pub(super) fn title(&self) -> String {
-        crate::i18n::t_fmt("explorer.remote.lost_title", &self.host)
+        if self.host.is_empty() {
+            crate::i18n::t("explorer.remote.lost_title_no_host").to_string()
+        } else {
+            crate::i18n::t_fmt("explorer.remote.lost_title", &self.host)
+        }
     }
     pub(super) fn body(&self) -> String {
         crate::i18n::t_fmt("explorer.remote.lost_body", crate::i18n::t(self.verb))

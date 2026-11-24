@@ -330,10 +330,11 @@ pub(super) fn name_row(
             name.as_deref().unwrap_or_default(),
         )
     });
-    let waiting = view.create.as_ref().is_some_and(|c| c.waiting).then(|| {
-        let host = view.remote_host.as_ref().map(|h| h.label.as_str());
-        t_fmt("explorer.remote.waiting", host.unwrap_or_default())
-    });
+    let waiting = view
+        .create
+        .as_ref()
+        .is_some_and(|c| c.waiting)
+        .then(|| remote_waiting(view.remote_host.as_ref()));
     let options = ExplorerNameOptions {
         // 대상 폴더가 멀리 있으면 줄을 화면 밖 자리에 따로 그린다. 그리는 순서가 바뀌어도 같은 입력이다.
         field_id: view
@@ -474,6 +475,15 @@ pub(super) fn placeholder_row(dir: &Path) -> super::DirEntryInfo {
         link: crate::core::fs_list::EntryLink::NotALink,
         os_hidden: false,
         change: None,
+    }
+}
+
+/// 원격의 답을 기다리는 새 항목 줄의 Spinner 툴팁. 호스트 글자가 비면(프로필 이름이 없는 attach)
+/// 자리표시 없는 문구다.
+pub(crate) fn remote_waiting(host: Option<&crate::remote::state::ExplorerRemoteHost>) -> String {
+    match host.map(|h| h.label.as_str()).unwrap_or_default() {
+        "" => t("explorer.remote.waiting_no_host").to_string(),
+        label => t_fmt("explorer.remote.waiting", label),
     }
 }
 
