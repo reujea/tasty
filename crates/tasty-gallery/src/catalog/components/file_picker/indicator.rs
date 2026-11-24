@@ -179,16 +179,22 @@ pub(super) fn draw_no_profile_view(ui: &mut egui::Ui, theme: &Theme) {
     });
 }
 
-/// 원격 호스트를 표시하는 배지. 호스트가 비면(프로필 이름이 없는 attach) `empty_label` 낱말을 label
-/// 글꼴로 쓴다. 글리프·채움·잉크는 같다.
+/// 호스트 배지의 글리프 크기(디자인 FpHostBadge의 remote 아이콘 13). 대응 Theme 크기 토큰이 없다.
+const HOST_BADGE_GLYPH: LogicalPx = LogicalPx(13.0);
+/// 호스트 배지의 글리프 ↔ 글자 간격(디자인 FpHostBadge gap 5). 대응 Theme 간격 토큰이 없다.
+const HOST_BADGE_GAP: LogicalPx = LogicalPx(5.0);
+
+/// 원격 호스트를 표시하는 배지. 채움·테두리는 accent-info 틴트, 글리프와 글자 잉크는 accent-info-raised다.
+/// 호스트가 비면(프로필 이름이 없는 attach) `empty_label` 낱말을 label 글꼴로 쓴다. 글리프·채움·잉크는 같다.
 pub(super) fn host_badge(ui: &mut egui::Ui, theme: &Theme, host: &str, empty_label: &str) {
     let info = theme.accent_info().to_egui();
+    let ink = theme.accent_info_raised().to_egui();
     let (text, font) = host_text(host, empty_label, theme.font_size_caption.value());
     let galley = ui
         .painter()
         .layout_no_wrap(text.to_owned(), font, egui::Color32::PLACEHOLDER);
-    let glyph = theme.icon_glyph_size_xs.value();
-    let gap = theme.spacing_xs.value();
+    let glyph = HOST_BADGE_GLYPH.value();
+    let gap = HOST_BADGE_GAP.value();
     let pad_x = theme.spacing_sm.value();
     let h = super::HOST_BADGE_H.value();
     let w = pad_x * 2.0 + glyph + gap + galley.rect.width();
@@ -209,12 +215,12 @@ pub(super) fn host_badge(ui: &mut egui::Ui, theme: &Theme, host: &str, empty_lab
         egui::pos2(rect.left() + pad_x, rect.center().y - glyph * 0.5),
         egui::vec2(glyph, glyph),
     );
-    icons::REMOTE.image(glyph, info).paint_at(ui, gy);
+    icons::REMOTE.image(glyph, ink).paint_at(ui, gy);
     let pos = egui::pos2(
         rect.left() + pad_x + glyph + gap,
         rect.center().y - galley.rect.height() * 0.5,
     );
-    ui.painter().galley(pos, galley, info);
+    ui.painter().galley(pos, galley, ink);
 }
 
 /// 호스트 표시 글자와 글꼴. 이름은 mono, 빈 호스트의 낱말은 label 글꼴이다.
