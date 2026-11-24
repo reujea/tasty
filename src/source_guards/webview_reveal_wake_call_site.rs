@@ -38,6 +38,12 @@ fn the_loop_end_wakes_settled_reveals_between_the_webview_pump_and_the_repaints(
         "self.pump_webview_key_events();",
         "webview 이벤트 처리",
     );
+    // 조건 없는 문장으로 폴링 예약 바로 뒤에 둔다. 조건문 안으로 옮겨 사실상 끄는 것도 여기서 잡는다.
+    at(
+        &body,
+        "std::time::Instant::now(),);self.redraw_settled_webview_reveals();self.poll_pending_native_menus();",
+        "폴링 예약 뒤 숨김 보류 깨움",
+    );
     let wake = at(
         &body,
         "self.redraw_settled_webview_reveals();",
