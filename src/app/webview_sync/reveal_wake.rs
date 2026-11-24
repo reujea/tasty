@@ -26,14 +26,27 @@ impl App {
             let Some(main) = w.as_main_mut() else {
                 continue;
             };
-            let webviews = &main.webviews;
-            if take_settled(&mut main.webview_reveal_pending, |sid| {
-                webviews.get(&sid).map(|wv| wv.nav_state())
-            }) {
+            if wake_window(&mut main.webview_reveal_pending, &main.webviews) {
                 main.mark_dirty();
             }
         }
     }
+}
+
+/// native 탐색 상태를 읽을 수 있는 webview. 창의 webview 맵을 시험에서 대신할 수 있게 한다.
+trait NavSource {
+    fn nav_state(&self) -> NavState;
+}
+
+impl NavSource for crate::webview::PlatformWebView {
+    fn nav_state(&self) -> NavState {
+        crate::webview::PlatformWebView::nav_state(self)
+    }
+}
+
+/// 창 하나의 깨움 판정: 그 창의 webview 맵에서 보류 항목의 native 탐색 상태를 읽어 `take_settled`에 넘긴다.
+fn wake_window<W: NavSource>(record: &mut RevealPending, webviews: &HashMap<u32, W>) -> bool {
+    take_settled(record, |sid| webviews.get(&sid).map(NavSource::nav_state))
 }
 
 /// 동기화가 본 숨김 보류 목록을 기록에 반영한다. 기록의 탐색 상태는 지금 상태로 바꾸고, 목록에 없는
@@ -74,9 +87,19 @@ fn take_settled(record: &mut RevealPending, current: impl Fn(u32) -> Option<NavS
 
 #[cfg(test)]
 mod tests {
-    use super::{RevealPending, record_pending, take_settled};
+    use super::{NavSource, RevealPending, record_pending, take_settled, wake_window};
     use crate::webview::NavState;
+    use std::collections::HashMap;
     use std::time::{Duration, Instant};
+
+    /// native 탐색 상태만 가진 시험용 webview.
+    struct FakeWebView(NavState);
+
+    impl NavSource for FakeWebView {
+        fn nav_state(&self) -> NavState {
+            self.0
+        }
+    }
 
     const WARN: Duration = Duration::from_secs(5);
 
@@ -167,5 +190,22 @@ mod tests {
         );
         assert_eq!(pending.keys().copied().collect::<Vec<_>>(), vec![1]);
         assert_eq!(warned, vec![1]);
+    }
+
+    /// Given 창의 webview 맵에서 숨김 보류 중인 webview, When 그 webview의 native 탐색이 Done이나 Failed가 됨,
+    /// Then 창 판정이 그 맵의 상태를 읽어 한 번 깨운다. 맵에 없는 surface의 기록은 깨우지 않는다.
+    #[test]
+    fn the_window_reads_native_states_from_its_webview_map() {
+        for settled in [NavState::Done, NavState::Failed] {
+            let mut pending = record(&[(1, NavState::Loading)]);
+            let mut webviews = HashMap::from([(1, FakeWebView(NavState::Loading))]);
+            assert!(!wake_window(&mut pending, &webviews));
+            webviews.insert(1, FakeWebView(settled));
+            assert!(wake_window(&mut pending, &webviews));
+            assert!(!wake_window(&mut pending, &webviews));
+        }
+        let mut orphan = record(&[(2, NavState::Loading)]);
+        let webviews = HashMap::from([(1, FakeWebView(NavState::Done))]);
+        assert!(!wake_window(&mut orphan, &webviews));
     }
 }

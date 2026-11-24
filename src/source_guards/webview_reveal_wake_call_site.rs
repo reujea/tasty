@@ -64,7 +64,7 @@ fn a_settled_reveal_marks_its_own_window_dirty() {
     let body = squeeze(&fn_body(&src, "fn redraw_settled_webview_reveals(").expect("wake"));
     let judge = at(
         &body,
-        "iftake_settled(&mutmain.webview_reveal_pending,",
+        "ifwake_window(&mutmain.webview_reveal_pending,&main.webviews)",
         "깨움 판정",
     );
     let mark = at(&body, "{main.mark_dirty();}", "소유 창 다시 그리기");
