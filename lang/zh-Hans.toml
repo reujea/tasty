@@ -3684,6 +3684,15 @@ help = "替换子终端的角色标签"
 [cli.help._root.terminal.respawn.arg.nickname]
 help = "替换子终端的显示昵称"
 
+[cli.help._root.terminal.set-nickname.arg.surface]
+help = "父 Surface ID（默认为唯一已知的父对象）"
+
+[cli.help._root.terminal.set-nickname.arg.parent_external]
+help = "代替父 Surface 的外部父对象键（参见 `spawn --parent-external`）"
+
+[cli.help._root.terminal.set-nickname.arg.workspace]
+help = "子终端所在的工作区（ID 或名称）；打开多个窗口时，需与 --parent-external 一同指定"
+
 [cli.help._root.terminal.broadcast]
 about = "向父 Surface 的所有子终端广播文本"
 

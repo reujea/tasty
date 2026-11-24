@@ -16,7 +16,11 @@ fn ambiguous_parent_fallback_requires_surface(
         && main_window_count > 1
         && matches!(
             method,
-            "terminal.kill" | "terminal.release" | "terminal.respawn" | "terminal.broadcast"
+            "terminal.kill"
+                | "terminal.release"
+                | "terminal.respawn"
+                | "terminal.broadcast"
+                | "terminal.set_nickname"
         )
 }
 
@@ -36,6 +40,7 @@ fn external_parent_requires_workspace(
                 | "terminal.release"
                 | "terminal.respawn"
                 | "terminal.broadcast"
+                | "terminal.set_nickname"
         )
 }
 
@@ -105,6 +110,7 @@ mod tests {
             "terminal.release",
             "terminal.respawn",
             "terminal.broadcast",
+            "terminal.set_nickname",
         ] {
             assert!(
                 !ambiguous_parent_fallback_requires_surface(method, 1, false),
@@ -125,6 +131,7 @@ mod tests {
             "terminal.release",
             "terminal.respawn",
             "terminal.broadcast",
+            "terminal.set_nickname",
         ] {
             assert!(
                 ambiguous_parent_fallback_requires_surface(method, 2, false),
@@ -141,6 +148,7 @@ mod tests {
             "terminal.release",
             "terminal.respawn",
             "terminal.broadcast",
+            "terminal.set_nickname",
         ] {
             assert!(
                 !ambiguous_parent_fallback_requires_surface(method, 2, true),
@@ -181,6 +189,7 @@ mod tests {
             "terminal.release",
             "terminal.respawn",
             "terminal.broadcast",
+            "terminal.set_nickname",
         ] {
             assert!(
                 external_parent_requires_workspace(method, 2, &external),

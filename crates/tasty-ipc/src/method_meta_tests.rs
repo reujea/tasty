@@ -218,12 +218,43 @@ fn terminal_star_is_plugin_callable() {
         "terminal.respawn",
         "terminal.broadcast",
         "terminal.set_state",
+        "terminal.set_nickname",
         "terminal.adopt",
         "terminal.release",
     ] {
         let m = method_meta(method).unwrap_or_else(|| panic!("{method} not registered"));
         assert!(m.plugin_callable, "{method} must be plugin-callable");
     }
+}
+
+/// nickname 변경은 같은 registry를 바꾸는 `terminal.set_state`와 같은 쓰기 권한을 요구한다.
+#[test]
+fn set_nickname_needs_surface_write_from_an_agent() {
+    let meta = method_meta("terminal.set_nickname").expect("registered");
+    assert_eq!(meta.required, &[Permission::SurfaceWrite]);
+    // 같은 값을 다시 대입해도 결과가 같으므로 키를 보존하지 않는다. 재시도는 부모·번호를 다시 해석한다.
+    assert_eq!(meta.key_contract, crate::method_meta::KeyContract::Unneeded);
+    let err = gated("agent", "child:1", &[Permission::SurfaceRead])
+        .ensure_allowed("terminal.set_nickname")
+        .expect_err("a read-only agent must not rename a child");
+    assert!(
+        matches!(
+            &err,
+            crate::caller::CallerError::MissingPermission { permission, .. }
+                if *permission == Permission::SurfaceWrite
+        ),
+        "{err:?}"
+    );
+    assert!(
+        gated("agent", "child:1", &[Permission::SurfaceWrite])
+            .ensure_allowed("terminal.set_nickname")
+            .is_ok()
+    );
+    assert!(
+        gated("plugin", "com.tasty.claude", &[])
+            .ensure_allowed("terminal.set_nickname")
+            .is_ok()
+    );
 }
 
 #[test]

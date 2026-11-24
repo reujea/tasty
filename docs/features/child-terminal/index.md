@@ -252,10 +252,11 @@ Codex에는 이 출력 스캐너가 없으므로 같은 감시가 있다고 설�
   - `tasty terminal set-state --surface <child> --state <idle|needs_input|active>` ↔ `terminal.set_state` (에이전트 hook 진입점). **파생 상태(`stale`/`exited`)는 입력으로 받지 않는다** — 출력 전용이다(아래 "상태 판정")
   - `tasty terminal adopt --target <surface> [--surface <parent>] [--cwd] [--role] [--nickname]` ↔ `terminal.adopt` — 새 탭을 만들지 않고, 이미 존재하는 임의의 surface 를 지금 시점에 명시적으로 child 로 등록(soft 점유)한다
   - `tasty terminal release [--surface <parent>] --child <n>` ↔ `terminal.release` — child 관계와 soft 점유만 해제한다. surface(탭) 자체는 닫지 않는다(`terminal.kill`과 달리)
+  - `tasty terminal set-nickname [--surface <parent>] --child <n> (--nickname <name> | --clear)` ↔ `terminal.set_nickname` — 실행 중인 child의 nickname만 바꾸거나 지운다. PTY·명령·상태·soft 점유는 그대로다. IPC는 `nickname`(1~256 byte, 제어문자 불가, 빈 문자열 불가) 또는 `clear: true` 중 하나를 받고, 응답은 `{parent, child_index, surface_id, nickname}`(지웠으면 `nickname: null`)이다. 저장이 끝난 뒤 답하며 저장이 접수되지 않으면 오류로 답하고 값을 바꾸지 않는다. 자식 surface가 다른 창에 열려 있으면 `-32602`로 거절한다. Agent 호출자는 `surface.write` 권한이 필요하다. mirror workspace의 원격 자식은 이 인스턴스의 기록만 바뀌고 원격 서버의 기록에는 전하지 않는다
 - **External 부모** — 플러그인은 IPC로 직접 쓰고, CLI는 `--parent-external <key>`로 노출한다(`--surface`와 함께 쓸 수 없다). Claude·Codex 플러그인 명령의 일반 spawn·tell은 부모를 스스로 정하므로 사용자가 키를 입력하지 않는다. 이 옵션은 키를 직접 관리하는 스크립트·에이전트용이다:
-  - CLI: `tasty terminal spawn --workspace <ws> --parent-external <key> --command "<cmd>"`, `tasty terminal children|kill|respawn|broadcast|release --parent-external <key> [--workspace <ws>]`. `--workspace`는 `--parent-external`과 함께만 받으며 다중 창 라우팅에 쓴다. `--parent-external`을 주면 caller의 `TASTY_SURFACE_ID`를 숫자 부모로 채우지 않는다.
+  - CLI: `tasty terminal spawn --workspace <ws> --parent-external <key> --command "<cmd>"`, `tasty terminal children|kill|respawn|broadcast|release|set-nickname --parent-external <key> [--workspace <ws>]`. `--workspace`는 `--parent-external`과 함께만 받으며 다중 창 라우팅에 쓴다. `--parent-external`을 주면 caller의 `TASTY_SURFACE_ID`를 숫자 부모로 채우지 않는다.
   - `terminal.spawn`은 `parent`(별칭 `surface`) 대신 `parent_external`을 받는다. `workspace`는 그대로 필요하다.
-  - `terminal.children`·`release`·`kill`·`respawn`·`broadcast`는 `surface` 대신 `parent_external`을 받는다. `tell`은 자식 surface를 직접 지정하므로 바뀌지 않는다.
+  - `terminal.children`·`release`·`kill`·`respawn`·`broadcast`·`set_nickname`은 `surface` 대신 `parent_external`을 받는다. `tell`은 자식 surface를 직접 지정하므로 바뀌지 않는다.
   - 숫자 부모와 `parent_external`을 함께 주면 `-32602`(`pass either '<key>' or 'parent_external', not both`)로 거절한다.
   - `parent_external`이 문자열이 아니거나 비었거나 256 byte를 넘거나 공백·제어문자를 담으면 `-32602`로 거절한다. 생략으로 읽어 부모 생략 폴백으로 넘기지 않는다. mirror workspace 자식을 닫는 `terminal.kill`도 원격으로 넘기기 전에 같은 규칙으로 판정하므로, 잘못된 키는 다른 부모의 자식을 닫지 않고 같은 오류로 끝난다.
   - `terminal.parent`는 `parent_surface_id`와 함께 `parent_external`(없으면 `null`)을 돌려준다.
@@ -277,7 +278,7 @@ Codex에는 이 출력 스캐너가 없으므로 같은 감시가 있다고 설�
 | `id` | 자식 surface id |
 | `parents` | 조회한 부모. surface id이거나 외부 부모 키(`codex:<thread>`)다 |
 | `last_report_at` | 등록 또는 마지막 상태 보고 시각. 초 단위로 내린 UTC다 |
-| `index` | `kill`, `respawn`, `release`의 `--child`가 받는 번호 |
+| `index` | `kill`, `respawn`, `release`, `set-nickname`의 `--child`가 받는 번호 |
 | `confidence`, `evidence` | 아래 판정 응답 필드. `state`와 함께 읽는다 |
 
 `role`, `remote`, `liveness`, `foreground_process`, `foreground_pid`는 `--format json`으로 본다. `--format json`은 IPC 응답을 그대로 낸다. 모양은 명령마다 다르다([plugin 쌍의 차이](../../dev-guide/paired-agent-handlers.md)). `terminal.children`의 각 항목에는 판정 필드 외에 `parent`(부모 surface id 또는 외부 키)와 `last_report_at`(밀리초, 없으면 `null`)이 있다.
@@ -368,6 +369,8 @@ surface 뿐이다. 저장 병합으로 받아 온 다른 윈도우의 항목은 
 - Given 이미 등록된 child 또는 hard 점유 중인 대상 When `terminal.adopt` Then 에러 반환 + registry 불변.
 - Given 점유된 child C When `terminal.release` Then `occupancy_of(C)==None` + `terminal.children` 목록에서 사라짐 + surface(탭)는 여전히 열려있음(닫히지 않음).
 - Given 등록되지 않은 child index When `terminal.release` Then 에러 반환.
+- Given 실행 중인 child C When `terminal.set_nickname`으로 nickname을 바꾸거나 `clear: true`로 지운다 Then `terminal.children`의 C 항목 `nickname`이 새 값(또는 `null`)이고 다른 필드는 그대로다(`set_nickname_updates_the_registry_and_children_output`). 없는 index·잘못된 nickname 인자는 `-32602`이고 값이 바뀌지 않는다. 저장이 접수되지 않으면 오류로 답하고 조회 값도 그대로다.
+- Given 다른 윈도우가 등록한 자식 When 이 윈도우에서 `terminal.set_nickname` Then `-32602`로 거절하고 그 관계는 이 윈도우의 정리 뒤에도 남는다(`set_nickname_refuses_a_child_open_in_another_window`).
 - Given C 와 무관한 다른 surface 가 hard 점유 중 When `terminal.release{child=C}` Then 그 hard 점유는 영향받지 않음.
 - Given External 부모 A·B에 자식이 하나씩 있다 When `terminal.children{parent_external=A}`·`terminal.release{parent_external=A, child=0}` Then A의 자식만 나오고 해제되며 A의 다음 번호는 0으로 돌아가고 B는 그대로다(`external_parents_list_report_and_release_only_their_own_children`).
 - Given 두 윈도우가 같은 External 부모에 자식을 단다 When 각자 번호를 예약하고 저장한다 Then 번호가 겹치지 않고, 마지막 자식이 빠진 저장이 파일의 다음 번호를 지운다(`two_engines_share_an_external_parent_without_duplicate_indices`).

@@ -3611,6 +3611,28 @@ help = "Replace the role label of the child"
 [cli.help._root.terminal.respawn.arg.nickname]
 help = "Replace the display nickname of the child"
 
+[cli.help._root.terminal.set-nickname]
+about = "Set or clear the nickname of a running child without restarting it"
+long = "Set or clear the nickname of a running child without restarting it.\n\nChanges only the nickname that `terminal children` shows; the child's terminal, command, and state stay as they are. Pass `--clear` to remove the nickname. The reply carries the parent, child index, child surface ID, and the new nickname (null when cleared). For a child in a remote mirror workspace, only this instance's record changes."
+
+[cli.help._root.terminal.set-nickname.arg.surface]
+help = "Parent surface ID (defaults to the single known parent)"
+
+[cli.help._root.terminal.set-nickname.arg.parent_external]
+help = "External parent key instead of a parent surface (see `spawn --parent-external`)"
+
+[cli.help._root.terminal.set-nickname.arg.workspace]
+help = "Workspace (ID or name) holding the children; needed with --parent-external when several windows are open"
+
+[cli.help._root.terminal.set-nickname.arg.child]
+help = "Child index to rename (the number in `terminal children`, not a surface ID)"
+
+[cli.help._root.terminal.set-nickname.arg.nickname]
+help = "New nickname (1-256 bytes, no control characters)"
+
+[cli.help._root.terminal.set-nickname.arg.clear]
+help = "Remove the nickname instead of setting one"
+
 [cli.help._root.terminal.broadcast]
 about = "Broadcast text to all children of a parent surface"
 

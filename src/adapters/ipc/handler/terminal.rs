@@ -569,6 +569,127 @@ pub(crate) fn handle_set_state(
     )
 }
 
+/// nickname 한도. `parent_external` 키와 같은 바이트 상한을 쓴다.
+const NICKNAME_MAX_BYTES: usize = 256;
+
+/// `nickname` 문자열 또는 `clear: true` 중 정확히 하나를 읽는다. `Some`은 새 이름, `None`은 지우기다.
+/// 빈 문자열은 지우기로 읽지 않는다. 비어 있는 셸 변수가 이름을 조용히 지우지 않게 한다.
+fn decode_nickname(params: &Value, id: &Value) -> Result<Option<String>, JsonRpcResponse> {
+    let invalid = |msg: String| JsonRpcResponse::invalid_params(id.clone(), msg);
+    let clear = match params.get("clear") {
+        None | Some(Value::Null) => false,
+        Some(Value::Bool(clear)) => *clear,
+        Some(_) => return Err(invalid("'clear' must be a boolean".into())),
+    };
+    let nickname = match params.get("nickname") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(name)) => Some(name.clone()),
+        Some(_) => return Err(invalid("'nickname' must be a string".into())),
+    };
+    match (nickname, clear) {
+        (Some(_), true) => Err(invalid(
+            "pass either 'nickname' or 'clear', not both".into(),
+        )),
+        (None, true) => Ok(None),
+        (None, false) => Err(invalid(
+            "missing 'nickname' (use 'clear: true' to remove it)".into(),
+        )),
+        (Some(name), false) => {
+            if name.is_empty() {
+                return Err(invalid(
+                    "'nickname' must not be empty (use 'clear: true' to remove it)".into(),
+                ));
+            }
+            if name.len() > NICKNAME_MAX_BYTES {
+                return Err(invalid(format!(
+                    "'nickname' is longer than {NICKNAME_MAX_BYTES} bytes"
+                )));
+            }
+            if name.chars().any(char::is_control) {
+                return Err(invalid(
+                    "'nickname' must not contain control characters".into(),
+                ));
+            }
+            Ok(Some(name))
+        }
+    }
+}
+
+/// 실행 중인 child의 nickname을 바꾸거나 지운다. 이 인스턴스의 registry만 바꾸며 PTY·점유는 건드리지 않는다.
+/// 저장 명령이 끝난 뒤 답한다. 저장이 접수되지 않거나 실패하면 오류로 답한다.
+pub(crate) fn handle_set_nickname(
+    core: &crate::app::services::AppServices,
+    engine: &mut EngineMut<'_>,
+    id: Value,
+    params: &Value,
+) -> JsonRpcResponse {
+    engine.reconcile_child_terminals();
+    let parent = match resolve_parent(&engine.as_ref(), params, &id) {
+        Ok(p) => p,
+        Err(e) => return e,
+    };
+    let child_index = match require_u32(params, "child", &id) {
+        Ok(c) => c,
+        Err(e) => return e,
+    };
+    let nickname = match decode_nickname(params, &id) {
+        Ok(n) => n,
+        Err(e) => return e,
+    };
+    let Some(entry) = engine
+        .runtime
+        .child_terminals
+        .find_child(&parent, child_index)
+    else {
+        return JsonRpcResponse::invalid_params(
+            id,
+            child_not_found_message(&engine.runtime.child_terminals, &parent, child_index),
+        );
+    };
+    // 항목을 고치면 이 engine 이 그 자식을 소유한 것으로 기록한다. 다른 창의 자식을 소유하면 이 창의
+    // reconcile 이 그 관계를 닫힌 자식으로 지우므로, 이 창에 열린 자식만 받는다.
+    let surface_id = entry.child_surface_id;
+    if !engine.live_surface_ids().contains(&surface_id) {
+        return JsonRpcResponse::invalid_params(
+            id,
+            format!(
+                "child {child_index} under {} is surface {surface_id}, which is not open in \
+                 this window — its nickname can only be changed from the window that holds it",
+                parent_label(&parent)
+            ),
+        );
+    }
+    let set = |nickname: &Option<String>| {
+        let nickname = nickname.clone();
+        move |e: &mut ChildEntry| e.nickname = nickname
+    };
+    let children = &mut engine.runtime.child_terminals;
+    children.update_child(&parent, child_index, set(&nickname));
+    let receipt = match children.submit() {
+        Ok(ticket) => ticket,
+        Err(error) => {
+            // 접수되지 않은 변경을 조회에 남기면 오류로 답한 값이 다음 저장에 섞인다.
+            children.update_child(&parent, child_index, set(&entry.nickname));
+            return JsonRpcResponse::internal_error(id, error);
+        }
+    };
+    let parent_value = match &parent {
+        ParentKey::Surface(surface) => json!(surface),
+        ParentKey::External(key) => json!(key),
+    };
+    finish_mutation(
+        core,
+        id,
+        receipt,
+        json!({
+            "parent": parent_value,
+            "child_index": child_index,
+            "surface_id": surface_id,
+            "nickname": nickname,
+        }),
+    )
+}
+
 fn finish_mutation(
     core: &crate::app::services::AppServices,
     id: Value,
@@ -630,6 +751,15 @@ mod tests {
     fn handle_set_state(engine: &mut EngineMut<'_>, id: Value, params: &Value) -> JsonRpcResponse {
         let core = super::super::cli_entry_tests::test_core();
         let response = super::handle_set_state(&core, engine, id, params);
+        wait_mutation(&core, engine, response)
+    }
+    fn handle_set_nickname(
+        engine: &mut EngineMut<'_>,
+        id: Value,
+        params: &Value,
+    ) -> JsonRpcResponse {
+        let core = super::super::cli_entry_tests::test_core();
+        let response = super::handle_set_nickname(&core, engine, id, params);
         wait_mutation(&core, engine, response)
     }
     fn engine() -> crate::runtime::engine_session::EngineSession {
@@ -1580,5 +1710,270 @@ mod tests {
         assert_eq!(writes, [b"go".to_vec(), b"\r".to_vec()]);
         assert_eq!(e.runtime.child_terminals.state_of(1), "active");
         assert_eq!(e.runtime.child_terminals.state_of(6101), "idle");
+    }
+
+    /// 바꾼 nickname이 같은 registry를 읽는 `terminal.children` 항목에 나오고, 지우면 null로 돌아간다.
+    #[test]
+    fn set_nickname_updates_the_registry_and_children_output() {
+        let mut e_session = engine_with_extra(&[5911]);
+        let mut e = e_session.borrow_mut();
+        let parent = e
+            .workspace_at(0)
+            .expect("workspace index is valid")
+            .all_surface_ids()[0];
+        let mut entry = child(5911, 0);
+        entry.nickname = Some("old".into());
+        entry.role = Some("worker".into());
+        e.runtime.child_terminals.register_child(parent, entry);
+
+        let resp = ok(handle_set_nickname(
+            &mut e,
+            json!(1),
+            &json!({ "surface": parent, "child": 0, "nickname": "lane a" }),
+        ));
+        assert_eq!(
+            resp,
+            json!({ "parent": parent, "child_index": 0, "surface_id": 5911, "nickname": "lane a" })
+        );
+        let list = ok(handle_children(
+            &mut e,
+            json!(2),
+            &json!({ "surface": parent }),
+        ));
+        let item = &list["children"][0];
+        assert_eq!(item["nickname"], json!("lane a"));
+        assert_eq!(item["role"], json!("worker"), "다른 필드는 그대로다");
+
+        let cleared = ok(handle_set_nickname(
+            &mut e,
+            json!(3),
+            &json!({ "child": 0, "clear": true }),
+        ));
+        assert_eq!(cleared["nickname"], Value::Null);
+        let list = ok(handle_children(
+            &mut e,
+            json!(4),
+            &json!({ "surface": parent }),
+        ));
+        assert_eq!(list["children"][0]["nickname"], Value::Null);
+    }
+
+    #[test]
+    fn set_nickname_names_an_external_parent_by_its_key() {
+        let mut e_session = engine_with_extra(&[5912]);
+        let mut e = e_session.borrow_mut();
+        e.runtime
+            .child_terminals
+            .register_child(external("codex:n"), child(5912, 0));
+        let resp = ok(handle_set_nickname(
+            &mut e,
+            json!(1),
+            &json!({ "parent_external": "codex:n", "child": 0, "nickname": "x" }),
+        ));
+        assert_eq!(resp["parent"], json!("codex:n"));
+        let list = ok(handle_children(
+            &mut e,
+            json!(2),
+            &json!({ "parent_external": "codex:n" }),
+        ));
+        assert_eq!(list["children"][0]["nickname"], json!("x"));
+    }
+
+    /// 없는 child는 유효한 번호를 안내하는 -32602이고 registry는 그대로다.
+    #[test]
+    fn set_nickname_rejects_an_unknown_child() {
+        let mut e_session = engine_with_extra(&[5913]);
+        let mut e = e_session.borrow_mut();
+        let parent = e
+            .workspace_at(0)
+            .expect("workspace index is valid")
+            .all_surface_ids()[0];
+        e.runtime
+            .child_terminals
+            .register_child(parent, child(5913, 0));
+        let resp = handle_set_nickname(
+            &mut e,
+            json!(1),
+            &json!({ "surface": parent, "child": 7, "nickname": "x" }),
+        );
+        let err = resp.error.expect("unknown child must fail");
+        assert_eq!(err.code, -32602);
+        assert!(
+            err.message.contains("valid child indices: 0"),
+            "{}",
+            err.message
+        );
+        let kept = e.runtime.child_terminals.find_child(&parent.into(), 0);
+        assert_eq!(kept.expect("child kept").nickname, None);
+    }
+
+    #[test]
+    fn set_nickname_rejects_bad_nickname_arguments_without_changing_the_child() {
+        let mut e_session = engine_with_extra(&[5914]);
+        let mut e = e_session.borrow_mut();
+        let parent = e
+            .workspace_at(0)
+            .expect("workspace index is valid")
+            .all_surface_ids()[0];
+        let mut entry = child(5914, 0);
+        entry.nickname = Some("keep".into());
+        e.runtime.child_terminals.register_child(parent, entry);
+        let long = "n".repeat(NICKNAME_MAX_BYTES + 1);
+        for (params, needle) in [
+            (json!({ "child": 0 }), "missing 'nickname'"),
+            (json!({ "child": 0, "nickname": "" }), "must not be empty"),
+            (
+                json!({ "child": 0, "nickname": "a\nb" }),
+                "control characters",
+            ),
+            (
+                json!({ "child": 0, "nickname": long }),
+                "longer than 256 bytes",
+            ),
+            (json!({ "child": 0, "nickname": 3 }), "must be a string"),
+            (
+                json!({ "child": 0, "nickname": "x", "clear": true }),
+                "not both",
+            ),
+            (json!({ "child": 0, "clear": "yes" }), "must be a boolean"),
+            (json!({ "child": 0, "clear": false }), "missing 'nickname'"),
+            (
+                json!({ "surface": parent, "parent_external": "codex:n", "child": 0, "nickname": "x" }),
+                "not both",
+            ),
+            (json!({ "nickname": "x" }), "missing 'child'"),
+        ] {
+            let resp = handle_set_nickname(&mut e, json!(1), &params);
+            let err = resp.error.unwrap_or_else(|| panic!("{params} must fail"));
+            assert_eq!(err.code, -32602, "{params}");
+            assert!(err.message.contains(needle), "{params}: {}", err.message);
+        }
+        let kept = e.runtime.child_terminals.find_child(&parent.into(), 0);
+        assert_eq!(kept.expect("child kept").nickname.as_deref(), Some("keep"));
+        let at_limit = "n".repeat(NICKNAME_MAX_BYTES);
+        assert!(
+            handle_set_nickname(
+                &mut e,
+                json!(2),
+                &json!({ "child": 0, "nickname": at_limit })
+            )
+            .error
+            .is_none(),
+            "256 byte까지는 받는다"
+        );
+    }
+
+    /// 선택 인자의 null은 생략이고 `clear: false`도 생략과 같다(API 규약 "잘못된 인자는 거절한다").
+    #[test]
+    fn set_nickname_reads_null_and_false_as_omitted() {
+        let mut e_session = engine_with_extra(&[5916]);
+        let mut e = e_session.borrow_mut();
+        let parent = e
+            .workspace_at(0)
+            .expect("workspace index is valid")
+            .all_surface_ids()[0];
+        e.runtime
+            .child_terminals
+            .register_child(parent, child(5916, 0));
+        let set = ok(handle_set_nickname(
+            &mut e,
+            json!(1),
+            &json!({ "child": 0, "nickname": "a", "clear": false }),
+        ));
+        assert_eq!(set["nickname"], json!("a"));
+        let cleared = ok(handle_set_nickname(
+            &mut e,
+            json!(2),
+            &json!({ "child": 0, "nickname": null, "clear": true }),
+        ));
+        assert_eq!(cleared["nickname"], Value::Null);
+        let err = handle_set_nickname(
+            &mut e,
+            json!(3),
+            &json!({ "child": 0, "nickname": null, "clear": null }),
+        )
+        .error
+        .expect("nothing to set");
+        assert!(
+            err.message.contains("missing 'nickname'"),
+            "{}",
+            err.message
+        );
+    }
+
+    /// 저장 명령이 접수되지 않으면 성공으로 답하지 않는다.
+    #[test]
+    fn set_nickname_reports_a_refused_save_as_an_error() {
+        let mut e_session = engine_with_extra(&[5915]);
+        let mut e = e_session.borrow_mut();
+        let parent = e
+            .workspace_at(0)
+            .expect("workspace index is valid")
+            .all_surface_ids()[0];
+        // 파일 writer가 붙지 않은 registry는 저장 명령을 접수하지 않는다.
+        e.runtime.child_terminals =
+            crate::runtime::child_terminal::ChildTerminalRegistry::default();
+        e.runtime
+            .child_terminals
+            .register_child(parent, child(5915, 0));
+        let resp = handle_set_nickname(
+            &mut e,
+            json!(1),
+            &json!({ "surface": parent, "child": 0, "nickname": "x" }),
+        );
+        let err = resp.error.expect("refused save must fail");
+        assert_eq!(err.code, -32603, "{}", err.message);
+        assert!(
+            err.message.contains("file writer unavailable"),
+            "{}",
+            err.message
+        );
+        let kept = e.runtime.child_terminals.find_child(&parent.into(), 0);
+        assert_eq!(
+            kept.expect("child kept").nickname,
+            None,
+            "오류로 답한 값이 조회에 남지 않는다"
+        );
+    }
+
+    /// 다른 창이 등록한 자식은 이 창에서 고치지 않는다. 고치면 이 창이 그 자식을 소유한 것으로 기록해
+    /// 다음 reconcile 이 다른 창의 관계를 지운다.
+    #[test]
+    fn set_nickname_refuses_a_child_open_in_another_window() {
+        let mut e_session = engine_with_extra(&[]);
+        let mut e = e_session.borrow_mut();
+        let hub = crate::runtime::child_terminal::Hub::new(None);
+        hub.test_attach_writer();
+        e.runtime.child_terminals =
+            crate::runtime::child_terminal::ChildTerminalRegistry::from_hub(&hub);
+        let mut other = crate::runtime::child_terminal::ChildTerminalRegistry::from_hub(&hub);
+        other.register_child(external("codex:w"), child(7777, 0));
+        let ticket = other.submit().expect("other window save admitted");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while ticket.poll().is_none() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "other window save missing"
+            );
+            std::thread::yield_now();
+        }
+        let resp = handle_set_nickname(
+            &mut e,
+            json!(1),
+            &json!({ "parent_external": "codex:w", "child": 0, "nickname": "x" }),
+        );
+        let err = resp.error.expect("another window's child must be refused");
+        assert_eq!(err.code, -32602);
+        assert!(
+            err.message.contains("not open in this window"),
+            "{}",
+            err.message
+        );
+        e.reconcile_child_terminals();
+        let kept = e
+            .runtime
+            .child_terminals
+            .find_child(&external("codex:w"), 0);
+        assert_eq!(kept.expect("other window's child kept").nickname, None);
     }
 }

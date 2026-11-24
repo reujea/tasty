@@ -128,6 +128,39 @@ pub enum TerminalCommands {
         #[arg(long)]
         nickname: Option<String>,
     },
+    /// Set or clear the nickname of a running child without restarting it.
+    ///
+    /// Changes only the nickname that `terminal children` shows; the child's
+    /// terminal, command, and state stay as they are. Pass `--clear` to remove the
+    /// nickname. The reply carries the parent, child index, child surface ID, and
+    /// the new nickname (null when cleared). For a child in a remote mirror
+    /// workspace, only this instance's record changes.
+    #[command(group(
+        clap::ArgGroup::new("nickname_change")
+            .required(true)
+            .args(["nickname", "clear"])
+    ))]
+    SetNickname {
+        /// Parent surface ID (defaults to the single known parent)
+        #[arg(long)]
+        surface: Option<u32>,
+        /// External parent key instead of a parent surface (see `spawn --parent-external`)
+        #[arg(long, conflicts_with = "surface")]
+        parent_external: Option<String>,
+        /// Workspace (ID or name) holding the children; needed with --parent-external
+        /// when several windows are open
+        #[arg(long, requires = "parent_external")]
+        workspace: Option<String>,
+        /// Child index to rename (the number in `terminal children`, not a surface ID)
+        #[arg(long)]
+        child: u32,
+        /// New nickname (1-256 bytes, no control characters)
+        #[arg(long)]
+        nickname: Option<String>,
+        /// Remove the nickname instead of setting one
+        #[arg(long)]
+        clear: bool,
+    },
     /// Broadcast text to all children of a parent surface.
     Broadcast {
         /// Text to broadcast (sent as-is)

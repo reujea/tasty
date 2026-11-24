@@ -346,6 +346,7 @@ pub const METHOD_TABLE: &[(&str, MethodMeta)] = {
         ),
         ("terminal.broadcast", plugin(Mutate, &[TerminalWrite])),
         ("terminal.set_state", plugin(Idempotent, &[SurfaceWrite])),
+        ("terminal.set_nickname", plugin(Idempotent, &[SurfaceWrite])),
         // surface 생성 없이 자식 관계와 soft 점유만 등록한다.
         ("terminal.adopt", plugin(Idempotent, &[SurfaceWrite])),
         // 자식 관계·soft 점유만 해제하며 surface를 닫지 않는다.

@@ -124,6 +124,23 @@ pub(super) fn terminal_command_to_method_params(
             put_str(&mut m, "nickname", nickname);
             ("terminal.respawn", Value::Object(m))
         }
+        T::SetNickname {
+            surface,
+            parent_external,
+            workspace,
+            child,
+            nickname,
+            clear,
+        } => {
+            let mut m = Map::new();
+            put_parent(&mut m, *surface, parent_external, workspace);
+            m.insert("child".into(), Value::from(*child));
+            put_str(&mut m, "nickname", nickname);
+            if *clear {
+                m.insert("clear".into(), Value::from(true));
+            }
+            ("terminal.set_nickname", Value::Object(m))
+        }
         T::Broadcast {
             text,
             surface,
@@ -249,6 +266,7 @@ mod tests {
             ("release", &["--child", "1"][..]),
             ("respawn", &["--child", "1"][..]),
             ("broadcast", &["hi"][..]),
+            ("set-nickname", &["--child", "1", "--clear"][..]),
         ] {
             let mut args = vec![
                 "tasty",
@@ -278,6 +296,49 @@ mod tests {
         }
         let dot = crate::Cli::try_parse_from(["tasty", "terminal", "children", "--format", "dot"]);
         assert!(dot.is_err());
+    }
+
+    #[test]
+    fn set_nickname_sends_either_a_nickname_or_clear() {
+        let set = request(&[
+            "tasty",
+            "terminal",
+            "set-nickname",
+            "--surface",
+            "7",
+            "--child",
+            "2",
+            "--nickname",
+            "lane a",
+        ]);
+        assert_eq!(set.method, "terminal.set_nickname");
+        assert_eq!(
+            set.params,
+            serde_json::json!({ "surface": 7, "child": 2, "nickname": "lane a" })
+        );
+        let clear = request(&[
+            "tasty",
+            "terminal",
+            "set-nickname",
+            "--surface",
+            "7",
+            "--child",
+            "2",
+            "--clear",
+        ]);
+        assert_eq!(
+            clear.params,
+            serde_json::json!({ "surface": 7, "child": 2, "clear": true })
+        );
+    }
+
+    #[test]
+    fn set_nickname_needs_exactly_one_of_nickname_and_clear() {
+        use clap::Parser;
+        let base = ["tasty", "terminal", "set-nickname", "--child", "0"];
+        assert!(crate::Cli::try_parse_from(base).is_err());
+        let both = [&base[..], &["--nickname", "x", "--clear"]].concat();
+        assert!(crate::Cli::try_parse_from(both).is_err());
     }
 
     #[test]

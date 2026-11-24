@@ -3537,6 +3537,15 @@ help = "자식 역할 라벨 교체"
 [cli.help._root.terminal.respawn.arg.nickname]
 help = "자식 표시 별명 교체"
 
+[cli.help._root.terminal.set-nickname.arg.surface]
+help = "부모 서피스 ID(기본값: 알려진 부모가 하나이면 그 부모)"
+
+[cli.help._root.terminal.set-nickname.arg.parent_external]
+help = "부모 서피스 대신 사용할 외부 부모 키(`spawn --parent-external` 참고)"
+
+[cli.help._root.terminal.set-nickname.arg.workspace]
+help = "자식이 있는 워크스페이스(ID 또는 이름). 윈도우가 여러 개 열려 있으면 --parent-external과 함께 지정해야 합니다"
+
 [cli.help._root.terminal.broadcast]
 about = "부모 서피스의 모든 자식에게 텍스트 일괄 전송"
 

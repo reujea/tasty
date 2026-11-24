@@ -574,6 +574,7 @@ fn route_engine_handler(
         "terminal.respawn" => terminal::handle_respawn(engine, id, &request.params),
         "terminal.broadcast" => terminal::handle_broadcast(engine, id, &request.params),
         "terminal.set_state" => terminal::handle_set_state(core, engine, id, &request.params),
+        "terminal.set_nickname" => terminal::handle_set_nickname(core, engine, id, &request.params),
         "terminal.adopt" => terminal::handle_adopt(core, engine, id, &request.params),
         "terminal.release" => terminal::handle_release(core, engine, id, &request.params),
         // Surface에 연결하지 않은 백그라운드 PTY.

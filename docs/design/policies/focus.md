@@ -112,7 +112,7 @@ headless의 사전 검사는 host 예약 prefix에 한정한다. plugin이 처�
 workspace.move·workspace_category.move의 옛 index-only 입력은 호환상 focused 창을 사용하지만,
 ID와 옛 index를 동시에 주면 거절한다.
 
-terminal.kill·release·respawn·broadcast의 parent 생략은 현재 engine에 parent가 정확히 하나일 때만 허용한다.
+terminal.kill·release·respawn·broadcast·set_nickname의 parent 생략은 현재 engine에 parent가 정확히 하나일 때만 허용한다.
 main 창이 둘 이상이면 engine 자체가 불분명하므로 --surface를 요구한다.
 TASTY_SURFACE_ID는 호출자가 있는 surface이며 사용자 포커스와 다르다. CLI가 지원하는 --surface 기본값으로 사용할 수 있다.
 

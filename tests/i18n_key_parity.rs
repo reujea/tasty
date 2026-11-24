@@ -164,6 +164,65 @@ const PENDING_TRANSLATION_KEYS: &[(&str, &str, &str)] = &[
     ("lang", "ko", "ssh.tunnel.listener_absent"),
     ("lang", "ja", "ssh.tunnel.listener_absent"),
     ("lang", "zh-Hans", "ssh.tunnel.listener_absent"),
+    ("lang", "ko", "cli.help._root.terminal.set-nickname.about"),
+    ("lang", "ko", "cli.help._root.terminal.set-nickname.long"),
+    (
+        "lang",
+        "ko",
+        "cli.help._root.terminal.set-nickname.arg.child.help",
+    ),
+    (
+        "lang",
+        "ko",
+        "cli.help._root.terminal.set-nickname.arg.nickname.help",
+    ),
+    (
+        "lang",
+        "ko",
+        "cli.help._root.terminal.set-nickname.arg.clear.help",
+    ),
+    ("lang", "ja", "cli.help._root.terminal.set-nickname.about"),
+    ("lang", "ja", "cli.help._root.terminal.set-nickname.long"),
+    (
+        "lang",
+        "ja",
+        "cli.help._root.terminal.set-nickname.arg.child.help",
+    ),
+    (
+        "lang",
+        "ja",
+        "cli.help._root.terminal.set-nickname.arg.nickname.help",
+    ),
+    (
+        "lang",
+        "ja",
+        "cli.help._root.terminal.set-nickname.arg.clear.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.terminal.set-nickname.about",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.terminal.set-nickname.long",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.terminal.set-nickname.arg.child.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.terminal.set-nickname.arg.nickname.help",
+    ),
+    (
+        "lang",
+        "zh-Hans",
+        "cli.help._root.terminal.set-nickname.arg.clear.help",
+    ),
 ];
 
 /// 누락이 알려진 키의 임시 예외다. 키가 추가되면 항목도 제거한다. 새 누락은 수정하는 것이 기본이다.

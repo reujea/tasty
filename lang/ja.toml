@@ -3537,6 +3537,15 @@ help = "子の役割ラベルを置換"
 [cli.help._root.terminal.respawn.arg.nickname]
 help = "子の表示ニックネームを置換"
 
+[cli.help._root.terminal.set-nickname.arg.surface]
+help = "親サーフェスID（既定値：既知の親が一つならその親）"
+
+[cli.help._root.terminal.set-nickname.arg.parent_external]
+help = "親サーフェスの代わりに使う外部親キー（`spawn --parent-external` を参照）"
+
+[cli.help._root.terminal.set-nickname.arg.workspace]
+help = "子があるワークスペース（IDまたは名前）。複数のウィンドウが開いている場合は --parent-external と一緒に指定する必要があります"
+
 [cli.help._root.terminal.broadcast]
 about = "親サーフェスの全ての子にテキストを一斉送信"
 
