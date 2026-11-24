@@ -742,131 +742,127 @@ mod tests {
         }
     }
 
-    /// Given 본문에서 왼쪽 버튼을 누른 채 제목 줄로 온 포인터, When 제목 줄에서 오른쪽 버튼을 새로 눌러 끌면 Then
-    /// 드래그를 시작한 누름이 오른쪽이라 창 이동이 아니다.
-    #[test]
-    fn a_drag_started_by_a_right_press_does_not_move_even_with_left_held() {
-        use egui::PointerButton::{Primary, Secondary};
-        let moved_to = |x: f32, y: f32| egui::Event::PointerMoved(egui::pos2(x, y));
-        let passes = vec![
-            vec![moved_to(500.0, 300.0)],
-            vec![pointer((500.0, 300.0), Primary, true)],
-            vec![moved_to(500.0, 18.0)],
-            vec![pointer((500.0, 18.0), Secondary, true)],
-            vec![moved_to(540.0, 18.0)],
-            vec![moved_to(580.0, 18.0)],
-            vec![pointer((580.0, 18.0), Secondary, false)],
-            vec![pointer((580.0, 18.0), Primary, false)],
-        ];
-        assert_eq!(bar_actions(passes, true), Vec::new());
-    }
-
-    /// Given 제목 줄에서 오른쪽 버튼을 누른 포인터, When 다음 패스에 본문에서 왼쪽을 누르고 둘 다 누른 채 움직이면
-    /// Then 드래그 후보를 만든 제목 줄 누름이 오른쪽이라 창 이동이 아니다.
-    #[test]
-    fn a_left_press_outside_the_bar_does_not_turn_a_right_drag_into_a_move() {
-        use egui::PointerButton::{Primary, Secondary};
-        let moved_to = |x: f32, y: f32| egui::Event::PointerMoved(egui::pos2(x, y));
-        // 제목 줄(높이 36) 아래 끝에서 눌러 클릭 한계 안(5)만 움직여 본문으로 나간다. 그보다 크게 움직이면 그 이동이
-        // 오른쪽 드래그를 먼저 시작한다.
-        let passes = vec![
-            vec![moved_to(500.0, 33.0)],
-            vec![pointer((500.0, 33.0), Secondary, true)],
-            vec![moved_to(500.0, 38.0)],
-            vec![pointer((500.0, 38.0), Primary, true)],
-            vec![moved_to(540.0, 38.0)],
-            vec![moved_to(580.0, 38.0)],
-            vec![pointer((580.0, 38.0), Primary, false)],
-            vec![pointer((580.0, 38.0), Secondary, false)],
-        ];
-        assert_eq!(bar_actions(passes, true), Vec::new());
-    }
-
-    /// Given 제목 줄에서 오른쪽 버튼을 누른 포인터, When 같은 자리에서 왼쪽도 눌러 둘 다 누른 채 움직이면 Then 드래그
-    /// 후보는 먼저 누른 오른쪽이 만들었으므로 창 이동이 아니다. 나중 누름이 제목 줄 위의 왼쪽이어도 같다.
-    #[test]
-    fn a_later_left_press_on_the_bar_does_not_turn_a_right_drag_into_a_move() {
-        use egui::PointerButton::{Primary, Secondary};
-        let moved_to = |x: f32| egui::Event::PointerMoved(egui::pos2(x, 18.0));
-        let passes = vec![
-            vec![moved_to(500.0)],
-            vec![pointer((500.0, 18.0), Secondary, true)],
-            vec![pointer((500.0, 18.0), Primary, true)],
-            vec![moved_to(540.0)],
-            vec![moved_to(580.0)],
-            vec![pointer((580.0, 18.0), Primary, false)],
-            vec![pointer((580.0, 18.0), Secondary, false)],
-        ];
-        assert_eq!(bar_actions(passes, true), Vec::new());
-    }
-
-    /// Given 드래그 위젯이 없는 자리(본문·닫기 버튼)에서 오른쪽을 누른 채, When 빈 제목 줄에서 왼쪽을 눌러 끌면 Then
-    /// egui 드래그 후보는 왼쪽 누름이 만들었으므로 창 이동이다(메인 창과 같다).
-    #[test]
-    fn a_left_press_on_the_bar_moves_after_a_right_press_off_any_drag_widget() {
-        use egui::PointerButton::{Primary, Secondary};
-        let moved_to = |x: f32, y: f32| egui::Event::PointerMoved(egui::pos2(x, y));
-        let passes = |from: (f32, f32)| {
-            vec![
-                vec![moved_to(from.0, from.1)],
-                vec![pointer(from, Secondary, true)],
-                vec![moved_to(500.0, 18.0)],
-                vec![pointer((500.0, 18.0), Primary, true)],
-                vec![moved_to(540.0, 18.0)],
-                vec![moved_to(580.0, 18.0)],
-                vec![pointer((580.0, 18.0), Primary, false)],
-                vec![pointer((580.0, 18.0), Secondary, false)],
-            ]
+    /// 이름 붙인 버튼 순서. 각 순서는 빈 제목 줄(y 18)에서 드래그가 시작될 만큼 움직인다.
+    fn button_orders() -> Vec<(&'static str, Vec<Vec<egui::Event>>)> {
+        use egui::PointerButton::{Middle, Primary, Secondary};
+        let at = |x: f32, y: f32| egui::Event::PointerMoved(egui::pos2(x, y));
+        let drag_on_bar = || vec![vec![at(540.0, 18.0)], vec![at(580.0, 18.0)]];
+        let then = |mut head: Vec<Vec<egui::Event>>, tail: Vec<Vec<egui::Event>>| {
+            head.extend(tail);
+            head
         };
-        let places = [("body", (500.0, 300.0)), ("close button", (1080.0, 18.0))];
-        let moved = |primary_drag_only: bool| -> Vec<(&str, Vec<TitlebarAction>)> {
-            places
-                .iter()
-                .map(|(place, from)| (*place, bar_actions(passes(*from), primary_drag_only)))
-                .collect()
+        // 다른 버튼을 `from`에서 누른 채 빈 제목 줄에서 왼쪽을 눌러 끈다.
+        let held_then_left = |button, from: (f32, f32)| {
+            then(
+                vec![
+                    vec![at(from.0, from.1)],
+                    vec![pointer(from, button, true)],
+                    vec![at(500.0, 18.0)],
+                    vec![pointer((500.0, 18.0), Primary, true)],
+                ],
+                drag_on_bar(),
+            )
         };
-        let expected: Vec<_> = places
-            .iter()
-            .map(|(place, _)| (*place, vec![TitlebarAction::StartDrag]))
+        vec![
+            ("left only", drag_with(Primary)),
+            ("right only", drag_with(Secondary)),
+            (
+                "right click, then left drag",
+                then(
+                    vec![
+                        vec![at(500.0, 18.0)],
+                        vec![pointer((500.0, 18.0), Secondary, true)],
+                        vec![pointer((500.0, 18.0), Secondary, false)],
+                        vec![pointer((500.0, 18.0), Primary, true)],
+                    ],
+                    drag_on_bar(),
+                ),
+            ),
+            (
+                "right held in the body, then left drag",
+                held_then_left(Secondary, (500.0, 300.0)),
+            ),
+            (
+                "right held on the close button, then left drag",
+                held_then_left(Secondary, (1080.0, 18.0)),
+            ),
+            (
+                "right held on the bar, then left drag",
+                held_then_left(Secondary, (500.0, 18.0)),
+            ),
+            (
+                "middle held in the body, then left drag",
+                held_then_left(Middle, (500.0, 300.0)),
+            ),
+            (
+                "left held on the bar, right added, then drag",
+                then(
+                    vec![
+                        vec![at(500.0, 18.0)],
+                        vec![pointer((500.0, 18.0), Primary, true)],
+                        vec![pointer((500.0, 18.0), Secondary, true)],
+                    ],
+                    drag_on_bar(),
+                ),
+            ),
+            (
+                "left held in the body, right pressed on the bar, then drag",
+                then(
+                    vec![
+                        vec![at(500.0, 300.0)],
+                        vec![pointer((500.0, 300.0), Primary, true)],
+                        vec![at(500.0, 18.0)],
+                        vec![pointer((500.0, 18.0), Secondary, true)],
+                    ],
+                    drag_on_bar(),
+                ),
+            ),
+            (
+                "right press, move and left press in one pass",
+                then(
+                    vec![
+                        vec![at(500.0, 18.0)],
+                        vec![
+                            pointer((500.0, 18.0), Secondary, true),
+                            at(503.0, 18.0),
+                            pointer((503.0, 18.0), Primary, true),
+                        ],
+                    ],
+                    drag_on_bar(),
+                ),
+            ),
+        ]
+    }
+
+    /// Given 설정창 제목 줄의 빈 영역, When 드래그가 시작된 패스에 왼쪽 버튼만 눌려 있으면 Then 창 이동이고, When
+    /// 오른쪽·가운데 버튼이 하나라도 함께 눌려 있으면(어디서 눌렀든, 같은 패스에 몰렸든) Then 아무것도 하지 않는다.
+    /// 오른쪽 클릭이 끝난 뒤의 왼쪽 드래그는 이동이다. 메인 창 설정(`primary_drag_only` 거짓)은 어느 순서든 이동이다.
+    #[test]
+    fn a_settings_move_needs_only_the_left_button_down() {
+        let moved = vec![TitlebarAction::StartDrag];
+        let settings_moves = ["left only", "right click, then left drag"];
+        let got: Vec<_> = button_orders()
+            .into_iter()
+            .map(|(name, passes)| {
+                (
+                    name,
+                    bar_actions(passes.clone(), true),
+                    bar_actions(passes, false),
+                )
+            })
             .collect();
-        assert_eq!(moved(true), expected);
-        assert_eq!(moved(false), expected, "main window");
-    }
-
-    /// Given 제목 줄에서 왼쪽을 누른 채, When Escape로 드래그 후보를 비우고 같은 자리에서 오른쪽을 더 눌러 끌면 Then
-    /// egui 드래그 후보는 오른쪽 누름이 만들었으므로 창 이동이 아니다.
-    #[test]
-    fn a_right_press_after_escape_does_not_move_with_the_left_still_held() {
-        use egui::PointerButton::{Primary, Secondary};
-        let moved_to = |x: f32| egui::Event::PointerMoved(egui::pos2(x, 18.0));
-        let passes = vec![
-            vec![moved_to(500.0)],
-            vec![pointer((500.0, 18.0), Primary, true)],
-            vec![key(egui::Key::Escape, true), key(egui::Key::Escape, false)],
-            vec![pointer((500.0, 18.0), Secondary, true)],
-            vec![moved_to(540.0)],
-            vec![moved_to(580.0)],
-            vec![pointer((580.0, 18.0), Secondary, false)],
-            vec![pointer((580.0, 18.0), Primary, false)],
-        ];
-        assert_eq!(bar_actions(passes, true), Vec::new());
-    }
-
-    /// Given 설정창 제목 줄의 빈 영역, When 왼쪽 버튼으로 끌면 Then 창 이동이고, When 오른쪽 버튼으로 끌면 Then
-    /// 아무것도 하지 않는다. 메인 창 설정(`primary_drag_only` 거짓)은 오른쪽 드래그도 이동으로 보고한다.
-    #[test]
-    fn only_a_primary_drag_moves_the_settings_window() {
-        use egui::PointerButton::{Primary, Secondary};
-        assert_eq!(
-            bar_actions(drag_with(Primary), true),
-            vec![TitlebarAction::StartDrag]
-        );
-        assert_eq!(bar_actions(drag_with(Secondary), true), Vec::new());
-        assert_eq!(
-            bar_actions(drag_with(Secondary), false),
-            vec![TitlebarAction::StartDrag],
-            "the main window keeps any button"
-        );
+        let expected: Vec<_> = got
+            .iter()
+            .map(|(name, _, _)| {
+                let settings = if settings_moves.contains(name) {
+                    moved.clone()
+                } else {
+                    Vec::new()
+                };
+                (*name, settings, moved.clone())
+            })
+            .collect();
+        assert_eq!(got, expected);
     }
 
     fn key(key: egui::Key, pressed: bool) -> egui::Event {

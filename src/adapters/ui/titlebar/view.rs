@@ -58,8 +58,8 @@ pub struct TitlebarProps<'a> {
     // 이유: 참으로 넘기는 곳이 Linux 설정창뿐이고, 이 값을 읽는 Linux DE 버튼도 Linux 빌드에만 그려진다.
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     pub keyboard_focus: bool,
-    /// 빈 영역 드래그 가운데 주 버튼(왼쪽) 드래그만 창 이동으로 보고한다(Linux 설정창, 디자인 정본과 같다).
-    /// 거짓이면 어느 버튼의 드래그든 이동이다(메인 창).
+    /// 빈 영역 드래그가 시작된 패스에 왼쪽 버튼만 눌려 있을 때만 창 이동으로 보고한다(Linux 설정창, 디자인 정본은
+    /// 왼쪽 드래그만 이동이다). 거짓이면 어느 버튼의 드래그든 이동이다(메인 창).
     pub primary_drag_only: bool,
     /// 이번 패스의 키 주인이 팝업이다(Linux 설정창). 참이면 창 버튼이 Tab 포커스를 받지 않아, 팝업이 닫힌 뒤
     /// Space·Enter가 그 포커스로 버튼을 누르지 않는다.
@@ -171,9 +171,7 @@ pub fn draw_titlebar_view(ctx: &egui::Context, props: &TitlebarProps) -> Titleba
                     egui::Sense::click_and_drag(),
                 );
                 let drag_started = if props.primary_drag_only {
-                    // 누름은 드래그가 시작되기 전 패스에 오므로 패스마다 적는다.
-                    let primary_press = drag_began_with_primary(ui, resp.id, drag_rect);
-                    resp.drag_started_by(egui::PointerButton::Primary) && primary_press
+                    resp.drag_started() && only_primary_down(ui)
                 } else {
                     resp.drag_started()
                 };
@@ -202,39 +200,16 @@ pub fn draw_titlebar_view(ctx: &egui::Context, props: &TitlebarProps) -> Titleba
     }
 }
 
-/// 이 드래그 영역(`drag_rect`)을 egui 드래그 후보로 만든 누름이 왼쪽 버튼인지. egui의 `drag_started_by`는 지금 그
-/// 버튼이 눌려 있는지만 보므로, 후보를 만든 누름의 버튼을 `id`의 임시 값에 따로 적는다.
-///
-/// egui 0.31(`interaction.rs`)은 후보가 빈 동안의 누름이 드래그 위젯을 맞히면 그 위젯을 후보로 정하고, 패스 첫머리의
-/// Escape, 어느 버튼의 뗌, 포인터가 창을 떠남으로 후보를 비운다. 같은 순서로, 기록이 빈 동안 이 영역 위의 누름만 그
-/// 버튼을 적고 Escape·뗌·`PointerGone`은 기록을 지운다. 영역 밖 누름(본문·닫기 버튼)은 적지 않는다. 다른 드래그 위젯이 후보인 동안 이 영역 위 누름을
-/// 적더라도, 그 후보가 풀리는 뗌·Escape가 기록도 지우고 그동안 이 영역의 드래그는 시작되지 않는다.
-fn drag_began_with_primary(ui: &egui::Ui, id: egui::Id, drag_rect: egui::Rect) -> bool {
-    let key = id.with("drag_press_primary");
-    let mut armed: Option<bool> = ui.data(|d| d.get_temp(key)).flatten();
+/// 지금 왼쪽 버튼만 눌려 있는지. egui는 드래그 후보를 만든 누름의 버튼을 공개하지 않으므로, 설정창 제목 줄은
+/// 드래그가 시작된 패스에 다른 버튼(오른쪽·가운데·추가 버튼)이 하나라도 눌려 있으면 이동하지 않는다.
+fn only_primary_down(ui: &egui::Ui) -> bool {
+    use egui::PointerButton as B;
     ui.input(|i| {
-        if i.key_pressed(egui::Key::Escape) {
-            armed = None;
-        }
-        for event in &i.events {
-            match event {
-                egui::Event::PointerButton { pressed: false, .. } | egui::Event::PointerGone => {
-                    armed = None
-                }
-                egui::Event::PointerButton {
-                    pos,
-                    button,
-                    pressed: true,
-                    ..
-                } if armed.is_none() && drag_rect.contains(*pos) => {
-                    armed = Some(*button == egui::PointerButton::Primary);
-                }
-                _ => {}
-            }
-        }
-    });
-    ui.data_mut(|d| d.insert_temp(key, armed));
-    armed == Some(true)
+        i.pointer.button_down(B::Primary)
+            && [B::Secondary, B::Middle, B::Extra1, B::Extra2]
+                .into_iter()
+                .all(|b| !i.pointer.button_down(b))
+    })
 }
 
 /// DE 가변 버튼 클러스터를 측면에 그리고, 차지한 strip 폭(logical px)을 반환한다.
