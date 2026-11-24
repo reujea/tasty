@@ -70,6 +70,15 @@ pub(crate) enum Incoming {
     Press,
     /// 키·IME 사건.
     Key,
+    /// 수식키 없는 Esc 누름(`RouteKey::bare_escape`). 자기 몫 하나를 갖는다(조건 8).
+    Escape,
+}
+
+impl Incoming {
+    /// 키·IME·Esc 사건인지(누름이 아닌지).
+    pub(crate) fn is_key(self) -> bool {
+        !matches!(self, Self::Press)
+    }
 }
 
 /// 끊은 자리 뒤의 입력 시점 결속(뒤 그리기 몫).
@@ -84,6 +93,8 @@ struct AfterCut {
     /// 사건 시점의 포커스 노드가 바뀌어 연 몫이다. 이 몫이 비어 있는 동안 키가 오면 한 번 더 끊어, 이 몫은 새 노드의
     /// 빈 패스가 된다.
     node_transition: bool,
+    /// egui 수신자로 간 bare Esc 누름이 든 몫이다(`note_escape_loaded`). 다음 사건은 새 몫에서 시작한다.
+    escape_loaded: bool,
 }
 
 /// 입력 시점 결속과 이번 프레임 값.
@@ -104,6 +115,8 @@ pub(crate) struct KeySlots {
     escape_released: bool,
     /// 이번 패스 몫에 egui 로 보내지 않은 Esc 뗌이 왔다. 패스를 닫을 때 egui 의 Escape 눌림을 푼다.
     pass_escape_released: bool,
+    /// 지금 받는 첫 몫에 egui 수신자로 간 bare Esc 누름이 들었다.
+    escape_loaded: bool,
     /// 별도 창이 이번 패스에 넣은 Esc 표지(`PopupManager::put_window_pass_keys`). 그리기가 꺼낸다.
     pub(super) window_escape: Option<super::body_keys::EscapeMarks>,
     /// 별도 창이 이번 `run` 에 정한 키 주인과 그 `run` 번호(`decide_window_frame_keys`).
@@ -124,8 +137,10 @@ impl PopupManager {
     /// `incoming` 사건이 egui 입력 큐 `events` 끝에 들어오려 한다. 지금 몫(마지막으로 끊은 자리부터)과 포커스 노드가
     /// 다르거나 다를 수 있으면 그 자리에서 끊는다. 누름은 포커스 노드를 옮길 수 있으므로, 누름이 오는데 지금 몫에 키·IME·텍스트
     /// 사건이 실렸거나 키 주인이 묶였거나 넘길 Esc 가 있으면 끊는다. 키가 오는데 지금 몫의 마지막 입력이 누름이면
-    /// 끊는다(그 누름이 포커스를 준 위젯은 누름을 처리한 패스 뒤에야 egui 포커스를 가진다). 끊는 조건은 이 함수에만
-    /// 있다.
+    /// 끊는다(그 누름이 포커스를 준 위젯은 누름을 처리한 패스 뒤에야 egui 포커스를 가진다). bare Esc 누름은 자기 몫
+    /// 하나를 갖는다(조건 8). 앞 경계: Esc 가 오는데 지금 몫에 키·누름 사건이 실렸거나 키 주인이 묶였거나 넘길 Esc 가
+    /// 있으면 끊는다(수신자를 읽지 않는다). 뒤 경계: egui 수신자로 간 Esc 가 든 몫(`note_escape_loaded`)에는 다음 사건이
+    /// 들지 않는다. 끊는 조건은 이 함수에만 있다.
     ///
     /// `node_changed` 는 그 사건 시점의 포커스 노드가 지금 몫의 노드와 다르다는 것이다(`MainViewState::cut_key_frame`).
     /// 그러면 사건 종류와 관계없이 끊는다. 그렇게 연 몫에 아무 사건도 들기 전에 키가 오면 한 번 더 끊는다. 앞 몫의
@@ -146,27 +161,43 @@ impl PopupManager {
         node_changed: bool,
         notice_changed: bool,
     ) -> bool {
-        let (start, bound, escape, transition) = match self.keys.after_cut.back_mut() {
+        let (start, bound, escape, transition, escape_loaded) = match self.keys.after_cut.back_mut()
+        {
             Some(after) => (
                 after.at,
                 &mut after.bound,
                 !after.escape.is_empty(),
                 after.node_transition,
+                after.escape_loaded,
             ),
-            None => (0, &mut self.keys.bound, !self.keys.escape.is_empty(), false),
+            None => (
+                0,
+                &mut self.keys.bound,
+                !self.keys.escape.is_empty(),
+                false,
+                self.keys.escape_loaded,
+            ),
         };
         let segment = events.get(start..).unwrap_or_default();
+        let key_cut = || {
+            (transition && segment.is_empty())
+                || segment
+                    .iter()
+                    .rev()
+                    .find(|e| is_key_input(e) || is_press(e))
+                    .is_some_and(is_press)
+        };
         let cut = node_changed
             || notice_changed
+            || escape_loaded
             || match incoming {
                 Incoming::Press => segment.iter().any(is_key_input) || bound.is_some() || escape,
-                Incoming::Key => {
-                    (transition && segment.is_empty())
-                        || segment
-                            .iter()
-                            .rev()
-                            .find(|e| is_key_input(e) || is_press(e))
-                            .is_some_and(is_press)
+                Incoming::Key => key_cut(),
+                Incoming::Escape => {
+                    key_cut()
+                        || segment.iter().any(|e| is_key_input(e) || is_press(e))
+                        || bound.is_some()
+                        || escape
                 }
             };
         if !cut {
@@ -190,12 +221,14 @@ impl PopupManager {
                     && after.bound.is_none()
                     && after.escape.is_empty()
                     && !after.escape_released
+                    && !after.escape_loaded
             }
             None => {
                 raw_left == 0
                     && self.keys.bound.is_none()
                     && self.keys.escape.is_empty()
                     && !self.keys.escape_released
+                    && !self.keys.escape_loaded
             }
         }
     }
@@ -207,6 +240,15 @@ impl PopupManager {
             at,
             ..AfterCut::default()
         });
+    }
+
+    /// egui 수신자로 간(egui 입력에 실린) bare Esc 누름이 지금 받는 몫에 들었다(단계 8 적재 결과). 그 몫은 이 Esc 로
+    /// 끝나고 다음 사건은 새 몫에서 시작한다(`cut_key_frame`). egui 가 아닌 수신자로 간 Esc 는 표시를 남기지 않는다.
+    pub(crate) fn note_escape_loaded(&mut self) {
+        match self.keys.after_cut.back_mut() {
+            Some(after) => after.escape_loaded = true,
+            None => self.keys.escape_loaded = true,
+        }
     }
 
     /// 키 오버레이가 없어 egui 로 보내지 않은 Esc 뗌이 왔다. 그 뗌은 지금 받는 몫 차례에 egui 의 Escape 눌림을 풀어야
@@ -352,10 +394,12 @@ impl PopupManager {
         let bound = self.keys.bound.take();
         let escape = std::mem::take(&mut self.keys.escape);
         self.keys.pass_escape_released = std::mem::take(&mut self.keys.escape_released);
+        self.keys.escape_loaded = false;
         if let Some(after) = self.keys.after_cut.pop_front() {
             let by = after.at;
             self.keys.bound = after.bound;
             self.keys.escape_released = after.escape_released;
+            self.keys.escape_loaded = after.escape_loaded;
             self.keys.escape = after.escape.shifted_back(by);
             for rest in &mut self.keys.after_cut {
                 rest.at = rest.at.saturating_sub(by);

@@ -127,11 +127,12 @@ fn draw(ctx: &egui::Context, pass: &mut WindowPass<'_, TestWindow>) {
     });
 }
 
-/// 창 하나의 egui 입력 큐·끊은 자리·Esc 표지(제품 `GpuState` 의 대역).
-struct Harness {
-    ctx: egui::Context,
+/// 창 하나의 egui 입력 큐·끊은 자리·Esc 표지(제품 `GpuState` 의 대역). 창 상태는 팝업 관리자를 가진 어느 창이든
+/// 된다(`WindowPopups`, 설정 창 시험도 쓴다).
+pub(crate) struct Harness {
+    pub(crate) ctx: egui::Context,
     queue: Vec<egui::Event>,
-    cuts: InputCuts,
+    pub(crate) cuts: InputCuts,
     loaded_marks: Vec<tasty_key_match::KeyMods>,
     pass_marks: Vec<tasty_key_match::KeyMods>,
     held: HeldPastes,
@@ -147,7 +148,7 @@ impl EguiPressSink for Harness {
     }
 }
 
-impl<'s> InputPassHost<WindowPass<'s, TestWindow>> for Harness {
+impl<'s, T: WindowPopups> InputPassHost<WindowPass<'s, T>> for Harness {
     fn escape_held(&self) -> bool {
         self.ctx.input(|i| i.key_down(egui::Key::Escape))
     }
@@ -183,8 +184,8 @@ impl<'s> InputPassHost<WindowPass<'s, TestWindow>> for Harness {
     fn run(
         &mut self,
         raw_input: egui::RawInput,
-        state: &mut WindowPass<'s, TestWindow>,
-        mut ui: impl FnMut(&egui::Context, &mut WindowPass<'s, TestWindow>),
+        state: &mut WindowPass<'s, T>,
+        mut ui: impl FnMut(&egui::Context, &mut WindowPass<'s, T>),
     ) -> egui::FullOutput {
         state.begin_run(&self.ctx, std::mem::take(&mut self.pass_marks));
         self.ctx.run(raw_input, |ctx| ui(ctx, state))
@@ -196,7 +197,7 @@ impl<'s> InputPassHost<WindowPass<'s, TestWindow>> for Harness {
 }
 
 impl Harness {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             ctx: egui::Context::default(),
             queue: Vec::new(),
@@ -207,26 +208,36 @@ impl Harness {
         }
     }
 
-    fn settle(&mut self, window: &mut TestWindow, incoming: Incoming) {
+    fn settle(&mut self, window: &mut impl WindowPopups, incoming: Incoming) {
         let ctx = self.ctx.clone();
-        settle_window_input(self, &ctx, &mut window.popups, incoming);
+        settle_window_input(self, &ctx, window.window_popups(), incoming);
     }
 
     /// 포인터를 옮기고(끊지 않는 사건) 누른다.
-    fn press(&mut self, window: &mut TestWindow, pos: egui::Pos2) {
+    fn press(&mut self, window: &mut impl WindowPopups, pos: egui::Pos2) {
         self.queue.push(egui::Event::PointerMoved(pos));
         self.settle(window, Incoming::Press);
         self.queue.push(button(pos, true));
     }
 
-    fn click(&mut self, window: &mut TestWindow, pos: egui::Pos2) {
+    pub(crate) fn click(&mut self, window: &mut impl WindowPopups, pos: egui::Pos2) {
         self.press(window, pos);
         self.queue.push(button(pos, false));
     }
 
     /// 수식키 없는 키 하나. 글자가 있으면 같은 사건이 글자도 싣는다. Esc 누름이면 표지를 남긴다.
-    fn key(&mut self, window: &mut TestWindow, key: egui::Key, text: Option<&str>) {
-        self.settle(window, Incoming::Key);
+    pub(crate) fn key(
+        &mut self,
+        window: &mut impl WindowPopups,
+        key: egui::Key,
+        text: Option<&str>,
+    ) {
+        let incoming = if key == egui::Key::Escape {
+            Incoming::Escape
+        } else {
+            Incoming::Key
+        };
+        self.settle(window, incoming);
         let from = self.queue.len();
         self.queue.push(egui::Event::Key {
             key,
@@ -244,25 +255,39 @@ impl Harness {
                 from,
                 tasty_key_match::KeyMods::default(),
             ));
-        window.popups.bind_window_key(&self.ctx);
+        bind_window_input(&self.ctx, window.window_popups(), incoming);
     }
 
     fn type_x(&mut self, window: &mut TestWindow) {
         self.key(window, egui::Key::X, Some("x"));
     }
 
+    /// 제품과 같은 순서 함수로 `draw` 를 그리는 패스 하나.
+    pub(crate) fn run_pass<'s, T: WindowPopups>(
+        &mut self,
+        window: &'s mut T,
+        draw: impl FnMut(&egui::Context, &mut WindowPass<'s, T>),
+    ) -> egui::FullOutput {
+        let mut state = WindowPass::new(window);
+        run_input_pass(self, &mut state, |_| {}, draw)
+    }
+
+    /// 그릴 몫이 남았는지(꺼내지 않은 사건이나 끊은 자리).
+    pub(crate) fn has_input(&self) -> bool {
+        !self.queue.is_empty() || !self.cuts.is_empty()
+    }
+
     /// 패스 하나. 이번 패스에 키 X 를 본 노드를 돌려준다.
     fn pass(&mut self, window: &mut TestWindow) -> Vec<&'static str> {
         window.saw_x.clear();
-        let mut state = WindowPass::new(window);
-        drop(run_input_pass(self, &mut state, |_| {}, draw));
+        drop(self.run_pass(window, draw));
         std::mem::take(&mut window.saw_x)
     }
 
     /// 남은 몫을 모두 그리고 빈 패스 하나를 더 그린다. 패스마다 키 X 를 본 노드를 돌려준다.
     fn drain(&mut self, window: &mut TestWindow) -> Vec<Vec<&'static str>> {
         let mut seen = Vec::new();
-        while !self.queue.is_empty() || self.cuts.len() > 0 {
+        while self.has_input() {
             seen.push(self.pass(window));
         }
         seen.push(self.pass(window));

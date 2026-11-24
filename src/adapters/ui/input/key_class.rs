@@ -80,6 +80,20 @@ pub(crate) fn classify_key(
     })
 }
 
+/// 이 사건이 수식키 없는 Esc 누름인지(`RouteKey::bare_escape`). 래치와 무관하게 사건 값으로만 정한다. 입력 몫을 끊는
+/// 조건 8 이 읽는다.
+pub(crate) fn is_bare_escape_press(value: &KeyEventValue<'_>) -> bool {
+    value.pressed
+        && egui_key(value.logical, value.physical).is_some_and(|key| {
+            RouteKey {
+                key,
+                modifiers: egui_modifiers(value.mods),
+                super_held: !cfg!(target_os = "macos") && value.mods.super_key(),
+            }
+            .bare_escape()
+        })
+}
+
 /// egui-winit이 이 키 사건에 싣는 egui 키. 논리 키가 먼저이고 없으면 물리 키다.
 pub(crate) fn egui_key(logical: &Key, physical: PhysicalKey) -> Option<egui::Key> {
     let logical = match logical {

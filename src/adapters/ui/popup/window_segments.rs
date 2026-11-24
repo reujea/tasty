@@ -85,7 +85,7 @@ impl PopupManager {
             self.window.after.push_back(None);
             cuts += 1;
         }
-        if incoming == Incoming::Key {
+        if incoming.is_key() {
             self.window.open_node().get_or_insert(focus);
         }
         cuts

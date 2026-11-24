@@ -250,8 +250,8 @@ impl super::MainViewState {
                 _ => None,
             };
             let changed = node.is_some_and(|node| node != focus);
-            let notice_changed = incoming == Incoming::Key
-                && self.open_segment_notice().is_some_and(|n| n != notice);
+            let notice_changed =
+                incoming.is_key() && self.open_segment_notice().is_some_and(|n| n != notice);
             if !self
                 .popups
                 .cut_key_frame(events, incoming, popup, changed, notice_changed)
@@ -265,7 +265,7 @@ impl super::MainViewState {
             });
             cuts += 1;
         }
-        if incoming == Incoming::Key {
+        if incoming.is_key() {
             self.open_segment_focus().get_or_insert(focus);
             self.open_segment_notice().get_or_insert(notice);
         }

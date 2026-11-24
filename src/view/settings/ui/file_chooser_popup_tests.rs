@@ -928,6 +928,70 @@ fn conflict_shown(
     (combo, out)
 }
 
+/// 별도 창 사건 입구(`view::window_input` 하네스)로 키를 받고 제품과 같은 순서 함수로 설정 창을 그리는 패스를
+/// 남은 몫이 없을 때까지 돌리고 빈 패스 하나를 더 그린다.
+fn drain_settings(
+    h: &mut crate::view::window_input::tests::Harness,
+    p: &mut Panel,
+    st: &mut SettingsUiState,
+) {
+    loop {
+        let more = h.has_input();
+        drop(h.run_pass(st, |ctx, pass| {
+            let action = draw_settings_panel(
+                ctx,
+                SettingsPanelCtx {
+                    settings: &mut p.settings,
+                    ui_state: &mut *pass.state,
+                    captured_double_tap: &mut p.tap,
+                    file_format: &p.formats,
+                    file_handler: &p.handlers,
+                    pass_keys: &pass.keys,
+                },
+            );
+            assert_eq!(action, None, "the panel was not saved or cancelled");
+        }));
+        if !more {
+            break;
+        }
+    }
+}
+
+/// 충돌 질문을 띄운 설정 창에 별도 창 사건 입구로 키 둘을 보내고 끊은 수를 돌려준다.
+fn conflict_keys(keys: [egui::Key; 2]) -> (Panel, SettingsUiState, String, usize) {
+    let (mut p, mut st) = conflicting_panel();
+    let mut h = crate::view::window_input::tests::Harness::new();
+    let ctx = h.ctx.clone();
+    let (combo, _) = conflict_shown(&ctx, &mut p, &mut st);
+    for key in keys {
+        h.key(&mut st, key, None);
+    }
+    let cuts = h.cuts.len();
+    drain_settings(&mut h, &mut p, &mut st);
+    (p, st, combo, cuts)
+}
+
+/// M-E1-4 F: Given 키 주인 충돌 질문, When 한 입력 묶음에 bare Esc 뒤 Y 가 오면, Then 별도 창 사건 입구가 Esc 몫 뒤에서
+/// 끊어(조건 8 뒤 경계) Esc 패스가 질문을 닫고 Y 는 닫힌 질문에 가지 않아 바인딩은 적용되지 않는다.
+#[test]
+fn escape_then_yes_on_the_conflict_question_applies_nothing() {
+    let (_p, st, combo, cuts) = conflict_keys([egui::Key::Escape, egui::Key::Y]);
+    assert_eq!(cuts, 1, "Esc 몫과 Y 몫이 나뉜다");
+    assert!(!applied(&st, &combo), "바인딩이 적용되지 않는다");
+    assert!(!st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID), "닫힌다");
+    assert!(st.pending_binding.is_none(), "Esc 가 대기를 취소한다");
+}
+
+/// M-E1-4 P: Given 키 주인 충돌 질문, When 한 입력 묶음에 Y 뒤 bare Esc 가 오면, Then Esc 앞에서 끊겨도(조건 8 앞 경계)
+/// Y 몫이 먼저 그려져 바인딩이 적용되고 질문이 닫힌다.
+#[test]
+fn yes_then_escape_on_the_conflict_question_applies_the_binding() {
+    let (_p, st, combo, cuts) = conflict_keys([egui::Key::Y, egui::Key::Escape]);
+    assert_eq!(cuts, 1, "Y 몫과 Esc 몫이 나뉜다");
+    assert!(applied(&st, &combo), "바인딩이 적용된다");
+    assert!(!st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID), "닫힌다");
+}
+
 /// 녹화한 단축키가 대상 칸(`new_tab` 첫 칸)에 들어갔는지.
 fn applied(st: &SettingsUiState, combo: &String) -> bool {
     st.draft
@@ -1183,8 +1247,9 @@ fn the_apply_button_wins_over_escape_in_the_same_pass() {
     assert!(st.pending_binding.is_none());
 }
 
-/// T-4a3-21y3: Given 키 주인 충돌 질문, When 한 패스에 Y·Enter 와 bare Esc 가 함께 오면(순서 무관), Then 다음 패스에
-/// 바인딩이 적용되고 닫히며 Esc 패스에 대기 단축키가 비지 않는다. 연속 [Y], [Y] 는 한 번만 적용한다. 제목줄 닫기
+/// T-4a3-21y3: Given 키 주인 충돌 질문, When 한 패스에 Y·Enter 뒤 bare Esc 가 함께 오면, Then 다음 패스에
+/// 바인딩이 적용되고 닫히며 Esc 패스에 대기 단축키가 비지 않는다. [Esc, Y] 는 창 사건 입구에서 Esc 몫이 나뉘므로
+/// 한 패스로 오지 않는다(`escape_then_yes_on_the_conflict_question_applies_nothing`). 연속 [Y], [Y] 는 한 번만 적용한다. 제목줄 닫기
 /// 버튼 누름과 Y 가 한 패스에 오면 닫히고 대기와 적용 표지가 모두 비며, 남은 표지가 새 대기를 적용하지 않는다.
 #[test]
 fn a_yes_key_and_escape_in_one_pass_apply_the_binding() {
@@ -1192,7 +1257,6 @@ fn a_yes_key_and_escape_in_one_pass_apply_the_binding() {
     let enter = || key_event(egui::Key::Enter, egui::Modifiers::NONE);
     for (name, events) in [
         ("Y, Esc", vec![yes(), escape_key()]),
-        ("Esc, Y", vec![escape_key(), yes()]),
         ("Enter, Esc", vec![enter(), escape_key()]),
     ] {
         let (mut p, mut st) = conflicting_panel();

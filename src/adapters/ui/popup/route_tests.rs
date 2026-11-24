@@ -441,6 +441,10 @@ mod pending;
 mod press_cut;
 
 #[cfg(feature = "gui")]
+#[path = "escape_cut_tests.rs"]
+mod escape_cut;
+
+#[cfg(feature = "gui")]
 #[path = "pass_focus_tests.rs"]
 mod pass_focus;
 

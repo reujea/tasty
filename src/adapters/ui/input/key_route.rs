@@ -23,8 +23,9 @@ pub(crate) struct RouteKey {
 }
 
 impl RouteKey {
-    /// 수식키 없는 Esc. Esc 선언의 대상이다. 수식키 Esc는 보통 키처럼 오른다.
-    fn bare_escape(self) -> bool {
+    /// 수식키 없는 Esc. Esc 선언의 대상이다. 수식키 Esc는 보통 키처럼 오른다. 입력 몫의 조건 8(Esc 누름마다 몫)도
+    /// 이 판정을 쓴다.
+    pub(crate) fn bare_escape(self) -> bool {
         self.key == egui::Key::Escape && self.modifiers.is_none() && !self.super_held
     }
 
@@ -36,6 +37,21 @@ impl RouteKey {
     fn is(self, basic: BasicKey) -> bool {
         basic.matches_egui(self.key, self.modifiers, self.super_held)
     }
+}
+
+/// egui 키 사건 하나가 수식키 없는 Esc 누름인지(`RouteKey::bare_escape`). `super_held` 는 비-macOS 실물 Win·Super 다.
+/// 시험 대역처럼 egui 사건으로 키를 넣는 입구가 입력 몫의 조건 8 에 쓴다.
+#[cfg(test)]
+pub(crate) fn is_bare_escape_event(event: &egui::Event, super_held: bool) -> bool {
+    matches!(
+        event,
+        egui::Event::Key {
+            key,
+            pressed: true,
+            modifiers,
+            ..
+        } if RouteKey { key: *key, modifiers: *modifiers, super_held }.bare_escape()
+    )
 }
 
 /// 팝업의 표시 상태. 접힌 대표 버튼은 펼치기 키를, 펼친 팝업은 다시 접는 Esc를 받는다.

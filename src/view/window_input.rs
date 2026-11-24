@@ -81,14 +81,32 @@ impl<T: WindowPopups> InputPassState for WindowPass<'_, T> {
     }
 }
 
-/// 별도 창 사건이 egui 입력 큐에 들어오는 종류. 누름·키·IME 가 아니면 끊지 않는다.
-pub(crate) fn incoming_of(event: &winit::event::WindowEvent) -> Option<Incoming> {
+/// 별도 창 사건이 egui 입력 큐에 들어오는 종류. 누름·키·IME 가 아니면 끊지 않는다. 수식키 없는 Esc 누름은 메인 창과
+/// 같은 판정(`key_class::is_bare_escape_press`)으로 가른다. `mods` 는 사건 시점 창의 winit 수식키, `egui_mods` 는 그 창
+/// egui-winit 의 수식키다.
+pub(crate) fn incoming_of(
+    event: &winit::event::WindowEvent,
+    mods: winit::keyboard::ModifiersState,
+    egui_mods: egui::Modifiers,
+) -> Option<Incoming> {
+    use crate::adapters::ui::input::key_class::{KeyEventValue, is_bare_escape_press};
     use winit::event::{ElementState, WindowEvent};
     match event {
         WindowEvent::MouseInput {
             state: ElementState::Pressed,
             ..
         } => Some(Incoming::Press),
+        WindowEvent::KeyboardInput { event: key, .. }
+            if is_bare_escape_press(&KeyEventValue {
+                logical: &key.logical_key,
+                physical: key.physical_key,
+                pressed: key.state == ElementState::Pressed,
+                mods,
+                egui_mods,
+            }) =>
+        {
+            Some(Incoming::Escape)
+        }
         WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_) => Some(Incoming::Key),
         _ => None,
     }
@@ -117,6 +135,21 @@ pub(crate) fn settle_window_input(
     }
 }
 
+/// egui 에 실은 사건(`incoming`)의 몫을 묶는다. 키·IME·Esc 면 그 사건 시점 노드로 묶고, bare Esc 면 그 몫을 끝낸다(뒤
+/// 경계, `PopupManager::note_escape_loaded`).
+pub(crate) fn bind_window_input(
+    ctx: &egui::Context,
+    popups: &mut PopupManager,
+    incoming: Incoming,
+) {
+    if incoming.is_key() {
+        popups.bind_window_key(ctx);
+    }
+    if incoming == Incoming::Escape {
+        popups.note_escape_loaded();
+    }
+}
+
 #[cfg(test)]
 #[path = "window_input_tests.rs"]
-mod tests;
+pub(crate) mod tests;

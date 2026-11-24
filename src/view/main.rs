@@ -486,10 +486,16 @@ impl MainView {
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
         );
         self.escape_loaded_from = None;
-        let Some(bound) = self
+        let fed = self
             .state
-            .window_feeds_key(self.key_decision, egui_surface, binds)
-        else {
+            .window_feeds_key(self.key_decision, egui_surface, binds);
+        // egui 수신자로 간 bare Esc 는 그 몫을 끝낸다(뒤 경계).
+        let bare_escape = matches!(
+            event,
+            WindowEvent::KeyboardInput { event: key, .. } if self.bare_escape_press(key)
+        );
+        self.state.mark_escape_segment(fed.is_some(), bare_escape);
+        let Some(bound) = fed else {
             self.note_unfed_key(event);
             return (false, false);
         };
@@ -566,6 +572,19 @@ impl MainView {
         };
     }
 
+    /// 이 키 사건이 수식키 없는 Esc 누름인지(`key_class::is_bare_escape_press`, 사건 시점 창 수식키).
+    fn bare_escape_press(&self, key: &winit::event::KeyEvent) -> bool {
+        crate::adapters::ui::input::key_class::is_bare_escape_press(
+            &crate::adapters::ui::input::key_class::KeyEventValue {
+                logical: &key.logical_key,
+                physical: key.physical_key,
+                pressed: key.state == winit::event::ElementState::Pressed,
+                mods: self.base.state.modifiers,
+                egui_mods: self.base.gpu.egui_modifiers(),
+            },
+        )
+    }
+
     /// 키·modifier 가 아닌 창 사건을 egui 에 보낸다.
     fn feed_egui_pointer_or_other(&mut self, event: &WindowEvent) -> (bool, bool) {
         self.base.gpu.handle_egui_event(&self.base.winit, event)
@@ -581,6 +600,9 @@ impl MainView {
                 state: winit::event::ElementState::Pressed,
                 ..
             } => Incoming::Press,
+            WindowEvent::KeyboardInput { event: key, .. } if self.bare_escape_press(key) => {
+                Incoming::Escape
+            }
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_) => Incoming::Key,
             _ => return,
         };

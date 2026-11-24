@@ -276,7 +276,8 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 설정·plugins·preset 창의 키 사건 노드는 팝업 인스턴스 하나이거나 창 위젯이다. 노드를 정하는 함수는
 `PopupManager::window_key_node`(`src/adapters/ui/popup/window_segments.rs`) 하나다. 누름·키 사건은 egui 입력에 들어가기 전에
 그 노드로 입력을 끊고 누름은 그 자리에서 포커스를 옮긴다(`view::window_input::settle_window_input`, 끊는 조건은 메인 창과 같은
-`PopupManager::cut_key_frame`). egui 에 실은 키의 몫은 그 노드로 묶인다(`bind_window_key`). 패스는 메인 창과 같은 순서
+`PopupManager::cut_key_frame`). egui 에 실은 키의 몫은 그 노드로 묶이고, egui 에 실은 bare Esc 는 그 몫을 끝낸다
+(`view::window_input::bind_window_input`). 패스는 메인 창과 같은 순서
 함수로 열고 닫으며(`GpuState::run_window_pass`), 그리기 입구(`put_window_pass_keys`)와 창 위젯 차단이 그 몫의 결속을 함께
 읽는다. quit 창은 팝업 관리자가 없어 노드가 창 위젯 하나다.
 

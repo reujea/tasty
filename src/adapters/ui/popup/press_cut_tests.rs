@@ -136,7 +136,7 @@ pub(super) fn type_text(
 }
 
 /// 창이 다음 패스 입력을 꺼내 한 프레임을 그린다.
-fn pass(scene: &mut Scene, input: &mut WindowInput) {
+pub(super) fn pass(scene: &mut Scene, input: &mut WindowInput) {
     let events = input.take_pass(&mut scene.state, &scene.ctx);
     let engine = scene.session.borrow_mut();
     window_frame_with_find(
@@ -151,7 +151,7 @@ fn pass(scene: &mut Scene, input: &mut WindowInput) {
 }
 
 /// 남은 몫을 모두 그린다.
-fn drain(scene: &mut Scene, input: &mut WindowInput) {
+pub(super) fn drain(scene: &mut Scene, input: &mut WindowInput) {
     while !input.is_empty() {
         pass(scene, input);
     }

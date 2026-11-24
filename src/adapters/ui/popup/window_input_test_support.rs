@@ -5,11 +5,13 @@
 //! 패스와 같은 순서 함수(`gfx::gpu::input_pass::run_input_pass`)로 돈다(`run_pass`). Esc 처럼 창이 따로 고르는
 //! 키(`window_escape`)는 창과 같은 함수로 거른다(`escape`).
 
+use crate::adapters::ui::input::key_route::is_bare_escape_event;
+use crate::adapters::ui::popup::frame_keys::Incoming;
 use crate::adapters::ui::popup::frame_keys::InputCuts;
 use crate::gfx::gpu::input_pass::{InputPassHost, run_input_pass};
 use crate::gfx::gpu::text_selection::HeldPastes;
 use crate::state::RequestContext;
-use crate::view::main::input_segment::{EguiPressSink, key_focus, press_focus};
+use crate::view::main::input_segment::{EguiPressSink, key_focus, press_focus, segment_focus};
 
 /// 창 하나의 egui 입력 큐와 끊은 자리.
 #[derive(Default)]
@@ -186,6 +188,10 @@ impl WindowInput {
         // 창 판정이 고를 범위는 이번 사건이 실린 자리부터다.
         let loaded_from = self.queue.len();
         self.escape_fed = state.window_feeds_key(decision, false, true).is_some();
+        state.mark_escape_segment(
+            self.escape_fed,
+            is_bare_escape_event(&event, self.held_super()),
+        );
         if self.escape_fed {
             self.queue.push(event);
         } else if !pressed {
@@ -299,6 +305,12 @@ impl WindowInput {
         };
         self.last_decision = decision;
         let fed = state.window_feeds_key(decision, egui_surface, true);
+        state.mark_escape_segment(
+            fed.is_some(),
+            events
+                .first()
+                .is_some_and(|e| is_bare_escape_event(e, self.held_super())),
+        );
         if fed.is_some() {
             self.queue.extend(events);
         }
@@ -314,7 +326,12 @@ impl WindowInput {
         event: &egui::Event,
         egui_surface: bool,
     ) -> crate::adapters::ui::input::key_nodes::KeyDecision {
-        key_focus(state, engine, self);
+        let incoming = if is_bare_escape_event(event, self.held_super()) {
+            Incoming::Escape
+        } else {
+            Incoming::Key
+        };
+        segment_focus(state, engine, self, incoming);
         window_key_decision_held(state, engine, event, egui_surface, self.held_super())
     }
 

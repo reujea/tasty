@@ -123,6 +123,16 @@ impl super::MainViewState {
         }
     }
 
+    /// 단계 8 적재 결과로 bare Esc 몫의 뒤 경계를 남긴다(조건 8). egui 게이트를 지나 egui 입력에 실은(`fed`) 수식키
+    /// 없는 Esc 누름만 그 몫을 끝낸다(`PopupManager::note_escape_loaded`). 터미널 등 egui 가 아닌 수신자로 간 Esc 는
+    /// 큐·결속을 남기지 않으므로 뒤 경계도 남기지 않는다.
+    #[cfg(feature = "gui")]
+    pub(crate) fn mark_escape_segment(&mut self, fed: bool, bare_escape: bool) {
+        if fed && bare_escape {
+            self.popups.note_escape_loaded();
+        }
+    }
+
     /// 경로 키의 egui 수신자를 그 몫의 결속에 적는다. 수신자가 팝업이면 그 팝업을 묶고, 그 밖의 수신자(egui
     /// surface·주소 띠·안내·튜토리얼·무대)면 묶지 않는다. 묶었으면 참이다.
     #[cfg(feature = "gui")]

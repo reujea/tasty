@@ -46,7 +46,18 @@ pub(crate) fn key_focus(
     core: &crate::core::CoreState,
     sink: &mut impl EguiPressSink,
 ) -> usize {
-    let cuts = state.cut_key_frame(core, sink.queued_events(), Incoming::Key);
+    segment_focus(state, core, sink, Incoming::Key)
+}
+
+/// [`key_focus`]와 같고 사건 종류(`incoming`)를 받는다. 수식키 없는 Esc 누름은 `Incoming::Escape` 로 자기 몫을
+/// 갖는다(조건 8).
+pub(crate) fn segment_focus(
+    state: &mut crate::state::MainViewState,
+    core: &crate::core::CoreState,
+    sink: &mut impl EguiPressSink,
+    incoming: Incoming,
+) -> usize {
+    let cuts = state.cut_key_frame(core, sink.queued_events(), incoming);
     for _ in 0..cuts {
         sink.cut_queue_here();
     }

@@ -3,7 +3,7 @@
 
 #![cfg(debug_assertions)]
 
-use super::input_segment::{key_focus, press_focus};
+use super::input_segment::{key_focus, press_focus, segment_focus};
 use crate::model::PhysicalPx;
 use crate::runtime::engine_read::EngineRead;
 use winit::dpi::PhysicalPosition;
@@ -324,8 +324,20 @@ pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
     pressed: bool,
     modifiers: Option<egui::Modifiers>,
 ) -> Option<PushedKey> {
-    egui::Key::from_name(key_name)?;
-    key_focus(state, core, sink);
+    let key = egui::Key::from_name(key_name)?;
+    let bare_escape = pressed
+        && crate::adapters::ui::input::key_route::RouteKey {
+            key,
+            modifiers: modifiers.unwrap_or_else(|| sink.held_modifiers()),
+            super_held: sink.super_held(),
+        }
+        .bare_escape();
+    let incoming = if bare_escape {
+        crate::adapters::ui::popup::frame_keys::Incoming::Escape
+    } else {
+        crate::adapters::ui::popup::frame_keys::Incoming::Key
+    };
+    segment_focus(state, core, sink, incoming);
     let from = sink.queued_events().len();
     let pushed = push_egui_key(sink, key_name, pressed, modifiers)?;
     let mods = crate::adapters::ui::popup::keys::egui_window_key_mods(
@@ -336,6 +348,8 @@ pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
         e.iter()
             .any(crate::adapters::ui::popup::body_keys::is_escape_press)
     });
+    // 주입한 bare Esc 는 egui 입력에 실리므로 그 몫을 끝낸다(뒤 경계).
+    state.mark_escape_segment(loaded, bare_escape);
     if loaded && tasty_key_match::is_window_escape(true, mods) {
         let held = sink.escape_held();
         if !state.window_escape(sink.queued_events(), Some(from), held) {

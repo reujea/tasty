@@ -36,8 +36,13 @@ fn the_egui_feed_goes_through_the_window_feed_gate() {
     let body = squeeze(&fn_body(&src, "fn feed_egui_keyboard(").expect("feed_egui_keyboard"));
     let gate = at(
         &body,
-        "letSome(bound)=self.state.window_feeds_key(self.key_decision,egui_surface,binds)else{self.note_unfed_key(event);return(false,false);};",
+        "letfed=self.state.window_feeds_key(self.key_decision,egui_surface,binds);",
         "egui 전달 게이트",
+    );
+    at(
+        &body,
+        "letSome(bound)=fedelse{self.note_unfed_key(event);return(false,false);};",
+        "게이트 결과로 돌아가기",
     );
     let feed = at(
         &body,

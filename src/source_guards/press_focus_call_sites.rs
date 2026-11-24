@@ -29,14 +29,15 @@ fn at(body: &str, needle: &str, what: &str) -> usize {
 }
 
 /// 창의 누름·키: 사건을 처리하기 전에(튜토리얼 입력·egui 전달·누름 스냅샷보다 먼저) 입력 몫을 끊고, 누름 처리가
-/// 누름 스냅샷 함수로 포커스 노드를 옮겨 그 프레임에 남긴다.
+/// 누름 스냅샷 함수로 포커스 노드를 옮겨 그 프레임에 남긴다. 수식키 없는 Esc 누름은 자기 몫을 갖고(조건 8), egui 에
+/// 실은 그 Esc 가 몫을 끝낸다는 표시는 egui 게이트를 지난 뒤에만 남긴다(뒤 경계).
 #[test]
 fn a_window_press_moves_the_focus_node_through_the_press_snapshot() {
     let src = read("src/view/main.rs");
     let cut = squeeze(&fn_body(&src, "fn cut_input_segment(").expect("cut_input_segment"));
     at(
         &cut,
-        "WindowEvent::MouseInput{state:winit::event::ElementState::Pressed,..}=>Incoming::Press,WindowEvent::KeyboardInput{..}|WindowEvent::Ime(_)=>Incoming::Key,_=>return,",
+        "WindowEvent::MouseInput{state:winit::event::ElementState::Pressed,..}=>Incoming::Press,WindowEvent::KeyboardInput{event:key,..}ifself.bare_escape_press(key)=>{Incoming::Escape}WindowEvent::KeyboardInput{..}|WindowEvent::Ime(_)=>Incoming::Key,_=>return,",
         "끊을 사건",
     );
     at(
@@ -44,6 +45,18 @@ fn a_window_press_moves_the_focus_node_through_the_press_snapshot() {
         "letcuts=self.state.cut_key_frame(engine,self.base.gpu.egui_input_events_mut(),incoming);for_in0..cuts{self.base.gpu.cut_egui_input_here();}",
         "입력 끊기",
     );
+    let feed = squeeze(&fn_body(&src, "fn feed_egui_keyboard(").expect("feed_egui_keyboard"));
+    let gate = at(
+        &feed,
+        ".window_feeds_key(self.key_decision,egui_surface,binds)",
+        "egui 게이트",
+    );
+    let mark = at(
+        &feed,
+        "self.state.mark_escape_segment(fed.is_some(),bare_escape);",
+        "Esc 뒤 경계 표시",
+    );
+    assert!(gate < mark, "Esc 뒤 경계 표시가 egui 게이트보다 앞이다");
     // 단계 순서는 E0 함수(`run_key_event`)가 정하고, 단계마다 메인 창이 부르는 함수는 `MainKeySteps`에 있다.
     let handle = squeeze(&fn_body(&src, "fn handle_engine_event(").expect("handle_engine_event"));
     at(
@@ -265,7 +278,11 @@ fn a_debug_key_injection_cuts_the_segment_before_the_key() {
     );
     let input = read("src/view/main/debug_input.rs");
     let inject = squeeze(&fn_body(&input, "fn inject_key<").expect("inject_key"));
-    let cut = at(&inject, "key_focus(state,core,sink);", "입력 끊기");
+    let cut = at(
+        &inject,
+        "segment_focus(state,core,sink,incoming);",
+        "입력 끊기",
+    );
     let push = at(
         &inject,
         "push_egui_key(sink,key_name,pressed,modifiers)",

@@ -8,10 +8,9 @@ use winit::event::WindowEvent;
 use super::ViewAction;
 use super::key_event::{KeyEventSteps, run_key_event};
 use super::ui::View;
-use super::window_input::{incoming_of, settle_window_input};
+use super::window_input::{bind_window_input, incoming_of, settle_window_input};
 use crate::adapters::ui::input::edit_key::EditKey;
 use crate::adapters::ui::popup::PopupManager;
-use crate::adapters::ui::popup::frame_keys::Incoming;
 
 /// 별도 창의 GPU 와 팝업 관리자. 관리자가 없는 창(종료 확인)은 `None` 이고 노드는 창 위젯 하나다.
 pub(crate) type WindowInputOf<V> =
@@ -30,16 +29,20 @@ pub(crate) fn judged_window_event<V: View>(
 ) -> ViewAction {
     let node = WindowKeyNode {
         settle: |view: &mut V, event: &WindowEvent| {
-            if let (Some(incoming), Some((gpu, popups))) = (incoming_of(event), input(view)) {
+            let mods = view.base_mut().state.modifiers;
+            if let Some((gpu, popups)) = input(view)
+                && let Some(incoming) = incoming_of(event, mods, gpu.egui_modifiers())
+            {
                 let ctx = gpu.egui_ctx.clone();
                 settle_window_input(gpu, &ctx, popups, incoming);
             }
         },
         bind: |view: &mut V, event: &WindowEvent| {
-            if incoming_of(event) == Some(Incoming::Key)
-                && let Some((gpu, popups)) = input(view)
+            let mods = view.base_mut().state.modifiers;
+            if let Some((gpu, popups)) = input(view)
+                && let Some(incoming) = incoming_of(event, mods, gpu.egui_modifiers())
             {
-                popups.bind_window_key(&gpu.egui_ctx);
+                bind_window_input(&gpu.egui_ctx, popups, incoming);
             }
         },
     };
