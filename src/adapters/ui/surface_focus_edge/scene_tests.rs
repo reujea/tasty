@@ -111,18 +111,21 @@ fn leaf(state: &MainViewState, read: &crate::runtime::engine_read::EngineRead<'_
     leaves.iter().find(|r| r.id == SID).expect("leaf").rect
 }
 
+/// kind 이름, surface, 공식 등록 plugin, 그리는 쪽, 띠 행 예약 여부.
+type Case = (
+    &'static str,
+    Box<dyn crate::model::Surface>,
+    Option<&'static str>,
+    MeshSide,
+    bool,
+);
+
 /// mesh 프레임은 띠 kind(선언 없는 로컬 mesh, `bed_focus` 없는 mirror mesh)에서만 띠 행 아래에서 시작한다.
 /// 바탕 kind(공식 image, `bed_focus`를 실은 mirror mesh)는 leaf 전체다.
 #[test]
 fn a_mesh_frame_starts_below_the_edge_only_for_an_edge_kind() {
     let theme = crate::theme::theme();
-    let cases: [(
-        &str,
-        Box<dyn crate::model::Surface>,
-        Option<&str>,
-        MeshSide,
-        bool,
-    ); 4] = [
+    let cases: [Case; 4] = [
         (
             "mesh-demo",
             local_mesh("mesh-demo", "com.example.demo"),
