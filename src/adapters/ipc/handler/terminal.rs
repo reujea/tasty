@@ -647,6 +647,7 @@ fn posix_word(value: &str) -> String {
 }
 
 /// PowerShell 인용. 안전한 글자만 있으면 그대로 두고, 아니면 작은따옴표로 감싸고 안의 작은따옴표는 겹친다.
+/// PowerShell은 U+2018·U+2019·U+201A·U+201B도 작은따옴표로 읽으므로 이 네 글자도 같은 글자를 두 번 쓴다.
 #[cfg(any(windows, test))]
 fn powershell_word(value: &str) -> String {
     let safe = !value.is_empty()
@@ -654,10 +655,18 @@ fn powershell_word(value: &str) -> String {
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || "_:./-".contains(c));
     if safe {
-        value.to_owned()
-    } else {
-        format!("'{}'", value.replace('\'', "''"))
+        return value.to_owned();
     }
+    let mut quoted = String::with_capacity(value.len() + 2);
+    quoted.push('\'');
+    for c in value.chars() {
+        if matches!(c, '\'' | '\u{2018}' | '\u{2019}' | '\u{201A}' | '\u{201B}') {
+            quoted.push(c);
+        }
+        quoted.push(c);
+    }
+    quoted.push('\'');
+    quoted
 }
 
 /// 다른 창에 열린 자식의 거절 문구 뒤에 붙는 안내. 다른 창의 자식은 External 부모의 자식뿐이고 창은
@@ -1976,7 +1985,7 @@ mod tests {
         assert_eq!(posix_word("codex:w"), "codex:w");
     }
 
-    /// PowerShell 인용은 작은따옴표를 겹치고 일반 키는 그대로 둔다.
+    /// PowerShell 인용은 작은따옴표(곡선 작은따옴표 네 글자 포함)를 겹치고 일반 키는 그대로 둔다.
     #[test]
     fn a_powershell_word_doubles_single_quotes() {
         assert_eq!(powershell_word("codex:w"), "codex:w");
@@ -1985,6 +1994,12 @@ mod tests {
         assert_eq!(powershell_word("$HOME"), "'$HOME'");
         assert_eq!(powershell_word("=sh"), "'=sh'");
         assert_eq!(powershell_word("'"), "''''");
+        assert_eq!(powershell_word("it\u{2019}s"), "'it\u{2019}\u{2019}s'");
+        assert_eq!(powershell_word("a\u{2018}b"), "'a\u{2018}\u{2018}b'");
+        assert_eq!(
+            powershell_word("\u{201A}\u{201B}"),
+            "'\u{201A}\u{201A}\u{201B}\u{201B}'"
+        );
     }
 
     /// Windows의 다른 창 안내는 PowerShell 인용을 쓴다.
