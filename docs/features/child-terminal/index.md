@@ -329,17 +329,17 @@ surface_id 로 자동 해석하지 않고, **인자 의미는 index 로 고정�
 | 그 외(오타·범위 밖·이미 정리됨) | `… (valid child indices: 0, 2; 2 children)` |
 | 그 외 + 등록된 child 가 0 | `… (no children registered under surface 9000)` |
 
-kill/release/respawn 세 경로가 같은 메시지를 쓴다. 실패는 `exit=1` + stderr 이므로, 일괄
+kill/release/respawn/set-nickname 네 경로가 같은 메시지를 쓴다. 실패는 `exit=1` + stderr 이므로, 일괄
 처리 스크립트는 **호출당 종료코드를 확인해야 한다** — 버리면 전건 실패를 성공으로 오인한다.
 
 ### `--surface` 생략과 다중 윈도우
 
-`kill`/`release`/`respawn`/`broadcast` 는 `--surface`(parent) 를 생략할 수 있다 — host 가
+`kill`/`release`/`respawn`/`broadcast`/`set-nickname` 은 `--surface`(parent) 를 생략할 수 있다 — host 가
 현재 engine 의 `runtime.child_terminals.single_parent()` 로 폴백한다(parent 가 정확히 1개일 때만
 성공, 0 개·2 개 이상이면 에러). 셈에 넣는 parent 는 그 engine 이 소유했거나 그 engine 에 살아 있는
 surface 뿐이다. 저장 병합으로 받아 온 다른 윈도우의 항목은 세지 않는다. 이 폴백은 **그 engine(= 하나의 main window) 안에서만**
 유일성을 본다 — main window 가 2 개 이상 열린 세션에서는 애초에 어느 window 를 봐야
-하는지가 정해지지 않는다. 그래서 이 4 개 메서드가 `--surface` 없이(그리고 라우팅 가능한
+하는지가 정해지지 않는다. 그래서 이 5 개 메서드가 `--surface` 없이(그리고 라우팅 가능한
 다른 리소스 id 도 없이) 호출됐는데 main window 가 2 개 이상이면, focused window 로 조용히
 새지 않고 라우팅 단계(`App::find_request_owner`)에서 명시적 에러로 거부한다(단일 윈도우
 세션은 기존처럼 생략 가능 — 하위 호환). 구현: `src/app/request_owner.rs`
