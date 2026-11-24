@@ -24,6 +24,8 @@ mod location;
 mod path_bar;
 #[cfg(test)]
 mod pure_return_tests;
+#[cfg(test)]
+mod remote_open_tests;
 mod rows;
 
 mod paths;
@@ -667,6 +669,15 @@ pub fn draw_file_picker(
         data.load = FpLoadState::ErrorConn(t("filepicker.error_conn.session_lost").to_string());
     }
 
+    // 열 때 위치가 없어 호스트 글자를 정하지 못했으면 게시된 위치에서 다시 읽는다.
+    if let Some(mirror_ws_id) = data.mirror_ws_id
+        && data.remote_host.is_none()
+    {
+        data.remote_host = engine
+            .mirror_location_in(mirror_ws_id)
+            .map(|location| location.host.clone());
+    }
+
     if let FpLoadState::Loading { sent_at, .. } = data.load
         && data.mirror_ws_id.is_some()
         && sent_at.elapsed() > LIST_DIR_SOFT_TIMEOUT
@@ -757,7 +768,10 @@ pub fn draw_file_picker(
 
     let props = FilePickerProps {
         theme: &th,
-        remote_host: data.remote_host.as_deref(),
+        // 원격 여부는 열 때부터 안다. 호스트 글자를 아직 모르면 빈 호스트처럼 낱말 Remote를 그린다.
+        remote_host: data
+            .mirror_ws_id
+            .map(|_| data.remote_host.as_deref().unwrap_or_default()),
         crumbs: &crumbs,
         state: view_state,
         entries: &view_entries,
@@ -1059,7 +1073,11 @@ pub(crate) fn open(
         folder: options.folder,
         request_id,
         mirror_ws_id,
-        remote_host: None,
+        // 호스트 글자는 열 때 위치에서 읽는다. 위치가 아직 없으면(동기화 전) 비워 두고 그리는 프레임이나
+        // 첫 목록 응답에서 다시 읽는다.
+        remote_host: mirror_ws_id
+            .and_then(|ws| engine.mirror_location_in(ws))
+            .map(|location| location.host.clone()),
         current_dir: initial_dir,
         load: FpLoadState::Empty,
         local_query: None,

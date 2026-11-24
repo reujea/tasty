@@ -397,7 +397,8 @@ pub(crate) struct FilePickerData {
     pub(crate) request_id: FilePickerRequestId,
     /// 원격 탐색 대상인 로컬 mirror workspace ID. None이면 로컬 탐색이다.
     pub(crate) mirror_ws_id: Option<u32>,
-    /// 헤더 host 배지 문자열(`mirror_ws_id.is_some()` 일 때만 유효).
+    /// 헤더 host 배지 문자열(`mirror_ws_id.is_some()` 일 때만 유효). 열 때 mirror 위치에서 읽고, 위치가 아직
+    /// 없으면 None으로 두어 그리는 프레임이나 첫 목록 응답이 채운다. 배지는 None이어도 그린다(낱말 Remote).
     pub(crate) remote_host: Option<String>,
     /// 현재 표시 중인 디렉토리(로컬: 절대경로, 원격: 원격 경로 문자열).
     pub(crate) current_dir: String,

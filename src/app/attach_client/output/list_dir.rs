@@ -109,6 +109,7 @@ fn apply_result(
             crate::state::FpLoadState::Loaded
         };
         picker.entries = es;
+        // 열 때 위치가 없어 호스트 글자를 정하지 못한 피커만 채운다. 열 때 읽은 값은 바꾸지 않는다.
         if picker.remote_host.is_none() {
             picker.remote_host = Some(sess.state.host_text());
         }
