@@ -258,9 +258,11 @@ mod tests {
         assert!(!home.path().join("installed/com.tasty.html").exists());
     }
 
-    /// `verify_trust`(upgrade 쓰기 전후의 `validate_prepared`, 공개 진입점 `upgrade_builtins`가 쓰는
-    /// 비공개 도우미 `verify_builtin_bundle_trust`가 부른다) 안에서도
-    /// 버전 판정이 id 대조·서명 판정보다 먼저다. 계획의 앞선 판정을 거치지 않게 직접 부른다.
+    /// `verify_trust` 안에서도 버전 판정이 id 대조·서명 판정보다 먼저다. 호출자는 제품 IPC 경로의
+    /// 계획 `plan_entry`(`enqueue_builtin_upgrade` → `prepare`), 그 계획을 쓰기 전후에 다시 보는
+    /// `validate_prepared`, 그 밖의 경로로 공개 진입점 `upgrade_builtins`가 쓰는 비공개 도우미
+    /// `verify_builtin_bundle_trust`다.
+    /// 계획의 앞선 판정을 거치지 않게 직접 부른다.
     /// 서명과의 순서는 서명으로 거절하는 release 프로필에서만 가려진다.
     #[test]
     fn verify_trust_reports_the_version_before_identity_and_signature() {
