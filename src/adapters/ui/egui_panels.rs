@@ -472,9 +472,10 @@ pub fn draw_egui_panels(
                             let unshowable = snapshot.ready
                                 && !snapshot.receiving
                                 && crate::boot::display_backend::current_notice().is_some();
-                            if snapshot.failed
-                                || unshowable
-                                || (!snapshot.receiving && !snapshot.ready && snapshot.connected)
+                            if let Some(state) =
+                                crate::adapters::ui::surface::html_receive::received_chrome_state(
+                                    snapshot, unshowable, nav,
+                                )
                             {
                                 crate::webview_chrome_ui::draw_webview_chrome(
                                     &mut chrome_ui,
@@ -482,11 +483,7 @@ pub fn draw_egui_panels(
                                     content,
                                     None,
                                     chrome_label.as_deref(),
-                                    if snapshot.failed {
-                                        crate::webview::NavState::Failed
-                                    } else {
-                                        crate::webview::NavState::Idle
-                                    },
+                                    state,
                                     None,
                                 );
                             }
