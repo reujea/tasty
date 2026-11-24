@@ -1068,7 +1068,6 @@ fn the_remote_picker_mark_follows_the_mirror_reconnecting_state() {
             },
         );
         let picker = opened_picker(&mut state).expect("user open shows the remote picker");
-        drop(engine);
         (picker, engine_session, ws)
     };
 
@@ -1101,7 +1100,6 @@ fn the_remote_picker_mark_follows_the_mirror_reconnecting_state() {
             "{linked}"
         );
     }
-    drop(engine);
 
     // 첫 위치 동기화 전에 열리면 평소 표지와 빈 호스트(화면은 Remote 낱말)로 시작한다.
     let (mut picker, mut engine_session, ws) = open(None);
