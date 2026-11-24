@@ -496,6 +496,18 @@ mod tests {
         }
     }
 
+    /// 실제 진입점이 지금 OS의 줄에 링크 안내를 붙인다. macOS는 Option 줄, 그 밖은 Alt 줄이다.
+    #[test]
+    fn entry_point_puts_alt_link_role_on_this_os_row() {
+        let (held, row) = if cfg!(target_os = "macos") {
+            (option(), "option")
+        } else {
+            (alt(), "alt")
+        };
+        let sections = build_hint_sections(held, &kb(), "alt", false, &[]);
+        assert_eq!(sections_with_link_role(&sections), [row]);
+    }
+
     #[test]
     fn link_none_produces_no_link_role() {
         let sections = build_hint_sections(ctrl(), &kb(), "none", false, &[]);
