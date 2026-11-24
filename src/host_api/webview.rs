@@ -172,6 +172,18 @@ impl WebViewBounds {
     }
 }
 
+impl PhysicalWebViewBounds {
+    /// 플랫폼 창에 넘길 정수 물리 px `(x, y, 너비, 높이)`. 반올림한다. 논리 좌표 왕복은 정수 경계를
+    /// 바로 아래 값(61 → 60.999…)으로 돌려주므로 버리면 포커스 띠 행 같은 정수 경계를 1px 덮는다.
+    /// X11 경로와 같은 반올림이고, 공통 구멍 계산(`webview_sync`)도 같은 정수 사각형을 쓴다.
+    // 이유: Linux·macOS 빌드는 이 함수를 시험에서만 부른다.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub fn pixels(self) -> (i32, i32, i32, i32) {
+        let px = |v: f64| v.round() as i32;
+        (px(self.x), px(self.y), px(self.width), px(self.height))
+    }
+}
+
 /// Check the actual window/backend before advertising the remote HTTP native renderer.
 #[cfg(target_os = "linux")]
 pub(crate) fn http_viewer_available(window: &winit::window::Window) -> bool {
@@ -244,6 +256,23 @@ mod bounds_tests {
                 );
             }
         }
+    }
+
+    /// 배율 1.75에서 물리 y 61(leaf top 57 + 띠 4)은 논리 왕복 뒤 60.999…가 된다. 창 좌표는 61이어야 한다.
+    #[test]
+    fn the_window_pixels_round_the_round_trip() {
+        let physical = PhysicalWebViewBounds {
+            x: 57.0,
+            y: 61.0,
+            width: 300.0,
+            height: 200.0,
+        };
+        let back = WebViewBounds::from_physical(physical, 1.75).to_physical(1.75);
+        assert!(
+            back.y < 61.0,
+            "the round trip lands just below the boundary"
+        );
+        assert_eq!(back.pixels(), (57, 61, 300, 200));
     }
 
     #[test]

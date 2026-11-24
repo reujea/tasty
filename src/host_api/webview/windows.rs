@@ -231,11 +231,7 @@ impl PlatformWebView {
             };
             RegisterClassExW(&wc);
 
-            let physical = bounds.to_physical(scale_factor);
-            let x = physical.x as i32;
-            let y = physical.y as i32;
-            let w = physical.width as i32;
-            let h = physical.height as i32;
+            let (x, y, w, h) = bounds.to_physical(scale_factor).pixels();
 
             let hwnd = CreateWindowExW(
                 WINDOW_EX_STYLE::default(),
@@ -932,11 +928,7 @@ impl PlatformWebView {
     }
 
     pub fn set_bounds(&self, bounds: WebViewBounds, scale_factor: f64) {
-        let physical = bounds.to_physical(scale_factor);
-        let x = physical.x as i32;
-        let y = physical.y as i32;
-        let w = physical.width as i32;
-        let h = physical.height as i32;
+        let (x, y, w, h) = bounds.to_physical(scale_factor).pixels();
         self.size.set((w, h));
 
         // SAFETY: SetBounds/SetWindowPos는 self가 살아있는 동안 hwnd/controller가 valid
