@@ -107,7 +107,7 @@ fn every_window_runs_a_key_event_through_one_order_function() {
         ),
         (
             "src/view/judged_event.rs",
-            "fn after_edit_judgment<",
+            "fn judged_window_event<",
             "run_key_event(&mut steps, event)",
         ),
     ] {
@@ -118,8 +118,8 @@ fn every_window_runs_a_key_event_through_one_order_function() {
     }
     let flow = body("src/view/judged_event.rs", "fn judged_window_event<");
     assert!(
-        flow.contains("after_edit_judgment("),
-        "별도 창 입구가 E0 함수를 부르는 흐름을 거치지 않는다."
+        flow.contains("window_steps("),
+        "별도 창 입구가 별도 창 단계(`window_steps`)로 E0 함수를 부르지 않는다."
     );
 }
 

@@ -46,9 +46,8 @@ pub(crate) fn judged_window_event<V: View>(
             }
         },
     };
-    after_edit_judgment(
+    let mut steps = window_steps(
         view,
-        event,
         judged,
         to_egui,
         |view, event, judged| {
@@ -59,7 +58,8 @@ pub(crate) fn judged_window_event<V: View>(
         |view| view.mark_dirty(),
         own,
         node,
-    )
+    );
+    run_key_event(&mut steps, event)
 }
 
 /// 별도 창 단계 3~5(`settle`)와 egui 에 실은 키의 몫 결속(`bind`).
@@ -68,20 +68,26 @@ struct WindowKeyNode<S, B> {
     bind: B,
 }
 
-/// [`judged_window_event`]의 분기. `egui`는 판정과 egui 처리 결과이며 `None`이면 판정이 이벤트를 가져갔다.
+/// [`judged_window_event`]의 단계. `egui`는 판정과 egui 처리 결과이며 `None`이면 판정이 이벤트를 가져갔다.
 /// 단계 순서는 메인 창과 같은 [`run_key_event`]가 정한다. 별도 창이 가진 단계는 편집 판정과 egui 적재(한 호출),
 /// 창 자체 처리뿐이다.
-fn after_edit_judgment<V, E>(
+fn window_steps<V, E, G, D, O, S, B>(
     view: &mut V,
-    event: E,
     judged: Option<EditKey>,
     to_egui: bool,
-    egui: impl FnOnce(&mut V, &E, Option<EditKey>) -> Option<(bool, bool)>,
-    mark_dirty: impl FnMut(&mut V),
-    own: impl FnOnce(&mut V, E) -> ViewAction,
-    node: WindowKeyNode<impl FnMut(&mut V, &E), impl FnMut(&mut V, &E)>,
-) -> ViewAction {
-    let mut steps = JudgedWindowSteps {
+    egui: G,
+    mark_dirty: D,
+    own: O,
+    node: WindowKeyNode<S, B>,
+) -> JudgedWindowSteps<'_, V, G, D, O, S, B>
+where
+    G: FnOnce(&mut V, &E, Option<EditKey>) -> Option<(bool, bool)>,
+    D: FnMut(&mut V),
+    O: FnOnce(&mut V, E) -> ViewAction,
+    S: FnMut(&mut V, &E),
+    B: FnMut(&mut V, &E),
+{
+    JudgedWindowSteps {
         view,
         judged,
         to_egui,
@@ -89,8 +95,7 @@ fn after_edit_judgment<V, E>(
         mark_dirty,
         own: Some(own),
         node,
-    };
-    run_key_event(&mut steps, event)
+    }
 }
 
 /// 별도 창의 단계. 편집 판정은 egui 적재와 같은 GPU 호출 안에 있어 단계 6은 받은 표시를 그대로 넘긴다.
@@ -163,9 +168,8 @@ mod tests {
 
     /// `egui`가 돌려줄 판정·egui 결과로 이벤트 하나를 넘긴다.
     fn run(window: &mut Window, to_egui: bool, egui: Option<(bool, bool)>) -> ViewAction {
-        after_edit_judgment(
+        let mut steps = window_steps(
             window,
-            "alt+c",
             None,
             to_egui,
             |window: &mut Window, _, _| {
@@ -182,7 +186,8 @@ mod tests {
                 settle: |window: &mut Window, _: &&str| window.steps.push("settle"),
                 bind: |window: &mut Window, _: &&str| window.steps.push("bind"),
             },
-        )
+        );
+        run_key_event(&mut steps, "alt+c")
     }
 
     /// 사건 시점 노드는 판정·egui 적재 앞에서 정하고(단계 3~5), 몫 결속은 egui 에 실린 사건만 남긴다. 판정이 가져간
