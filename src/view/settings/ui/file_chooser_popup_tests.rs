@@ -1756,3 +1756,31 @@ fn a_press_on_the_save_name_keeps_its_focus() {
         "이름 입력칸이 포커스를 지킨다"
     );
 }
+
+/// M-12b-5w F. Given 별도 창(설정 창)에서 읽기를 끝낸 폴더 선택기가 키 주인일 때, When 별도 창 사건 입구로 Alt+Up 을 보낸
+/// 뒤 확정을 누르면, Then 그 몫이 선택기에 결속돼 폴더 키맵이 부모 폴더로 올라가 부모 폴더를 고른다.
+#[test]
+fn alt_up_in_the_separate_folder_chooser_goes_to_the_parent() {
+    let (mut p, mut st) = plain_panel();
+    let mut h = crate::view::window_input::tests::Harness::new();
+    // 만들지 않는 경로다(빈 읽기로 채운다). 동시 실행과 겹치지 않게 프로세스 번호를 붙인다.
+    let start =
+        std::env::temp_dir().join(format!("tasty-folder-chooser-child-{}", std::process::id()));
+    let parent = start.parent().expect("부모 폴더").to_path_buf();
+    drop(loaded_chooser(&mut h, &mut p, &mut st, start));
+    h.key_with(&mut st, egui::Key::ArrowUp, egui::Modifiers::ALT, None);
+    drop(drain_settings(&mut h, &mut p, &mut st));
+    st.file_chooser.read_empty_for_test();
+    drop(drain_settings(&mut h, &mut p, &mut st));
+    let out = drain_settings(&mut h, &mut p, &mut st);
+    let confirm = text_rect_in(&out, t("picker.folder.confirm")).center();
+    h.click(&mut st, confirm);
+    drop(drain_settings(&mut h, &mut p, &mut st));
+    assert_eq!(
+        st.file_chooser.take_outcome(CONSUMER),
+        Some(file_chooser::FileChooserOutcome::Confirmed(vec![
+            parent.to_string_lossy().into_owned()
+        ])),
+        "Alt+Up 이 부모 폴더로 올라간다"
+    );
+}

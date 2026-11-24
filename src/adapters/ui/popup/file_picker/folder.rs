@@ -49,7 +49,9 @@ pub(crate) fn folder_keymap_receives(modifiers: egui::Modifiers, key: egui::Key)
         .any(|(pattern, k)| *k == key && modifiers.matches_logically(*pattern))
 }
 
-/// 폴더 모드의 키. 키 통로의 노드 키맵 읽기라 egui 매처처럼 패턴에 없는 Shift·Alt 가 붙은 누름도 같은 조작이다.
+/// 폴더 모드의 키. 키 통로의 노드 키맵 읽기라 egui 매처처럼 패턴에 없는 Shift·Alt 가 붙은 누름도 같은 조작이다. 수신
+/// 판정은 창 키 경로가 했으므로(`folder_keymap_receives`) 이번 몫이 이 피커에 결속됐을 때만 읽는다. 그리기 시점 조건(열린
+/// 하위 메뉴, 목록 상태)은 여기서 본다.
 pub(super) fn keyboard(
     ui: &egui::Ui,
     p: &FilePickerProps<'_>,
@@ -57,6 +59,7 @@ pub(super) fn keyboard(
 ) -> Option<FilePickerAction> {
     if ui.memory(|m| m.any_popup_open())
         || !keys.receives()
+        || !keys.routed_by_window()
         || !matches!(p.mode, FilePickerMode::Folder { .. })
     {
         return None;

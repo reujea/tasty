@@ -130,7 +130,8 @@ fn frame_with(
                 true,
                 crate::adapters::ui::popup::PopupKeyboard::Text,
                 &crate::adapters::ui::input::edit_key::EditBindings::default(),
-            );
+            )
+            .with_window_route(true);
             ch.draw(ui, &crate::theme::theme(), &mut keys);
         });
     }));

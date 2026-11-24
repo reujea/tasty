@@ -121,11 +121,10 @@ pub fn draw_search_bar(
         // find 단축키는 입력칸보다 먼저 소비한다. 입력칸이 먼저 받으면 alt·option 조합의 글자가
         // 검색어에 들어간다.
         let query_id = ui.make_persistent_id("search_bar_query");
-        // 검색 띠의 노드 키맵(find)은 키 통로로 읽는다. 매처는 단축키 매처 그대로다. 창 키 경로가 이번 몫의 키를 이
-        // 띠에 묶었으면 입력칸이 아직 egui 포커스를 얻기 전(연 뒤 첫 그리기)이어도 읽는다. 묶지 않은 첫 그리기의
-        // find 는 띠를 연 키의 몫이라 읽지 않는다.
-        let routed_here = cx.keys.routed_by_window();
-        let find_pressed = (routed_here || ui.memory(|m| m.has_focus(query_id)))
+        // 검색 띠의 노드 키맵(find)은 키 통로로 읽는다. 매처는 단축키 매처 그대로다. 수신 판정은 창 키 경로가 했으므로
+        // (`key_nodes::host_keymap_receives`) 본문은 이번 몫이 이 띠에 결속됐을 때만 읽는다. 입력칸이 아직 egui 포커스를
+        // 얻기 전(연 뒤 첫 그리기)이어도 결속된 몫의 find 는 읽고, 결속되지 않은 몫(띠를 연 키의 몫)의 find 는 넘긴다.
+        let find_pressed = cx.keys.routed_by_window()
             && cx
                 .keys
                 .consume_keymap_binding(&engine.settings.keybindings.find);

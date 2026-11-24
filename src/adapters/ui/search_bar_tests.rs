@@ -75,6 +75,8 @@ fn search_input_focus_text_and_invalid_edge_survive_popup_draw() {
         ctrl: true,
         ..Default::default()
     };
+    // 창 키 경로가 find 를 포커스된 검색창에 묶는다.
+    bind_to_the_bar(&mut state);
     drop(frame(
         &mut state,
         vec![egui::Event::Key {
@@ -340,6 +342,8 @@ fn escape_after_the_find_shortcut_keeps_the_bar_open() {
         ctrl: true,
         ..Default::default()
     };
+    // 창 키 경로가 find 를 포커스된 검색창에 묶는다.
+    bind_to_the_bar(&mut state);
     drop(ctx.run(
         egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
@@ -660,7 +664,14 @@ fn ctrl_f() -> egui::Event {
     }
 }
 
-/// T-9b-6: Given 입력칸에 포커스가 있는 검색창, When find(Ctrl+F)를 누르면, Then 그 누름을 쓰고 포커스를 터미널로 돌린다.
+/// 창 키 경로가 이번 몫의 키를 검색창에 묶는다(`MainViewState::window_feeds_key` 의 결속).
+fn bind_to_the_bar(state: &mut MainViewState) {
+    let node = state.popup_focus().expect("검색창이 포커스다");
+    state.popups.bind_input_key_owner(node);
+}
+
+/// T-9b-6: Given 입력칸에 포커스가 있는 검색창, When 창이 검색창에 묶은 find(Ctrl+F)를 누르면, Then 그 누름을 쓰고
+/// 포커스를 터미널로 돌린다.
 #[test]
 fn find_returns_focus_to_the_terminal() {
     let (mut state, mut session) = test_state();
@@ -669,6 +680,7 @@ fn find_returns_focus_to_the_terminal() {
     let ctx = egui::Context::default();
     open_with_query(&ctx, &mut state, &engine);
     assert!(state.popups.is_focused(SEARCH_BAR_POPUP_ID));
+    bind_to_the_bar(&mut state);
     assert!(
         !find_frame(&ctx, &mut state, &engine, ctrl_f()),
         "find 를 썼다"
@@ -694,6 +706,35 @@ fn find_before_the_field_has_focus_is_not_taken() {
         "누름이 남는다"
     );
     assert!(state.popups.is_open(SEARCH_BAR_POPUP_ID));
+}
+
+/// M-12b-23o·23n F. Given 막 연 검색창(입력칸이 아직 egui 포커스를 얻기 전)이고 창이 이번 몫을 검색창에 묶었을
+/// 때(팔레트로 연 뒤 첫 띠 패스), When find(Ctrl+F)를 누르면, Then 결속된 몫의 find 라 검색창이 읽어 쓰고 포커스를
+/// 터미널로 돌린다. 결속되지 않은 첫 몫의 find 는 넘긴다(T-9b-7).
+#[test]
+fn a_find_in_the_first_band_pass_after_a_palette_open_is_read() {
+    let (mut state, mut session) = test_state();
+    let session = session.borrow_mut();
+    let engine = session.read();
+    let ctx = egui::Context::default();
+    state.popups.open_at_focused(
+        SEARCH_BAR_POPUP_ID,
+        crate::model::popup_kind::PopupScope::Window,
+        egui::pos2(100.0, 100.0),
+    );
+    assert!(
+        ctx.memory(|m| m.focused().is_none()),
+        "입력칸은 아직 egui 포커스가 없다"
+    );
+    bind_to_the_bar(&mut state);
+    assert!(
+        !find_frame(&ctx, &mut state, &engine, ctrl_f()),
+        "결속된 find 를 검색창이 쓴다"
+    );
+    assert!(
+        !state.popups.is_focused(SEARCH_BAR_POPUP_ID),
+        "포커스를 터미널로 돌린다"
+    );
 }
 
 /// T-9b-8: Given find 바인딩 [F2, Ctrl+F, Alt+F], When 검색창이 없을 때·입력칸에 포커스가 있을 때·다른 surface 를
@@ -753,6 +794,10 @@ fn find_bindings_keep_their_meaning() {
                     }
                 }
                 _ => {}
+            }
+            if case != "none" {
+                // 창 키 경로가 find 를 포커스된 검색창에 묶는다.
+                bind_to_the_bar(&mut state);
             }
             let left = find_frame(&ctx, &mut state, &engine, press(key, modifiers));
             let bar = case != "none";

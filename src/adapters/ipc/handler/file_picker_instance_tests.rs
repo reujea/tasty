@@ -232,7 +232,9 @@ fn draw_two_pickers_with_key(key: egui::Key, keys: [bool; 2]) -> [&'static str; 
                             keys[i],
                             crate::adapters::ui::popup::PopupKeyboard::Text,
                             &crate::adapters::ui::input::edit_key::EditBindings::default(),
-                        ),
+                        )
+                        // 창이 키 주인에게 묶은 몫이다.
+                        .with_window_route(keys[i]),
                         payload,
                     };
                     let action = crate::adapters::ui::popup::file_picker::draw_file_picker(

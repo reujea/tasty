@@ -231,6 +231,17 @@ impl Harness {
         key: egui::Key,
         text: Option<&str>,
     ) {
+        self.key_with(window, key, egui::Modifiers::NONE, text);
+    }
+
+    /// `modifiers` 를 실은 키 하나. 글자가 있으면 같은 사건이 글자도 싣는다.
+    pub(crate) fn key_with(
+        &mut self,
+        window: &mut impl WindowPopups,
+        key: egui::Key,
+        modifiers: egui::Modifiers,
+        text: Option<&str>,
+    ) {
         let incoming = if key == egui::Key::Escape {
             Incoming::Escape
         } else {
@@ -242,7 +253,7 @@ impl Harness {
             physical_key: None,
             pressed: true,
             repeat: false,
-            modifiers: egui::Modifiers::NONE,
+            modifiers,
         });
         if let Some(text) = text {
             self.queue.push(egui::Event::Text(text.into()));
