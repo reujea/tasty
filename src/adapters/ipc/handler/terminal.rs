@@ -619,6 +619,32 @@ fn decode_nickname(params: &Value, id: &Value) -> Result<Option<String>, JsonRpc
     }
 }
 
+/// 셸 한 단어로 옮겨도 같은 값이 되도록 인용한다. 안전한 글자만 있으면 그대로 두고, 아니면 작은따옴표로
+/// 감싸고 안의 작은따옴표는 `'\''`로 바꾼다(POSIX sh).
+fn shell_word(value: &str) -> String {
+    let safe = !value.is_empty()
+        && value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "_@%+=:,./-".contains(c));
+    if safe {
+        value.to_owned()
+    } else {
+        format!("'{}'", value.replace('\'', "'\\''"))
+    }
+}
+
+/// 다른 창에 열린 자식의 거절 문구 뒤에 붙는 안내. 다른 창의 자식은 External 부모의 자식뿐이고 창은
+/// workspace로 고른다. 키는 따옴표 등을 담을 수 있어(`validate_external_parent`) 셸 한 단어로 인용한다.
+fn other_window_hint(parent: &ParentKey) -> String {
+    match parent {
+        ParentKey::External(key) => format!(
+            " (pass --parent-external {} --workspace <a workspace in that window>)",
+            shell_word(key)
+        ),
+        ParentKey::Surface(_) => String::new(),
+    }
+}
+
 /// 숫자 부모 없이 `workspace`로 창을 고른 요청은 그 workspace가 이 창에 있어야 한다.
 /// 라우터는 찾지 못한 `workspace`를 포커스 창으로 보낸다(`terminal.*` 공통 동작). 그 창에 같은 External 키와
 /// 번호의 자식이 있으면 명시하지 않은 창의 자식을 고치게 되므로, 이 메서드는 여기서 거절한다.
@@ -703,13 +729,7 @@ pub(crate) fn handle_set_nickname(
                 "child {child_index} under {} is surface {surface_id}, which is not open in \
                  this window — change it from the window that holds it{}",
                 parent_label(&parent),
-                match &parent {
-                    // 다른 창의 자식은 External 부모의 자식뿐이다. 창은 workspace로 고른다.
-                    ParentKey::External(key) => format!(
-                        " (pass --parent-external {key} --workspace <a workspace in that window>)"
-                    ),
-                    ParentKey::Surface(_) => String::new(),
-                }
+                other_window_hint(&parent)
             ),
         );
     }
@@ -1885,6 +1905,37 @@ mod tests {
             ));
             assert_eq!(resp["nickname"], json!(name));
         }
+    }
+
+    /// 다른 창 안내의 External 키는 셸로 풀면 원래 키다. 따옴표·`$`·백틱·공백이 든 키도 다른 키가 되지 않는다.
+    #[cfg(unix)]
+    #[test]
+    fn the_other_window_hint_quotes_the_external_key_for_the_shell() {
+        for key in [
+            "codex:w",
+            "it's",
+            "a\"b",
+            "$HOME",
+            "`id`",
+            "x;y",
+            "back\\slash",
+            "two words",
+            "'",
+        ] {
+            let hint = other_window_hint(&ParentKey::External(key.into()));
+            let word = hint
+                .strip_prefix(" (pass --parent-external ")
+                .and_then(|rest| rest.strip_suffix(" --workspace <a workspace in that window>)"))
+                .unwrap_or_else(|| panic!("hint shape: {hint}"));
+            let out = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(format!("printf '%s' {word}"))
+                .output()
+                .expect("sh");
+            assert!(out.status.success(), "{hint}");
+            assert_eq!(String::from_utf8_lossy(&out.stdout), key, "{hint}");
+        }
+        assert_eq!(other_window_hint(&ParentKey::Surface(3)), "");
     }
 
     /// 없는 child는 유효한 번호를 안내하는 -32602이고 registry는 그대로다.
