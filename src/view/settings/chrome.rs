@@ -681,21 +681,37 @@ mod tests {
         assert_eq!(wide.x, PhysicalPx(1270.0));
     }
 
-    /// 제목 줄 하나를 egui 패스 여러 번에 걸쳐 그리고 보고된 동작을 모은다.
-    fn bar_actions(passes: Vec<Vec<egui::Event>>, primary_drag_only: bool) -> Vec<TitlebarAction> {
-        bar_actions_with_keys(passes, primary_drag_only, &[])
-    }
-
-    /// `bar_actions`와 같고, `popup_keys`에 든 패스 번호에서는 팝업이 키 주인이다.
+    /// 제목 줄 하나를 egui 패스 여러 번에 걸쳐 그리고 보고된 동작을 모은다. `popup_keys`에 든 패스 번호에서는
+    /// 팝업이 키 주인이다.
     fn bar_actions_with_keys(
         passes: Vec<Vec<egui::Event>>,
         primary_drag_only: bool,
         popup_keys: &[usize],
     ) -> Vec<TitlebarAction> {
+        bar_passes(passes, primary_drag_only, popup_keys)
+            .into_iter()
+            .flat_map(|pass| pass.actions)
+            .collect()
+    }
+
+    /// 제목 줄 한 패스의 결과.
+    struct BarPass {
+        actions: Vec<TitlebarAction>,
+        /// egui가 이 패스에 빈 제목 줄의 드래그를 시작했다.
+        drag_started: bool,
+    }
+
+    /// 제목 줄을 egui 패스 여러 번에 걸쳐 그리고 패스마다 보고된 동작과 드래그 시작 여부를 돌려준다.
+    fn bar_passes(
+        passes: Vec<Vec<egui::Event>>,
+        primary_drag_only: bool,
+        popup_keys: &[usize],
+    ) -> Vec<BarPass> {
         crate::i18n::init("en");
         let th = crate::theme::theme();
         let ctx = egui::Context::default();
-        let mut actions = Vec::new();
+        let drag_area = egui::Id::new(titlebar::DRAG_AREA_ID);
+        let mut out = Vec::new();
         for (pass, events) in passes.into_iter().enumerate() {
             let takes_keys = !popup_keys.contains(&pass);
             let input = egui::RawInput {
@@ -709,10 +725,13 @@ mod tests {
             drop(ctx.run(input, |ctx| {
                 let mut props = settings_props(&th, true, false);
                 props.primary_drag_only = primary_drag_only;
-                actions.extend(draw_bar(ctx, props, takes_keys).actions);
+                out.push(BarPass {
+                    actions: draw_bar(ctx, props, takes_keys).actions,
+                    drag_started: ctx.drag_started_id() == Some(drag_area),
+                });
             }));
         }
-        actions
+        out
     }
 
     /// 빈 제목 줄을 `button`으로 눌러 오른쪽으로 끄는 패스들.
@@ -744,7 +763,7 @@ mod tests {
 
     /// 이름 붙인 버튼 순서. 각 순서는 빈 제목 줄(y 18)에서 드래그가 시작될 만큼 움직인다.
     fn button_orders() -> Vec<(&'static str, Vec<Vec<egui::Event>>)> {
-        use egui::PointerButton::{Middle, Primary, Secondary};
+        use egui::PointerButton::{Extra1, Extra2, Middle, Primary, Secondary};
         let at = |x: f32, y: f32| egui::Event::PointerMoved(egui::pos2(x, y));
         let drag_on_bar = || vec![vec![at(540.0, 18.0)], vec![at(580.0, 18.0)]];
         let then = |mut head: Vec<Vec<egui::Event>>, tail: Vec<Vec<egui::Event>>| {
@@ -795,6 +814,14 @@ mod tests {
                 held_then_left(Middle, (500.0, 300.0)),
             ),
             (
+                "extra 1 held in the body, then left drag",
+                held_then_left(Extra1, (500.0, 300.0)),
+            ),
+            (
+                "extra 2 held in the body, then left drag",
+                held_then_left(Extra2, (500.0, 300.0)),
+            ),
+            (
                 "left held on the bar, right added, then drag",
                 then(
                     vec![
@@ -834,32 +861,47 @@ mod tests {
         ]
     }
 
-    /// Given 설정창 제목 줄의 빈 영역, When 드래그가 시작된 패스에 왼쪽 버튼만 눌려 있으면 Then 창 이동이고, When
-    /// 오른쪽·가운데 버튼이 하나라도 함께 눌려 있으면(어디서 눌렀든, 같은 패스에 몰렸든) Then 아무것도 하지 않는다.
-    /// 오른쪽 클릭이 끝난 뒤의 왼쪽 드래그는 이동이다. 메인 창 설정(`primary_drag_only` 거짓)은 어느 순서든 이동이다.
+    /// Given 설정창 제목 줄의 빈 영역, When 드래그가 시작된 패스에 왼쪽 버튼만 눌려 있으면 Then 그 패스에 창 이동을
+    /// 요청하고, When 오른쪽·가운데·추가 버튼이 하나라도 함께 눌려 있으면(어디서 눌렀든, 같은 패스에 몰렸든) Then
+    /// 아무것도 하지 않는다. 오른쪽 클릭이 끝난 뒤의 왼쪽 드래그는 이동이다. 메인 창 설정(`primary_drag_only` 거짓)은
+    /// 어느 순서든 드래그가 시작된 패스에 이동을 요청한다.
     #[test]
     fn a_settings_move_needs_only_the_left_button_down() {
-        let moved = vec![TitlebarAction::StartDrag];
         let settings_moves = ["left only", "right click, then left drag"];
+        // StartDrag를 보고한 패스 번호들.
+        let move_passes = |passes: &[BarPass]| -> Vec<usize> {
+            passes
+                .iter()
+                .enumerate()
+                .filter(|(_, p)| p.actions.contains(&TitlebarAction::StartDrag))
+                .map(|(i, _)| i)
+                .collect()
+        };
         let got: Vec<_> = button_orders()
             .into_iter()
             .map(|(name, passes)| {
-                (
-                    name,
-                    bar_actions(passes.clone(), true),
-                    bar_actions(passes, false),
-                )
+                let main = bar_passes(passes.clone(), false, &[]);
+                let started: Vec<usize> = main
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, p)| p.drag_started)
+                    .map(|(i, _)| i)
+                    .collect();
+                let settings = bar_passes(passes, true, &[]);
+                (name, started, move_passes(&settings), move_passes(&main))
             })
             .collect();
+        // 순서마다 드래그는 한 패스에서 시작하고, 이동 요청은 그 패스에만 나온다.
         let expected: Vec<_> = got
             .iter()
-            .map(|(name, _, _)| {
+            .map(|(name, started, _, _)| {
+                let start = vec![started.first().copied().unwrap_or(usize::MAX)];
                 let settings = if settings_moves.contains(name) {
-                    moved.clone()
+                    start.clone()
                 } else {
                     Vec::new()
                 };
-                (*name, settings, moved.clone())
+                (*name, start.clone(), settings, start)
             })
             .collect();
         assert_eq!(got, expected);
