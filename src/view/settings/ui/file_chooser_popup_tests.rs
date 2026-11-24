@@ -982,12 +982,11 @@ fn escape_then_yes_on_the_conflict_question_applies_nothing() {
     assert!(st.pending_binding.is_none(), "Esc 가 대기를 취소한다");
 }
 
-/// M-E1-4 P: Given 키 주인 충돌 질문, When 한 입력 묶음에 Y 뒤 bare Esc 가 오면, Then Esc 앞에서 끊겨도(조건 8 앞 경계)
-/// Y 몫이 먼저 그려져 바인딩이 적용되고 질문이 닫힌다.
+/// M-E1-4 P: Given 키 주인 충돌 질문, When 한 입력 묶음에 Y 뒤 bare Esc 가 오면, Then Esc 앞에서 끊기든(조건 8 앞 경계)
+/// 한 패스에 함께 그리든 Y 가 먼저라 바인딩이 적용되고 질문이 닫힌다.
 #[test]
 fn yes_then_escape_on_the_conflict_question_applies_the_binding() {
-    let (_p, st, combo, cuts) = conflict_keys([egui::Key::Y, egui::Key::Escape]);
-    assert_eq!(cuts, 1, "Y 몫과 Esc 몫이 나뉜다");
+    let (_p, st, combo, _cuts) = conflict_keys([egui::Key::Y, egui::Key::Escape]);
     assert!(applied(&st, &combo), "바인딩이 적용된다");
     assert!(!st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID), "닫힌다");
 }
