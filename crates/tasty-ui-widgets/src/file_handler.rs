@@ -38,6 +38,8 @@ pub struct UnmeasuredMark<'a> {
     pub host: &'a str,
     /// 재연결 중이면 상태 단어.
     pub reconnecting: Option<&'a str>,
+    /// 상태 단어의 잰 폭. 유효하면(유한한 양수) 언어별 추정 대신 이 값을 뺀다.
+    pub word_width: Option<LogicalPx>,
     /// 상태 단어의 언어. 그 언어의 label 글꼴이 고정폭이면 칸 수로, 아니면 글자 수로 폭을 추정한다.
     pub language: &'a str,
     /// 표지 글리프 크기(icon-glyph-size-xs 12).
@@ -73,7 +75,7 @@ pub fn target_budget_chars_beside(
 /// 잴 수 없을 때의 경로 글자 수(정본 Meta 'path cap, unmeasured'):
 /// floor((366 − min(6 × 호스트 글자 수, 160) − 재연결이면 (4 + 상태 단어 폭)) / 6).
 /// 366 은 경로 줄 390 − 글리프 12 − 간격 4 − 경로 앞 `gap`(space-sm 8)이다. 빈 호스트는 상한 160 이다.
-/// 상태 단어 폭은 [`status_word_width_unmeasured`]로 추정한다.
+/// 상태 단어 폭은 잰 값(`word_width`)이 유효하면 그 값이고, 아니면 [`status_word_width_unmeasured`]로 추정한다.
 pub fn target_budget_chars_unmeasured(mark: &UnmeasuredMark<'_>, gap: LogicalPx) -> usize {
     let host = if mark.host.is_empty() {
         mark.host_cap
@@ -81,7 +83,11 @@ pub fn target_budget_chars_unmeasured(mark: &UnmeasuredMark<'_>, gap: LogicalPx)
         (FH_TARGET_MONO_ADVANCE * mark.host.chars().count() as f32).min(mark.host_cap)
     };
     let word = mark.reconnecting.map_or(LogicalPx(0.0), |word| {
-        mark.mark_gap + status_word_width_unmeasured(word, mark.language, mark.em)
+        let measured = mark
+            .word_width
+            .filter(|w| w.value().is_finite() && w.value() > 0.0);
+        mark.mark_gap
+            + measured.unwrap_or_else(|| status_word_width_unmeasured(word, mark.language, mark.em))
     });
     let room = FH_TARGET_LINE_BOX - mark.glyph - mark.mark_gap - gap - host - word;
     (room.value() / FH_TARGET_MONO_ADVANCE.value())
@@ -212,6 +218,7 @@ mod tests {
         let unmeasured = UnmeasuredMark {
             host: "host",
             reconnecting: None,
+            word_width: None,
             language: "en",
             glyph: LogicalPx(12.0),
             mark_gap: LogicalPx(4.0),
@@ -241,6 +248,29 @@ mod tests {
         );
     }
 
+    /// 정본 Meta: 상태 단어 폭을 알면 그 폭을 빼고, 모를 때만 언어별로 추정한다. 빈 호스트(상한 160) 옆
+    /// 재연결: 잰 폭 30 → floor((366 − 160 − 4 − 30) / 6) = 28, 못 쟀거나 유효하지 않으면 en 추정(72) → 21.
+    #[test]
+    fn a_measured_status_word_width_replaces_the_language_estimate() {
+        let cap = |word_width| {
+            let mark = UnmeasuredMark {
+                host: "",
+                reconnecting: Some("reconnecting"),
+                word_width,
+                language: "en",
+                glyph: LogicalPx(12.0),
+                mark_gap: LogicalPx(4.0),
+                host_cap: LogicalPx(160.0),
+                em: LogicalPx(12.0),
+            };
+            target_budget_chars_beside(LogicalPx(f32::NAN), LogicalPx(40.0), LogicalPx(8.0), &mark)
+        };
+        assert_eq!(cap(Some(LogicalPx(30.0))), 28, "measured");
+        assert_eq!(cap(None), 21, "not measured");
+        assert_eq!(cap(Some(LogicalPx(0.0))), 21, "zero");
+        assert_eq!(cap(Some(LogicalPx(f32::INFINITY))), 21, "infinite");
+    }
+
     /// 잴 수 없을 때의 경로 글자 수(정본 Meta 'path cap, unmeasured'). 호스트는 6 × 글자 수(상한 160),
     /// 빈 호스트와 상한은 34 다. 재연결 중이면 4 + 상태 단어 폭을 더 빼고, 그 폭은 언어별로 추정한다.
     #[test]
@@ -249,6 +279,7 @@ mod tests {
             let mark = UnmeasuredMark {
                 host,
                 reconnecting,
+                word_width: None,
                 language,
                 glyph: LogicalPx(12.0),
                 mark_gap: LogicalPx(4.0),

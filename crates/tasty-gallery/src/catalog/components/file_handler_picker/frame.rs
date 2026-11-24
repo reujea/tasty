@@ -797,6 +797,10 @@ pub(super) fn remote_spec_frame(
             &fh_model::UnmeasuredMark {
                 host: head.mark.host,
                 reconnecting: head.mark.reconnecting,
+                word_width: head
+                    .mark
+                    .reconnecting
+                    .map(|word| tasty_ui_widgets::fh_remote_word_width(ui, theme, word)),
                 language: crate::i18n::current_language(),
                 glyph: theme.icon_glyph_size_xs,
                 mark_gap: theme.fh_remote_gap(),

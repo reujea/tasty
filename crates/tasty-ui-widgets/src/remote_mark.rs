@@ -139,6 +139,12 @@ pub fn fh_remote_mark_width(ui: &egui::Ui, th: &Theme, mark: &RemoteMark<'_>) ->
     layout(ui, th, mark, picker_style(th, mark.reconnecting.is_some())).width
 }
 
+/// 핸들러 picker 표지의 재연결 상태 단어 폭(font-label caption, 줄이지 않음). 경로 글자 폭을 잴 수 없어도
+/// 이 값이 유효하면 경로 상자 추정에 그대로 쓴다([`UnmeasuredMark::word_width`](crate::file_handler::UnmeasuredMark::word_width)).
+pub fn fh_remote_word_width(ui: &egui::Ui, th: &Theme, word: &str) -> LogicalPx {
+    LogicalPx(label_galley(ui.ctx(), th, word).rect.width())
+}
+
 /// 핸들러 picker 경로 줄 앞 표지를 `left_center`(왼쪽 끝, 세로 가운데)에 그리고 폭을 돌려준다.
 pub fn paint_fh_remote_mark(
     ui: &egui::Ui,

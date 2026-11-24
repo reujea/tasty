@@ -819,6 +819,7 @@ mod tests {
                         &fh_model::UnmeasuredMark {
                             host: mark.host,
                             reconnecting: None,
+                            word_width: None,
                             language: "en",
                             glyph: theme.icon_glyph_size_xs,
                             mark_gap: theme.fh_remote_gap(),

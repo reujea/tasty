@@ -140,6 +140,8 @@ fn target_budget(
             th,
             advance,
             tasty_ui_widgets::fh_remote_mark_width(ui, th, mark),
+            mark.reconnecting
+                .map(|word| tasty_ui_widgets::fh_remote_word_width(ui, th, word)),
             mark,
             crate::i18n::current_language(),
         ),
@@ -148,11 +150,13 @@ fn target_budget(
 }
 
 /// 원격 표지 옆 경로의 글자 수. 경로 상자는 표지와 그 뒤 간격(space-sm)을 뺀 나머지다.
-/// 잰 값(`advance`·`mark_w`)이 유효하지 않으면 Theme 토큰과 `language`로 추정한다.
+/// 잰 값(`advance`·`mark_w`)이 유효하지 않으면 Theme 토큰과 `language`로 추정하고, 상태 단어는 잰 폭
+/// `word_w`가 유효하면 그 값을 쓴다.
 fn remote_target_budget(
     th: &Theme,
     advance: LogicalPx,
     mark_w: LogicalPx,
+    word_w: Option<LogicalPx>,
     mark: &tasty_ui_widgets::RemoteMark<'_>,
     language: &str,
 ) -> usize {
@@ -163,6 +167,7 @@ fn remote_target_budget(
         &fh_model::UnmeasuredMark {
             host: mark.host,
             reconnecting: mark.reconnecting,
+            word_width: word_w,
             language,
             glyph: th.icon_glyph_size_xs,
             mark_gap: th.fh_remote_gap(),
@@ -1188,11 +1193,52 @@ mod tests {
                 reconnecting: Some(word),
             };
             assert_eq!(
-                remote_target_budget(&th, LogicalPx(f32::NAN), LogicalPx(40.0), &mark, language),
+                remote_target_budget(
+                    &th,
+                    LogicalPx(f32::NAN),
+                    LogicalPx(40.0),
+                    None,
+                    &mark,
+                    language
+                ),
                 want,
                 "{language}"
             );
         }
+    }
+
+    /// 경로 글자 폭만 잴 수 없고 상태 단어 폭은 잰 경우, 앱 호출부는 언어별 추정 대신 잰 폭을 뺀다.
+    /// 빈 호스트(상한 160) 옆: 잰 폭 30 → floor((366 − 160 − 4 − 30) / 6) = 28, 못 잰 en 추정(72) → 21.
+    #[test]
+    fn the_app_unmeasured_path_cap_uses_the_measured_status_word_width() {
+        let th = test_theme();
+        let mark = tasty_ui_widgets::RemoteMark {
+            host: "",
+            empty_label: "Remote",
+            reconnecting: Some("reconnecting"),
+        };
+        let budget = |word_w| {
+            remote_target_budget(
+                &th,
+                LogicalPx(f32::NAN),
+                LogicalPx(40.0),
+                word_w,
+                &mark,
+                "en",
+            )
+        };
+        assert_eq!(budget(Some(LogicalPx(30.0))), 28, "measured");
+        assert_eq!(budget(None), 21, "not measured");
+        assert_eq!(
+            budget(Some(LogicalPx(0.0))),
+            21,
+            "zero width is not a measure"
+        );
+        assert_eq!(
+            budget(Some(LogicalPx(f32::NAN))),
+            21,
+            "NaN is not a measure"
+        );
     }
 
     /// 실제 앱 폰트로 경로 길이를 계산한다. 단일 글리프 폭과 글자 추가 시 증분의 차이도 확인한다.
