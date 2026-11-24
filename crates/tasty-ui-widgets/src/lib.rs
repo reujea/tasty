@@ -399,7 +399,9 @@ pub use status_bar::{
     StatusBarAction, StatusBarData, StatusBarDrawResult, StatusBarRemote, draw_status_bar_view,
 };
 pub use status_dot::{StatusKind, status_dot};
-pub use surface_focus::{SurfaceFocusEdge, surface_bed};
+pub use surface_focus::{
+    SurfaceFocusEdge, SurfaceFocusEdgeRows, surface_bed, surface_focus_edge_rows,
+};
 pub use tab_content_frame::{settings_content_column, tab_content_frame};
 pub use table::{
     Table, TableAlign, TableColumn, TableColumnWidth, TableOutput, TableSortDir, fixed_total_width,

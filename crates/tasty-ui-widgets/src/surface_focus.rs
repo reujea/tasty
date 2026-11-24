@@ -15,6 +15,34 @@ pub fn surface_bed(theme: &Theme, focused: bool) -> egui::Color32 {
     }
 }
 
+/// 띠 행의 경계(물리 px). 띠 아래 경계는 정수 물리 px라 그 아래에 놓는 내용(페이지·프레임)의 위 끝이
+/// 플랫폼별 반올림과 상관없이 같은 줄에 온다.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SurfaceFocusEdgeRows {
+    /// 띠 행의 아래 경계이자 내용의 위 끝. leaf 아래 끝을 넘지 않는다.
+    pub bottom: f32,
+    /// 링이 있을 때 켜진 띠가 쓰는 아래 행의 위 경계.
+    pub lit_top: f32,
+}
+
+/// `top`·`leaf_bottom`은 leaf의 위·아래 끝(물리 px), `ppp`는 논리 px당 물리 px다.
+/// host의 내용 예약과 [`SurfaceFocusEdge::paint`]가 같은 경계를 쓰도록 이 함수 하나로 정한다.
+pub fn surface_focus_edge_rows(
+    theme: &Theme,
+    top: f32,
+    leaf_bottom: f32,
+    ppp: f32,
+) -> SurfaceFocusEdgeRows {
+    let bottom = (top + theme.surface_focus_edge_width().value() * ppp)
+        .round()
+        .clamp(top, leaf_bottom.max(top));
+    let lower = (theme.border_width.value() * ppp).round().max(1.0);
+    SurfaceFocusEdgeRows {
+        bottom,
+        lit_top: (bottom - lower).max(top),
+    }
+}
+
 /// 띠 kind의 포커스 띠. 상태와 무관하게 같은 행을 차지하므로 포커스가 바뀌어도 내용이 움직이지 않는다.
 #[derive(Clone, Copy, Debug)]
 pub struct SurfaceFocusEdge {
@@ -38,10 +66,12 @@ enum Layer {
 
 impl SurfaceFocusEdge {
     /// 켜진 띠는 링 위에 놓이고, 링이 있으면 아래 행만 써서 링의 위 행을 남긴다.
-    fn layers(&self, theme: &Theme, leaf: egui::Rect) -> Vec<Layer> {
-        let height = theme.surface_focus_edge_width().value();
-        let row_h = theme.border_width.value();
-        let full = egui::Rect::from_min_size(leaf.min, egui::vec2(leaf.width(), height));
+    /// 행 경계는 [`surface_focus_edge_rows`]로 `ppp`의 물리 px에 맞춘다.
+    fn layers(&self, theme: &Theme, leaf: egui::Rect, ppp: f32) -> Vec<Layer> {
+        let ppp = ppp.max(f32::EPSILON);
+        let rows = surface_focus_edge_rows(theme, leaf.top() * ppp, leaf.bottom() * ppp, ppp);
+        let bottom = rows.bottom / ppp;
+        let full = egui::Rect::from_min_max(leaf.min, egui::pos2(leaf.right(), bottom));
         let mut layers = vec![Layer::Row {
             rect: full,
             color: theme.surface_focus_edge_unfocused().to_egui(),
@@ -53,9 +83,9 @@ impl SurfaceFocusEdge {
         if self.focused {
             let lit = theme.surface_focus_edge_focused().to_egui();
             layers.push(if self.ring.is_some() {
-                let lower = egui::Rect::from_min_size(
-                    egui::pos2(leaf.left(), leaf.top() + row_h),
-                    egui::vec2(leaf.width(), row_h),
+                let lower = egui::Rect::from_min_max(
+                    egui::pos2(leaf.left(), rows.lit_top / ppp),
+                    egui::pos2(leaf.right(), bottom),
                 );
                 Layer::Row {
                     rect: lower,
@@ -76,7 +106,7 @@ impl SurfaceFocusEdge {
     /// `leaf` 전체를 기준으로 띠와 링을 칠한다. 내용은 띠 행 아래에 놓는 것이 호출자의 일이다.
     pub fn paint(&self, painter: &egui::Painter, theme: &Theme, leaf: egui::Rect) {
         let radius = self.corner_radius.value().round().clamp(0.0, 255.0) as u8;
-        for layer in self.layers(theme, leaf) {
+        for layer in self.layers(theme, leaf, painter.ctx().pixels_per_point()) {
             match layer {
                 Layer::Row {
                     rect,
@@ -135,7 +165,7 @@ mod tests {
     #[test]
     fn the_unfocused_edge_is_one_full_row_pair() {
         let th = theme();
-        let layers = edge(false, false).layers(&th, leaf());
+        let layers = edge(false, false).layers(&th, leaf(), 1.0);
         assert_eq!(layers.len(), 1);
         let (rect, color) = row(layers[0]);
         assert_eq!(rect.height(), th.surface_focus_edge_width().value());
@@ -146,7 +176,7 @@ mod tests {
 
     #[test]
     fn a_ring_paints_over_the_unfocused_edge() {
-        let layers = edge(false, true).layers(&theme(), leaf());
+        let layers = edge(false, true).layers(&theme(), leaf(), 1.0);
         assert_eq!(layers.len(), 2);
         assert!(matches!(layers[0], Layer::Row { .. }));
         assert_eq!(layers[1], Layer::Ring);
@@ -155,7 +185,7 @@ mod tests {
     #[test]
     fn the_lit_edge_takes_both_rows_without_a_ring() {
         let th = theme();
-        let layers = edge(true, false).layers(&th, leaf());
+        let layers = edge(true, false).layers(&th, leaf(), 1.0);
         let (rect, color) = row(layers[layers.len() - 1]);
         assert_eq!(rect.height(), th.surface_focus_edge_width().value());
         assert_eq!(rect.min, leaf().min);
@@ -165,7 +195,7 @@ mod tests {
     #[test]
     fn the_lit_edge_sits_over_the_ring_on_the_lower_row_only() {
         let th = theme();
-        let layers = edge(true, true).layers(&th, leaf());
+        let layers = edge(true, true).layers(&th, leaf(), 1.0);
         assert_eq!(layers.len(), 3);
         assert_eq!(layers[1], Layer::Ring);
         let (rect, color) = row(layers[2]);
@@ -173,6 +203,23 @@ mod tests {
         assert_eq!(rect.height(), row_h);
         assert_eq!(rect.top(), leaf().top() + row_h);
         assert_eq!(color, th.surface_focus_edge_focused().to_egui());
+    }
+
+    /// 배율이 소수여도 띠 아래 경계와 켜진 행 경계는 정수 물리 px이고, leaf 아래를 넘지 않는다.
+    #[test]
+    fn the_rows_land_on_whole_physical_pixels() {
+        let th = theme();
+        let rows = surface_focus_edge_rows(&th, 100.75, 400.0, 1.25);
+        assert_eq!(rows.bottom, 103.0);
+        assert_eq!(rows.lit_top, 102.0);
+        let rows = surface_focus_edge_rows(&th, 0.0, 400.0, 2.0);
+        assert_eq!((rows.bottom, rows.lit_top), (4.0, 2.0));
+        let short = surface_focus_edge_rows(&th, 10.0, 11.0, 1.0);
+        assert_eq!(short.bottom, 11.0);
+        assert_eq!(short.lit_top, 10.0);
+        let layers = edge(true, true).layers(&th, leaf(), 1.25);
+        let (rect, _) = row(layers[2]);
+        assert_eq!(rect.bottom() * 1.25, (leaf().top() * 1.25 + 2.5).round());
     }
 
     #[test]
