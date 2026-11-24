@@ -654,21 +654,26 @@ fn check_prepare_body(file: &str, s: &Step, r: &mut Report) {
     }
 }
 
+/// 모든 스텝의 `if`·`continue-on-error` 표기를 본다. 아래 판정의 예외(진단 스텝)와 따로 두어,
+/// 예외에 해당하는 스텝도 지원 밖 표기면 실패한다.
+fn check_step_notation(file: &str, s: &Step, p: &mut Vec<String>) {
+    if let Err(e) = scalar(file, &s.fields, "if") {
+        p.push(e);
+    }
+    if let Err(e) = boolean(file, &s.fields, "continue-on-error") {
+        p.push(e);
+    }
+}
+
 /// prepare 뒤에서 앞 실패에도 도는 판정 스텝은 최상위 && 항으로 준비 성공을 둔다.
-/// `continue-on-error: true`인 스텝은 판정을 내지 않으므로 뺀다.
+/// `continue-on-error: true`인 스텝은 판정을 내지 않으므로 뺀다. 표기 오류는 [`check_step_notation`]이 낸다.
 fn check_after_prepare(file: &str, s: &Step, r: &mut Report) {
     let p = &mut r.problems;
-    let coe = boolean(file, &s.fields, "continue-on-error").unwrap_or_else(|e| {
-        p.push(e);
-        None
-    });
-    if coe == Some(true) {
+    if boolean(file, &s.fields, "continue-on-error") == Ok(Some(true)) {
         return;
     }
-    let expr = match scalar(file, &s.fields, "if") {
-        Ok(Some(e)) => e,
-        Ok(None) => return,
-        Err(e) => return p.push(e),
+    let Ok(Some(expr)) = scalar(file, &s.fields, "if") else {
+        return;
     };
     if !runs_after_failure(&expr) {
         return;
@@ -704,6 +709,7 @@ fn check(workflows: &[(String, String)]) -> Report {
             }
             let mut prepared = false;
             for (k, s) in job.steps.iter().enumerate() {
+                check_step_notation(file, s, &mut r.problems);
                 if is_checkout(file, s, &mut r.problems) {
                     match checkout_clean(file, s, &mut r.problems) {
                         Some(true) => explicit_clean_true += 1,
@@ -1051,4 +1057,15 @@ fn a_prepare_step_that_can_be_skipped_or_short_circuited_is_caught() {
         "          exit 0\n          & $bash scripts/ci-prepare-workspace.sh\n",
     );
     assert_caught(&all, "prepare 스텝");
+}
+
+/// R1: 진단 스텝(continue-on-error: true)도 if 표기는 검사한다.
+#[test]
+fn a_diagnostic_step_with_a_block_scalar_if_is_rejected() {
+    let all = mutated(
+        "crossplatform-check.yml",
+        "        if: ${{ !cancelled() }}\n        continue-on-error: true\n",
+        "        if: >-\n          ${{ !cancelled() }}\n        continue-on-error: true\n",
+    );
+    assert_caught(&all, "crossplatform-check.yml:128 지원하지 않는 표기");
 }
