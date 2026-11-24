@@ -421,11 +421,21 @@ impl App {
                 w.compute_terminal_rect(),
                 scale_factor,
             );
+            // 띠 kind면 띠 행의 아래 경계(물리 px), 아니면 null. 주소 띠·배너 높이(물리 px)는 그 아래에 더한다.
+            let edge_bottom = rect
+                .filter(|_| crate::state::surface_focus::reserves_edge(&engine.read(), surface_id))
+                .map(|r| {
+                    crate::state::surface_focus::edge_rows(&crate::theme::theme(), r, scale_factor)
+                        .bottom
+                });
+            let content_top = w.html_content_top(surface_id, f64::from(scale_factor));
             let response = host_ipc::protocol::JsonRpcResponse::success(
                 cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
                 serde_json::json!({
                     "surface_id": surface_id,
                     "scale_factor": scale_factor,
+                    "edge_bottom": edge_bottom,
+                    "content_top": content_top,
                     "rect": rect.map(|r| serde_json::json!({
                         "x": r.x.value(),
                         "y": r.y.value(),

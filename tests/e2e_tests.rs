@@ -2879,18 +2879,22 @@ fn x11_pointer(display: &str, steps: &[Pointer]) -> Result<(), String> {
 }
 
 /// WebView 창이 surface 사각형(`debug.surface_rect`)의 좌우·아래를 물리 px 단위로 채우는지. 반올림 차이만 둔다.
-/// 위쪽은 html이 띠 kind라 포커스 띠 행(`surface-focus-edge-width` × 배율, 정수 물리 px)과 주소 띠·배너
-/// 아래에서 시작하므로 그 행 이상 내려가 있어야 한다.
+/// 위쪽은 html이 띠 kind라 포커스 띠 행 아래 경계(`edge_bottom`)에 주소 띠·배너 높이(`content_top`)를 더한
+/// 자리에서 시작한다. native 창은 정수 px에 놓이므로 0.5 px 안이어야 한다. 창의 위 끝(물리 px)을 돌려준다.
 #[cfg(all(target_os = "linux", feature = "gui"))]
-fn assert_webview_fills_surface(tasty: &TastyInstance, sid: u64, capture: &X11WebViewCapture) {
+fn assert_webview_fills_surface(
+    tasty: &TastyInstance,
+    sid: u64,
+    capture: &X11WebViewCapture,
+) -> f32 {
     let reply = tasty.call("debug.surface_rect", json!({ "surface_id": sid }));
     let r = &reply["rect"];
     let [sx, sy, sw, sh] =
         ["x", "y", "width", "height"].map(|k| r[k].as_f64().expect("surface rect") as f32);
-    let scale = reply["scale_factor"].as_f64().expect("scale_factor") as f32;
+    let edge_bottom = reply["edge_bottom"].as_f64().expect("html은 띠 kind다") as f32;
+    let content_top = reply["content_top"].as_f64().expect("content_top") as f32;
     let (cx, cy, cw, ch) = capture.child;
     let [cx, cy, cw, ch] = [cx, cy, cw, ch].map(|v| v as f32);
-    let edge = (2.0 * scale).round();
     assert!(
         (sx - cx).abs() < 1.0 && (sw - cw).abs() < 1.0 && (sy + sh - (cy + ch)).abs() < 1.0,
         "WebView 창 {:?} 이 surface 사각형 {:?} 의 좌우·아래와 다르다",
@@ -2898,11 +2902,15 @@ fn assert_webview_fills_surface(tasty: &TastyInstance, sid: u64, capture: &X11We
         [sx, sy, sw, sh]
     );
     assert!(
-        cy - sy >= edge - 1.0,
-        "WebView 창 {:?} 이 surface 사각형 {:?} 위의 포커스 띠 행({edge}px)을 덮는다",
-        capture.child,
+        edge_bottom > sy,
+        "띠 행 아래 경계 {edge_bottom} 가 surface 위 끝 {sy} 아래여야 한다"
+    );
+    assert!(
+        (cy - (edge_bottom + content_top)).abs() <= 0.5,
+        "WebView 창 위 끝 {cy} 이 띠 행 아래 경계 {edge_bottom} + 주소 띠 {content_top} 과 다르다(surface {:?})",
         [sx, sy, sw, sh]
     );
+    cy
 }
 
 /// 화면 좌표 (`px`, `py`)가 WebView 창 기준으로 입력 영역 안인지.
@@ -2984,7 +2992,44 @@ fn webview_fills_its_surface_and_leaves_host_input_bands_to_the_host() {
     });
     std::thread::sleep(Duration::from_millis(500));
     let c = x11_capture_webview(&display, window).unwrap().unwrap();
-    assert_webview_fills_surface(&tasty, html, &c);
+    let top = assert_webview_fills_surface(&tasty, html, &c);
+    // 포커스가 html에서 터미널로 옮겨도 페이지 위 끝은 그대로다. 띠 행은 포커스와 관계없이 예약한다.
+    let focused =
+        |t: &TastyInstance| t.call("debug.focused_surface", json!({}))["surface_id"].clone();
+    assert_eq!(
+        focused(&tasty),
+        json!(html),
+        "시험 전제: 분할한 html 이 포커스다"
+    );
+    let term = tasty.call("debug.surface_rect", json!({ "surface_id": sid }))["rect"].clone();
+    let [tx, ty, tw, th] =
+        ["x", "y", "width", "height"].map(|k| term[k].as_f64().expect("terminal rect") as i32);
+    let (origin_x, origin_y) = (c.child_root.0 - c.child.0, c.child_root.1 - c.child.1);
+    x11_pointer(
+        &display,
+        &[
+            Pointer::Move(origin_x + tx + tw / 2, origin_y + ty + th / 2),
+            Pointer::Press,
+            Pointer::Release,
+        ],
+    )
+    .expect("terminal click");
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while focused(&tasty) != json!(sid) && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    assert_eq!(
+        focused(&tasty),
+        json!(sid),
+        "터미널 클릭이 포커스를 옮기지 않았다"
+    );
+    std::thread::sleep(Duration::from_millis(500));
+    let c = x11_capture_webview(&display, window).unwrap().unwrap();
+    assert_eq!(
+        assert_webview_fills_surface(&tasty, html, &c),
+        top,
+        "포커스를 옮긴 뒤 WebView 창 위 끝이 바뀌었다"
+    );
     let (cx, _, w, h) = c.child;
     assert!(
         !webview_takes_input_at(&display, &c, 1, h / 2),
