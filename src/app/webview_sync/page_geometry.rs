@@ -26,8 +26,9 @@ pub(super) fn edge_reserved(
 
 /// leaf 안 native 페이지의 물리 사각형. `insets`는 좌·우·아래 여백, `edge`는 포커스 띠 행 높이,
 /// `content_top`은 주소 띠·배너 높이다. 페이지는 `edge + content_top` 아래에서 시작한다.
-/// 띠 행이 남은 본문을 다 쓰면 `None`이다. 그 창은 드러내지 않는다. 띠가 없어도 본문이 없는 경우는
-/// 예전대로 1px 창을 둔다(띠 예약과 무관한 기존 동작).
+/// 띠를 빼기 전 본문이 양수였는데 띠 행 예약으로 1px 미만이 되면 `None`이다. 그 창은 드러내지 않는다.
+/// 띠를 빼기 전 본문이 이미 0 이하이면(주소 띠·여백이 본문을 다 썼다) 예전대로 1px 창을 둔다
+/// (띠 예약과 무관한 기존 동작).
 pub(super) fn page_bounds(
     leaf: crate::model::PhysicalRect,
     [left, right, bottom]: [f64; 3],
@@ -35,8 +36,9 @@ pub(super) fn page_bounds(
     content_top: f64,
 ) -> Option<crate::webview::PhysicalWebViewBounds> {
     let top = edge + content_top;
-    let height = f64::from(leaf.height.value()) - bottom - top;
-    if edge > 0.0 && height < 1.0 && height + edge >= 1.0 {
+    let body = f64::from(leaf.height.value()) - bottom - content_top;
+    let height = body - edge;
+    if edge > 0.0 && height < 1.0 && body > 0.0 {
         return None;
     }
     Some(crate::webview::PhysicalWebViewBounds {

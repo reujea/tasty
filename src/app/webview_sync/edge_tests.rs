@@ -42,6 +42,21 @@ fn an_edge_that_takes_the_whole_body_hides_the_page() {
         chrome_only.height, 1.0,
         "the chrome alone already took the body"
     );
+    let exact = page_bounds(leaf(0.0, 40.0), [0.0; 3], 2.0, 40.0).expect("old behavior");
+    assert_eq!(exact.height, 1.0, "no body was left before the edge row");
+}
+
+/// 띠를 빼기 전 본문이 1px 미만의 양수여도 띠 행이 그 본문을 없앴으면 숨긴다. 1px 창이 leaf 아래로
+/// 밀려 그려지고 입력을 받지 않게 한다. 띠가 없으면 같은 본문은 예전대로 1px 창이다.
+#[test]
+fn an_edge_that_takes_a_sub_pixel_body_hides_the_page() {
+    assert!(
+        page_bounds(leaf(0.0, 40.75), [0.0; 3], 2.0, 40.0).is_none(),
+        "0.75 before the edge row, -1.25 after"
+    );
+    assert!(page_bounds(leaf(0.0, 41.5), [0.0, 0.0, 1.0], 2.0, 40.0).is_none());
+    let no_edge = page_bounds(leaf(0.0, 40.75), [0.0; 3], 0.0, 40.0).expect("old behavior");
+    assert_eq!((no_edge.y, no_edge.height), (40.0, 1.0));
 }
 
 /// 띠를 예약하는 webview kind만 띠 행 높이를 돌려준다. 바탕을 선언한 kind와 WebView가 아닌 kind는 0이다.
