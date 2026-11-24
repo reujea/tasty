@@ -221,9 +221,9 @@ mirror 콘텐츠(grid) 갱신은 원격 출력이 올 때 즉시, 3초 tick 은 
 | 링크 런 아래 툴팁 | mirror 의 파일 경로 링크에 수식키 hover | [터미널 링크](../terminal-link/index.md) |
 
 - **호스트 글자**: 연결할 때 고른 `tasty-attach` 프로필 이름이다. 원격 연결 팝업, `remote attach --into-gui --profile`(IPC `remote.attach`의 `profile`), 저장된 원격 행의 attach 프로필이 프로필 이름을 세션에 넘긴다. 연결 시점 값이며 재연결해도 바꾸지 않는다. 연결 뒤 프로필 이름을 바꾸거나 지워도 이미 붙은 mirror 의 표시는 그대로다.
-- **프로필 없이 붙은 mirror**: `--ssh <dest>`, `--target-port`(`attach.into_gui`), debug attach 로 붙은 mirror 는 이 연결의 loopback 엔드포인트 `127.0.0.1:<로컬 포트>`(`remote_label`)를 쓴다. 글자는 `ClientSessionState::host_text` 한 곳에서 정한다.
-- **재연결 중**: 연결이 끊겨 다시 붙는 동안 상태바는 원격 색을 빼고 상태어를 붙인다. 끊긴 연결을 활성처럼 보이지 않게 한다.
-- File Picker 의 host 배지와 탐색기 원격 작업의 호스트 표시(`HostMark`, 쓰기 거절·대기·결과 모름 문구의 `{host}`)도 같은 글자를 쓴다.
+- **프로필 이름이 없는 attach**: `--ssh <dest>`, `--target-port`(`attach.into_gui`), debug attach 로 붙은 mirror 와 이름이 빈 프로필은 호스트 글자가 빈 값이다. 위 표의 표지와 File Picker 의 host 배지는 호스트 자리에 `attach.mirror_pill_label`(Remote) 낱말을 font-label 로 쓴다. 이 연결의 loopback 엔드포인트 `127.0.0.1:<로컬 포트>`(`remote_label`)는 표시에 쓰지 않는다. 글자는 `ClientSessionState::host_text` 한 곳에서 정한다.
+- **재연결 중**: 연결이 끊겨 다시 붙는 동안 상태바와 핸들러 picker 의 원격 표지는 원격 색을 빼고 상태어 `status_bar.remote_reconnecting` 을 붙인다. 끊긴 연결을 활성처럼 보이지 않게 한다. picker 의 형태는 [핸들러 picker](../file-handler/index.md)에 있다.
+- File Picker 의 host 배지와 탐색기 원격 작업의 호스트 표시(`HostMark`, 쓰기 거절·대기·결과 모름 문구의 `{host}`)도 같은 글자를 쓴다. 탐색기는 빈 호스트일 때 아직 낱말을 쓰지 않는다(`HostMark` 는 글리프만, 문구는 호스트 자리가 빈 채).
 
 **주의 환기(attention)도 같은 방향의 별도 채널이다** — 원격이 자기 surface 의 attention(작업 완료 / 응답 필요)을 같은 1Hz tick 에 `StreamControl::Attention{surface_id, kind}` 로 forward 하고 client 가 자기 `AttentionStore` 에 반영한다.
 attention 의 관리 주체는 **surface 를 소유한 인스턴스**다: producer(완료 IPC/CLI, Claude 플러그인 훅, OSC 133 명령 완료, toast)가 전부 PTY 가 있는 쪽에서 돌고, 특히 `needs_input` 은 서버 훅에서만 나와 미러가 스스로 만들 수 없다.
