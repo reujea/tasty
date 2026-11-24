@@ -34,7 +34,7 @@ impl OriginSpans {
     /// 상한은 보지 않는다. 호출자가 보존 한도로 잘린 앞 구간을 지운 뒤 [`Self::enforce_cap`]을 부른다.
     pub(crate) fn push(&mut self, at: u64, origin: ChunkOrigin) {
         match self.spans.last_mut() {
-            Some((_, last)) if *last == origin => return,
+            Some((_, last)) if *last == origin => {}
             Some((start, last)) if *start == at => {
                 // 바이트 없이 남은 구간이라 출처만 바꾼다.
                 *last = origin;
