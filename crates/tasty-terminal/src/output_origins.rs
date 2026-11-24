@@ -30,7 +30,8 @@ pub(crate) struct OriginSpans {
 }
 
 impl OriginSpans {
-    /// `at`부터 들어오는 바이트의 출처를 `origin`으로 적는다. `at`은 마지막 구간 시작 이상이다.
+    /// `at`부터 들어오는 바이트의 출처를 `origin`으로 적는다. `at`은 마지막 구간 시작 이상이다. 구간 수
+    /// 상한은 보지 않는다. 호출자가 보존 한도로 잘린 앞 구간을 지운 뒤 [`Self::enforce_cap`]을 부른다.
     pub(crate) fn push(&mut self, at: u64, origin: ChunkOrigin) {
         match self.spans.last_mut() {
             Some((_, last)) if *last == origin => return,
@@ -41,6 +42,11 @@ impl OriginSpans {
             }
             _ => self.spans.push((at, origin)),
         }
+    }
+
+    /// 구간 수가 상한을 넘으면 가장 오래된 절반을 [`ChunkOrigin::Unknown`] 하나로 합친다. 잘릴 구간까지 세면
+    /// 남을 확정 출처를 잃으므로 앞 정리([`Self::drop_before`]) 뒤에 부른다.
+    pub(crate) fn enforce_cap(&mut self) {
         if self.spans.len() > MAX_ORIGIN_SPANS {
             self.collapse_oldest_half();
         }
@@ -154,6 +160,7 @@ mod tests {
         let mut s = OriginSpans::default();
         for i in 0..=MAX_ORIGIN_SPANS as u64 {
             s.push(i, if i % 2 == 0 { Normal } else { Redraw });
+            s.enforce_cap();
         }
         assert!(s.spans().len() <= MAX_ORIGIN_SPANS);
         assert_eq!(s.spans()[0], (0, Unknown));

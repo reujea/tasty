@@ -182,6 +182,7 @@ impl OutputBuffer {
             self.base += excess as u64;
             self.origins.drop_before(self.base.max(self.scan_mark));
         }
+        self.origins.enforce_cap();
     }
 
     /// Decide the chunks that arrived while an OS resize was being applied.
@@ -328,6 +329,37 @@ mod tests {
         fn take_since_scan_mark(&mut self, strip_ansi: bool) -> String {
             self.take_scan_snapshot(true).finish(strip_ansi).read.text
         }
+    }
+
+    /// Given a buffer filled to the retention limit with 4096 alternating origin spans,
+    /// When a 512-byte chunk of the other origin trims the first two spans away, Then the
+    /// 4095 spans left are under the span cap and keep their decided origins.
+    #[test]
+    fn trimming_runs_before_the_span_cap_so_decided_origins_survive() {
+        use crate::TextOrigin;
+        use crate::output_origins::{ChunkOrigin, MAX_ORIGIN_SPANS};
+        let mut b = OutputBuffer::new();
+        for i in 0..MAX_ORIGIN_SPANS {
+            let origin = if i % 2 == 0 {
+                ChunkOrigin::Normal
+            } else {
+                ChunkOrigin::Redraw
+            };
+            b.append(&[b'a'; 256], origin);
+        }
+        b.append(&[b'b'; 512], ChunkOrigin::Normal);
+        let read = b.take_scan_snapshot(true).finish(false);
+        assert_eq!(read.read.skipped, 512);
+        let origins = read
+            .origins
+            .expect("4095 ranges and one gap fit the entry cap");
+        assert_eq!(origins.ranges.len(), MAX_ORIGIN_SPANS - 1);
+        assert!(
+            origins
+                .ranges
+                .iter()
+                .all(|r| r.origin != TextOrigin::Unknown)
+        );
     }
 
     /// Push `n` bytes of filler whose content is irrelevant to the assertion.
