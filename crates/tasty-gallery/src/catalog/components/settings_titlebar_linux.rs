@@ -4,9 +4,10 @@
 
 use tasty_type_appearance::theme::Theme;
 
+use super::settings::{L1Layout, l1_band};
 use super::titlebar::{WindowButton, button_glyph};
 use crate::catalog::spec::{self, StageVariant, TokenChip};
-use crate::catalog::widgets::dialog as kit;
+use crate::i18n::t;
 
 /// 닫기 버튼의 고정 상태. hover와 누름은 같은 모양이라 한 칸으로 보인다.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -22,7 +23,8 @@ fn palette(base: &Theme, zoom: f32) -> Theme {
 }
 
 /// 제목 줄 한 줄. 닫기 버튼은 오른쪽 끝에서 space-sm 안쪽, 36 줄 전체의 세로 가운데다.
-fn bar(ui: &mut egui::Ui, th: &Theme, active: bool, close: Close, tip: &str) {
+/// 위 두 모서리는 창 테두리 안쪽 반경(`corner`)으로 둥글다.
+fn bar(ui: &mut egui::Ui, th: &Theme, active: bool, close: Close, tip: &str, corner: u8) {
     let (rect, _) = ui.allocate_exact_size(
         egui::vec2(ui.available_width(), th.titlebar_height.value()),
         egui::Sense::hover(),
@@ -33,7 +35,13 @@ fn bar(ui: &mut egui::Ui, th: &Theme, active: bool, close: Close, tip: &str) {
     } else {
         th.titlebar_bg_inactive()
     };
-    p.rect_filled(rect, 0.0, bg.to_egui());
+    let top = egui::CornerRadius {
+        nw: corner,
+        ne: corner,
+        sw: 0,
+        se: 0,
+    };
+    p.rect_filled(rect, top, bg.to_egui());
 
     let d = th.titlebar_window_button_size().value();
     let center = egui::pos2(
@@ -77,30 +85,81 @@ fn bar(ui: &mut egui::Ui, th: &Theme, active: bool, close: Close, tip: &str) {
     // hover와 키보드 포커스에서는 Close 툴팁이 버튼 아래, 오른쪽 변을 버튼에 맞춰 열려 있다.
     if close != Close::Rest {
         let button = egui::Rect::from_center_size(center, egui::vec2(d, d));
-        tasty_ui_widgets::Tooltip::new(crate::i18n::t("titlebar.close"))
+        tasty_ui_widgets::Tooltip::new(t("titlebar.close"))
             .id_source(("settings_titlebar_linux_tip", tip))
             .below_end(ui.ctx(), th, button)
             .show(ui, th, button);
     }
 }
 
-/// 창 위 테두리·제목 줄·L1 밴드를 자른 한 칸.
-fn frame(ui: &mut egui::Ui, th: &Theme, active: bool, close: Close, tip: &str) {
-    let width = th.measure_lg.value();
-    egui::Frame::new()
-        .fill(th.bg_panel().to_egui())
-        .stroke(egui::Stroke::new(
-            th.border_width.value(),
-            th.border_strong().to_egui(),
-        ))
-        .show(ui, |ui| {
-            ui.set_width(width);
-            ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
-            bar(ui, th, active, close, tip);
-            let band = th.settings_l1_height - th.border_width;
-            super::settings::l1_band(ui, th, band);
-            kit::hsep(ui, th);
-        });
+/// 창 위 테두리·제목 줄·L1 밴드를 자른 한 칸. 정본 칸처럼 높이는 border-width + titlebar-height +
+/// settings-l1-height이고, 제품 창(settings-window-width)의 오른쪽 끝에 맞춰 잘라 닫기 버튼이 늘 보인다.
+/// 칸 폭(`crop_w`)은 정본 칸처럼 한 줄 전체이고 창보다 좁으면 Settings 라벨 쪽이 왼쪽으로 잘린다.
+fn frame(ui: &mut egui::Ui, th: &Theme, crop_w: f32, active: bool, close: Close, tip: &str) {
+    let bw = th.border_width.value();
+    let window_w = th.settings_window_width().value();
+    let crop_h = bw + th.titlebar_height.value() + th.settings_l1_height.value();
+    let (crop, _) = ui.allocate_exact_size(
+        egui::vec2(crop_w.min(window_w), crop_h),
+        egui::Sense::hover(),
+    );
+    // 창은 칸 아래로 이어진다. 칸 밖의 아래 테두리는 잘린다.
+    let window = egui::Rect::from_min_size(
+        egui::pos2(crop.right() - window_w, crop.top()),
+        egui::vec2(window_w, th.settings_window_csd_height().value()),
+    );
+    let radius = th.corner_radius.value();
+    let painter = ui.painter_at(crop);
+    painter.rect_filled(window, radius, th.bg_panel().to_egui());
+
+    let mut inner = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(window.shrink(bw))
+            .layout(egui::Layout::top_down(egui::Align::Min)),
+    );
+    inner.set_clip_rect(crop);
+    inner.spacing_mut().item_spacing = egui::Vec2::ZERO;
+    let inner_radius = (radius - bw).max(0.0) as u8;
+    bar(&mut inner, th, active, close, tip, inner_radius);
+    // L1 띠 44는 아래 1px 선을 포함한다. 선은 띠의 mantle 위에 합성한다(본체·정본과 같다).
+    let tabs = [
+        t("settings.tab.general"),
+        t("settings.tab.terminal"),
+        t("settings.tab.appearance"),
+        t("settings.tab.keybindings"),
+        t("settings.tab.file_handler"),
+        t("settings.tab.misc"),
+        t("settings.tab.plugin"),
+    ];
+    l1_band(
+        &mut inner,
+        th,
+        th.settings_l1_height - th.border_width,
+        &L1Layout {
+            title: t("settings.window.title"),
+            tabs: &tabs,
+            active: 2,
+            tab_pad_x: th.spacing_md,
+            divider_margin_l: th.spacing_sm,
+        },
+    );
+    let (line, _) = inner.allocate_exact_size(
+        egui::vec2(inner.available_width(), bw),
+        egui::Sense::hover(),
+    );
+    let p = inner.painter();
+    p.rect_filled(line, 0.0, th.bg_sidebar().to_egui());
+    p.hline(
+        line.x_range(),
+        line.center().y,
+        egui::Stroke::new(bw, th.separator.to_egui_premultiplied()),
+    );
+    painter.rect_stroke(
+        window,
+        radius,
+        egui::Stroke::new(bw, th.border_strong().to_egui()),
+        egui::StrokeKind::Inside,
+    );
 }
 
 const FRAMES: &[(bool, Close, &str)] = &[
@@ -134,11 +193,17 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             palette(&crate::host_shell::latte_theme(), theme.ui_zoom),
         ),
     ];
+    // 칸 폭은 그리기 전에 페이지 열 폭에서 스테이지 여백·테두리를 빼 정한다. 칸 안에서 가용 폭을 읽으면 감싸는 줄이
+    // 직전 프레임 크기를 다시 요청해 칸이 계속 넓어진다.
+    let crop_w =
+        ui.available_width() - 2.0 * (theme.spacing_xl.value() + theme.border_width.value());
     spec::stage(ui, theme, StageVariant::Column, |ui| {
         for (name, th) in &themes {
             for (active, close, label) in FRAMES {
                 let tip = format!("{name} · {label}");
-                spec::cluster(ui, theme, &tip, |ui| frame(ui, th, *active, *close, &tip));
+                spec::cluster(ui, theme, &tip, |ui| {
+                    frame(ui, th, crop_w, *active, *close, &tip)
+                });
             }
         }
     });

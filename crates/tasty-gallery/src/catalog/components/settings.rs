@@ -113,7 +113,18 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Center, |ui| {
         kit::frame_card(ui, theme, FRAME_W, kit::panel_fill(theme), |ui| {
             ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
-            l1_band(ui, theme, band_h);
+            l1_band(
+                ui,
+                theme,
+                band_h,
+                &L1Layout {
+                    title: "Settings",
+                    tabs: L1_TABS,
+                    active: L1_ACTIVE,
+                    tab_pad_x: L1_TAB_PAD_X,
+                    divider_margin_l: L1_SEP_MARGIN_L,
+                },
+            );
             kit::hsep(ui, theme);
             // 콘텐츠 높이는 버튼 줄을 뺀 나머지다. 버튼 줄 높이는 직전 프레임에 잰 값을 쓴다.
             let footer_id = ui.id().with("settings_footer_h");
@@ -207,7 +218,19 @@ pub fn draw_controls(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
-pub(super) fn l1_band(ui: &mut egui::Ui, theme: &Theme, band_h: LogicalPx) {
+/// L1 띠 안의 배치. 전시 크기 카드(`settings`)와 제품 창을 자른 카드(`settings-titlebar-linux`)의 값이 다르다.
+pub(super) struct L1Layout<'a> {
+    pub(super) title: &'a str,
+    pub(super) tabs: &'a [&'a str],
+    /// 선택한 탭의 번호.
+    pub(super) active: usize,
+    /// 탭 좌우 여백.
+    pub(super) tab_pad_x: LogicalPx,
+    /// 제목 뒤 구분선의 왼쪽 여백.
+    pub(super) divider_margin_l: LogicalPx,
+}
+
+pub(super) fn l1_band(ui: &mut egui::Ui, theme: &Theme, band_h: LogicalPx, layout: &L1Layout) {
     let (rect, _) = ui.allocate_exact_size(
         egui::vec2(ui.available_width(), band_h.value()),
         egui::Sense::hover(),
@@ -222,12 +245,12 @@ pub(super) fn l1_band(ui: &mut egui::Ui, theme: &Theme, band_h: LogicalPx) {
     // 시안 탭 사이 gap 2.
     row.spacing_mut().item_spacing.x = theme.border_width.value() * 2.0;
     row.label(
-        egui::RichText::new("Settings")
+        egui::RichText::new(layout.title)
             .size(theme.font_size_max.value())
             .strong()
             .color(theme.text_primary().to_egui()),
     );
-    row.add_space(L1_SEP_MARGIN_L.value());
+    row.add_space(layout.divider_margin_l.value());
     let (vr, _) = row.allocate_exact_size(
         egui::vec2(theme.border_width.value(), L1_SEP_H.value()),
         egui::Sense::hover(),
@@ -241,18 +264,26 @@ pub(super) fn l1_band(ui: &mut egui::Ui, theme: &Theme, band_h: LogicalPx) {
         ),
     );
     row.add_space(L1_SEP_MARGIN_R.value());
-    for (i, t) in L1_TABS.iter().enumerate() {
-        l1_tab(&mut row, theme, t, band_h, i == L1_ACTIVE);
+    for (i, t) in layout.tabs.iter().enumerate() {
+        let active = i == layout.active;
+        l1_tab(&mut row, theme, t, band_h, layout.tab_pad_x, active);
     }
 }
 
-fn l1_tab(ui: &mut egui::Ui, theme: &Theme, label: &str, band_h: LogicalPx, active: bool) {
+fn l1_tab(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    label: &str,
+    band_h: LogicalPx,
+    pad: LogicalPx,
+    active: bool,
+) {
     let galley = ui.painter().layout_no_wrap(
         label.to_owned(),
         egui::FontId::proportional(theme.font_size_body.value()),
         egui::Color32::PLACEHOLDER,
     );
-    let pad = L1_TAB_PAD_X.value();
+    let pad = pad.value();
     let (rect, _) = ui.allocate_exact_size(
         egui::vec2(galley.rect.width() + pad * 2.0, band_h.value()),
         egui::Sense::hover(),
