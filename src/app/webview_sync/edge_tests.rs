@@ -28,7 +28,8 @@ fn the_page_starts_below_the_edge_row_and_the_chrome() {
     assert_eq!(bed.y, 100.0, "a bed kind starts right below its chrome");
 }
 
-/// 띠 행이 남은 본문을 다 쓰면 창을 드러내지 않는다. 띠 없이도 본문이 없던 배치는 예전대로 1px 창이다.
+/// 띠 행이 남은 본문을 다 쓰면 창을 드러내지 않는다. 띠 없이도 본문이 없던 배치는 예전대로 1px 창이고, 그 창은
+/// 띠가 없을 때와 같은 자리(leaf 위 끝 + 주소 띠)에 둔다.
 #[test]
 fn an_edge_that_takes_the_whole_body_hides_the_page() {
     assert!(page_bounds(leaf(0.0, 3.0), [0.0; 3], 4.0, 0.0).is_none());
@@ -36,14 +37,19 @@ fn an_edge_that_takes_the_whole_body_hides_the_page() {
     let left = page_bounds(leaf(0.0, 43.0), [0.0; 3], 2.0, 40.0).expect("one row is left");
     assert_eq!(left.height, 1.0);
     let no_edge = page_bounds(leaf(0.0, 30.0), [0.0; 3], 0.0, 40.0).expect("old behavior");
-    assert_eq!(no_edge.height, 1.0);
+    assert_eq!((no_edge.y, no_edge.height), (40.0, 1.0));
     let chrome_only = page_bounds(leaf(0.0, 30.0), [0.0; 3], 2.0, 40.0).expect("old behavior");
     assert_eq!(
-        chrome_only.height, 1.0,
-        "the chrome alone already took the body"
+        (chrome_only.y, chrome_only.height),
+        (40.0, 1.0),
+        "the chrome alone already took the body; the window stays where it is without an edge"
     );
-    let exact = page_bounds(leaf(0.0, 40.0), [0.0; 3], 2.0, 40.0).expect("old behavior");
-    assert_eq!(exact.height, 1.0, "no body was left before the edge row");
+    let exact = page_bounds(leaf(60.0, 40.0), [0.0; 3], 2.0, 40.0).expect("old behavior");
+    assert_eq!(
+        (exact.y, exact.height),
+        (100.0, 1.0),
+        "no body was left before the edge row"
+    );
 }
 
 /// 띠를 빼기 전 본문이 1px 미만의 양수여도 띠 행이 그 본문을 없앴으면 숨긴다. 1px 창이 leaf 아래로
