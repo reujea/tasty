@@ -619,10 +619,23 @@ fn decode_nickname(params: &Value, id: &Value) -> Result<Option<String>, JsonRpc
     }
 }
 
-/// 셸 한 단어로 옮겨도 같은 값이 되도록 인용한다. 안전한 글자만 있으면 그대로 두고, 아니면 작은따옴표로
-/// 감싸고 안의 작은따옴표는 `'\''`로 바꾼다(POSIX sh).
+/// 셸 한 단어로 옮겨도 같은 값이 되도록 인용한다. 안내를 읽는 사람이 쓰는 셸에 맞춰 Windows는 PowerShell,
+/// 그 밖은 POSIX sh 규칙을 따른다. 안전한 글자만 있는 일반 키(`codex:<thread>`)는 두 규칙 모두 그대로 둔다.
+#[cfg(windows)]
 fn shell_word(value: &str) -> String {
+    powershell_word(value)
+}
+#[cfg(not(windows))]
+fn shell_word(value: &str) -> String {
+    posix_word(value)
+}
+
+/// POSIX sh 인용. 안전한 글자만 있고 '='로 시작하지 않으면 그대로 두고, 아니면 작은따옴표로 감싸고 안의
+/// 작은따옴표는 `'\''`로 바꾼다. '='로 시작하는 단어는 zsh가 명령 경로로 바꾸므로(EQUALS 확장) 인용한다.
+#[cfg(any(not(windows), test))]
+fn posix_word(value: &str) -> String {
     let safe = !value.is_empty()
+        && !value.starts_with('=')
         && value
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || "_@%+=:,./-".contains(c));
@@ -630,6 +643,20 @@ fn shell_word(value: &str) -> String {
         value.to_owned()
     } else {
         format!("'{}'", value.replace('\'', "'\\''"))
+    }
+}
+
+/// PowerShell 인용. 안전한 글자만 있으면 그대로 두고, 아니면 작은따옴표로 감싸고 안의 작은따옴표는 겹친다.
+#[cfg(any(windows, test))]
+fn powershell_word(value: &str) -> String {
+    let safe = !value.is_empty()
+        && value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "_:./-".contains(c));
+    if safe {
+        value.to_owned()
+    } else {
+        format!("'{}'", value.replace('\'', "''"))
     }
 }
 
@@ -1921,6 +1948,8 @@ mod tests {
             "back\\slash",
             "two words",
             "'",
+            "=sh",
+            "a=b",
         ] {
             let hint = other_window_hint(&ParentKey::External(key.into()));
             let word = hint
@@ -1936,6 +1965,40 @@ mod tests {
             assert_eq!(String::from_utf8_lossy(&out.stdout), key, "{hint}");
         }
         assert_eq!(other_window_hint(&ParentKey::Surface(3)), "");
+    }
+
+    /// '='로 시작하는 키는 zsh EQUALS 확장을 막으려 인용한다. sh에는 이 확장이 없어 위 시험만으로는 드러나지
+    /// 않으므로 문자열로 단정한다.
+    #[test]
+    fn a_posix_word_quotes_a_leading_equals() {
+        assert_eq!(posix_word("=sh"), "'=sh'");
+        assert_eq!(posix_word("a=b"), "a=b");
+        assert_eq!(posix_word("codex:w"), "codex:w");
+    }
+
+    /// PowerShell 인용은 작은따옴표를 겹치고 일반 키는 그대로 둔다.
+    #[test]
+    fn a_powershell_word_doubles_single_quotes() {
+        assert_eq!(powershell_word("codex:w"), "codex:w");
+        assert_eq!(powershell_word("it's"), "'it''s'");
+        assert_eq!(powershell_word("two words"), "'two words'");
+        assert_eq!(powershell_word("$HOME"), "'$HOME'");
+        assert_eq!(powershell_word("=sh"), "'=sh'");
+        assert_eq!(powershell_word("'"), "''''");
+    }
+
+    /// Windows의 다른 창 안내는 PowerShell 인용을 쓴다.
+    #[cfg(windows)]
+    #[test]
+    fn the_other_window_hint_uses_powershell_quoting_on_windows() {
+        assert_eq!(
+            other_window_hint(&ParentKey::External("it's".into())),
+            " (pass --parent-external 'it''s' --workspace <a workspace in that window>)"
+        );
+        assert_eq!(
+            other_window_hint(&ParentKey::External("codex:w".into())),
+            " (pass --parent-external codex:w --workspace <a workspace in that window>)"
+        );
     }
 
     /// 없는 child는 유효한 번호를 안내하는 -32602이고 registry는 그대로다.
