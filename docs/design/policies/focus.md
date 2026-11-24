@@ -354,9 +354,19 @@ IPC에는 토스트 대신 사유를 담은 오류를 반환한다. `surface.clo
 | | dag_graph | 탭 surface의 캔버스. 헤더·상세·노드는 그대로다 |
 | | markdown | 페이지 문서 바탕과 표 row·zebra. 페이지가 없을 때 대신 보이는 chrome 타일도 같다. no page 글리프는 `glyph-dim`이다. 문서 쪽 값은 호스트가 페이지에 넘긴다([WebView §바탕 포커스 상태](../systems/webview.md#바탕-포커스-상태)). Linux·macOS·Windows에서 구현했다 |
 | 바탕으로 분류, 아직 표시 없음 | image | 캔버스는 `bg-sidebar` 그대로다. `egui-mesh` 렌더링이라 chrome 타일을 쓰지 않는다 |
-| 띠로 분류, 아직 표시 없음 | html, 플러그인 | 포커스 표시가 없다. chrome 타일은 `bg-panel`, no page 글리프는 `text-disabled`로 그대로다 |
+| 띠 (`surface-focus-edge-focused`·`-unfocused`, 폭 `surface-focus-edge-width`) | html, `bed_focus`를 선언하지 않은 플러그인(webview·`egui-mesh`, mirror mesh 포함) | leaf 위쪽 행. 페이지·프레임·주소 띠는 그 아래에서 시작한다. chrome 타일은 `bg-panel`, no page 글리프는 `text-disabled`로 그대로다 |
 
 markdown과 image는 kind 이름과 등록한 플러그인 id를 함께 본다. 번들 플러그인이 빠진 설치에서는 제3자가 같은 kind 이름을 등록할 수 있고, 그 페이지의 바탕은 호스트가 보장하지 못한다. `com.tasty.` id는 공식 플러그인 전용이라 제3자가 쓸 수 없다. 다른 플러그인이 등록한 markdown은 띠다.
+
+**띠는 행을 예약한다.** 띠 kind leaf는 포커스와 상관없이 위쪽 행을 비우므로 포커스가 바뀌어도 내용이 움직이지 않는다. 행의 아래 경계는 정수 물리 px이고(`tasty_ui_widgets::surface_focus_edge_rows`), native 페이지의 위 끝·plugin 프레임·주소 띠가 모두 그 경계 아래에서 시작한다. 첫 프레임부터 같다. 행은 plugin 입력 영역이 아니고, 그 행을 누르면 leaf 클릭처럼 포커스만 옮긴다.
+
+- 띠 색은 그 화면의 모델 포커스를 따른다. hard 점유여도 포커스를 가지면 켜진다. mirror는 client 자기 포커스다.
+- 링(응답 대기·점유·완료)이 있는 leaf는 행 안에서 비포커스 띠 → 링 → 켜진 띠 순서로 칠한다. 링이 위 행을, 켜진 띠가 아래 행을 차지한다. 포커스된 leaf에는 행 안에 완료 링을 두지 않는다. 링은 띠 leaf에서 행 아래만 칠한다.
+- native WebView는 host 층보다 위라서 webview leaf에서는 페이지가 덮은 곳의 링이 보이지 않고 행 안의 윗변만 보인다. html의 주소 띠·배너는 host가 그리므로 그 옆에서는 링 옆변이 보인다.
+- 띠는 `Order::Middle` 층이라 탭 바와 host·plugin 팝업 아래다.
+- mirror mesh는 서버가 descriptor에 실은 소유 plugin의 `bed_focus`로 분류한다([attach 동작](../../dev-guide/attach-behavior.md)). 값을 싣지 않는 옛 서버의 mirror mesh는 띠다.
+
+**띠가 구별을 보장하는 범위.** `bed_focus`를 선언하지 않은 plugin kind는 띠가 늘 구별을 보인다. 선언한 kind는 바탕으로 분류해 띠가 없고, 페이지가 약속대로 host 테마 값을 칠할 때만 포커스가 보인다. host는 그 페이지의 바탕을 확인하지 못한다.
 
 워크스페이스 팝업의 DAG 그래프는 surface가 아니므로 캔버스가 `dag-canvas-bg` 그대로다.
 
@@ -373,7 +383,7 @@ markdown과 image는 kind 이름과 등록한 플러그인 id를 함께 본다. 
 
 ## 코드 위치
 
-- Surface 포커스 표현: 판정과 분류는 `src/state/surface_focus.rs`, 바탕 값 접근은 `tasty_ui_widgets::surface_bed`, chrome 타일의 바탕 선택은 `src/adapters/ui/surface/webview_chrome.rs`의 `WebviewTile`이고, 타일 그리기는 그 바탕을 받는 `tasty_ui_widgets::webview_page_tile`이다.
+- Surface 포커스 표현: 판정과 분류는 `src/state/surface_focus.rs`(띠 예약 `reserves_edge`·`below_edge`), 띠 칠하기는 `src/adapters/ui/surface_focus_edge.rs`, 링 판정은 `src/adapters/ui/surface_rings.rs`, mesh 프레임 영역은 `src/state/mesh_frames.rs`, 바탕 값 접근은 `tasty_ui_widgets::surface_bed`, chrome 타일의 바탕 선택은 `src/adapters/ui/surface/webview_chrome.rs`의 `WebviewTile`이고, 타일 그리기는 그 바탕을 받는 `tasty_ui_widgets::webview_page_tile`이다.
 
 - `active_modal_id()` / `modal_active` 게이트: `src/app/event_handler.rs`(`self.view.active_modal_id()`), View 디스패치.
 - focus 대상 해석 / `TASTY_SURFACE_ID` / `this`: `crates/tasty-cli/src/request.rs`.

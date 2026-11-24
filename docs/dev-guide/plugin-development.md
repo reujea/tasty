@@ -123,7 +123,7 @@ surface kind 선언에는 host 가 kind-agnostic 하게 소비하는 메타가 �
   - **`remote_http_serve`** — attach 서버가 이 kind 문서의 하위 파일과 HTTP 응답을 client 에 제공한다([HTML 전송](html-transfer.md)). 원격 파일 열기는 viewer 를 협상한 연결에서만 이 kind 를 고른다.
   - **`mirror_viewer`** — attach mirror 에서 서버 문서를 이 kind 의 원격 entry viewer(`remote.html_entry`)로 연다. 서버는 같은 kind 가 `remote_http_serve`(문서·하위 파일·HTTP 제공)와 `address_band`(문서 출처 기록)도 선언했을 때만 그 surface 를 viewer 로 알린다. client 쪽 kind 는 `mirror_viewer` 만 있으면 된다.
   - **`mirror_content`** — attach mirror 에서 서버가 준 원문을 이 kind 가 다시 그린다(`remote.file`). 원격 파일 열기의 대상이 된다([attach 동작](attach-behavior.md#markdown-content-채널)).
-  - **`bed_focus`** — 바탕 포커스 상태를 받는다([포커스 정책](../design/policies/focus.md#surface-포커스-표현)). 페이지가 바탕을 host 테마 값으로 칠한다는 약속이다.
+  - **`bed_focus`** — 바탕 포커스 상태를 받는다([포커스 정책](../design/policies/focus.md#surface-포커스-표현)). 페이지가 바탕을 host 테마 값으로 칠한다는 약속이다. 선언하지 않은 kind 는 host 가 leaf 위쪽에 포커스 띠를 그리고 페이지·프레임을 그 아래에 둔다. 선언한 kind 에는 띠가 없어, 페이지가 약속을 지키지 않으면 포커스가 보이지 않는다.
   - 선언한 키는 kind 이름과 상관없이 그 값을 쓴다. 선언하지 않은 키는 배포된 번들 manifest 가 아직 이 키들을 선언하지 않아 기능이 꺼지지 않게 이름으로 정한다. `address_band`·`inset_notices`·`script_gate` 는 kind 이름이 `html` 이면, `opens_url`·`remote_http_serve`·`mirror_viewer` 는 `com.tasty.html` 의 `html` 이면, `mirror_content` 는 `com.tasty.markdown` 의 `markdown` 이면, `bed_focus` 는 `com.tasty.markdown` 의 `markdown` 이나 `com.tasty.image` 의 `image` 면 true 다. 이 이름 규칙은 그 함수 밖에 두지 않는다.
   - attach mirror 의 client 는 서버 descriptor 가 알린 `kind` 를 자기 쪽에서 찾는다. 서버와 client 에 같은 이름의 kind 가 같은 능력을 선언해야 mirror 가 문서를 보인다.
 

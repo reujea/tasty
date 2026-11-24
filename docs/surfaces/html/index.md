@@ -85,7 +85,7 @@ HTML / 웹 콘텐츠를 보는 **`html` surface 종류**를 제공한다. `rende
 
 ## 주소 표시줄
 
-html surface 위쪽에 host가 주소 띠를 그린다. 띠는 공용 view `tasty_ui_widgets::html_address_bar`이고 갤러리와 같은 코드다([UI widgets](../../architecture/ui-widgets-crate.md#html-address-band-primitive)). 연결은 `src/adapters/ui/surface/html_address.rs`가 맡는다. 플러그인은 바뀌지 않고, 문서 DOM에 아무것도 넣지 않는다.
+html surface 위쪽에 host가 주소 띠를 그린다. 주소 띠는 leaf 맨 위 포커스 띠 행 아래에서 시작한다([포커스 표현](../../design/policies/focus.md#surface-포커스-표현)). 띠는 공용 view `tasty_ui_widgets::html_address_bar`이고 갤러리와 같은 코드다([UI widgets](../../architecture/ui-widgets-crate.md#html-address-band-primitive)). 연결은 `src/adapters/ui/surface/html_address.rs`가 맡는다. 플러그인은 바뀌지 않고, 문서 DOM에 아무것도 넣지 않는다.
 
 - **구성** — 뒤로·앞으로·새로고침 버튼과 주소 입력란. Go 버튼은 없고 Enter로 연다. 버튼은 사용자 탐색 큐(`WebViewUserNav::Back`·`Forward`·`Reload`)에 넣고, 뒤로·앞으로의 비활성은 `can_go_back`·`can_go_forward`가 정한다. 로딩 중에는 새로고침 자리에 Spinner가 보이고 누를 수 없다. surface 폭이 `banner_narrow_below`(440) 미만이면 앞으로 버튼을 숨긴다.
 - **보이는 주소** — 로드가 끝난 상태(`Done`·`Idle`)에서는 commit 주소(`surface.html_nav`의 `url`)를 보인다. 로드 중(`Loading`)과 실패(`Failed`)에서는 시도 주소를 보인다. 시도 주소는 띠로 연 주소와, 호스트가 넣은 주소(`webview_url`, `tasty html open`)가 바뀌었을 때의 새 주소다. 시도 주소는 로드를 본 뒤 로드가 끝나거나 commit 주소가 그 주소가 되면 지운다. 실패하면 다음 시도까지 남으므로 chrome은 "Failed to load"를, 띠는 시도한 주소를 보이고 commit 주소는 이전 문서를 가리킨다. 페이지 안 링크로 시작한 로드가 실패하면 시도 주소를 알 수 없어 commit 주소를 보인다(남은 한계).

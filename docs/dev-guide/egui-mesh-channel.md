@@ -22,6 +22,8 @@ plugin 이 **자기 프로세스에서 egui 를 tessellate** 한 vector mesh 를
           → surface 물리 rect 으로 평행이동 + scissor 합성
 ```
 
+surface 의 프레임 영역은 `MainViewState::mesh_frame_regions`(`src/state/mesh_frames.rs`) 하나가 정한다. 합성·`set_context` 크기·포인터 대상·입력 좌표·IME 위치가 모두 이 영역을 쓴다. 포커스를 띠로 보이는 kind(`bed_focus` 미선언, mirror 는 서버 descriptor 의 `bed_focus`)는 leaf 위쪽 띠 행을 뺀 영역이라 `width_px`·`height_px` 도 그만큼 작다([포커스 표현](../design/policies/focus.md#surface-포커스-표현)). 띠 행은 plugin 입력 영역이 아니다. attach client 가 보낸 크기도 띠를 뺀 값이고, GUI 서버의 첫 프레임 생성도 그 크기를 쓴다.
+
 epaint 의 `serde` feature 가 꺼져 있어 paint 타입은 JSON 직렬화가 불가하다. 그래서
 `Vertex`/`indices`(이미 `bytemuck::Pod`)는 바이트 직카피하고 나머지는 수동 POD 로
 인코딩한다 (코덱: `mesh_wire`). `Primitive::Callback` 은 미지원(skip).
