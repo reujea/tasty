@@ -1146,68 +1146,108 @@ mod tests {
         tasty_themes::mocha_fallback()
     }
 
-    /// 글자 폭을 잴 수 없을 때 앱 경로(`target_budget` → `fh_remote_path_budget_from`)가 넘기는 값(글리프·간격·호스트 상한·글자당 폭)으로 정본 Meta
-    /// 'path cap, unmeasured'의 재연결 값이 나온다. 빈 호스트(상한 160) 옆 재연결: en 21 · ko 24 · ja 25 · zh-Hans 23.
+    /// 앱 글꼴을 깐 egui Context 에서 앱 `target_budget` 을 원격 표지와 함께 부른다(두 pass, 뒤 pass 값).
+    fn app_budget(th: &Theme, mark: &tasty_ui_widgets::RemoteMark<'_>) -> usize {
+        let ctx = egui::Context::default();
+        crate::gfx::gpu::GpuState::setup_egui_fonts(&ctx);
+        let mut out = 0;
+        for _ in 0..2 {
+            // 출력은 그리지 않고 잰 값만 쓴다.
+            let _ = ctx.run(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    out = target_budget(ui, th, Some(mark));
+                });
+            });
+        }
+        out
+    }
+
+    /// 경로 글자 폭을 잴 수 없는 caption 크기(0.01 — 정수 픽셀 advance 라 "00" 과 "0" 의 폭 차가 0)의 테마.
+    /// 표지 폭과 상태 단어 폭도 0 이라 잰 값으로 쓰이지 않는다.
+    fn unmeasurable_theme() -> Theme {
+        let mut th = test_theme();
+        th.font_size_caption = LogicalPx(0.01);
+        th
+    }
+
+    const LANGUAGE_PROBE: &str = "TASTY_FH_TARGET_BUDGET_LANGUAGE_PROBE";
+
+    /// 경로 글자 폭을 잴 수 없으면 앱 `target_budget` 은 원격 표지를 뺀 추정을 쓴다(표지 없는 공통 상한이
+    /// 아니다): 'work-laptop-attach' 43, 빈 호스트 옆 재연결 en 21. 언어는 현재 언어(`current_language`)다 —
+    /// ja·zh-Hans 는 새 프로세스에서 그 언어로 초기화해 다시 실행한다(언어 표는 프로세스에 한 번 정해진다):
+    /// 빈 호스트 옆 재연결 ja 25 · zh-Hans 23.
     #[test]
-    fn the_app_unmeasured_path_cap_beside_a_reconnecting_mark_follows_the_word_language() {
-        let th = test_theme();
-        for (word, language, want) in [
-            ("reconnecting", "en", 21),
-            ("재연결 중", "ko", 24),
-            ("再接続中", "ja", 25),
-            ("重新连接中", "zh-Hans", 23),
-        ] {
-            let mark = tasty_ui_widgets::RemoteMark {
-                host: "",
-                empty_label: "Remote",
-                reconnecting: Some(word),
+    fn the_app_target_budget_takes_the_remote_mark_and_the_current_language_when_unmeasured() {
+        let reconnecting = |word| tasty_ui_widgets::RemoteMark {
+            host: "",
+            empty_label: "Remote",
+            reconnecting: Some(word),
+        };
+        if let Ok(language) = std::env::var(LANGUAGE_PROBE) {
+            crate::i18n::init(&language);
+            assert_eq!(crate::i18n::current_language(), language);
+            let (word, want) = match language.as_str() {
+                "ja" => ("再接続中", 25),
+                _ => ("重新连接中", 23),
             };
             assert_eq!(
-                tasty_ui_widgets::fh_remote_path_budget_from(
-                    &th,
-                    LogicalPx(f32::NAN),
-                    LogicalPx(40.0),
-                    None,
-                    &mark,
-                    language
-                ),
+                app_budget(&unmeasurable_theme(), &reconnecting(word)),
                 want,
                 "{language}"
             );
+            return;
+        }
+        let th = unmeasurable_theme();
+        assert_eq!(crate::i18n::current_language(), "en");
+        let named = tasty_ui_widgets::RemoteMark {
+            host: "work-laptop-attach",
+            empty_label: "Remote",
+            reconnecting: None,
+        };
+        assert_eq!(app_budget(&th, &named), 43, "work-laptop-attach");
+        assert_eq!(app_budget(&th, &reconnecting("reconnecting")), 21, "en");
+        let exe = std::env::current_exe().expect("test binary path");
+        for language in ["ja", "zh-Hans"] {
+            let out = std::process::Command::new(&exe)
+                .args([
+                    "--exact",
+                    "adapters::ui::popup::file_handler_picker::tests::the_app_target_budget_takes_the_remote_mark_and_the_current_language_when_unmeasured",
+                ])
+                .env(LANGUAGE_PROBE, language)
+                .env("TASTY_LOCALE", language)
+                .output()
+                .expect("run the test binary again");
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            assert!(out.status.success(), "{language}: {stdout}");
+            // 다시 실행한 프로세스가 이 시험 하나를 실제로 돌렸는지 본다(이름이 어긋나면 0개가 돌고 성공한다).
+            assert!(stdout.contains("1 passed"), "{language}: {stdout}");
         }
     }
 
-    /// 경로 글자 폭만 잴 수 없고 상태 단어 폭은 잰 경우, 앱 경로는 언어별 추정 대신 잰 폭을 뺀다.
-    /// 빈 호스트(상한 160) 옆: 잰 폭 30 → floor((366 − 160 − 4 − 30) / 6) = 28, 못 잰 en 추정(72) → 21.
+    /// 경로 글자 폭은 재지만 한 글자도 들어가지 않으면(표지가 상자를 넘음) 앱 `target_budget` 은 추정으로
+    /// 가고, 상태 단어 폭은 표지가 그리는 글꼴로 잰 값(`fh_remote_word_width`)을 쓴다. 48자 CJK 단어는 잰 폭이
+    /// 남은 상자를 넘어 1자이고, 잰 폭 없이 en 칸 수(칸당 6)로 추정하면 'h' 옆에서 11자다.
     #[test]
-    fn the_app_unmeasured_path_cap_uses_the_measured_status_word_width() {
+    fn the_app_target_budget_passes_the_measured_status_word_width() {
         let th = test_theme();
+        let word = "再接続中".repeat(12);
         let mark = tasty_ui_widgets::RemoteMark {
-            host: "",
+            host: "h",
             empty_label: "Remote",
-            reconnecting: Some("reconnecting"),
+            reconnecting: Some(&word),
         };
-        let budget = |word_w| {
-            tasty_ui_widgets::fh_remote_path_budget_from(
-                &th,
-                LogicalPx(f32::NAN),
-                LogicalPx(40.0),
-                word_w,
-                &mark,
-                "en",
-            )
-        };
-        assert_eq!(budget(Some(LogicalPx(30.0))), 28, "measured");
-        assert_eq!(budget(None), 21, "not measured");
-        assert_eq!(
-            budget(Some(LogicalPx(0.0))),
-            21,
-            "zero width is not a measure"
+        assert_eq!(app_budget(&th, &mark), 1);
+        let estimated = tasty_ui_widgets::fh_remote_path_budget_from(
+            &th,
+            LogicalPx(f32::NAN),
+            LogicalPx(f32::NAN),
+            None,
+            &mark,
+            "en",
         );
         assert_eq!(
-            budget(Some(LogicalPx(f32::NAN))),
-            21,
-            "NaN is not a measure"
+            estimated, 11,
+            "the language estimate the measured width replaces"
         );
     }
 

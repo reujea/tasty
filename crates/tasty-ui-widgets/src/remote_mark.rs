@@ -375,6 +375,72 @@ mod tests {
         Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0)
     }
 
+    /// 경로 글자 폭을 잴 수 없을 때 `fh_remote_path_budget_from` 이 Theme 토큰(글리프·간격·호스트 상한)과
+    /// 글자당 폭 상수로 정본 Meta 'path cap, unmeasured' 의 재연결 값을 낸다. 빈 호스트(상한 160) 옆 재연결:
+    /// en 21 · ko 24 · ja 25 · zh-Hans 23.
+    #[test]
+    fn the_unmeasured_path_cap_beside_a_reconnecting_mark_follows_the_word_language() {
+        let th = theme();
+        for (word, language, want) in [
+            ("reconnecting", "en", 21),
+            ("재연결 중", "ko", 24),
+            ("再接続中", "ja", 25),
+            ("重新连接中", "zh-Hans", 23),
+        ] {
+            let mark = RemoteMark {
+                host: "",
+                empty_label: "Remote",
+                reconnecting: Some(word),
+            };
+            assert_eq!(
+                fh_remote_path_budget_from(
+                    &th,
+                    LogicalPx(f32::NAN),
+                    LogicalPx(40.0),
+                    None,
+                    &mark,
+                    language
+                ),
+                want,
+                "{language}"
+            );
+        }
+    }
+
+    /// 경로 글자 폭만 잴 수 없고 상태 단어 폭은 잰 경우 언어별 추정 대신 잰 폭을 뺀다. 빈 호스트(상한 160)
+    /// 옆: 잰 폭 30 → floor((366 − 160 − 4 − 30) / 6) = 28, 못 잰 en 추정(72) → 21.
+    #[test]
+    fn the_unmeasured_path_cap_uses_the_measured_status_word_width() {
+        let th = theme();
+        let mark = RemoteMark {
+            host: "",
+            empty_label: "Remote",
+            reconnecting: Some("reconnecting"),
+        };
+        let budget = |word_w| {
+            fh_remote_path_budget_from(
+                &th,
+                LogicalPx(f32::NAN),
+                LogicalPx(40.0),
+                word_w,
+                &mark,
+                "en",
+            )
+        };
+        assert_eq!(budget(Some(LogicalPx(30.0))), 28, "measured");
+        assert_eq!(budget(None), 21, "not measured");
+        assert_eq!(
+            budget(Some(LogicalPx(0.0))),
+            21,
+            "zero width is not a measure"
+        );
+        assert_eq!(
+            budget(Some(LogicalPx(f32::NAN))),
+            21,
+            "NaN is not a measure"
+        );
+    }
+
     /// 앱 글꼴(D2Coding mono)을 깐 한 프레임 안에서 `f` 를 부른다. 폭 계산에 글꼴이 필요하다.
     fn in_frame<R>(f: impl FnOnce(&egui::Ui) -> R) -> R {
         let ctx = egui::Context::default();
