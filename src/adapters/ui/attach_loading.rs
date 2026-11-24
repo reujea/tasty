@@ -153,28 +153,51 @@ pub(crate) fn draw(
         .join("\n");
     let fallback = LogicalPx(bounds.top()) + state.tab_bar_height.to_logical(scale) + inset;
     let top = notice_column.chip_top(fallback, theme.notice_column_gap());
+    show_chip(
+        ctx,
+        &theme,
+        egui::pos2(
+            (LogicalPx(bounds.right()) - inset - width).value(),
+            top.value(),
+        ),
+        width,
+        bounds,
+        &tasty_ui_widgets::PendingIndicator {
+            label: &label,
+            time: &time,
+            compact: false,
+            details: &details,
+            open: false,
+        },
+    );
+}
+
+/// Draws the chip with its left top at `left_top` in the work area `bounds`. Like the design work
+/// area (overflow hidden), a chip pushed past the bottom by the notices above it is clipped there,
+/// not pulled back up over them.
+fn show_chip(
+    ctx: &egui::Context,
+    theme: &tasty_type_appearance::theme::Theme,
+    left_top: egui::Pos2,
+    width: LogicalPx,
+    bounds: egui::Rect,
+    chip: &tasty_ui_widgets::PendingIndicator<'_>,
+) {
     // Does not hide native child windows or register a keyboard/pointer target.
     egui::Area::new(egui::Id::new("attach_response_wait"))
         .order(egui::Order::Foreground)
         .interactable(false)
-        .fixed_pos(egui::pos2(
-            (LogicalPx(bounds.right()) - inset - width).value(),
-            top.value(),
-        ))
+        .fixed_pos(left_top)
+        .constrain_to(bounds)
+        .constrain(false)
         .show(ctx, |ui| {
             ui.set_width(width.value());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                tasty_ui_widgets::PendingIndicator {
-                    label: &label,
-                    time: &time,
-                    compact: false,
-                    details: &details,
-                    open: false,
-                }
-                .show(ui, &theme);
+                chip.show(ui, theme);
             });
         });
 }
+
 /// Where the window's notice column is this frame, as the popup manager placed it.
 #[derive(Clone, Copy, Default)]
 pub(crate) struct NoticeColumnPlace {
@@ -367,5 +390,73 @@ pub(crate) mod paint_order {
                 })
         });
         (spinner, cap)
+    }
+}
+
+#[cfg(test)]
+mod chip_area_tests {
+    use crate::model::LogicalPx;
+
+    /// Given notices pushed the chip to the bottom of the work area, When the chip is drawn, Then
+    /// it stays where the column put it (under the notices) and is clipped at the work area,
+    /// instead of being pulled back up over the notices.
+    #[test]
+    fn a_chip_past_the_work_area_bottom_stays_under_the_notices_and_is_clipped() {
+        let theme = crate::theme::theme();
+        let ctx = egui::Context::default();
+        let bounds = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(800.0, 300.0));
+        let left_top = egui::pos2(432.0, 290.0);
+        let mut shapes = Vec::new();
+        for step in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 400.0),
+                )),
+                time: Some(f64::from(step) * 0.1),
+                ..Default::default()
+            };
+            let output = ctx.run(input, |ctx| {
+                super::show_chip(
+                    ctx,
+                    &theme,
+                    left_top,
+                    LogicalPx(360.0),
+                    bounds,
+                    &tasty_ui_widgets::PendingIndicator {
+                        label: "Copying to clipboard",
+                        time: "2s",
+                        compact: false,
+                        details: "Copying to clipboard · 2s",
+                        open: false,
+                    },
+                );
+            });
+            shapes = output.shapes;
+        }
+        let area = ctx
+            .memory(|m| m.area_rect(egui::Id::new("attach_response_wait")))
+            .expect("the chip was drawn");
+        assert_eq!(
+            area.top(),
+            left_top.y,
+            "the chip is not pulled up: {area:?}"
+        );
+        assert!(
+            area.bottom() > bounds.bottom(),
+            "the chip runs past the bottom"
+        );
+        let drawn: Vec<_> = shapes
+            .iter()
+            .filter(|c| !matches!(c.shape, egui::Shape::Noop))
+            .collect();
+        assert!(!drawn.is_empty(), "the chip paints");
+        for c in drawn {
+            assert!(
+                bounds.contains_rect(c.clip_rect),
+                "chip shape clipped to {:?}, past the work area",
+                c.clip_rect
+            );
+        }
     }
 }
