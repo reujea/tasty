@@ -753,10 +753,26 @@ fn find_bindings_keep_their_meaning() {
     }
 }
 
-/// 검색 띠 키맵 수신 판정은 본문 읽기(`consume_binding_egui`)가 지우는 누름과 같다.
+/// 검색 띠 키맵 수신 판정은 본문 읽기(`consume_binding_egui`)가 지우는 누름과 같다. 물리 Alt+F 바인딩은 그
+/// 누름의 저장 토큰으로 둔다(`tasty_key_match::token_axes`: macOS 는 `option`, 다른 OS 는 `alt`). 그 바인딩이
+/// 이 누름에 실제로 맞는지 시험이 먼저 확인한다.
 #[test]
 fn the_find_keymap_receives_what_the_body_consumes() {
-    let find = vec!["ctrl+f".to_string(), "alt+f".to_string(), "f3".to_string()];
+    let alt_f = if cfg!(target_os = "macos") {
+        "option+f"
+    } else {
+        "alt+f"
+    };
+    assert!(
+        tasty_key_match::binding_matches_egui(
+            &[alt_f.to_string()],
+            egui::Key::F,
+            egui::Modifiers::ALT,
+            false,
+        ),
+        "`{alt_f}` 가 물리 Alt+F 에 맞는다"
+    );
+    let find = vec!["ctrl+f".to_string(), alt_f.to_string(), "f3".to_string()];
     let mods = [
         egui::Modifiers::NONE,
         egui::Modifiers::SHIFT,

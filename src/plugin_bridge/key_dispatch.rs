@@ -384,6 +384,15 @@ mod tests {
         );
     }
 
+    /// 물리 Ctrl+Alt+Z 의 저장 토큰(`tasty_key_match::token_axes`: macOS 는 `option`, 다른 OS 는 `alt`).
+    fn ctrl_alt_z_binding() -> &'static str {
+        if cfg!(target_os = "macos") {
+            "ctrl+option+z"
+        } else {
+            "ctrl+alt+z"
+        }
+    }
+
     /// 같은 plugin의 같은 키(ctrl+shift+r)에 Surface 명령을 먼저, Global 명령을 뒤에 묶은 매니저.
     fn surface_then_global() -> (crate::test_support::IsolatedHome, PluginManager) {
         let (home, mut m) = mgr();
@@ -402,7 +411,7 @@ mod tests {
                 ),
                 cmd(
                     "a.global_only",
-                    "ctrl+alt+z",
+                    ctrl_alt_z_binding(),
                     tasty_plugin_manifest::CommandScope::Global,
                 ),
             ],
@@ -434,12 +443,18 @@ mod tests {
         );
     }
 
-    /// T-12a-3 대조: 후보 하나인 키는 걸러지는 후보가 없어 그대로 돈다.
+    /// T-12a-3 대조: 후보 하나인 키는 걸러지는 후보가 없어 그대로 돈다. 바인딩이 이 누름에 실제로 맞는지 먼저
+    /// 확인한다.
     #[test]
     fn a_key_with_one_allowed_candidate_runs_it() {
         let (_home, m) = surface_then_global();
         let kb = KeybindingSettings::preset_tasty();
         let mods = ModifiersState::CONTROL | ModifiersState::ALT;
+        assert!(
+            matches_any_binding(&[ctrl_alt_z_binding().to_string()], &k_char("z"), mods),
+            "`{}` 가 물리 Ctrl+Alt+Z 에 맞는다",
+            ctrl_alt_z_binding()
+        );
         assert_eq!(
             match_plugin_shortcut(
                 &m,
