@@ -215,12 +215,19 @@ fn parse(file: &str, text: &str) -> (Vec<Job>, Vec<String>) {
         .enumerate()
         .map(|(i, l)| (i + 1, l.to_string()))
         .collect();
-    let Some(start) = lines.iter().position(|(_, l)| l == "jobs:") else {
+    let Some(start) = lines.iter().position(|(_, l)| l.starts_with("jobs:")) else {
         errs.push(format!(
-            "{file} {UNSUPPORTED}: 들여쓰기 없는 `jobs:` 줄이 없다"
+            "{file}:1 {UNSUPPORTED}: 들여쓰기 없는 `jobs:` 줄이 없다"
         ));
         return (Vec::new(), errs);
     };
+    if lines[start].1 != "jobs:" {
+        errs.push(format!(
+            "{file}:{} {UNSUPPORTED}: `jobs:` 뒤에 다른 글자가 있다",
+            lines[start].0
+        ));
+        return (Vec::new(), errs);
+    }
     let mut jobs = Vec::new();
     let mut k = start + 1;
     while k < lines.len() {
@@ -638,7 +645,7 @@ fn check_prepare_body(file: &str, job: &Job, s: &Step, r: &mut Report) {
     for f in &s.fields {
         if !PREPARE_KEYS.contains(&f.key.as_str()) {
             p.push(format!(
-                "{at} — prepare 스텝에 받지 않는 키 {}가 있다",
+                "{at} — {UNSUPPORTED}: prepare 스텝에 받지 않는 키 {}가 있다",
                 f.key
             ));
         }
@@ -648,7 +655,7 @@ fn check_prepare_body(file: &str, job: &Job, s: &Step, r: &mut Report) {
         Err(e) => return p.push(e),
     };
     let Some(run) = s.fields.iter().find(|f| f.key == "run") else {
-        return p.push(format!("{at} — prepare 스텝에 run이 없다"));
+        return p.push(format!("{at} — {UNSUPPORTED}: prepare 스텝에 run이 없다"));
     };
     let body: Vec<Option<&str>> = run
         .children
@@ -658,7 +665,7 @@ fn check_prepare_body(file: &str, job: &Job, s: &Step, r: &mut Report) {
     let want_shell = if windows { "pwsh" } else { "bash" };
     if shell.as_deref() != Some(want_shell) {
         return p.push(format!(
-            "{at} — prepare 스텝의 꼴이 잡의 OS와 다르다: shell {shell:?}, 기대 {want_shell}"
+            "{at} — {UNSUPPORTED}: prepare 스텝의 꼴이 잡의 OS와 다르다: shell {shell:?}, 기대 {want_shell}"
         ));
     }
     let exact = match shell.as_deref() {
@@ -683,7 +690,7 @@ fn check_prepare_body(file: &str, job: &Job, s: &Step, r: &mut Report) {
     };
     if !exact {
         p.push(format!(
-            "{at} — prepare 스텝의 run이 정해진 준비 스크립트 호출과 다르다"
+            "{at} — {UNSUPPORTED}: prepare 스텝의 run이 정해진 준비 스크립트 호출과 다르다"
         ));
     }
 }
@@ -1144,4 +1151,29 @@ fn a_windows_prepare_block_in_a_linux_job_is_caught() {
         ),
     );
     assert_caught(&all, "prepare 스텝의 꼴이 잡의 OS와 다르다");
+}
+
+/// R5: 지원 밖 표기 오류는 모든 경로에서 파일:행과 `지원하지 않는 표기`를 낸다.
+#[test]
+fn every_notation_error_names_the_line_and_the_phrase() {
+    let text = workflows()
+        .into_iter()
+        .find(|(f, _)| f == "test.yml")
+        .expect("test.yml")
+        .1;
+    let no = text.lines().position(|l| l == "jobs:").expect("jobs:") + 1;
+    let all = mutated("test.yml", "\njobs:\n", "\njobs: # comment\n");
+    assert_caught(&all, &format!("test.yml:{no} 지원하지 않는 표기"));
+    let call = "        run: bash scripts/ci-prepare-workspace.sh\n";
+    let all = mutated(
+        "test.yml",
+        LINUX_PREPARE,
+        &LINUX_PREPARE.replace(call, &format!("        if: false\n{call}")),
+    );
+    assert_caught(
+        &all,
+        "지원하지 않는 표기: prepare 스텝에 받지 않는 키 if가 있다",
+    );
+    let all = mutated("test.yml", call, "        run: echo skipped\n");
+    assert_caught(&all, "지원하지 않는 표기: prepare 스텝의 run이");
 }
