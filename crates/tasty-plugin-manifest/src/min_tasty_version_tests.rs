@@ -200,11 +200,17 @@ fn a_larger_requirement_still_passes_validate_so_readers_can_load_it() {
     assert_eq!(m.min_tasty_version.as_deref(), Some("99.0.0"));
 }
 
+/// 본체 버전의 prerelease·build 꼬리는 떼고 숫자 셋만 저장한다(develop의 `-dev` 같은 버전으로도 시작한다).
+/// 이 바이너리가 쓰는 값(1.0.0·거절)과 숫자 셋이 같아 다른 시험과 충돌하지 않는다.
 #[test]
-fn the_host_version_setter_accepts_semver_and_keeps_only_the_release_numbers() {
+fn the_host_version_setter_drops_prerelease_and_build_suffixes() {
     assert!(host_version::parse_release_version("0.14.0").is_some());
     assert!(host_version::parse_release_version("0.14.0-dev").is_none());
     assert!(set_host_tasty_version("not-a-version", VersionShortfall::Refuse).is_err());
+    for version in ["1.0.0-rc.1", "1.0.0+build.5", "1.0.0"] {
+        set_host_tasty_version(version, VersionShortfall::Refuse).expect(version);
+    }
+    assert_eq!(host_tasty_version(), Some(&semver::Version::new(1, 0, 0)));
 }
 
 /// 받아들이는 자리의 공용 단계는 타입 역직렬화·선언 검사보다 먼저 버전을 판정한다.
