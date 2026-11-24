@@ -353,6 +353,10 @@ const OUTSIDE_POPUPS: &[(&str, &str)] = &[
         "src/adapters/ui/popup/window_input_test_support.rs",
         "시험 지원: 창처럼 패스 시작의 Escape 눌림 상태를 읽는다",
     ),
+    (
+        "src/adapters/ui/titlebar/view.rs",
+        "창 제목 줄이 egui 드래그 후보를 따라가려고 Escape 눌림만 읽는다(설정창은 키 문 안에서 그린다)",
+    ),
     ("src/adapters/ui/preset.rs", "프리셋 편집 창의 단축키 판정"),
     ("src/adapters/ui/preset/toolbar.rs", "프리셋 편집 창"),
     (
