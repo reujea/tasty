@@ -144,6 +144,7 @@ impl GpuState {
 
         // 최소화 중 크기를 잘못 보고하는 것은 Windows 의 장식 없는 창이다. 다른 OS 는 그대로 둔다.
         let minimized = cfg!(windows) && window.is_minimized() == Some(true);
+        let composed_popups = self.composed_popups();
         self.run_main_pass(
             window,
             state,
@@ -222,6 +223,7 @@ impl GpuState {
                     ctx,
                     state,
                     plugin_manager,
+                    &composed_popups,
                     host_popup_on_top,
                     scale_factor,
                 );

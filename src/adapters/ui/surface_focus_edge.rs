@@ -84,12 +84,21 @@ pub(crate) fn chrome_top(state: &MainViewState, surface_id: u32) -> Option<f32> 
     ring_clip(state, surface_id).map(|below| below.top())
 }
 
+/// GPU가 이번 프레임에 합성할 plugin 팝업 본문 하나. 본문이 있고 primitive가 남은 팝업만 든다.
+/// `clips`는 팝업 안 논리 px(`ppp` 기준)의 primitive 잘림 영역이다.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct ComposedPopup {
+    pub(crate) ppp: f32,
+    pub(crate) clips: Vec<egui::Rect>,
+}
+
 /// 띠를 칠한다. plugin 팝업을 그린 뒤 부른다. host 팝업이 plugin 팝업 위일 때는 plugin 본문이 egui보다
-/// 먼저 합성되므로, 이번 프레임에 합성될 본문(프레임이 있는 팝업)의 영역을 띠 행에서 뺀다.
+/// 먼저 합성되므로, 이번 프레임에 실제로 합성될 본문이 칠하는 영역을 띠 행에서 뺀다.
 pub(crate) fn paint(
     ctx: &egui::Context,
     state: &MainViewState,
     plugin_manager: Option<PluginDisplay<'_>>,
+    composed: &std::collections::HashMap<u64, ComposedPopup>,
     host_popup_on_top: bool,
     scale_factor: f32,
 ) {
@@ -97,13 +106,13 @@ pub(crate) fn paint(
         return;
     }
     let theme = crate::theme::theme();
-    let bodies: Vec<egui::Rect> = match plugin_manager {
-        Some(mgr) if host_popup_on_top => state
-            .plugin_mesh_popup_regions
-            .iter()
-            .filter(|(iid, _)| mgr.popup_mesh_frame(*iid).is_some())
-            .map(|(_, r)| crate::adapters::ui::to_egui_rect(*r, scale_factor))
-            .collect(),
+    let bodies = match plugin_manager {
+        Some(mgr) if host_popup_on_top => composited_bodies(
+            &state.plugin_mesh_popup_regions,
+            composed,
+            |iid| mgr.popup_mesh_frame(iid).is_some(),
+            scale_factor,
+        ),
         _ => Vec::new(),
     };
     let painter = ctx.layer_painter(egui::LayerId::new(
@@ -117,10 +126,57 @@ pub(crate) fn paint(
             ring: edge.ring,
             corner_radius: tasty_type_geometry::length::LogicalPx(0.0),
         };
-        for piece in subtract(row, &bodies) {
+        for piece in edge_pieces(row, host_popup_on_top, &bodies) {
             widget.paint_rows(&painter.with_clip_rect(piece), &theme, edge.leaf, edge.rows);
         }
     }
+}
+
+/// 띠 행에서 칠할 조각. host 팝업이 위일 때만 먼저 합성된 plugin 본문 영역을 뺀다. 아니면 plugin 본문이
+/// egui 뒤에 합성되어 띠를 덮으므로 행을 그대로 칠한다.
+fn edge_pieces(row: egui::Rect, host_popup_on_top: bool, bodies: &[egui::Rect]) -> Vec<egui::Rect> {
+    if host_popup_on_top {
+        subtract(row, bodies)
+    } else {
+        vec![row]
+    }
+}
+
+/// 합성될 plugin 팝업 본문이 칠하는 영역(host 논리 px). 프레임이 있고 GPU가 본문을 가진 팝업에서
+/// primitive 잘림 영역을 팝업 영역 안으로 자른 것만 든다. 합성 경로와 같은 평행이동·자르기다.
+fn composited_bodies(
+    regions: &[(u64, PhysicalRect)],
+    composed: &std::collections::HashMap<u64, ComposedPopup>,
+    has_frame: impl Fn(u64) -> bool,
+    scale_factor: f32,
+) -> Vec<egui::Rect> {
+    let mut out = Vec::new();
+    for (iid, region) in regions {
+        let Some(body) = composed.get(iid).filter(|_| has_frame(*iid)) else {
+            continue;
+        };
+        if body.ppp <= 0.0 {
+            continue;
+        }
+        let bounds = crate::adapters::ui::to_egui_rect(*region, body.ppp);
+        for clip in &body.clips {
+            let local = clip.translate(bounds.min.to_vec2()).intersect(bounds);
+            if !local.is_positive() {
+                continue;
+            }
+            let logical = tasty_type_geometry::rect::LogicalRect {
+                x: tasty_type_geometry::length::LogicalPx(local.min.x),
+                y: tasty_type_geometry::length::LogicalPx(local.min.y),
+                width: tasty_type_geometry::length::LogicalPx(local.width()),
+                height: tasty_type_geometry::length::LogicalPx(local.height()),
+            };
+            out.push(crate::adapters::ui::to_egui_rect(
+                logical.to_physical(body.ppp),
+                scale_factor,
+            ));
+        }
+    }
+    out
 }
 
 /// `rect`에서 `holes`를 뺀 나머지를 겹치지 않는 사각형으로 나눈다.
@@ -155,7 +211,8 @@ fn subtract(rect: egui::Rect, holes: &[egui::Rect]) -> Vec<egui::Rect> {
 
 #[cfg(test)]
 mod tests {
-    use super::subtract;
+    use super::{ComposedPopup, composited_bodies, edge_pieces, subtract};
+    use crate::model::{PhysicalPx, PhysicalRect};
 
     fn r(x0: f32, y0: f32, x1: f32, y1: f32) -> egui::Rect {
         egui::Rect::from_min_max(egui::pos2(x0, y0), egui::pos2(x1, y1))
@@ -185,5 +242,52 @@ mod tests {
         let row = r(0.0, 0.0, 100.0, 2.0);
         let pieces = subtract(row, &[r(-5.0, 1.0, 105.0, 30.0)]);
         assert_eq!(pieces, vec![r(0.0, 0.0, 100.0, 1.0)]);
+    }
+
+    /// host 팝업이 plugin 팝업 위면 먼저 합성된 본문 자리를 띠 행에서 비운다. 아래면 본문이 띠 뒤에
+    /// 합성되어 덮으므로 행을 그대로 칠한다.
+    #[test]
+    fn the_row_opens_only_under_a_host_popup_on_top() {
+        let row = r(0.0, 0.0, 100.0, 2.0);
+        let body = [r(40.0, -10.0, 60.0, 50.0)];
+        let under = edge_pieces(row, true, &body);
+        assert_eq!(area(&under), 160.0);
+        assert!(under.iter().all(|p| p.right() <= 40.0 || p.left() >= 60.0));
+        assert_eq!(edge_pieces(row, false, &body), vec![row]);
+    }
+
+    /// 비우는 자리는 팝업 영역 전체가 아니라 합성된 primitive의 잘림 영역이다. 팝업 영역으로 자르고
+    /// 팝업 배율에서 host 배율로 옮긴다. 본문이 없거나 프레임이 없는 팝업은 비우지 않는다.
+    #[test]
+    fn the_hole_is_the_composited_clip_inside_the_popup() {
+        let region = PhysicalRect {
+            x: PhysicalPx(100.0),
+            y: PhysicalPx(0.0),
+            width: PhysicalPx(200.0),
+            height: PhysicalPx(100.0),
+        };
+        let regions = [(7_u64, region), (8_u64, region)];
+        let composed = std::collections::HashMap::from([(
+            7_u64,
+            ComposedPopup {
+                ppp: 2.0,
+                clips: vec![r(0.0, 0.0, 20.0, 10.0), r(90.0, 40.0, 500.0, 500.0)],
+            },
+        )]);
+        let bodies = composited_bodies(&regions, &composed, |_| true, 1.0);
+        assert_eq!(
+            bodies,
+            vec![r(100.0, 0.0, 140.0, 20.0), r(280.0, 80.0, 300.0, 100.0)],
+            "clips in physical px at host scale 1"
+        );
+        assert!(
+            composited_bodies(&regions, &composed, |_| false, 1.0).is_empty(),
+            "no frame"
+        );
+        let none = std::collections::HashMap::new();
+        assert!(
+            composited_bodies(&regions, &none, |_| true, 1.0).is_empty(),
+            "no body"
+        );
     }
 }

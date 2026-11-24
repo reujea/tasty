@@ -566,7 +566,40 @@ fn prune_mesh_targets<T>(
     true
 }
 
+/// 합성될 팝업 본문 하나. `composite_mesh_target`이 건너뛰는 조건(본문 없음·배율 0·primitive 없음)과
+/// 잘림 영역이 빈 primitive를 뺀다.
+fn composed_body(
+    has_content: bool,
+    ppp: f32,
+    primitives: &[ClippedPrimitive],
+) -> Option<crate::adapters::ui::surface_focus_edge::ComposedPopup> {
+    if !has_content || ppp <= 0.0 {
+        return None;
+    }
+    let clips: Vec<egui::Rect> = primitives
+        .iter()
+        .map(|p| p.clip_rect)
+        .filter(|r| r.is_positive())
+        .collect();
+    (!clips.is_empty())
+        .then_some(crate::adapters::ui::surface_focus_edge::ComposedPopup { ppp, clips })
+}
+
 impl GpuState {
+    /// 합성할 본문이 있는 plugin 팝업과 그 primitive 잘림 영역(팝업 안 논리 px). 본문 디코드는 egui 패스
+    /// 뒤라 직전에 디코드한 본문이다. `composite_mesh_target`이 건너뛰는 팝업(본문 없음·배율 0·primitive
+    /// 없음)은 넣지 않는다. 포커스 띠가 host 팝업 아래에서 이 영역만 비운다.
+    pub(super) fn composed_popups(
+        &self,
+    ) -> HashMap<u64, crate::adapters::ui::surface_focus_edge::ComposedPopup> {
+        self.egui_mesh_popup_targets
+            .iter()
+            .filter_map(|(iid, t)| {
+                composed_body(t.has_content, t.ppp, &t.primitives).map(|body| (*iid, body))
+            })
+            .collect()
+    }
+
     /// 터미널 다음, host UI 전에 surface를 합성한다.
     /// targets는 보이는 대상, existing은 숨겨진 탭까지 포함한 자원 유지·디코드 대상이다.
     pub(super) fn render_egui_mesh_surfaces(
@@ -1016,6 +1049,30 @@ mod tests {
                 texture_id: TextureId::Managed(0),
             }),
         }
+    }
+
+    /// 띠가 비우는 팝업 본문은 실제로 합성되는 팝업만이다. 본문이 없거나 배율이 0이거나 primitive가
+    /// 없으면 합성하지 않으므로 띠도 비우지 않는다. 잘림 영역이 빈 primitive는 덮는 곳이 없다.
+    #[test]
+    fn only_a_composited_popup_body_counts() {
+        let clip = Rect::from_min_max(Pos2::new(2.0, 3.0), Pos2::new(20.0, 10.0));
+        let prims = vec![
+            mesh_prim(clip, vec![vtx(0.0, 0.0)]),
+            mesh_prim(Rect::NOTHING, vec![vtx(0.0, 0.0)]),
+        ];
+        let body = composed_body(true, 1.5, &prims).expect("composited");
+        assert_eq!(body.ppp, 1.5);
+        assert_eq!(body.clips, vec![clip]);
+        assert!(
+            composed_body(false, 1.5, &prims).is_none(),
+            "no content yet"
+        );
+        assert!(composed_body(true, 0.0, &prims).is_none(), "no scale");
+        assert!(composed_body(true, 1.5, &[]).is_none(), "no primitive");
+        assert!(
+            composed_body(true, 1.5, &prims[1..]).is_none(),
+            "empty clip"
+        );
     }
 
     /// 평행이동: 모든 vertex.pos 와 clip_rect 가 surface origin 만큼 더해진다.
