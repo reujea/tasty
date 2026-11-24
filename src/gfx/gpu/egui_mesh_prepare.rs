@@ -23,6 +23,7 @@ use super::GpuState;
 use crate::app::plugin_display::PluginDisplay;
 use crate::model::PhysicalRect;
 use crate::state::MainViewState;
+use crate::state::mesh_frames::MeshSide;
 use full_request::FullRequestPacer;
 
 /// 디코드 ppp 와 host ppp 의 허용 오차. float 비교라 작은 epsilon.
@@ -156,20 +157,15 @@ pub(super) fn collect_egui_mesh_targets(
     terminal_rect: PhysicalRect,
     scale_factor: f32,
 ) -> Vec<(u32, String, PhysicalRect)> {
-    let mut out: Vec<(u32, String, PhysicalRect)> = Vec::new();
-    for (_pane_id, _pane_rect, regions) in
-        state.surface_regions(engine, terminal_rect, scale_factor)
-    {
-        for r in regions {
-            if let Some(ms) = engine
-                .find_surface_by_id(r.id)
-                .and_then(|surface| surface.mesh())
-            {
-                out.push((r.id, ms.plugin_id.clone(), r.rect));
-            }
-        }
-    }
-    out
+    state
+        .mesh_frame_regions(engine, terminal_rect, scale_factor)
+        .into_iter()
+        .filter(|r| r.side == MeshSide::Local)
+        .filter_map(|r| {
+            let ms = engine.find_surface_by_id(r.id)?.mesh()?;
+            Some((r.id, ms.plugin_id.clone(), r.rect))
+        })
+        .collect()
 }
 
 /// 활성 workspace 에서 attach mesh mirror surface(`AttachMeshSurface`)의 (surface_id, 물리
@@ -181,20 +177,12 @@ pub(super) fn collect_attach_mesh_targets(
     terminal_rect: PhysicalRect,
     scale_factor: f32,
 ) -> Vec<(u32, PhysicalRect)> {
-    let mut out: Vec<(u32, PhysicalRect)> = Vec::new();
-    for (_pane_id, _pane_rect, regions) in
-        state.surface_regions(engine, terminal_rect, scale_factor)
-    {
-        for r in regions {
-            if engine
-                .find_surface_by_id(r.id)
-                .is_some_and(|surface| surface.attach_mesh().is_some())
-            {
-                out.push((r.id, r.rect));
-            }
-        }
-    }
-    out
+    state
+        .mesh_frame_regions(engine, terminal_rect, scale_factor)
+        .into_iter()
+        .filter(|r| r.side == MeshSide::Attach)
+        .map(|r| (r.id, r.rect))
+        .collect()
 }
 
 /// primitives 를 surface origin 만큼 평행이동하고 clip_rect 를 surface 경계로 클립한다.

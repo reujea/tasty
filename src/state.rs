@@ -43,6 +43,8 @@ mod layout;
 pub(crate) mod layout_preview;
 #[cfg(all(test, feature = "gui"))]
 mod layout_sweep_tests;
+#[cfg(feature = "gui")]
+pub(crate) mod mesh_frames;
 pub mod mouse;
 pub(crate) mod navigation;
 pub(crate) mod pane;

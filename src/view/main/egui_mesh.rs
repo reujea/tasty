@@ -18,6 +18,7 @@ use tasty_plugin_protocol::{
 use crate::app::plugin_display::PluginDisplay;
 use crate::model::{PhysicalPx, PhysicalRect};
 use crate::plugin_bridge::MeshForwardCommon;
+use crate::state::mesh_frames::MeshSide;
 
 use super::MainView;
 use crate::view::ui::View as _;
@@ -79,21 +80,14 @@ impl MainView {
         y: f32,
     ) -> Option<(u32, String, PhysicalRect)> {
         let terminal_rect = self.compute_terminal_rect();
-        for (_pane_id, _pane_rect, regions) in
-            self.state
-                .surface_regions(engine, terminal_rect, self.base.gpu.scale_factor())
-        {
-            for r in regions {
-                if r.rect.contains(PhysicalPx(x), PhysicalPx(y))
-                    && let Some(ms) = engine
-                        .find_surface_by_id(r.id)
-                        .and_then(|surface| surface.mesh())
-                {
-                    return Some((r.id, ms.plugin_id.clone(), r.rect));
-                }
-            }
-        }
-        None
+        self.state
+            .mesh_frame_regions(engine, terminal_rect, self.base.gpu.scale_factor())
+            .into_iter()
+            .filter(|r| r.side == MeshSide::Local && r.rect.contains(PhysicalPx(x), PhysicalPx(y)))
+            .find_map(|r| {
+                let ms = engine.find_surface_by_id(r.id)?.mesh()?;
+                Some((r.id, ms.plugin_id.clone(), r.rect))
+            })
     }
 
     /// wire에 전달할 색·is_light·UI 배율. 현재 reduced_motion은 포함하지 않는다.
@@ -298,27 +292,23 @@ impl MainView {
         let modifiers = self.mesh_modifiers();
         let current_theme = self.mesh_theme_snapshot(engine);
 
-        let mut targets: Vec<MeshTarget> = Vec::new();
-        for (_pane_id, _pane_rect, regions) in
-            self.state
-                .surface_regions(engine, terminal_rect, self.base.gpu.scale_factor())
-        {
-            for r in regions {
-                if let Some(ms) = engine
-                    .find_surface_by_id(r.id)
-                    .and_then(|surface| surface.mesh())
-                {
-                    targets.push(MeshTarget {
-                        sid: r.id,
-                        plugin_id: ms.plugin_id.clone(),
-                        rect: r.rect,
-                        kind: ms.kind_static,
-                        file: ms.file.clone(),
-                        display_name: ms.display_name.clone(),
-                    });
-                }
-            }
-        }
+        let targets: Vec<MeshTarget> = self
+            .state
+            .mesh_frame_regions(engine, terminal_rect, self.base.gpu.scale_factor())
+            .into_iter()
+            .filter(|r| r.side == MeshSide::Local)
+            .filter_map(|r| {
+                let ms = engine.find_surface_by_id(r.id)?.mesh()?;
+                Some(MeshTarget {
+                    sid: r.id,
+                    plugin_id: ms.plugin_id.clone(),
+                    rect: r.rect,
+                    kind: ms.kind_static,
+                    file: ms.file.clone(),
+                    display_name: ms.display_name.clone(),
+                })
+            })
+            .collect();
 
         // 숨겨진 surface 상태도 보존하고 레이아웃에서 사라진 것만 정리한다.
         let existing = self.state.egui_mesh_surfaces_existing(engine);

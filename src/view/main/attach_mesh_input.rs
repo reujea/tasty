@@ -8,6 +8,7 @@ use tasty_plugin_protocol::protocol::{RawInputEventWire, RawInputWire, ThemeWire
 
 use crate::core::AttachMeshContextForward;
 use crate::model::{PhysicalPx, PhysicalRect};
+use crate::state::mesh_frames::MeshSide;
 
 use super::MainView;
 use super::egui_mesh::{key_wire_event, map_button};
@@ -35,21 +36,11 @@ impl MainView {
         y: f32,
     ) -> Option<(u32, PhysicalRect)> {
         let terminal_rect = self.compute_terminal_rect();
-        for (_pane_id, _pane_rect, regions) in
-            self.state
-                .surface_regions(engine, terminal_rect, self.base.gpu.scale_factor())
-        {
-            for r in regions {
-                if r.rect.contains(PhysicalPx(x), PhysicalPx(y))
-                    && engine
-                        .find_surface_by_id(r.id)
-                        .is_some_and(|surface| surface.attach_mesh().is_some())
-                {
-                    return Some((r.id, r.rect));
-                }
-            }
-        }
-        None
+        self.state
+            .mesh_frame_regions(engine, terminal_rect, self.base.gpu.scale_factor())
+            .into_iter()
+            .find(|r| r.side == MeshSide::Attach && r.rect.contains(PhysicalPx(x), PhysicalPx(y)))
+            .map(|r| (r.id, r.rect))
     }
 
     /// 포인터 버튼 누름/뗌을 attach mesh surface 에 누적.
@@ -158,20 +149,13 @@ impl MainView {
         let modifiers = self.mesh_modifiers();
         let current_theme = self.mesh_theme_snapshot(engine);
 
-        let mut targets: Vec<(u32, PhysicalRect)> = Vec::new();
-        for (_pane_id, _pane_rect, regions) in
-            self.state
-                .surface_regions(engine, terminal_rect, self.base.gpu.scale_factor())
-        {
-            for r in regions {
-                if engine
-                    .find_surface_by_id(r.id)
-                    .is_some_and(|surface| surface.attach_mesh().is_some())
-                {
-                    targets.push((r.id, r.rect));
-                }
-            }
-        }
+        let targets: Vec<(u32, PhysicalRect)> = self
+            .state
+            .mesh_frame_regions(engine, terminal_rect, self.base.gpu.scale_factor())
+            .into_iter()
+            .filter(|r| r.side == MeshSide::Attach)
+            .map(|r| (r.id, r.rect))
+            .collect();
 
         let existing = self.state.attach_mesh_surfaces_existing(engine);
         let live: std::collections::HashSet<u32> = existing.into_iter().collect();
