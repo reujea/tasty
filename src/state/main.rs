@@ -377,7 +377,7 @@ pub struct MainViewState {
 
     /// 버튼을 누른 mesh leaf. 뗄 때까지 포인터를 그 leaf가 받는다(띠 행이나 leaf 밖에서 떼도).
     #[cfg(feature = "gui")]
-    pub(crate) mesh_press: Option<crate::state::mesh_frames::MeshPress>,
+    pub(crate) mesh_press: crate::state::mesh_frames::MeshPresses,
 
     /// 키 포커스가 있는 플러그인 팝업의 IME 캐럿(창 물리 좌표).
     /// PopupPaintFrame에서 받은 값을 렌더 때 갱신하며 MainView가 OS 후보창 위치에 사용한다.

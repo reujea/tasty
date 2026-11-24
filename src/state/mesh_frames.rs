@@ -43,6 +43,26 @@ pub(crate) struct MeshPress {
     pub(crate) side: MeshSide,
 }
 
+/// 버튼마다 누른 mesh leaf. 한 버튼을 누른 채 다른 버튼을 다른 leaf에서 눌러도 각 뗌은 그 버튼을 누른
+/// leaf로 간다.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct MeshPresses(Vec<(winit::event::MouseButton, MeshPress)>);
+
+impl MeshPresses {
+    /// `side`에서 누른 채인 leaf. 여럿이면 먼저 누른 것이다. 포인터 이동·휠이 이 leaf로 간다.
+    pub(crate) fn held(&self, side: MeshSide) -> Option<MeshPress> {
+        self.0.iter().map(|(_, p)| *p).find(|p| p.side == side)
+    }
+
+    fn of(&self, button: winit::event::MouseButton) -> Option<MeshPress> {
+        self.0.iter().find(|(b, _)| *b == button).map(|(_, p)| *p)
+    }
+
+    fn forget(&mut self, button: winit::event::MouseButton) {
+        self.0.retain(|(b, _)| *b != button);
+    }
+}
+
 /// 포인터 사건의 `side` 대상. 그 쪽에서 버튼을 누른 채면 누른 leaf다(포인터가 띠 행이나 leaf 밖이어도).
 /// 아니면 포인터 아래 영역이다.
 pub(crate) fn pointer_target(
@@ -65,32 +85,35 @@ pub(crate) fn pointer_target(
     }
 }
 
-/// 버튼 사건의 `side` 대상. 누름은 포인터 아래 leaf를 기억하고, 뗌은 기억한 leaf로 보낸 뒤 잊는다.
-/// 다른 쪽이 누른 뗌은 이쪽이 받지 않는다. 이쪽에서 빗나간 누름은 이쪽의 지난 기억을 지운다.
+/// `button` 사건의 `side` 대상. 누름은 포인터 아래 leaf를 그 버튼으로 기억하고, 뗌은 그 버튼을 누른 leaf로
+/// 보낸 뒤 잊는다. 다른 쪽이 누른 버튼의 뗌은 이쪽이 받지 않는다. 이쪽에서 빗나간 누름은 그 버튼의 이쪽
+/// 지난 기억을 지운다. 로컬과 attach가 같은 판정을 쓴다.
 pub(crate) fn button_target(
     regions: &[MeshFrameRegion],
-    press: &mut Option<MeshPress>,
+    presses: &mut MeshPresses,
     side: MeshSide,
+    button: winit::event::MouseButton,
     (x, y): (f32, f32),
     pressed: bool,
 ) -> Option<MeshFrameRegion> {
-    let mine = press.filter(|p| p.side == side);
+    let recorded = presses.of(button);
     if pressed {
         let hit = pointer_target(regions, None, side, x, y);
-        match hit {
-            Some(r) => *press = Some(MeshPress { id: r.id, side }),
-            None if mine.is_some() => *press = None,
-            None => {}
+        if hit.is_some() || recorded.is_some_and(|p| p.side == side) {
+            presses.forget(button);
+        }
+        if let Some(r) = hit {
+            presses.0.push((button, MeshPress { id: r.id, side }));
         }
         return hit;
     }
-    match (*press, mine) {
-        (_, Some(p)) => {
-            *press = None;
+    match recorded {
+        Some(p) if p.side == side => {
+            presses.forget(button);
             pointer_target(regions, Some(p), side, x, y)
         }
-        (Some(_), None) => None,
-        (None, None) => pointer_target(regions, None, side, x, y),
+        Some(_) => None,
+        None => pointer_target(regions, None, side, x, y),
     }
 }
 
@@ -161,6 +184,12 @@ mod tests {
         assert_eq!((bed.y, bed.height), (leaf.y, leaf.height));
     }
 
+    use winit::event::MouseButton::{Left, Right};
+
+    fn pressed(id: u32, side: MeshSide) -> MeshPress {
+        MeshPress { id, side }
+    }
+
     /// 본문에서 누르고 같은 leaf의 띠 행(영역 밖 위쪽)에서 떼면 뗌도 그 leaf로 간다. 기억은 뗌 뒤 지운다.
     #[test]
     fn a_release_over_the_edge_row_reaches_the_pressed_mesh() {
@@ -168,25 +197,50 @@ mod tests {
             region(1, 10.0, MeshSide::Local),
             region(2, 70.0, MeshSide::Attach),
         ];
-        let mut press = None;
-        let down = button_target(&regions, &mut press, MeshSide::Local, (5.0, 20.0), true);
+        let mut presses = MeshPresses::default();
+        let down = button_target(
+            &regions,
+            &mut presses,
+            MeshSide::Local,
+            Left,
+            (5.0, 20.0),
+            true,
+        );
         assert_eq!(down.map(|r| r.id), Some(1));
         assert_eq!(
-            press,
-            Some(MeshPress {
-                id: 1,
-                side: MeshSide::Local
-            })
+            presses.held(MeshSide::Local),
+            Some(pressed(1, MeshSide::Local))
         );
         assert_eq!(
-            pointer_target(&regions, press, MeshSide::Local, 5.0, 9.0).map(|r| r.id),
+            pointer_target(
+                &regions,
+                presses.held(MeshSide::Local),
+                MeshSide::Local,
+                5.0,
+                9.0
+            )
+            .map(|r| r.id),
             Some(1),
             "a move over the edge row stays with the pressed mesh"
         );
-        let up = button_target(&regions, &mut press, MeshSide::Local, (5.0, 9.0), false);
+        let up = button_target(
+            &regions,
+            &mut presses,
+            MeshSide::Local,
+            Left,
+            (5.0, 9.0),
+            false,
+        );
         assert_eq!(up.map(|r| r.id), Some(1));
-        assert_eq!(press, None);
-        let later = button_target(&regions, &mut press, MeshSide::Local, (5.0, 9.0), false);
+        assert_eq!(presses, MeshPresses::default());
+        let later = button_target(
+            &regions,
+            &mut presses,
+            MeshSide::Local,
+            Left,
+            (5.0, 9.0),
+            false,
+        );
         assert!(
             later.is_none(),
             "without a press the edge row is not the mesh"
@@ -200,37 +254,96 @@ mod tests {
             region(1, 10.0, MeshSide::Local),
             region(2, 70.0, MeshSide::Attach),
         ];
-        let mut press = None;
-        assert!(button_target(&regions, &mut press, MeshSide::Local, (5.0, 80.0), true).is_none());
-        let down = button_target(&regions, &mut press, MeshSide::Attach, (5.0, 80.0), true);
+        let mut presses = MeshPresses::default();
+        let local_down = button_target(
+            &regions,
+            &mut presses,
+            MeshSide::Local,
+            Left,
+            (5.0, 80.0),
+            true,
+        );
+        assert!(local_down.is_none());
+        let down = button_target(
+            &regions,
+            &mut presses,
+            MeshSide::Attach,
+            Left,
+            (5.0, 80.0),
+            true,
+        );
         assert_eq!(down.map(|r| r.id), Some(2));
-        assert!(button_target(&regions, &mut press, MeshSide::Local, (5.0, 20.0), false).is_none());
-        let up = button_target(&regions, &mut press, MeshSide::Attach, (5.0, 20.0), false);
+        let local_up = button_target(
+            &regions,
+            &mut presses,
+            MeshSide::Local,
+            Left,
+            (5.0, 20.0),
+            false,
+        );
+        assert!(local_up.is_none());
+        let up = button_target(
+            &regions,
+            &mut presses,
+            MeshSide::Attach,
+            Left,
+            (5.0, 20.0),
+            false,
+        );
         assert_eq!(up.map(|r| r.id), Some(2));
-        assert_eq!(press, None);
+        assert_eq!(presses, MeshPresses::default());
     }
 
-    /// 지난 누름이 남아 있어도 새 누름은 포인터 아래로 정한다. 빗나간 누름은 지난 기억을 지운다.
+    /// 한 쪽에서 A를 왼쪽으로 누른 채 B를 오른쪽으로 누르고 B 위에서 왼쪽을 떼면 왼쪽 뗌은 A로, 오른쪽
+    /// 뗌은 B로 간다. 로컬과 attach가 같다.
+    #[test]
+    fn each_release_goes_to_the_leaf_its_button_pressed() {
+        for side in [MeshSide::Local, MeshSide::Attach] {
+            let regions = [region(1, 10.0, side), region(3, 70.0, side)];
+            let mut presses = MeshPresses::default();
+            let a = button_target(&regions, &mut presses, side, Left, (5.0, 20.0), true);
+            assert_eq!(a.map(|r| r.id), Some(1), "{side:?}");
+            let b = button_target(&regions, &mut presses, side, Right, (5.0, 80.0), true);
+            assert_eq!(b.map(|r| r.id), Some(3), "{side:?}");
+            assert_eq!(presses.held(side), Some(pressed(1, side)), "{side:?} moves");
+            let left_up = button_target(&regions, &mut presses, side, Left, (5.0, 80.0), false);
+            assert_eq!(left_up.map(|r| r.id), Some(1), "{side:?} left release");
+            let right_up = button_target(&regions, &mut presses, side, Right, (5.0, 20.0), false);
+            assert_eq!(right_up.map(|r| r.id), Some(3), "{side:?} right release");
+            assert_eq!(presses, MeshPresses::default(), "{side:?}");
+        }
+    }
+
+    /// 지난 누름이 남아 있어도 새 누름은 포인터 아래로 정한다. 빗나간 누름은 그 버튼의 지난 기억을 지운다.
     #[test]
     fn a_new_press_replaces_a_stale_one() {
         let regions = [
             region(1, 10.0, MeshSide::Local),
             region(3, 70.0, MeshSide::Local),
         ];
-        let mut press = Some(MeshPress {
-            id: 1,
-            side: MeshSide::Local,
-        });
-        let down = button_target(&regions, &mut press, MeshSide::Local, (5.0, 80.0), true);
+        let mut presses = MeshPresses(vec![(Left, pressed(1, MeshSide::Local))]);
+        let down = button_target(
+            &regions,
+            &mut presses,
+            MeshSide::Local,
+            Left,
+            (5.0, 80.0),
+            true,
+        );
         assert_eq!(down.map(|r| r.id), Some(3));
         assert_eq!(
-            press,
-            Some(MeshPress {
-                id: 3,
-                side: MeshSide::Local
-            })
+            presses,
+            MeshPresses(vec![(Left, pressed(3, MeshSide::Local))])
         );
-        assert!(button_target(&regions, &mut press, MeshSide::Local, (5.0, 200.0), true).is_none());
-        assert_eq!(press, None);
+        let miss = button_target(
+            &regions,
+            &mut presses,
+            MeshSide::Local,
+            Left,
+            (5.0, 200.0),
+            true,
+        );
+        assert!(miss.is_none());
+        assert_eq!(presses, MeshPresses::default());
     }
 }

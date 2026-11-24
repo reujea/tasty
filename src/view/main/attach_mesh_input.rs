@@ -36,7 +36,7 @@ impl MainView {
         y: f32,
     ) -> Option<(u32, PhysicalRect)> {
         let regions = self.mesh_regions(engine);
-        let press = self.state.mesh_press;
+        let press = self.state.mesh_press.held(MeshSide::Attach);
         crate::state::mesh_frames::pointer_target(&regions, press, MeshSide::Attach, x, y)
             .map(|r| (r.id, r.rect))
     }
@@ -47,13 +47,14 @@ impl MainView {
         engine: &crate::runtime::engine_read::EngineRead<'_>,
         x: f32,
         y: f32,
-        state: winit::event::ElementState,
+        (button, state): (winit::event::MouseButton, winit::event::ElementState),
     ) -> Option<(u32, PhysicalRect)> {
         let regions = self.mesh_regions(engine);
         crate::state::mesh_frames::button_target(
             &regions,
             &mut self.state.mesh_press,
             MeshSide::Attach,
+            button,
             (x, y),
             super::egui_mesh::is_pressed(state),
         )

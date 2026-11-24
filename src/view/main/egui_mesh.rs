@@ -80,7 +80,7 @@ impl MainView {
         y: f32,
     ) -> Option<(u32, String, PhysicalRect)> {
         let regions = self.mesh_regions(engine);
-        let press = self.state.mesh_press;
+        let press = self.state.mesh_press.held(MeshSide::Local);
         let r = crate::state::mesh_frames::pointer_target(&regions, press, MeshSide::Local, x, y)?;
         let ms = engine.find_surface_by_id(r.id)?.mesh()?;
         Some((r.id, ms.plugin_id.clone(), r.rect))
@@ -92,14 +92,14 @@ impl MainView {
         engine: &crate::runtime::engine_read::EngineRead<'_>,
         x: f32,
         y: f32,
-        state: ElementState,
+        (button, state): (winit::event::MouseButton, ElementState),
     ) -> Option<(u32, String, PhysicalRect)> {
         let regions = self.mesh_regions(engine);
-        let press = &mut self.state.mesh_press;
         let r = crate::state::mesh_frames::button_target(
             &regions,
-            press,
+            &mut self.state.mesh_press,
             MeshSide::Local,
+            button,
             (x, y),
             is_pressed(state),
         )?;
