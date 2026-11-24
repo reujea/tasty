@@ -108,14 +108,19 @@ fn the_loop_end_wakes_settled_reveals_between_the_webview_pump_and_the_repaints(
     }
 }
 
-/// 깨움은 판정이 참인 창에 다시 그리기를 요청한다. 요청은 판정의 참 분기 바로 안에 조건 없이 홀로 선 문장이다.
+/// 깨움은 판정이 참인 창에 다시 그리기를 요청한다. 요청은 판정의 참 분기 바로 안에 조건 없이 홀로 선 문장이고,
+/// 그 판정은 창을 도는 반복 바로 안에 있다(함수·`for`·`if` 로 깊이 3). 판정을 새 조건으로 감싸면 깊이가 바뀐다.
 #[test]
 fn a_settled_reveal_marks_its_own_window_dirty() {
     let src = read("src/app/webview_sync/reveal_wake.rs");
     let source = Source::new(&src);
     let body = body_of(&source, "redraw_settled_webview_reveals");
     let mark = at(&source, &body, "main.mark_dirty();", "소유 창 다시 그리기");
-    let (_, head) = enclosing_block(&source, &body, mark);
+    let (depth, head) = enclosing_block(&source, &body, mark);
+    assert_eq!(
+        depth, 3,
+        "다시 그리기 요청의 깊이가 바뀌었다 — 함수·창 반복·깨움 판정 블록 안이어야 한다"
+    );
     assert_eq!(
         head, "ifwake_window(&mutmain.webview_reveal_pending,&main.webviews)",
         "다시 그리기 요청이 깨움 판정의 참 분기 바로 안에 있지 않다"
