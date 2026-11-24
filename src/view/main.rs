@@ -150,9 +150,11 @@ pub struct MainView {
     /// surface별 webview 생성 시도 수. 실패가 창 이벤트를 만들어 스스로 재시도를
     /// 반복할 수 있어 MAX_WEBVIEW_CREATE_ATTEMPTS로 제한한다.
     pub(crate) webview_create_attempts: std::collections::HashMap<u32, u32>,
-    /// 탐색 완료를 기다려 아직 표시하지 못한 webview의 시작 시각·경고 여부.
-    /// 오래 기다리면 한 번 기록하되 임의 재시도나 표시 방식 변경은 하지 않는다.
-    pub(crate) webview_reveal_pending: std::collections::HashMap<u32, (std::time::Instant, bool)>,
+    /// 탐색 완료를 기다려 아직 표시하지 못한 webview의 시작 시각·경고 여부·마지막 동기화에서 본 탐색 상태.
+    /// 오래 기다리면 한 번 기록하되 임의 재시도나 표시 방식 변경은 하지 않는다. 탐색 상태가 바뀌면
+    /// 창을 다시 그린다(`app::webview_sync::reveal_wake`).
+    pub(crate) webview_reveal_pending:
+        std::collections::HashMap<u32, (std::time::Instant, bool, crate::webview::NavState)>,
     /// native 자식 창에서 받은 키·포커스를 host로 전달하는 브리지.
     pub(crate) webview_key_bridge: std::rc::Rc<crate::webview::WebViewKeyBridge>,
     /// overlay 가 열려 webview 키보드 포커스를 이미 host 로 회수했는지(edge 판정).

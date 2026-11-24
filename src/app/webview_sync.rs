@@ -4,6 +4,7 @@ pub(crate) mod bed_focus;
 mod construction;
 mod navigation;
 mod pending_work;
+mod reveal_wake;
 use construction::create_missing_webviews;
 use navigation::{apply_agent_history_step, apply_user_nav};
 pub(crate) use pending_work::awaits_webview_work;
@@ -530,7 +531,8 @@ fn note_reveal_pending(view: &mut MainView, pending: &[(u32, crate::webview::Nav
         let entry = view
             .webview_reveal_pending
             .entry(sid)
-            .or_insert((now, false));
+            .or_insert((now, false, nav));
+        entry.2 = nav;
         if !entry.1 && now.duration_since(entry.0) >= REVEAL_PENDING_WARN_AFTER {
             entry.1 = true;
             tracing::warn!(

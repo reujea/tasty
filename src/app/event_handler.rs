@@ -600,6 +600,8 @@ impl ApplicationHandler<AppEvent> for App {
             needs_key_poll,
             std::time::Instant::now(),
         );
+        // 위 처리와 이번 회차의 native 콜백이 끝낸 숨김 보류 로드는 다시 그려야 드러난다.
+        self.redraw_settled_webview_reveals();
 
         self.poll_pending_native_menus();
 
