@@ -165,6 +165,9 @@ fn fields_at(
             continue;
         }
         match split_key(raw.trim_start()) {
+            Some((key, _)) if out.iter().any(|f| f.key == key) => {
+                errs.push(format!("{file}:{no} {UNSUPPORTED}: 키 {key}가 두 번 있다"));
+            }
             Some((key, inline)) => out.push(Field {
                 key,
                 line: *no,
@@ -304,6 +307,46 @@ fn unquote(v: &str) -> String {
     v.to_string()
 }
 
+/// 판정에 쓰는 한 줄 스칼라를 좁은 꼴로만 읽는다. 받는 꼴은 셋이다.
+/// - 작은따옴표: `'…'`, 안의 작은따옴표는 `''`로만 쓴다.
+/// - 큰따옴표: `"…"`, 안에 역슬래시(이스케이프)와 큰따옴표가 없다.
+/// - 따옴표 없는 값: YAML 지시 문자(`!`·`&`·`*`·`[`·`{`·`|`·`>` 등)로 시작하지 않고, 주석(` #`)·`: `·탭이 없다.
+/// 따옴표 값 뒤에 다른 글자(주석 포함)가 있으면 받지 않는다.
+fn narrow_scalar(raw: &str) -> Result<String, &'static str> {
+    let v = raw.trim();
+    if v.is_empty() {
+        return Err("값이 비었다");
+    }
+    if let Some(rest) = v.strip_prefix('\'') {
+        let Some(inner) = rest.strip_suffix('\'') else {
+            return Err("작은따옴표 값 뒤에 다른 글자가 있다");
+        };
+        if inner.replace("''", "").contains('\'') {
+            return Err("작은따옴표 값 안에 짝 없는 작은따옴표가 있다");
+        }
+        return Ok(inner.replace("''", "'"));
+    }
+    if let Some(rest) = v.strip_prefix('"') {
+        let Some(inner) = rest.strip_suffix('"') else {
+            return Err("큰따옴표 값 뒤에 다른 글자가 있다");
+        };
+        if inner.contains(['\\', '"']) {
+            return Err("큰따옴표 값 안에 이스케이프나 큰따옴표가 있다");
+        }
+        return Ok(inner.to_string());
+    }
+    if v.starts_with([
+        '!', '&', '*', '[', ']', '{', '}', '|', '>', '%', '@', '`', '#', ',', '?', ':', '-', '\'',
+        '"',
+    ]) {
+        return Err("따옴표 없는 값이 YAML 지시 문자로 시작한다");
+    }
+    if v.contains(" #") || v.contains(": ") || v.ends_with(':') || v.contains('\t') {
+        return Err("따옴표 없는 값에 주석이나 `: `가 있다");
+    }
+    Ok(v.to_string())
+}
+
 /// 판정에 쓰는 한 줄 값. 없으면 None, 받지 않는 표기면 Err.
 fn scalar(file: &str, fields: &[Field], key: &str) -> Result<Option<String>, String> {
     let Some(f) = fields.iter().find(|f| f.key == key) else {
@@ -316,10 +359,7 @@ fn scalar(file: &str, fields: &[Field], key: &str) -> Result<Option<String>, Str
     if f.inline.is_empty() || f.children.iter().any(|(_, l)| !is_blank(l)) {
         return Err(bad("값이 여러 줄이다"));
     }
-    if f.inline.contains(" #") {
-        return Err(bad("값 뒤에 주석이 있다"));
-    }
-    Ok(Some(unquote(&f.inline)))
+    narrow_scalar(&f.inline).map(Some).map_err(bad)
 }
 
 /// true/false만 받는 값.
@@ -462,7 +502,7 @@ fn runs_on_labels(file: &str, job: &Job) -> Result<Vec<String>, String> {
         let mut out = Vec::new();
         for (_, l) in f.children.iter().filter(|(_, l)| !is_blank(l)) {
             match l.trim().strip_prefix("- ") {
-                Some(v) => out.push(unquote(v)),
+                Some(v) => out.push(narrow_scalar(v).map_err(bad)?),
                 None => return Err(bad("블록 값이 목록이 아니다")),
             }
         }
@@ -473,8 +513,12 @@ fn runs_on_labels(file: &str, job: &Job) -> Result<Vec<String>, String> {
         }
         let v = f.inline.trim();
         match v.strip_prefix('[').and_then(|x| x.strip_suffix(']')) {
-            Some(list) => list.split(',').map(unquote).collect(),
-            None => vec![unquote(v)],
+            Some(list) => list
+                .split(',')
+                .map(narrow_scalar)
+                .collect::<Result<_, _>>()
+                .map_err(bad)?,
+            None => vec![narrow_scalar(v).map_err(bad)?],
         }
     };
     if labels.is_empty() || labels.iter().any(|l| l.is_empty()) {
@@ -626,6 +670,12 @@ fn check(workflows: &[(String, String)]) -> Report {
         r.problems.extend(errs);
         let mut explicit_clean_true = 0usize;
         for job in &jobs {
+            // runs-on은 모든 잡에서 좁은 꼴인지 본다. 읽지 못한 라벨을 자체 러너로 분류하지 않기 위해서다.
+            if job.fields.iter().any(|f| f.key == "runs-on")
+                && let Err(e) = runs_on_labels(file, job)
+            {
+                r.problems.push(e);
+            }
             let mut prepared = false;
             for (k, s) in job.steps.iter().enumerate() {
                 if is_checkout(file, s, &mut r.problems) {
@@ -925,4 +975,21 @@ fn brackets_or_operators_inside_literals_are_rejected() {
     ] {
         assert_caught(&probe_after_prepare(cond), "지원하지 않는 표기");
     }
+}
+
+/// M3: 값 뒤 주석이나 큰따옴표 이스케이프는 분류에서 빼지 않고 실패한다.
+#[test]
+fn unsupported_scalars_fail_instead_of_being_skipped() {
+    let all = mutated(
+        "test.yml",
+        "    runs-on: [self-hosted, Linux]\n",
+        "    runs-on: 'ubuntu-latest' # hosted\n",
+    );
+    assert_caught(&all, "test.yml:20 지원하지 않는 표기");
+    let all = mutated(
+        "release.yml",
+        "      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n",
+        "      - uses: \"actions/check\\u006fut@v4\"\n        with:\n          fetch-depth: 0\n          clean: false\n",
+    );
+    assert_caught(&all, "release.yml:22 지원하지 않는 표기");
 }
