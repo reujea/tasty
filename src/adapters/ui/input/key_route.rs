@@ -14,10 +14,11 @@ use crate::adapters::ui::popup::{PopupEscape, PopupInstanceId, PopupKeyboard};
 /// 거짓(내용 먼저)으로 둔다.
 pub(crate) const EGUI_SURFACE_YIELDS_TO_ANCESTOR_BINDINGS: bool = false;
 
-/// 판정할 키 누름 하나. egui 키와 그 누름의 수식키다. `super_held`는 비-macOS Win·Super(egui에 없다)다.
+/// 판정할 키 누름 하나. egui 키와 그 누름의 수식키다. egui 키가 없는 누름(egui 키 없이 글자만 내는 키 등)은 `key`가
+/// `None` 이다. `super_held`는 비-macOS Win·Super(egui에 없다)다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct RouteKey {
-    pub(crate) key: egui::Key,
+    pub(crate) key: Option<egui::Key>,
     pub(crate) modifiers: egui::Modifiers,
     pub(crate) super_held: bool,
 }
@@ -26,7 +27,7 @@ impl RouteKey {
     /// 수식키 없는 Esc. Esc 선언의 대상이다. 수식키 Esc는 보통 키처럼 오른다. 입력 몫의 조건 8(Esc 누름마다 몫)도
     /// 이 판정을 쓴다.
     pub(crate) fn bare_escape(self) -> bool {
-        self.key == egui::Key::Escape && self.modifiers.is_none() && !self.super_held
+        self.key == Some(egui::Key::Escape) && self.modifiers.is_none() && !self.super_held
     }
 
     /// 명령 수식키(Ctrl·Alt·Cmd·Super)가 붙은 조합.
@@ -35,7 +36,17 @@ impl RouteKey {
     }
 
     fn is(self, basic: BasicKey) -> bool {
-        basic.matches_egui(self.key, self.modifiers, self.super_held)
+        self.key
+            .is_some_and(|key| basic.matches_egui(key, self.modifiers, self.super_held))
+    }
+
+    /// 선언 `keyboard` 의 소비 집합에 드는지(`popup::keys::consumes_key`). egui 키가 없는 누름은 egui 에 글자
+    /// 사건으로만 가므로 `Text` 가 명령 수식키 없이 받을 때만 든다.
+    pub(crate) fn consumed_by(self, keyboard: PopupKeyboard, edits: &EditBindings) -> bool {
+        match self.key {
+            Some(key) => consumes_key(keyboard, key, self.modifiers, self.super_held, edits),
+            None => keyboard == PopupKeyboard::Text && !self.command(),
+        }
     }
 }
 
@@ -50,7 +61,7 @@ pub(crate) fn is_bare_escape_event(event: &egui::Event, super_held: bool) -> boo
             pressed: true,
             modifiers,
             ..
-        } if RouteKey { key: *key, modifiers: *modifiers, super_held }.bare_escape()
+        } if RouteKey { key: Some(*key), modifiers: *modifiers, super_held }.bare_escape()
     )
 }
 
@@ -263,32 +274,26 @@ pub(crate) fn route_key(
 /// 출발 노드의 내용·표시 단계·선언(노드 키맵, 소비 집합, 무대 종료 키)이 이 키를 쓰는지. `Text` 명령 키의
 /// 양보 규칙은 보지 않는다.
 fn start_takes(node: &KeyNode, key: RouteKey, edits: &EditBindings) -> bool {
-    let text = || {
-        consumes_key(
-            PopupKeyboard::Text,
-            key.key,
-            key.modifiers,
-            key.super_held,
-            edits,
-        )
-    };
+    let text = || key.consumed_by(PopupKeyboard::Text, edits);
     match node {
         KeyNode::Popup(p) => {
             p.keymap
                 || (p.fold == PopupFold::Collapsed && key.is(BasicKey::Expand))
-                || consumes_key(p.keyboard, key.key, key.modifiers, key.super_held, edits)
+                || key.consumed_by(p.keyboard, edits)
         }
         // 안내 위젯은 수식키와 무관하게 이 키들을 읽는다.
         KeyNode::Notice(_) => matches!(
             key.key,
-            egui::Key::Escape
-                | egui::Key::Enter
-                | egui::Key::Space
-                | egui::Key::Tab
-                | egui::Key::ArrowUp
-                | egui::Key::ArrowDown
-                | egui::Key::ArrowLeft
-                | egui::Key::ArrowRight
+            Some(
+                egui::Key::Escape
+                    | egui::Key::Enter
+                    | egui::Key::Space
+                    | egui::Key::Tab
+                    | egui::Key::ArrowUp
+                    | egui::Key::ArrowDown
+                    | egui::Key::ArrowLeft
+                    | egui::Key::ArrowRight
+            )
         ),
         KeyNode::Tutorial => key.is(BasicKey::Confirm) || key.is(BasicKey::Expand),
         KeyNode::HtmlAddress { keymap, .. } => *keymap || text(),

@@ -99,7 +99,7 @@ fn only_pressed_egui_keys_outside_the_current_path_are_path_keys() {
     assert!(matches!(
         class(down.clone(), KeyCode::ArrowDown, ModifiersState::empty()),
         KeyClass::Path(RouteKey {
-            key: egui::Key::ArrowDown,
+            key: Some(egui::Key::ArrowDown),
             ..
         })
     ));
@@ -116,7 +116,7 @@ fn only_pressed_egui_keys_outside_the_current_path_are_path_keys() {
             ModifiersState::empty()
         ),
         KeyClass::Path(RouteKey {
-            key: egui::Key::Escape,
+            key: Some(egui::Key::Escape),
             modifiers: egui::Modifiers::NONE,
             super_held: false,
         })
@@ -130,14 +130,14 @@ fn only_pressed_egui_keys_outside_the_current_path_are_path_keys() {
         ),
         KeyClass::Path(_)
     ));
-    // 수식키 단독 누름과 egui 키 없이 글자만 내는 키.
+    // 수식키 단독 누름은 지금 경로다.
     assert_eq!(
         class(
             Key::Named(NamedKey::AltGraph),
             KeyCode::AltRight,
             ModifiersState::empty()
         ),
-        KeyClass::Current(CurrentReason::NoEguiKey)
+        KeyClass::Current(CurrentReason::ModifierOnly)
     );
     assert_eq!(
         class(
@@ -145,15 +145,24 @@ fn only_pressed_egui_keys_outside_the_current_path_are_path_keys() {
             KeyCode::ShiftLeft,
             ModifiersState::SHIFT
         ),
-        KeyClass::Current(CurrentReason::NoEguiKey)
+        KeyClass::Current(CurrentReason::ModifierOnly)
     );
+}
+
+/// egui 키 없이 글자만 내는 키는 egui 키 없는 경로 키다(포커스 노드에서 시작한다).
+#[test]
+fn a_text_only_key_is_a_path_key_without_an_egui_key() {
     assert_eq!(
         class(
             Key::Character("§".into()),
             KeyCode::IntlBackslash,
             ModifiersState::empty()
         ),
-        KeyClass::Current(CurrentReason::NoEguiKey)
+        KeyClass::Path(RouteKey {
+            key: None,
+            modifiers: egui::Modifiers::NONE,
+            super_held: false,
+        })
     );
 }
 
@@ -184,7 +193,7 @@ fn command_c_x_v_are_path_keys() {
     assert!(matches!(
         class(Key::Character("ㅊ".into()), KeyCode::KeyC, command),
         KeyClass::Path(RouteKey {
-            key: egui::Key::C,
+            key: Some(egui::Key::C),
             ..
         })
     ));
@@ -195,7 +204,7 @@ fn command_c_x_v_are_path_keys() {
 #[test]
 fn a_bare_escape_bound_as_an_edit_key_takes_the_escape_route() {
     let bare = KeyClass::Path(RouteKey {
-        key: egui::Key::Escape,
+        key: Some(egui::Key::Escape),
         modifiers: egui::Modifiers::NONE,
         super_held: false,
     });

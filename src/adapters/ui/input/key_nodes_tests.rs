@@ -508,7 +508,7 @@ fn a_text_popup_takes_a_command_key_only_when_no_shortcut_on_the_path_uses_it() 
     );
 }
 
-/// egui 키 없는 누름과 뗌만 지금 경로다. 편집 바인딩 키·클립보드 조합·재생 편집 표시가 붙은 키는 경로 키다.
+/// 수식키 단독 누름과 뗌만 지금 경로다. 편집 바인딩 키·클립보드 조합·재생 편집 표시가 붙은 키는 경로 키다.
 #[test]
 fn only_non_egui_keys_and_releases_stay_on_the_current_path() {
     let (state, mut session) = scene();
@@ -580,8 +580,8 @@ fn a_bound_key_owner_is_the_start_node() {
     );
 }
 
-/// T-12b-7: 전달 키 분류. 보통 단축키 키, bare Esc, 편집 바인딩 키, 클립보드 조합 모두 경로 키다. egui 키 없는
-/// 누름만 지금 경로다.
+/// T-12b-7: 전달 키 분류. 보통 단축키 키, bare Esc, 편집 바인딩 키, 클립보드 조합 모두 경로 키다. 수식키
+/// 단독 누름만 지금 경로다.
 #[test]
 fn forwarded_keys_are_classified_like_window_keys() {
     let class = |key: Key, mods| forwarded_key_class(&key, mods);
@@ -607,7 +607,7 @@ fn forwarded_keys_are_classified_like_window_keys() {
     assert_eq!(
         class(Key::Named(winit::keyboard::NamedKey::Shift), NONE),
         ForwardedKey::Current,
-        "egui 키 없는 누름"
+        "수식키 단독 누름"
     );
 }
 
@@ -723,4 +723,50 @@ fn a_receiver_surface_picks_its_own_input_branch() {
         state.surface_input_destination(&read, sid),
         state.input_destination(&read, false)
     );
+}
+
+/// egui 키 없이 글자만 내는 키(`§`)의 누름.
+fn section_sign() -> (Key, KeyCode) {
+    (Key::Character("§".into()), KeyCode::IntlBackslash)
+}
+
+/// M-N4-1 F: 덮지 않는 `Keys` 팝업(알림 목록, 오버레이 열림) 포커스에서 egui 키 없는 키는 그 팝업이 쓰지 않아 경로를
+/// 올라가 Window 단축키가 받는다.
+#[test]
+fn a_key_without_an_egui_key_on_a_popup_rises_to_an_ancestor_binding() {
+    let (mut state, mut session) = scene();
+    bind(&mut session, "toggle_sidebar_collapse", "§");
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    open_focused(&mut state, "notifications");
+    assert!(state.window_keys_to_overlay());
+    assert!(matches!(
+        routed(decide(&state, &read, section_sign(), NONE)).receiver,
+        KeyReceiver::Shortcut { .. }
+    ));
+}
+
+/// M-N4-2 F: `Text` 팝업(검색 띠) 포커스의 egui 키 없는 글자 키는 그 팝업이 받고 egui 에 실린다(egui-winit 이 글자
+/// 사건으로 싣는다).
+#[test]
+fn a_text_only_key_on_a_text_popup_types_its_text() {
+    let (mut state, mut session) = scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let (iid, _) = open_search(&mut state, &read);
+    let decision = decide(&state, &read, section_sign(), NONE);
+    assert_eq!(routed(decision).receiver, KeyReceiver::Popup(iid));
+    assert_eq!(state.window_feeds_key(decision, false, true), Some(true));
+}
+
+/// M-N4-2 P: 터미널 포커스의 egui 키 없는 글자 키는 그 surface(PTY)가 받고 egui 에 싣지 않는다.
+#[test]
+fn a_text_only_key_on_the_terminal_reaches_the_pty() {
+    let (mut state, mut session) = scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let sid = state.focused_surface_id(&read).expect("터미널");
+    let decision = decide(&state, &read, section_sign(), NONE);
+    assert_eq!(routed(decision).receiver, KeyReceiver::Surface(sid));
+    assert_eq!(state.window_feeds_key(decision, false, true), None);
 }

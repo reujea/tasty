@@ -327,7 +327,7 @@ pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
     let key = egui::Key::from_name(key_name)?;
     let bare_escape = pressed
         && crate::adapters::ui::input::key_route::RouteKey {
-            key,
+            key: Some(key),
             modifiers: modifiers.unwrap_or_else(|| sink.held_modifiers()),
             super_held: sink.super_held(),
         }

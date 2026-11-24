@@ -155,7 +155,7 @@ pub(crate) fn bare_escape_decision(
         return settings_latch_decision();
     }
     let key = RouteKey {
-        key: egui::Key::Escape,
+        key: Some(egui::Key::Escape),
         modifiers: egui::Modifiers::NONE,
         super_held: false,
     };
@@ -208,7 +208,7 @@ pub(crate) fn focused_surface_takes_egui(state: &MainViewState, engine: &EngineR
 }
 
 /// native WebView 가 넘긴 키의 분류. 전달 키는 조회 키와 수식키만 가지므로 그 조회 키를 논리 키로 넣어 winit 입구와
-/// 같은 판정(`classify_key`)을 한다. 경로 키가 아닌 것(egui 키 없는 누름)은 지금 게이트를 쓴다. 클립보드 조합과
+/// 같은 판정(`classify_key`)을 한다. 경로 키가 아닌 것(수식키 단독 누름)은 지금 게이트를 쓴다. 클립보드 조합과
 /// 편집 바인딩 키는 경로 키다. bare Esc 는 경로 키라 받은 surface 덮임 게이트를 쓴다. 설정 열기 요청 래치는 창 전체 차단이 먼저 본다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ForwardedKey {
@@ -410,10 +410,13 @@ fn host_keymap_receives(
     key: RouteKey,
     kb: &KeybindingSettings,
 ) -> bool {
+    let Some(egui_key) = key.key else {
+        return false;
+    };
     if p.id == crate::adapters::ui::search_bar::SEARCH_BAR_POPUP_ID {
         return crate::adapters::ui::search_bar::find_keymap_receives(
             &kb.find,
-            key.key,
+            egui_key,
             key.modifiers,
             key.super_held,
         );
@@ -424,7 +427,7 @@ fn host_keymap_receives(
         return folder
             && crate::adapters::ui::popup::file_picker::folder::folder_keymap_receives(
                 key.modifiers,
-                key.key,
+                egui_key,
             );
     }
     false
@@ -446,13 +449,8 @@ fn surface_content(
     let typing = crate::shortcuts::focused_explorer_typing(state, engine);
     let edits = EditBindings::from_settings(&engine.settings.keybindings).with_judged(replay_edit);
     let takes = typing
-        && (crate::adapters::ui::popup::keys::consumes_key(
-            PopupKeyboard::Text,
-            key.key,
-            key.modifiers,
-            key.super_held,
-            &edits,
-        ) || text_edit_builtin(key.key, key.modifiers));
+        && (key.consumed_by(PopupKeyboard::Text, &edits)
+            || key.key.is_some_and(|k| text_edit_builtin(k, key.modifiers)));
     ScopeContent::Egui { sid, takes }
 }
 

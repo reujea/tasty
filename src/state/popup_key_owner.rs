@@ -104,7 +104,7 @@ impl super::MainViewState {
     /// 창이 받은 키 사건을 egui 로 보낼지(K9). 경로 키는 단계 4 수신자가 egui 수신자일 때만 보내고, 보내면 그 몫의
     /// 결속에 수신자를 적는다(`bind_key_receiver`). 그리기 독자(`surfaces_take_keys`·`pass_key_node`·팝업 층)는 그
     /// 결속을 읽으므로 경로 키 몫의 그리기 자격은 단계 4 수신자가 정한다. 지금 경로로 남는 사건(bare Esc·뗌·래치 중
-    /// 키·egui 키 없는 누름·클립보드 조합·편집 바인딩 키)은 지금 게이트(`window_feeds_egui`)다. 반환은
+    /// 키·수식키 단독 누름)은 지금 게이트(`window_feeds_egui`)다. 반환은
     /// `window_feeds_egui` 와 같다.
     #[cfg(feature = "gui")]
     pub(crate) fn window_feeds_key(

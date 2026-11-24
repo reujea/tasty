@@ -1,6 +1,6 @@
 //! 편집 키(복사·잘라내기·붙여넣기)의 대상. 편집 바인딩 키와 클립보드 조합은 경로 키이고(`key_class::classify_key`),
 //! 그 대상은 단계 4 수신자가 정한다. 단계 6 의 host egui 편집 판정, plugin 팝업 편집 요청, plugin surface 편집
-//! 요청과 단계 8 의 plugin 붙여넣기 대상이 같은 수신자를 읽는다. 지금 경로로 남는 사건(뗌, egui 키 없는 누름)은
+//! 요청과 단계 8 의 plugin 붙여넣기 대상이 같은 수신자를 읽는다. 지금 경로로 남는 사건(뗌, 수식키 단독 누름)은
 //! 호출자의 지금 판정(오버레이 게이트, 키 주인 plugin 팝업)을 쓴다. 계약: `docs/design/policies/key-mapping.md`.
 
 use super::key_nodes::{KeyDecision, path_receiver};

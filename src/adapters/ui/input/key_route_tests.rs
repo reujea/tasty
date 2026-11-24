@@ -14,7 +14,7 @@ fn key(key: Key) -> RouteKey {
 
 fn with(key: Key, modifiers: Modifiers) -> RouteKey {
     RouteKey {
-        key,
+        key: Some(key),
         modifiers,
         super_held: false,
     }

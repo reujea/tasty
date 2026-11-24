@@ -1,6 +1,6 @@
 //! 키 사건 하나의 경로 분류(계약 E0 단계 4의 입력). 경로 키(egui 키가 있는 누름. 클립보드 조합과 편집 바인딩
 //! 키도 경로 키다. 설정 열기 요청 래치 중 누름은 분류 전에 래치 노드가 끝낸다)만 포커스 노드에서 시작한 키
-//! 경로(`route_key`)로 수신자를 정하고, 나머지 사건(뗌, egui 키 없는 누름)은 그 입구의 지금 경로를 그대로 지난다.
+//! 경로(`route_key`)로 수신자를 정하고, 나머지 사건(뗌, 수식키 단독 누름)은 그 입구의 지금 경로를 그대로 지난다.
 //! egui 키 판정은 egui-winit이 같은 사건을 egui 사건으로 바꾸는 규칙과 같다(시험이 잠금 파일의 egui-winit 소스와
 //! 갈래를 대조한다). 규칙: `docs/architecture/input-layer.md`의 "경로 키".
 
@@ -21,8 +21,8 @@ pub(crate) struct KeyEventValue<'a> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CurrentReason {
     Release,
-    /// egui 키가 없는 누름(수식키 단독, egui 키 없이 글자만 내는 키).
-    NoEguiKey,
+    /// 수식키 단독 누름. 단축키 키가 아니고(`tasty_key_match::matches_binding` 이 거른다) egui 에는 수식키 상태로만 간다.
+    ModifierOnly,
 }
 
 /// 키 사건의 분류.
@@ -33,15 +33,18 @@ pub(crate) enum KeyClass {
 }
 
 /// 키 사건을 가른다. 클립보드 조합(egui-winit 이 `Event::Cut`·`Copy`·`Paste`로 바꾸는 누름)과 창 편집 바인딩
-/// 키도 경로 키다. 편집 대상은 그 경로의 수신자다.
+/// 키도 경로 키다. 편집 대상은 그 경로의 수신자다. egui 키가 없는 누름(egui 키 없이 글자만 내는 키 등)도 포커스
+/// 노드에서 시작하는 경로 키이고(`RouteKey::key` 가 `None`), egui 수신자가 받으면 egui-winit 이 글자 사건으로 싣는다.
+/// 수식키 단독 누름만 지금 경로다.
 pub(crate) fn classify_key(value: &KeyEventValue<'_>) -> KeyClass {
     let current = KeyClass::Current;
     if !value.pressed {
         return current(CurrentReason::Release);
     }
-    let Some(key) = egui_key(value.logical, value.physical) else {
-        return current(CurrentReason::NoEguiKey);
-    };
+    let key = egui_key(value.logical, value.physical);
+    if key.is_none() && is_modifier_key(value.logical) {
+        return current(CurrentReason::ModifierOnly);
+    }
     KeyClass::Path(RouteKey {
         key,
         modifiers: egui_modifiers(value.mods),
@@ -55,12 +58,35 @@ pub(crate) fn is_bare_escape_press(value: &KeyEventValue<'_>) -> bool {
     value.pressed
         && egui_key(value.logical, value.physical).is_some_and(|key| {
             RouteKey {
-                key,
+                key: Some(key),
                 modifiers: egui_modifiers(value.mods),
                 super_held: !cfg!(target_os = "macos") && value.mods.super_key(),
             }
             .bare_escape()
         })
+}
+
+/// 수식키·잠금 키 단독 누름인지. 단축키 판정(`tasty_key_match::matches_binding`)이 거르는 이름과 AltGr 다.
+fn is_modifier_key(logical: &Key) -> bool {
+    matches!(
+        logical,
+        Key::Named(
+            NamedKey::Control
+                | NamedKey::Shift
+                | NamedKey::Alt
+                | NamedKey::AltGraph
+                | NamedKey::Super
+                | NamedKey::Meta
+                | NamedKey::Hyper
+                | NamedKey::Fn
+                | NamedKey::FnLock
+                | NamedKey::CapsLock
+                | NamedKey::NumLock
+                | NamedKey::ScrollLock
+                | NamedKey::Symbol
+                | NamedKey::SymbolLock
+        )
+    )
 }
 
 /// egui-winit이 이 키 사건에 싣는 egui 키. 논리 키가 먼저이고 없으면 물리 키다.
