@@ -471,7 +471,7 @@ pub fn draw_remote_path(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "copy",
-                "none new — the no-host word attach.mirror_pill_label",
+                "none new — the status word reuses status_bar.remote_reconnecting, the no-host word attach.mirror_pill_label",
             ),
         ],
         &[
