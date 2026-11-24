@@ -714,7 +714,7 @@ pub(crate) fn handle_set_nickname(
         );
     }
     // 확인한 자식(surface)으로 대상을 고정한다. 확인과 수정 사이에 앞선 저장 결과가 들어와 같은 번호가
-    // 다른 자식을 가리키면, 그 자식을 이 창 소유로 기록하며 고치지 않고 거절한다.
+    // 다른 자식을 가리키면, 고치면 그 자식을 이 창 소유로 기록하게 되므로 고치지 않고 거절한다.
     let receipt = match engine.runtime.child_terminals.set_nickname(
         &parent,
         child_index,
