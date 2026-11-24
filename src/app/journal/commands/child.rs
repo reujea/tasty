@@ -303,7 +303,8 @@ pub(super) fn resolve_respawn(
             runtime_epoch: result.binding.runtime_epoch,
             cwd: Some(cwd),
             role: optional_str(input, "role").or_else(|| entry.role.clone()),
-            nickname: optional_str(input, "nickname").or_else(|| entry.nickname.clone()),
+            // 명시한 값만 싣는다. 준비와 설치 사이의 nickname 변경을 설치가 덮지 않게 한다(apply_replacement).
+            nickname: optional_str(input, "nickname"),
             has_command: command.is_some(),
             replacing: true,
         });
@@ -432,5 +433,108 @@ mod tests {
         let back: crate::runtime::journal_product::ChildRecipe =
             serde_json::from_value(value).unwrap();
         assert_eq!(back.parent, external.parent);
+    }
+
+    /// 준비와 설치 사이에 nickname을 바꾸거나 지워도 `--nickname` 없는 `respawn --cwd`의 설치는 그 값을
+    /// 남긴다. `--nickname`을 준 respawn만 덮는다.
+    #[test]
+    fn a_cwd_respawn_keeps_a_nickname_changed_after_preparation() {
+        use crate::runtime::child_terminal::ChildEntry;
+        use tasty_core::{DomainEvent as E, SurfaceSpec};
+        let _home = crate::test_support::TastyHomeGuard::new();
+        let cwd = tempfile::tempdir().expect("cwd");
+        let mut events = vec![
+            E::CategoryCreated {
+                id: 0,
+                name: "normal".into(),
+                index: 0,
+            },
+            E::WorkspaceCreated {
+                id: 1,
+                name: "workspace".into(),
+                category: 0,
+                index: 0,
+                pane: 1,
+            },
+        ];
+        for (index, id) in [1, 2].into_iter().enumerate() {
+            events.push(E::TabCreated {
+                id,
+                pane: 1,
+                index,
+                name: "terminal".into(),
+                surface: SurfaceSpec {
+                    id,
+                    kind: "terminal".into(),
+                    data: None,
+                },
+            });
+        }
+        let (_state, mut session) =
+            crate::state::tests::test_state_from_model(crate::state::tests::test_model(events));
+        // 준비는 journal 결합의 runtime_epoch를 recipe에 싣는다. 시험 세션에는 결합이 없어 하나 붙인다.
+        session.journal_binding = Some(crate::runtime::journal_product::EngineBinding {
+            journal_id: "journal".into(),
+            stream: "slot".into(),
+            incarnation: 1,
+            runtime_epoch: 1,
+            published_cut: Some(1),
+            revision: Some(1),
+        });
+        let parent = ParentKey::Surface(1);
+        let cases: [(Option<&str>, Option<&str>, Option<&str>); 3] = [
+            (None, Some("renamed"), Some("renamed")),
+            (None, None, None),
+            (Some("given"), Some("renamed"), Some("given")),
+        ];
+        for (explicit, changed, expected) in cases {
+            {
+                let mut engine = session.borrow_mut();
+                let children = &mut engine.runtime.child_terminals;
+                children.remove_child(&parent, 0);
+                children.register_child(
+                    1,
+                    ChildEntry {
+                        child_surface_id: 2,
+                        index: 0,
+                        cwd: None,
+                        role: None,
+                        nickname: Some("old".into()),
+                    },
+                );
+            }
+            let mut params = json!({ "surface": 1, "child": 0, "cwd": cwd.path() });
+            if let Some(nickname) = explicit {
+                params["nickname"] = json!(nickname);
+            }
+            let request = tasty_ipc::protocol::JsonRpcRequest {
+                caller_agent_id: None,
+                response_timeout_ms: None,
+                idempotency_key: None,
+                jsonrpc: "2.0".into(),
+                id: Some(json!(7)),
+                method: "terminal.respawn".into(),
+                params,
+                session_token: None,
+            };
+            let prepared = super::resolve_respawn(&request, &session).expect("prepared");
+            let recipe = prepared
+                .input
+                .and_then(|input| input.child)
+                .expect("child recipe");
+            let mut engine = session.borrow_mut();
+            let children = &mut engine.runtime.child_terminals;
+            // 준비 뒤 terminal.set_nickname(또는 --clear)이 저장한 값.
+            children.update_child(&parent, 0, |entry| {
+                entry.nickname = changed.map(str::to_owned);
+            });
+            children.update_child(&parent, 0, |entry| recipe.apply_replacement(entry));
+            let installed = children.find_child(&parent, 0).expect("child");
+            assert_eq!(
+                installed.nickname.as_deref(),
+                expected,
+                "explicit {explicit:?}, changed {changed:?}"
+            );
+        }
     }
 }

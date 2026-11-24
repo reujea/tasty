@@ -338,14 +338,11 @@ impl Installation {
         let mut child_receipt = None;
         if let Some(child) = self.child.take() {
             if child.replacing {
+                let (parent, index) = (child.parent.clone(), child.index);
                 engine
                     .runtime
                     .child_terminals
-                    .update_child(&child.parent, child.index, |entry| {
-                        entry.cwd = child.cwd;
-                        entry.role = child.role;
-                        entry.nickname = child.nickname;
-                    });
+                    .update_child(&parent, index, |entry| child.apply_replacement(entry));
                 engine
                     .runtime
                     .child_terminals
