@@ -4,7 +4,7 @@
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 
-use super::{FpState, Variant, card, host_badge, host_text};
+use super::{FpState, Variant, card};
 use crate::catalog::icons::{self, MockGlyph};
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::i18n::t;
@@ -127,5 +127,105 @@ pub(super) fn after_title(ui: &mut egui::Ui, theme: &Theme, v: Variant) {
             );
         }
         Indicator::Border => {}
+    }
+}
+
+/// 디자인의 숨은 View `file-picker-remote-no-profile` — 빈 호스트 원격 프레임과 언어별 배지.
+pub(super) fn draw_no_profile_view(ui: &mut egui::Ui, theme: &Theme) {
+    spec::stage(ui, theme, StageVariant::Wrap, |ui| {
+        ui.spacing_mut().item_spacing =
+            egui::vec2(theme.spacing_lg.value(), theme.spacing_lg.value());
+        spec::cluster(
+            ui,
+            theme,
+            "View · file-picker-remote-no-profile — no profile name (--ssh or --target-port from the CLI or IPC): the word Remote in the host badge, then the badge in every language",
+            |ui| {
+                card(
+                    ui,
+                    theme,
+                    Variant::open(FpState::Loaded, true, false).hostless(),
+                );
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = theme.spacing_md.value();
+                    for lang in std::iter::once("en").chain(crate::i18n::translated_languages()) {
+                        ui.vertical(|ui| {
+                            ui.spacing_mut().item_spacing.y = theme.spacing_xs.value();
+                            ui.label(
+                                egui::RichText::new(lang)
+                                    .size(theme.font_size_caption.value())
+                                    .color(theme.text_muted().to_egui()),
+                            );
+                            egui::Frame::new()
+                                .fill(theme.bg_panel().to_egui())
+                                .stroke(egui::Stroke::new(
+                                    theme.border_width.value(),
+                                    theme.border_strong().to_egui(),
+                                ))
+                                .corner_radius(theme.corner_radius.value())
+                                .inner_margin(egui::Margin::same(theme.spacing_sm.value() as i8))
+                                .show(ui, |ui| {
+                                    host_badge(
+                                        ui,
+                                        theme,
+                                        "",
+                                        crate::i18n::t_lang(lang, "attach.mirror_pill_label"),
+                                    );
+                                });
+                        });
+                    }
+                });
+            },
+        );
+    });
+}
+
+/// 원격 호스트를 표시하는 배지. 호스트가 비면(프로필 이름이 없는 attach) `empty_label` 낱말을 label
+/// 글꼴로 쓴다. 글리프·채움·잉크는 같다.
+pub(super) fn host_badge(ui: &mut egui::Ui, theme: &Theme, host: &str, empty_label: &str) {
+    let info = theme.accent_info().to_egui();
+    let (text, font) = host_text(host, empty_label, theme.font_size_caption.value());
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text.to_owned(), font, egui::Color32::PLACEHOLDER);
+    let glyph = theme.icon_glyph_size_xs.value();
+    let gap = theme.spacing_xs.value();
+    let pad_x = theme.spacing_sm.value();
+    let h = super::HOST_BADGE_H.value();
+    let w = pad_x * 2.0 + glyph + gap + galley.rect.width();
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::hover());
+    let radius = theme.corner_radius.value();
+    ui.painter()
+        .rect_filled(rect, radius, info.gamma_multiply(theme.tint_fill_alpha()));
+    ui.painter().rect_stroke(
+        rect,
+        radius,
+        egui::Stroke::new(
+            theme.border_width.value(),
+            info.gamma_multiply(theme.tint_border_alpha()),
+        ),
+        egui::StrokeKind::Inside,
+    );
+    let gy = egui::Rect::from_min_size(
+        egui::pos2(rect.left() + pad_x, rect.center().y - glyph * 0.5),
+        egui::vec2(glyph, glyph),
+    );
+    icons::REMOTE.image(glyph, info).paint_at(ui, gy);
+    let pos = egui::pos2(
+        rect.left() + pad_x + glyph + gap,
+        rect.center().y - galley.rect.height() * 0.5,
+    );
+    ui.painter().galley(pos, galley, info);
+}
+
+/// 호스트 표시 글자와 글꼴. 이름은 mono, 빈 호스트의 낱말은 label 글꼴이다.
+pub(super) fn host_text<'a>(
+    host: &'a str,
+    empty_label: &'a str,
+    size: f32,
+) -> (&'a str, egui::FontId) {
+    if host.is_empty() {
+        (empty_label, tasty_ui_widgets::label_font(size))
+    } else {
+        (host, egui::FontId::monospace(size))
     }
 }
