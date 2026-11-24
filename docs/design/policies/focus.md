@@ -358,12 +358,12 @@ IPC에는 토스트 대신 사유를 담은 오류를 반환한다. `surface.clo
 
 markdown과 image는 kind 이름과 등록한 플러그인 id를 함께 본다. 번들 플러그인이 빠진 설치에서는 제3자가 같은 kind 이름을 등록할 수 있고, 그 페이지의 바탕은 호스트가 보장하지 못한다. `com.tasty.` id는 공식 플러그인 전용이라 제3자가 쓸 수 없다. 다른 플러그인이 등록한 markdown은 띠다.
 
-**띠는 행을 예약한다.** 띠 kind leaf는 포커스와 상관없이 위쪽 행을 비우므로 포커스가 바뀌어도 내용이 움직이지 않는다. 행의 아래 경계는 정수 물리 px이고(`tasty_ui_widgets::surface_focus_edge_rows`), native 페이지의 위 끝·plugin 프레임·주소 띠가 모두 그 경계 아래에서 시작한다. 첫 프레임부터 같다. 행은 plugin 입력 영역이 아니고, 그 행을 누르면 leaf 클릭처럼 포커스만 옮긴다.
+**띠는 행을 예약한다.** 띠 kind leaf는 포커스와 상관없이 위쪽 행을 비우므로 포커스가 바뀌어도 내용이 움직이지 않는다. 행의 아래 경계는 정수 물리 px이고(`tasty_ui_widgets::surface_focus_edge_rows`), native 페이지의 위 끝·plugin 프레임·주소 띠가 모두 그 경계 아래에서 시작한다. 첫 프레임부터 같다. 행은 plugin 입력 영역이 아니고, 그 행을 누르면 leaf 클릭처럼 포커스만 옮긴다. plugin 프레임에서 누른 버튼은 뗄 때까지 그 leaf가 포인터를 받으므로 행 위에서 떼도 plugin이 뗌을 받는다. 행이 leaf를 다 차지하면 native 페이지는 숨는다.
 
 - 띠 색은 그 화면의 모델 포커스를 따른다. hard 점유여도 포커스를 가지면 켜진다. mirror는 client 자기 포커스다.
 - 링(응답 대기·점유·완료)이 있는 leaf는 행 안에서 비포커스 띠 → 링 → 켜진 띠 순서로 칠한다. 링이 위 행을, 켜진 띠가 아래 행을 차지한다. 포커스된 leaf에는 행 안에 완료 링을 두지 않는다. 링은 띠 leaf에서 행 아래만 칠한다.
 - native WebView는 host 층보다 위라서 webview leaf에서는 페이지가 덮은 곳의 링이 보이지 않고 행 안의 윗변만 보인다. html의 주소 띠·배너는 host가 그리므로 그 옆에서는 링 옆변이 보인다.
-- 띠는 `Order::Middle` 층이라 탭 바와 host·plugin 팝업 아래다.
+- 띠는 `Order::Middle` 층이라 탭 바와 host·plugin 팝업 아래다. host 팝업이 plugin 팝업 위인 프레임에는 plugin 본문이 egui보다 먼저 합성되므로, 띠는 실제로 합성되는 본문(본문이 있고 primitive가 남은 팝업)의 잘림 영역만 비운다. 본문 디코드는 egui 패스 뒤라 이 영역은 직전에 디코드한 본문 기준이다.
 - mirror mesh는 서버가 descriptor에 실은 소유 plugin의 `bed_focus`로 분류한다([attach 동작](../../dev-guide/attach-behavior.md)). 값을 싣지 않는 옛 서버의 mirror mesh는 띠다.
 
 **띠가 구별을 보장하는 범위.** `bed_focus`를 선언하지 않은 plugin kind는 띠가 늘 구별을 보인다. 선언한 kind는 바탕으로 분류해 띠가 없고, 페이지가 약속대로 host 테마 값을 칠할 때만 포커스가 보인다. host는 그 페이지의 바탕을 확인하지 못한다.
