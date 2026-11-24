@@ -101,6 +101,24 @@ epaint = { path = "vendor/epaint" }
 - **경고 로그**: 본체는 빈 글리프마다 경고 한 줄을 남긴다. atlas 를 다시 만들면 글리프 캐시가 함께 버려지므로 넘침이 계속되는 입력에서는 다시 그릴 때마다 반복된다. 경고는 epaint 의 `log` feature 뒤에 있어, `Justfile` 이 `-p` 로 빌드하는 번들 플러그인에서는 남지 않는다(`cargo tree -e features -i epaint` 로 확인). `--workspace` 빌드에서는 feature 가 켜진다.
 - **확인 범위**: Linux 에서 설정 창과 언어팩 경로를 실제 실행으로 확인했다. Windows·macOS 실행과 플러그인 프로세스의 실제 실행, atlas 폭 8192·16384 의 임의 순서 시험, 넘침이 계속될 때의 재업로드 비용은 재지 않았다.
 
+## `vtparse` — 레포 사본 + 상태 조회 패치 (attach 효과 소유자의 시퀀스 끝 판정)
+
+`Cargo.toml` 의 `[patch.crates-io]` 가 vtparse 를 레포 안의 사본에 핀:
+
+```toml
+vtparse = { path = "vendor/vtparse" }
+```
+
+- **왜 사본인가**: 상류 0.6.2 는 파서 상태를 `is_ground()` 로만 알리고, CSI·DCS 머리·SOS/PM 을 ESC 나 C1 도입자로 떠날 때 콜백이 없다. attach 효과 소유자가 떠난 뒤 그가 시작한 시퀀스가 끝나는 바이트를 찾으려면 바이트마다 상태를 읽어야 한다(`effects_held_prefix`, `crates/tasty-terminal/src/attach_stream.rs`). 상태를 읽는 함수 하나를 더한 패치다. 사본 범위와 패치 내용은 [`vendor/vtparse/PATCHES.md`](../../vendor/vtparse/PATCHES.md).
+- **워크스페이스 멤버가 아니다**: 루트 `Cargo.toml` 의 `exclude` 에 있다 — 워크스페이스 lint·clippy·fmt·파일 SLOC 게이트가 상류 코드를 판정하지 않는다. 사본의 시험은 루트에서 `cargo test -p vtparse` 로 돌지 않는다(방법은 PATCHES.md).
+- **적용 범위**: 이 workspace 에서 vtparse 를 직접 의존하는 루트 `tasty`(gui 기능), `tasty-terminal`, termwiz 가 이 사본으로 빌드된다. 패치는 조회만 더하므로 파싱 동작은 상류와 같다. `tasty-official-plugins` 레포는 vtparse 를 쓰지 않는다.
+- **리스크**: `cargo update` 가 이 의존을 올리지 않고 상류 수정도 자동으로 포함되지 않는다. termwiz 를 올려 vtparse 판이 바뀔 때는 사본도 그 판으로 옮긴다. `Cargo.lock` 의 vtparse 판이 사본과 어긋나면 `[patch]` 가 쓰이지 않고 상태 조회가 없어 빌드가 깨진다.
+
+### 점검 / 전환 트리거
+
+- 걷는 조건은 [`vendor/vtparse/PATCHES.md`](../../vendor/vtparse/PATCHES.md) "걷는 조건"을 따른다.
+- RustSec 에 `vtparse` 권고가 붙으면 사본에 수정을 옮기거나 상류 새 버전 위에 패치를 다시 얹는다.
+
 <a id="은퇴-egui_commonmark--egui-버전-lockstep"></a>
 
 ## egui 버전 호환
