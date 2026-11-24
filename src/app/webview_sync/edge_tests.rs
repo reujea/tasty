@@ -1,7 +1,7 @@
 //! 띠 kind WebView의 페이지 위치. 포커스 띠 행·주소 띠 아래에서 시작하고, 띠 행이 본문을 다 쓰면
 //! 창을 드러내지 않는다. 바탕 kind는 띠 행을 비우지 않는다.
 
-use super::{edge_reserved, page_bounds};
+use super::page_geometry::{edge_reserved, page_bounds};
 use crate::model::{PhysicalPx, PhysicalRect};
 use crate::plugin_bridge::remote_surface::RemoteSurface;
 use crate::runtime::surface_registry::KindCapabilities;
