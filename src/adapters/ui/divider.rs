@@ -82,11 +82,7 @@ pub(crate) fn regions_from_state(
     let mut out = Vec::new();
     for (_pane_id, _pane_rect, surface_regions) in &regions {
         for r in surface_regions {
-            // 응답 필요는 점유 표시보다 우선한다. 완료 표시는 점유 중 숨긴다.
-            let occupied = engine.live.occupancy.occupancy_of(r.id).is_some();
-            let kind = engine.attention_kind(r.id).filter(|k| {
-                tasty_ui_widgets::surface_edge_attention(Some((*k).into()), occupied).is_some()
-            });
+            let kind = crate::adapters::ui::surface_rings::attention_ring(engine, r.id);
             out.push(SurfaceHighlightRegion { rect: r.rect, kind });
         }
     }

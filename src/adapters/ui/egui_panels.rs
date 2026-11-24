@@ -902,7 +902,6 @@ fn draw_occupied_overlays(
         pane_id: u32,
         sid: u32,
         hard: bool,
-        // 응답 대기 테두리가 같은 자리에 오면 점유선은 그리지 않는다(강제 해제 버튼은 남긴다).
         edge: bool,
         x: f32,
         y: f32,
@@ -929,22 +928,16 @@ fn draw_occupied_overlays(
                     .max(tasty_type_geometry::length::PhysicalPx(1.0)),
             };
             for r in state.tab_surface_regions(engine, tab, content_rect, scale_factor) {
-                let hard = if engine.live.occupancy.is_content_hidden(r.id) {
-                    true
-                } else {
-                    match engine.live.occupancy.occupancy_of(r.id) {
-                        Some(occ) => occ.tier == crate::core::attach::OccupancyTier::Hard,
-                        None => continue,
-                    }
+                let Some(mark) = crate::adapters::ui::surface_rings::occupancy_mark(engine, r.id)
+                else {
+                    continue;
                 };
                 let logical = r.rect.to_logical(scale_factor);
                 occ.push(Occ {
                     pane_id,
                     sid: r.id,
-                    hard,
-                    edge: tasty_ui_widgets::occupancy_edge_shows(
-                        engine.attention_kind(r.id).map(Into::into),
-                    ),
+                    hard: mark.hard,
+                    edge: mark.edge,
                     x: logical.x.value().round_ui(),
                     y: logical.y.value().round_ui(),
                     w: logical.width.value().round_ui(),
