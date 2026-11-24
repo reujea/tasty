@@ -94,15 +94,23 @@ fn maintain_memory_at_boot(arc: &std::sync::Arc<std::sync::Mutex<tasty_memory::M
     truncate_wal(&mut store);
 }
 
-/// 플러그인 최소 버전 비교에 쓸 본체 버전과 부족 처리.
-/// release는 거절한다. debug(develop 개발 빌드)는 경고만 한다. develop의 루트 버전은 마지막
-/// 릴리스 값에 머물지만 잠금된 공식 플러그인은 다음 판의 계약을 요구하기 때문이다.
+/// 플러그인이 더 높은 Tasty를 요구할 때의 처리. release(`debug_build == false`)는 거절한다.
+/// debug(develop 개발 빌드)는 경고만 한다. develop의 루트 버전은 마지막 릴리스 값에 머물지만
+/// 잠금된 공식 플러그인은 다음 판의 계약을 요구하기 때문이다.
+fn version_shortfall(debug_build: bool) -> tasty_plugin_manifest::VersionShortfall {
+    if debug_build {
+        tasty_plugin_manifest::VersionShortfall::Warn
+    } else {
+        tasty_plugin_manifest::VersionShortfall::Refuse
+    }
+}
+
+/// 플러그인 최소 버전 비교에 쓸 본체 버전과 이 빌드의 부족 처리.
 fn plugin_host_version() -> (&'static str, tasty_plugin_manifest::VersionShortfall) {
-    #[cfg(debug_assertions)]
-    let shortfall = tasty_plugin_manifest::VersionShortfall::Warn;
-    #[cfg(not(debug_assertions))]
-    let shortfall = tasty_plugin_manifest::VersionShortfall::Refuse;
-    (env!("CARGO_PKG_VERSION"), shortfall)
+    (
+        env!("CARGO_PKG_VERSION"),
+        version_shortfall(cfg!(debug_assertions)),
+    )
 }
 
 /// main에서 호출하는 프로세스 진입점.
@@ -1283,16 +1291,19 @@ mod plugin_host_version_tests {
         assert_eq!(super::plugin_host_version().0, env!("CARGO_PKG_VERSION"));
     }
 
-    /// release 분기 배선은 `cargo test --release`로 이 시험을 돌려 지킨다.
-    #[cfg(not(debug_assertions))]
+    /// 두 빌드의 처리를 일반(debug) 시험에서 함께 잰다.
     #[test]
-    fn a_release_build_refuses_a_plugin_requiring_a_newer_tasty() {
-        assert_eq!(super::plugin_host_version().1, VersionShortfall::Refuse);
+    fn a_release_build_refuses_and_a_debug_build_only_warns() {
+        assert_eq!(super::version_shortfall(false), VersionShortfall::Refuse);
+        assert_eq!(super::version_shortfall(true), VersionShortfall::Warn);
     }
 
-    #[cfg(debug_assertions)]
+    /// 이 빌드가 넘기는 값이 빌드 종류와 맞는지 본다.
     #[test]
-    fn a_debug_build_only_warns_about_a_plugin_requiring_a_newer_tasty() {
-        assert_eq!(super::plugin_host_version().1, VersionShortfall::Warn);
+    fn this_build_passes_its_own_build_kind() {
+        assert_eq!(
+            super::plugin_host_version().1,
+            super::version_shortfall(cfg!(debug_assertions))
+        );
     }
 }
