@@ -679,21 +679,23 @@ mod tests {
     }
 
     /// Started 보고가 패닉하면 이미 띄운 자식을 끝내고 회수한 뒤 슬롯을 돌려준다.
-    /// 자식은 30초를 자므로, 끝내지 않았다면 슬롯이 10초 안에 돌아오지 않거나 그 pid가 살아 있다.
+    /// 자식 `cat`은 시험이 쥔 stdin 파이프를 읽으므로 시험이 끝날 때까지 스스로 끝나지 않는다.
+    /// 끝내지 않고 기다리면 슬롯이 돌아오지 않고, 끝내지 않고 놓으면 자식이 쥔 stdout 파이프가 닫히지 않는다.
+    /// 두 기한은 고장 난 실행을 멈출 때만 닿는다. 같은 프로세스의 다른 시험이 패닉 출력 잠금을 쥐고
+    /// backtrace를 찍는 동안 이 시험의 패닉 출력이 기다려 반납이 수 초 늦어질 수 있어 넉넉히 둔다.
     #[test]
     fn a_job_whose_report_panics_after_start_leaves_no_child() {
-        let (_tmp, dir) = setup();
         let pool = ShellPool::new(1, 0);
-        let pid_file = dir.join("pid");
-        let script = format!("echo $$ > {}; exec sleep 30", pid_file.display());
+        let (stdin, keep_stdin_open) = std::io::pipe().expect("stdin pipe");
+        let (mut child_stdout, stdout) = std::io::pipe().expect("stdout pipe");
         let started = Arc::new(AtomicBool::new(false));
         let saw_start = Arc::clone(&started);
         pool.submit(|| {
             ShellJob::new(
                 "panicky",
                 move || {
-                    let mut c = std::process::Command::new("sh");
-                    c.args(["-c", &script]);
+                    let mut c = std::process::Command::new("cat");
+                    c.stdin(stdin).stdout(stdout);
                     c
                 },
                 move |event| {
@@ -705,27 +707,23 @@ mod tests {
             )
         })
         .expect("accepted");
-        wait_idle(&pool, Duration::from_secs(10));
+        wait_idle(&pool, Duration::from_secs(60));
         assert!(
             started.load(Ordering::SeqCst),
             "the job never reported Started"
         );
-        // 자식이 pid를 쓰기 전에 끝났으면 파일이 없다. 썼다면 그 프로세스는 없어야 한다.
-        let deadline = Instant::now() + Duration::from_secs(2);
-        while !pid_file.exists() && Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(10));
-        }
-        if let Ok(pid) = std::fs::read_to_string(&pid_file) {
-            let pid = pid.trim();
-            if !pid.is_empty() {
-                let alive = std::process::Command::new("kill")
-                    .args(["-0", pid])
-                    .status()
-                    .expect("kill -0")
-                    .success();
-                assert!(!alive, "the child {pid} outlived its panicked job");
-            }
-        }
+        // 쓰기 끝은 자식과, 슬롯 반납 전에 버려지는 Command만 쥔다. 읽기가 끝나면 자식이 없다.
+        let (closed, wait_closed) = mpsc::channel();
+        std::thread::spawn(move || {
+            let mut rest = Vec::new();
+            let _ignored = closed.send(std::io::Read::read_to_end(&mut child_stdout, &mut rest));
+        });
+        let read = wait_closed.recv_timeout(Duration::from_secs(60));
+        assert!(
+            matches!(read, Ok(Ok(0))),
+            "the child outlived its panicked job: {read:?}"
+        );
+        drop(keep_stdin_open);
     }
 
     /// 실행기 스레드가 풀려 나가고 대체 스레드를 세우지 못해 슬롯이 하나도 남지 않으면,
