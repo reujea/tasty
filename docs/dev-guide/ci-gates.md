@@ -491,7 +491,7 @@ self-hosted 러너에서 도는 일반 검사 잡은 이전 실행의 `target/`�
   Linux·macOS 잡은 `shell: bash`와 `run: bash scripts/ci-prepare-workspace.sh` 한 줄이다. Windows 잡은 `shell: pwsh`와
   Git Bash를 찾아 부르고 종료 코드를 넘기는 지금 블록이고, 블록 안의 `#` 줄까지 같아야 한다.
   그 밖의 표기는 파일:행과 함께 `지원하지 않는 표기`로 실패한다.
-  - 구조: 최상위 줄은 모두 키이고 한 번씩만 나온다. 스텝은 6칸 `- `, 스텝 키는 8칸이다. 같은 깊이에서 같은 키를 두 번 쓰지 않는다.
+  - 구조: 최상위 줄은 모두 키다. 스텝은 6칸 `- `, 스텝 키는 8칸이다. 최상위·잡 키·스텝 키·with 키에서 같은 키를 두 번 쓰지 않는다.
   - 판정에 쓰는 값(`uses`·`id`·`if`·`continue-on-error`·`with.clean`): 한 줄이다. 따옴표 없는 값, 작은따옴표 값,
     이스케이프 없는 큰따옴표 값만 받는다. 블록 스칼라, 여러 줄 값, 값 뒤 주석은 받지 않는다. `if`·`continue-on-error` 표기는
     모든 스텝에서 본다. `actions/checkout`은 소문자로만 쓴다.
