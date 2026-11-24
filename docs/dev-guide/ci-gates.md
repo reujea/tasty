@@ -486,6 +486,7 @@ self-hosted 러너에서 도는 일반 검사 잡은 이전 실행의 `target/`�
   워크플로를 고치다 생기는 실수(조건 하나 빠뜨림, 준비 스텝 순서·조건 변경, 표기 변경)를 막는 것이 목적이다. 받는 표기를 좁게
   고정하고 그 밖은 실패로 보낸다. 일부러 꾸민 우회 표기를 모두 막는 것은 목적이 아니다.
   정리를 끈 checkout 바로 뒤의 준비 스텝, 준비 스텝의 꼴, 위 조건, 패키징 워크플로의 정리 유지를 본다.
+  정리를 끈 checkout에도 `if`·`continue-on-error`가 없어야 한다. 그 checkout만 건너뛰면 이전 작업 트리의 소스로 뒤 스텝이 돈다.
   준비 스텝은 키가 `name`·`id`·`shell`·`run`뿐이다(`if`·`continue-on-error` 없음). 꼴은 잡의 OS(`runs-on` 라벨)로 고른다.
   Linux·macOS 잡은 `shell: bash`와 `run: bash scripts/ci-prepare-workspace.sh` 한 줄이다. Windows 잡은 `shell: pwsh`와
   Git Bash를 찾아 부르고 종료 코드를 넘기는 지금 블록이고, 블록 안의 `#` 줄까지 같아야 한다.

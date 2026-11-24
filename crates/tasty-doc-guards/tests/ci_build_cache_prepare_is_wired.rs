@@ -33,6 +33,8 @@ const PREPARE_RUN_PWSH: [&str; 9] = [
     "& $bash scripts/ci-prepare-workspace.sh",
     "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }",
 ];
+/// 정리를 끈 checkout이 가질 수 없는 키. 붙으면 checkout을 건너뛰거나 실패를 숨길 수 있다.
+const CACHED_CHECKOUT_DENIED_KEYS: [&str; 2] = ["if", "continue-on-error"];
 /// prepare 스텝이 가질 수 있는 키. `if`·`continue-on-error`·`env` 등은 준비를 건너뛰거나 실패를 숨길 수 있어 받지 않는다.
 const PREPARE_KEYS: [&str; 4] = ["name", "id", "shell", "run"];
 
@@ -625,6 +627,17 @@ fn check_cached_checkout(file: &str, job: &Job, k: usize, r: &mut Report) {
     let s = &job.steps[k];
     let p = &mut r.problems;
     r.cached_checkouts += 1;
+    // prepare처럼 조건 키를 받지 않는다. 이 checkout만 건너뛰면 이전 작업 트리의 소스로 뒤 스텝이 돈다.
+    for f in s
+        .fields
+        .iter()
+        .filter(|f| CACHED_CHECKOUT_DENIED_KEYS.contains(&f.key.as_str()))
+    {
+        p.push(format!(
+            "{file}:{} {UNSUPPORTED}: clean: false checkout에 {}가 있다",
+            f.line, f.key
+        ));
+    }
     if COLD_WORKFLOWS.contains(&file) {
         p.push(format!(
             "{file}:{} {} — 패키징 checkout이 정리를 끈다",
@@ -1229,4 +1242,28 @@ fn a_checkout_in_another_case_is_rejected() {
         "      - uses: Actions/Checkout@v4\n        with:\n          fetch-depth: 0\n          clean: false\n",
     );
     assert_caught(&all, "release.yml:22 지원하지 않는 표기");
+}
+
+/// K1: 정리를 끈 checkout은 prepare처럼 if·continue-on-error 없이 쓴다. 조건 하나로 그 checkout만 건너뛰면
+/// 이전 작업 트리의 소스로 시험이 돈다.
+#[test]
+fn a_cached_checkout_with_a_condition_is_rejected() {
+    for extra in [
+        "        if: always()\n",
+        "        continue-on-error: true\n",
+    ] {
+        let all = mutated(
+            "test.yml",
+            TEST_CACHED_CHECKOUT,
+            &TEST_CACHED_CHECKOUT.replacen(
+                "      - uses: actions/checkout@v4\n",
+                &format!("      - uses: actions/checkout@v4\n{extra}"),
+                1,
+            ),
+        );
+        assert_caught(
+            &all,
+            "test.yml:25 지원하지 않는 표기: clean: false checkout",
+        );
+    }
 }
