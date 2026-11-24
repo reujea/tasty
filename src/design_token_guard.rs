@@ -568,6 +568,11 @@ fn semantic_theme_field<'a>(
 /// 값이 같은 다른 Theme 토큰으로 우회하지 않는다.
 const PATHLESS_LENGTH_TOKENS: &[(&str, &str)] = &[
     (
+        "semantic.chip-height",
+        "component `fp-host-badge-height` 의 alias 로만 쓰인다 — 그 접근자는 역할 이름이라 이 \
+         토큰의 경로가 아니다",
+    ),
+    (
         "semantic.field-width-range",
         "소비처가 없어 표에 오른 적이 없다",
     ),
@@ -580,6 +585,16 @@ const PATHLESS_LENGTH_TOKENS: &[(&str, &str)] = &[
         "semantic.font-size-brand-wordmark",
         "component `sidebar-wordmark-font-size` 의 alias 로만 쓰인다 — 그 접근자는 역할 \
          이름이라 이 토큰의 경로가 아니다",
+    ),
+    (
+        "semantic.icon-size-window-caption",
+        "component `titlebar-caption-glyph-size` 의 alias 로만 쓰인다 — 그 접근자는 역할 \
+         이름이라 이 토큰의 경로가 아니다",
+    ),
+    (
+        "semantic.letter-spacing-brand-lockup",
+        "component `loading-lockup-tracking` 의 alias 로만 쓰인다 — 그 접근자는 역할 이름이라 \
+         이 토큰의 경로가 아니다",
     ),
     (
         "semantic.letter-spacing-ui",
@@ -596,6 +611,7 @@ const PATHLESS_LENGTH_TOKENS: &[(&str, &str)] = &[
         "component `switch-radius` 의 alias 로만 쓰인다 — 그 접근자는 역할 이름이라 이 \
          토큰의 경로가 아니다",
     ),
+    ("semantic.scrim-blur", "소비처가 없어 표에 오른 적이 없다"),
 ];
 
 fn length_const_prescription(

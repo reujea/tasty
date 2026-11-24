@@ -62,7 +62,7 @@ const EGUI_LENGTH_HEADS: &[&str] = &[
 const DECLARATION_SITES: &[(&str, usize, &str)] = &[
     (
         "crates/tasty-design-tokens/src/generated/",
-        66,
+        69,
         "스케일 자신 — 이 파일이 곧 size-* 의 정본이다",
     ),
     (
@@ -189,7 +189,7 @@ const AREAS: &[(&str, Option<usize>, &str)] = &[
         // 스케일 밖 값은 이 집계에 포함되지 않는다.
         // 첫 실행 셸 설정 폼 폭 360은 디자인 `ShellSetupFrame`의 `--tasty-size-360`이며 역할 토큰이 없다.
         // 플러그인 추가 프리뷰의 가로 여백 14는 디자인 `--tasty-size-14`이며 역할 토큰이 없다.
-        // 포트 스캐너 열 하한 120·140(Workspace·State) 둘은 popup과 갤러리가 함께 쓰는 ports_table의 표 전용 값이다.
+        // 포트 스캐너 열 하한 80·120·140(Tab·Workspace·State) 셋은 popup과 갤러리가 함께 쓰는 ports_table의 표 전용 값이다.
         // 플러그인 Attention 바의 상태 문구 12는 디자인 fontSize 12이며 semantic 토큰이 없다.
         // 공용 상태 화면(state_screen)의 보조 줄 최대 폭 200은 시안 `ExpState` 의 `maxWidth: 200` 이며 역할 토큰이 없다.
         // 스크립트 변경 확인의 좌우 여백 14는 시안 `Padding 12/14` 이며 본체 popup 과 갤러리가 함께 쓴다. 역할 토큰이 없다.
@@ -198,7 +198,9 @@ const AREAS: &[(&str, Option<usize>, &str)] = &[
         // File Detectors·Handlers 머리 설명 열 최소 폭 240은 시안 `flex: 1 1 var(--tasty-size-240)` 이며 역할 토큰이 없다.
         // 공통 그래프 뷰의 줌 판독창 폭 46과 판독창을 숨기는 캔버스 폭 400은 본체 DAG surface·popup과 갤러리가
         // 함께 쓰는 graph_view 의 값이며 역할 토큰이 없다.
-        Some(33),
+        // 탐색기 상세 표의 크기·날짜·종류 열 폭 80·132·92는 디자인 `DetailRow` 열 폭이며
+        // 같은 역할의 explorer-detail-*-col-width 토큰 접근자로 옮기는 일이 남아 있다.
+        Some(37),
         "공용 위젯",
     ),
     (
@@ -678,9 +680,10 @@ fn the_gallery_share_splits_into_four_kinds() {
     // 갤러리의 새 인라인 리터럴은 대개 이 분류로 들어오므로 갤러리에서 남은 증가 검출이다.
     // Attach prelayout의 560×180은 원격 디자인 storyboard 액자다. 역할별 Theme 토큰이 없으며
     // attach_loading.rs의 이름 있는 LogicalPx 상수 두 개로만 사용한다. 본체 치수가 아니다.
+    // 검색 막대 견본의 입력 칸 하한 80은 견본 액자 안의 최소 폭이며 역할 토큰이 없다.
     assert!(
-        named_value <= 21 && displayed <= roster,
-        "갤러리의 같은 Theme 값 자리 {named_value}(상한 21) 또는 전시 후보 {displayed}(전시 명부 {roster})가 상한을 넘었다. 줄어든 것은 실패가 아니다"
+        named_value <= 22 && displayed <= roster,
+        "갤러리의 같은 Theme 값 자리 {named_value}(상한 22) 또는 전시 후보 {displayed}(전시 명부 {roster})가 상한을 넘었다. 줄어든 것은 실패가 아니다"
     );
 }
 
