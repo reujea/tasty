@@ -163,28 +163,44 @@ impl<'a> Tooltip<'a> {
     }
 
     fn paint(self, ctx: &egui::Context, theme: &Theme, pos: egui::Pos2, pivot: egui::Align2) {
-        let border = theme.border_width.value();
-        let inset = egui::vec2(
-            theme.spacing_sm.value() + border,
-            theme.spacing_xs.value() + border,
-        );
-        let galley = ctx.fonts(|f| f.layout_job(self.layout_job(theme)));
-        let size = galley.size() + inset * 2.0;
-        let rect = inside(pivot.anchor_size(pos, size), ctx.screen_rect());
-        // The bubble is painted on its layer, not shown in an `egui::Area`: an area registers
-        // a hover widget, and egui's hit test then drops every layer under it, so a click on
-        // the bubble would never reach the widget it covers.
-        let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, self.id));
-        let radius = theme.corner_radius.value();
-        painter.add(theme.shadow_popover().to_egui().as_shape(rect, radius));
-        painter.rect(
-            rect,
-            radius,
-            theme.surface_raised().to_egui(),
-            egui::Stroke::new(border, theme.border_strong().to_egui()),
-            egui::StrokeKind::Inside,
-        );
-        painter.galley(rect.min + inset, galley, theme.tooltip_fg().to_egui());
+        let job = self.layout_job(theme);
+        let screen = ctx.screen_rect();
+        // The area keeps the tooltip layer order, the first-frame sizing pass and the fade-in.
+        // Its own clip is empty so no widget it registers (area, frame, text, child uis) has a
+        // positive interact rect: egui's hit test skips those, and a click on the bubble
+        // reaches the widget under it. The bubble is painted with a screen-clipped painter.
+        egui::Area::new(self.id)
+            .order(egui::Order::Tooltip)
+            .fixed_pos(constrained_pivot_pos(ctx, self.id, pos, pivot, screen))
+            .pivot(pivot)
+            .constrain_to(egui::Rect::NOTHING)
+            .constrain(false)
+            .interactable(false)
+            .show(ctx, |ui| {
+                let painter = ui.painter().with_clip_rect(screen);
+                let frame = egui::Frame::new()
+                    .fill(theme.surface_raised().to_egui())
+                    .stroke(egui::Stroke::new(
+                        theme.border_width.value(),
+                        theme.border_strong().to_egui(),
+                    ))
+                    .corner_radius(theme.corner_radius.value())
+                    .shadow(theme.shadow_popover().to_egui())
+                    .inner_margin(egui::Margin::symmetric(
+                        theme.spacing_sm.value() as i8,
+                        theme.spacing_xs.value() as i8,
+                    ));
+                let mut prepared = frame.begin(ui);
+                let content = &mut prepared.content_ui;
+                content.set_max_width(theme.tooltip_max_width.value());
+                let (text_pos, galley, _) = egui::Label::new(job)
+                    .selectable(false)
+                    .layout_in_ui(content);
+                let fallback = content.visuals().text_color();
+                painter.add(frame.paint(content.min_rect()));
+                painter.galley(text_pos, galley, fallback);
+                prepared.end(ui);
+            });
     }
 
     fn layout_job(&self, theme: &Theme) -> egui::text::LayoutJob {
@@ -244,16 +260,34 @@ impl<'a> Tooltip<'a> {
     }
 }
 
-/// `rect` moved into `bounds` (left and top win when it is larger), as an `egui::Area`
-/// with `constrain(true)` places itself.
-fn inside(rect: egui::Rect, bounds: egui::Rect) -> egui::Rect {
-    let dx = (bounds.right() - rect.right()).min(0.0);
-    let dy = (bounds.bottom() - rect.bottom()).min(0.0);
-    let moved = rect.translate(egui::vec2(dx, dy));
-    moved.translate(egui::vec2(
-        (bounds.left() - moved.left()).max(0.0),
-        (bounds.top() - moved.top()).max(0.0),
-    ))
+/// The pivot position an `egui::Area` with `pivot` at `pos` and `constrain(true)` keeps this
+/// frame: its last known size (on the first, sizing frame the default area size limited to
+/// the screen) anchored at the pivot, pulled into `screen`, and stored back as a pivot
+/// position (egui 0.31.1 `Area::begin`, `AreaState::set_left_top_pos` and
+/// `Context::constrain_window_rect_to_area`).
+fn constrained_pivot_pos(
+    ctx: &egui::Context,
+    id: egui::Id,
+    pos: egui::Pos2,
+    pivot: egui::Align2,
+    screen: egui::Rect,
+) -> egui::Pos2 {
+    use egui::emath::GuiRounding;
+    let size = egui::AreaState::load(ctx, id)
+        .and_then(|state| state.size)
+        .unwrap_or_else(|| ctx.style().spacing.default_area_size.min(screen.size()));
+    let factor = egui::vec2(pivot.x().to_factor(), pivot.y().to_factor());
+    let left_top = (pos - factor * size).round_ui();
+    let window = egui::Rect::from_min_size(left_top, size).round_ui();
+    let margin_x = (window.width() - screen.width()).max(0.0);
+    let margin_y = (window.height() - screen.height()).max(0.0);
+    let mut min = window.min;
+    min.x = min.x.min(screen.right() + margin_x - window.width());
+    min.x = min.x.max(screen.left() - margin_x);
+    min.y = min.y.min(screen.bottom() + margin_y - window.height());
+    min.y = min.y.max(screen.top() - margin_y);
+    let min = egui::Rect::from_min_size(min, window.size()).round_ui().min;
+    min + factor * size
 }
 
 /// 위·아래 후보 버블의 사각형. 가로는 창 가장자리에서 `tooltip-offset`만큼 안쪽으로 당긴다.
@@ -752,6 +786,36 @@ mod tests {
         assert!(!used);
     }
 
+    /// The bubble frame painted in `output`: the raised-fill rect (also inside a shape list).
+    fn bubble_frames(output: &egui::FullOutput, theme: &Theme) -> Vec<(usize, egui::Rect)> {
+        fn raised(shape: &egui::Shape, fill: egui::Color32) -> Option<egui::Rect> {
+            match shape {
+                egui::Shape::Vec(shapes) => shapes.iter().find_map(|s| raised(s, fill)),
+                egui::Shape::Rect(r) if r.fill == fill => Some(r.rect),
+                _ => None,
+            }
+        }
+        let fill = theme.surface_raised().to_egui();
+        output
+            .shapes
+            .iter()
+            .enumerate()
+            .filter_map(|(i, c)| raised(&c.shape, fill).map(|rect| (i, rect)))
+            .collect()
+    }
+
+    fn input_at(time: f64, events: Vec<egui::Event>) -> egui::RawInput {
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(800.0, 600.0),
+            )),
+            time: Some(time),
+            events,
+            ..Default::default()
+        }
+    }
+
     /// A click on an open bubble reaches the widget under it: the bubble covers a
     /// neighbouring widget (a loading tab tooltip over the next tab) without taking its click.
     #[test]
@@ -775,29 +839,80 @@ mod tests {
             vec![],
         ];
         let mut clicked = false;
-        let mut bubble = None;
+        let mut covered = Vec::new();
         for (i, events) in steps.into_iter().enumerate() {
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(800.0, 600.0),
-                )),
-                time: Some(i as f64 * 0.1),
-                events,
-                ..Default::default()
-            };
-            let _output = ctx.run(input, |ctx| {
+            let pressing = events
+                .iter()
+                .any(|e| matches!(e, egui::Event::PointerButton { .. }));
+            let output = ctx.run(input_at(i as f64 * 0.1, events), |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     clicked |= ui.put(under, egui::Button::new("next tab")).clicked();
                 });
-                let tooltip = Tooltip::new("Close tab · 20s\nCopying to clipboard · 3s")
-                    .placement(TooltipPlacement::Bottom);
-                bubble = Some(tooltip.bubble_size(ctx, &theme));
-                tooltip.show_in(ctx, &theme, anchor);
+                Tooltip::new("Close tab · 20s\nCopying to clipboard · 3s")
+                    .placement(TooltipPlacement::Bottom)
+                    .show_in(ctx, &theme, anchor);
             });
+            if pressing {
+                covered.push(
+                    bubble_frames(&output, &theme)
+                        .iter()
+                        .any(|(_, rect)| rect.contains(on_bubble)),
+                );
+            }
         }
-        let size = bubble.expect("the bubble was laid out");
-        assert!(size.x > 40.0 && size.y > 20.0, "bubble size {size:?}");
+        assert_eq!(
+            covered,
+            [true, true],
+            "the bubble is drawn over the click point"
+        );
         assert!(clicked, "the widget under the bubble did not get the click");
+    }
+
+    /// Like before, the bubble is an area on the tooltip order, so it is drawn under the
+    /// painters the app puts on that order without an area (toasts, drop overlay, tab drag
+    /// marker), whatever its id hashes to.
+    #[test]
+    fn the_bubble_is_drawn_under_the_tooltip_order_painters_for_any_id() {
+        let theme = theme();
+        let anchor = egui::Rect::from_min_size(egui::pos2(100.0, 100.0), egui::vec2(80.0, 24.0));
+        let marker = egui::Color32::from_rgb(1, 2, 3);
+        let painters = ["toast_layer", "drop_overlay", "tab_drag_overlay"];
+        for source in 0..40 {
+            let ctx = egui::Context::default();
+            let mut output = None;
+            for step in 0..3 {
+                output = Some(ctx.run(input_at(f64::from(step), Vec::new()), |ctx| {
+                    for name in painters {
+                        ctx.layer_painter(egui::LayerId::new(
+                            egui::Order::Tooltip,
+                            egui::Id::new(name),
+                        ))
+                        .rect_filled(
+                            egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(4.0, 4.0)),
+                            0.0,
+                            marker,
+                        );
+                    }
+                    Tooltip::new("tip")
+                        .id_source(source)
+                        .placement(TooltipPlacement::Bottom)
+                        .show_in(ctx, &theme, anchor);
+                }));
+            }
+            let output = output.expect("ran");
+            let frame = bubble_frames(&output, &theme)
+                .first()
+                .map(|(i, _)| *i)
+                .expect("the bubble is drawn");
+            let first_marker = output
+                .shapes
+                .iter()
+                .position(|c| matches!(&c.shape, egui::Shape::Rect(r) if r.fill == marker))
+                .expect("the painters draw");
+            assert!(
+                frame < first_marker,
+                "id source {source}: bubble at {frame}, painter at {first_marker}"
+            );
+        }
     }
 }

@@ -141,7 +141,7 @@ mod tests {
         let theme = theme();
         let ctx = egui::Context::default();
         let id = egui::Id::new("forced-hint");
-        let output = ctx.run(egui::RawInput::default(), |ctx| {
+        let _output = ctx.run(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 if let Some(clip) = clip {
                     ui.set_clip_rect(clip);
@@ -152,10 +152,10 @@ mod tests {
                     .show(ui, &theme);
             });
         });
-        output
-            .shapes
-            .iter()
-            .any(|c| matches!(&c.shape, egui::Shape::Text(t) if t.galley.text() == "tip"))
+        ctx.memory(|m| {
+            m.layer_ids()
+                .any(|layer| layer.order == egui::Order::Tooltip)
+        })
     }
 
     #[test]
