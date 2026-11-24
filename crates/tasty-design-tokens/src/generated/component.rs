@@ -57,11 +57,12 @@ pub mod android {
 pub mod attach {
     use tasty_type_geometry::length::LogicalPx;
 
-    /// `component.attach-refusal-chip-glyph-size` → `{component.move-source-chip-glyph-size}` = 8px
-    pub const REFUSAL_CHIP_GLYPH_SIZE: LogicalPx = super::move_source::CHIP_GLYPH_SIZE;
+    /// `component.attach-refusal-chip-glyph-size` → `{semantic.avatar-chip-glyph-size}` = 8px
+    pub const REFUSAL_CHIP_GLYPH_SIZE: LogicalPx =
+        crate::generated::semantic::AVATAR_CHIP_GLYPH_SIZE;
 
-    /// `component.attach-refusal-chip-size` → `{component.move-source-chip-size}` = 12px
-    pub const REFUSAL_CHIP_SIZE: LogicalPx = super::move_source::CHIP_SIZE;
+    /// `component.attach-refusal-chip-size` → `{semantic.avatar-chip-size}` = 12px
+    pub const REFUSAL_CHIP_SIZE: LogicalPx = crate::generated::semantic::AVATAR_CHIP_SIZE;
 
     /// `component.attach-sync-name-max-width` → `{primitive.size-160}` = 160px
     pub const SYNC_NAME_MAX_WIDTH: LogicalPx = crate::generated::primitive::SIZE_160;
@@ -79,8 +80,8 @@ pub mod autocomplete {
     /// `component.autocomplete-match-underline-width` → `{semantic.border-width}` = 1px
     pub const MATCH_UNDERLINE_WIDTH: LogicalPx = crate::generated::semantic::BORDER_WIDTH;
 
-    /// `component.autocomplete-max-height` → `{primitive.size-220}` = 220px
-    pub const MAX_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_220;
+    /// `component.autocomplete-max-height` → `{semantic.dropdown-max-height}` = 220px
+    pub const MAX_HEIGHT: LogicalPx = crate::generated::semantic::DROPDOWN_MAX_HEIGHT;
 
     /// `component.autocomplete-menu-radius` → `{component.menu-radius}` = 4px
     pub const MENU_RADIUS: LogicalPx = super::menu::RADIUS;
@@ -476,8 +477,8 @@ pub mod drilldown {
 pub mod explorer {
     use tasty_type_geometry::length::LogicalPx;
 
-    /// `component.explorer-address-pending-delay` → `{semantic.motion-ui-fade}` = 200ms (ms)
-    pub const ADDRESS_PENDING_DELAY: f32 = crate::generated::semantic::MOTION_UI_FADE;
+    /// `component.explorer-address-pending-delay` → `{semantic.motion-busy-delay}` = 200ms (ms)
+    pub const ADDRESS_PENDING_DELAY: f32 = crate::generated::semantic::MOTION_BUSY_DELAY;
 
     /// `component.explorer-address-pending-size` → `{semantic.icon-size-sm}` = 14px
     pub const ADDRESS_PENDING_SIZE: LogicalPx = crate::generated::semantic::ICON_SIZE_SM;
@@ -801,8 +802,8 @@ pub mod graph {
     /// `component.graph-drawer-cover-below` → `{primitive.size-480}` = 480px
     pub const DRAWER_COVER_BELOW: LogicalPx = crate::generated::primitive::SIZE_480;
 
-    /// `component.graph-drawer-head-height` → `{component.drilldown-backbar-height}` = 36px
-    pub const DRAWER_HEAD_HEIGHT: LogicalPx = super::drilldown::BACKBAR_HEIGHT;
+    /// `component.graph-drawer-head-height` → `{component.graph-toolbar-height}` = 36px
+    pub const DRAWER_HEAD_HEIGHT: LogicalPx = super::graph::TOOLBAR_HEIGHT;
 
     /// `component.graph-drawer-motion` → `{semantic.motion-ui}` = 120ms (ms)
     pub const DRAWER_MOTION: f32 = crate::generated::semantic::MOTION_UI;
@@ -1091,8 +1092,8 @@ pub mod loading {
     /// `component.loading-lockup-tracking` → `{semantic.letter-spacing-brand-lockup}` = -1px
     pub const LOCKUP_TRACKING: LogicalPx = crate::generated::semantic::LETTER_SPACING_BRAND_LOCKUP;
 
-    /// `component.loading-overlay-delay` → `{semantic.motion-ui-fade}` = 200ms (ms)
-    pub const OVERLAY_DELAY: f32 = crate::generated::semantic::MOTION_UI_FADE;
+    /// `component.loading-overlay-delay` → `{semantic.motion-busy-delay}` = 200ms (ms)
+    pub const OVERLAY_DELAY: f32 = crate::generated::semantic::MOTION_BUSY_DELAY;
 
     /// `component.loading-overlay-lnb-size` → `{semantic.icon-size-sm}` = 14px
     pub const OVERLAY_LNB_SIZE: LogicalPx = crate::generated::semantic::ICON_SIZE_SM;
@@ -1230,11 +1231,11 @@ pub mod modhint {
 pub mod move_source {
     use tasty_type_geometry::length::LogicalPx;
 
-    /// `component.move-source-chip-glyph-size` → `{primitive.size-8}` = 8px
-    pub const CHIP_GLYPH_SIZE: LogicalPx = crate::generated::primitive::SIZE_8;
+    /// `component.move-source-chip-glyph-size` → `{semantic.avatar-chip-glyph-size}` = 8px
+    pub const CHIP_GLYPH_SIZE: LogicalPx = crate::generated::semantic::AVATAR_CHIP_GLYPH_SIZE;
 
-    /// `component.move-source-chip-size` → `{primitive.size-12}` = 12px
-    pub const CHIP_SIZE: LogicalPx = crate::generated::primitive::SIZE_12;
+    /// `component.move-source-chip-size` → `{semantic.avatar-chip-size}` = 12px
+    pub const CHIP_SIZE: LogicalPx = crate::generated::semantic::AVATAR_CHIP_SIZE;
 
     /// `component.move-source-dash` → `{primitive.size-4}` = 4px
     pub const DASH: LogicalPx = crate::generated::primitive::SIZE_4;
@@ -1267,8 +1268,8 @@ pub mod multiselect {
     /// `component.multiselect-menu-gap` → `{semantic.space-xs}` = 4px
     pub const MENU_GAP: LogicalPx = crate::generated::semantic::SPACE_XS;
 
-    /// `component.multiselect-menu-max-height` → `{component.autocomplete-max-height}` = 220px
-    pub const MENU_MAX_HEIGHT: LogicalPx = super::autocomplete::MAX_HEIGHT;
+    /// `component.multiselect-menu-max-height` → `{semantic.dropdown-max-height}` = 220px
+    pub const MENU_MAX_HEIGHT: LogicalPx = crate::generated::semantic::DROPDOWN_MAX_HEIGHT;
 
     /// `component.multiselect-menu-max-width` → `{primitive.size-320}` = 320px
     pub const MENU_MAX_WIDTH: LogicalPx = crate::generated::primitive::SIZE_320;
@@ -1411,8 +1412,8 @@ pub mod pending {
     /// `component.pending-indicator-compact-below` → `{primitive.size-200}` = 200px
     pub const INDICATOR_COMPACT_BELOW: LogicalPx = crate::generated::primitive::SIZE_200;
 
-    /// `component.pending-indicator-delay` → `{component.loading-overlay-delay}` = 200ms (ms)
-    pub const INDICATOR_DELAY: f32 = super::loading::OVERLAY_DELAY;
+    /// `component.pending-indicator-delay` → `{semantic.motion-busy-delay}` = 200ms (ms)
+    pub const INDICATOR_DELAY: f32 = crate::generated::semantic::MOTION_BUSY_DELAY;
 
     /// `component.pending-indicator-gap` → `{semantic.space-sm}` = 8px
     pub const INDICATOR_GAP: LogicalPx = crate::generated::semantic::SPACE_SM;
@@ -2098,8 +2099,8 @@ pub mod tree_row {
 pub mod trigger {
     use tasty_type_geometry::length::LogicalPx;
 
-    /// `component.trigger-menu-max-height` → `{component.autocomplete-max-height}` = 220px
-    pub const MENU_MAX_HEIGHT: LogicalPx = super::autocomplete::MAX_HEIGHT;
+    /// `component.trigger-menu-max-height` → `{semantic.dropdown-max-height}` = 220px
+    pub const MENU_MAX_HEIGHT: LogicalPx = crate::generated::semantic::DROPDOWN_MAX_HEIGHT;
 
     /// `component.trigger-menu-min-width` → `{semantic.field-width-lg}` = 200px
     pub const MENU_MIN_WIDTH: LogicalPx = crate::generated::semantic::FIELD_WIDTH_LG;

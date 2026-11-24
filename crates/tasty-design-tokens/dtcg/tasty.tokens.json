@@ -1268,6 +1268,10 @@
       "$type": "dimension",
       "$value": "{primitive.size-200}"
     },
+    "dropdown-max-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-220}"
+    },
     "border-width": {
       "$type": "dimension",
       "$value": "{primitive.size-1}"
@@ -1343,6 +1347,14 @@
     "icon-size-lg": {
       "$type": "dimension",
       "$value": "{primitive.size-24}"
+    },
+    "avatar-chip-size": {
+      "$type": "dimension",
+      "$value": "{primitive.size-12}"
+    },
+    "avatar-chip-glyph-size": {
+      "$type": "dimension",
+      "$value": "{primitive.size-8}"
     },
     "icon-size-window-caption": {
       "$type": "dimension",
@@ -1544,6 +1556,10 @@
     "motion-hold-reveal": {
       "$type": "duration",
       "$value": "{primitive.duration-500}"
+    },
+    "motion-busy-delay": {
+      "$type": "duration",
+      "$value": "{primitive.duration-200}"
     },
     "ease-ui": {
       "$type": "cubicBezier",
@@ -2688,7 +2704,7 @@
     },
     "multiselect-menu-max-height": {
       "$type": "dimension",
-      "$value": "{component.autocomplete-max-height}"
+      "$value": "{semantic.dropdown-max-height}"
     },
     "multiselect-menu-max-width": {
       "$type": "dimension",
@@ -3072,7 +3088,7 @@
     },
     "autocomplete-max-height": {
       "$type": "dimension",
-      "$value": "{primitive.size-220}"
+      "$value": "{semantic.dropdown-max-height}"
     },
     "autocomplete-menu-bg": {
       "$type": "color",
@@ -3808,11 +3824,11 @@
     },
     "move-source-chip-size": {
       "$type": "dimension",
-      "$value": "{primitive.size-12}"
+      "$value": "{semantic.avatar-chip-size}"
     },
     "move-source-chip-glyph-size": {
       "$type": "dimension",
-      "$value": "{primitive.size-8}"
+      "$value": "{semantic.avatar-chip-glyph-size}"
     },
     "attach-refusal-glyph": {
       "$type": "color",
@@ -3820,11 +3836,11 @@
     },
     "attach-refusal-chip-size": {
       "$type": "dimension",
-      "$value": "{component.move-source-chip-size}"
+      "$value": "{semantic.avatar-chip-size}"
     },
     "attach-refusal-chip-glyph-size": {
       "$type": "dimension",
-      "$value": "{component.move-source-chip-glyph-size}"
+      "$value": "{semantic.avatar-chip-glyph-size}"
     },
     "spinner-size": {
       "$type": "dimension",
@@ -3849,7 +3865,7 @@
     },
     "loading-overlay-delay": {
       "$type": "duration",
-      "$value": "{semantic.motion-ui-fade}",
+      "$value": "{semantic.motion-busy-delay}",
       "$description": "show only if still loading after 200ms; hide is immediate"
     },
     "loading-overlay-surface-size": {
@@ -4435,6 +4451,10 @@
     "plugins-header-glyph": {
       "$type": "color",
       "$value": "{semantic.accent-decorative}"
+    },
+    "plugins-tab-focus-ring": {
+      "$type": "color",
+      "$value": "{semantic.accent-primary-raised}"
     },
     "plugin-avatar-size-sm": {
       "$type": "dimension",
@@ -5749,7 +5769,7 @@
     },
     "graph-drawer-head-height": {
       "$type": "dimension",
-      "$value": "{component.drilldown-backbar-height}"
+      "$value": "{component.graph-toolbar-height}"
     },
     "graph-drawer-motion": {
       "$type": "duration",
@@ -5893,7 +5913,7 @@
     },
     "search-bar-border": {
       "$type": "color",
-      "$value": "{component.menu-border}"
+      "$value": "{semantic.border-strong}"
     },
     "popup-content-margin": {
       "$type": "dimension",
@@ -5929,7 +5949,7 @@
     },
     "trigger-menu-max-height": {
       "$type": "dimension",
-      "$value": "{component.autocomplete-max-height}"
+      "$value": "{semantic.dropdown-max-height}"
     },
     "image-handle-size": {
       "$type": "dimension",
@@ -6267,7 +6287,7 @@
     },
     "explorer-match-fg": {
       "$type": "color",
-      "$value": "{component.autocomplete-match-fg}",
+      "$value": "{semantic.accent-primary-raised}",
       "$description": "matched part of a name while filtering"
     },
     "explorer-match-fg-active": {
@@ -6489,7 +6509,7 @@
     },
     "explorer-address-pending-delay": {
       "$type": "duration",
-      "$value": "{semantic.motion-ui-fade}",
+      "$value": "{semantic.motion-busy-delay}",
       "$description": "remote address check: spinner appears only after 200ms (no flash on a fast round trip)"
     },
     "explorer-remote-queue-head-gap": {
@@ -6693,12 +6713,12 @@
     },
     "pending-indicator-delay": {
       "$type": "duration",
-      "$value": "{component.loading-overlay-delay}",
+      "$value": "{semantic.motion-busy-delay}",
       "$description": "show only if still pending after 200ms (same as LoadingOverlay)"
     },
     "select-placeholder": {
       "$type": "color",
-      "$value": "{component.input-placeholder}",
+      "$value": "{semantic.text-placeholder}",
       "$description": "Select(placeholder) trigger ink while no value is chosen"
     },
     "file-handler-form-bg": {

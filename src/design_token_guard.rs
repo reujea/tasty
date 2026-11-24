@@ -568,9 +568,24 @@ fn semantic_theme_field<'a>(
 /// 값이 같은 다른 Theme 토큰으로 우회하지 않는다.
 const PATHLESS_LENGTH_TOKENS: &[(&str, &str)] = &[
     (
+        "semantic.avatar-chip-glyph-size",
+        "component `move-source-chip-glyph-size`·`attach-refusal-chip-glyph-size` 의 alias 로만 \
+         쓰인다 — 그 접근자는 역할 이름이라 이 토큰의 경로가 아니다",
+    ),
+    (
+        "semantic.avatar-chip-size",
+        "component `move-source-chip-size`·`attach-refusal-chip-size` 의 alias 로만 쓰인다 — 그 \
+         접근자는 역할 이름이라 이 토큰의 경로가 아니다",
+    ),
+    (
         "semantic.chip-height",
         "component `fp-host-badge-height` 의 alias 로만 쓰인다 — 그 접근자는 역할 이름이라 이 \
          토큰의 경로가 아니다",
+    ),
+    (
+        "semantic.dropdown-max-height",
+        "component `autocomplete-max-height`·`multiselect-menu-max-height`·`trigger-menu-max-height` \
+         의 alias 로만 쓰인다 — 그 접근자는 역할 이름이라 이 토큰의 경로가 아니다",
     ),
     (
         "semantic.field-width-range",

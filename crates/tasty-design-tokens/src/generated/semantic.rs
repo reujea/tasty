@@ -13,6 +13,12 @@ pub const ATTENTION_RANK_COMPLETION: f32 = 10.0;
 /// `semantic.attention-rank-needs-input` = 30
 pub const ATTENTION_RANK_NEEDS_INPUT: f32 = 30.0;
 
+/// `semantic.avatar-chip-glyph-size` → `{primitive.size-8}` = 8px
+pub const AVATAR_CHIP_GLYPH_SIZE: LogicalPx = super::primitive::SIZE_8;
+
+/// `semantic.avatar-chip-size` → `{primitive.size-12}` = 12px
+pub const AVATAR_CHIP_SIZE: LogicalPx = super::primitive::SIZE_12;
+
 /// `semantic.border-dash` → `{primitive.size-4}` = 4px
 pub const BORDER_DASH: LogicalPx = super::primitive::SIZE_4;
 
@@ -33,6 +39,9 @@ pub const CONTROL_HEIGHT_TAB: LogicalPx = super::primitive::SIZE_24;
 
 /// `semantic.control-height-tree` → `{primitive.size-22}` = 22px
 pub const CONTROL_HEIGHT_TREE: LogicalPx = super::primitive::SIZE_22;
+
+/// `semantic.dropdown-max-height` → `{primitive.size-220}` = 220px
+pub const DROPDOWN_MAX_HEIGHT: LogicalPx = super::primitive::SIZE_220;
 
 /// `semantic.field-width-color` → `{primitive.size-110}` = 110px
 pub const FIELD_WIDTH_COLOR: LogicalPx = super::primitive::SIZE_110;
@@ -147,6 +156,9 @@ pub const MEASURE_SM: LogicalPx = super::primitive::SIZE_300;
 
 /// `semantic.measure-xl` → `{primitive.size-560}` = 560px
 pub const MEASURE_XL: LogicalPx = super::primitive::SIZE_560;
+
+/// `semantic.motion-busy-delay` → `{primitive.duration-200}` = 200ms (ms)
+pub const MOTION_BUSY_DELAY: f32 = super::primitive::DURATION_200;
 
 /// `semantic.motion-hold-reveal` → `{primitive.duration-500}` = 500ms (ms)
 pub const MOTION_HOLD_REVEAL: f32 = super::primitive::DURATION_500;

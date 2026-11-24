@@ -112,16 +112,16 @@ impl crate::theme::Theme {
         self.text_primary()
     }
 
-    /// `component.attach-refusal-chip-glyph-size` → `{component.move-source-chip-glyph-size}` = 8px
+    /// `component.attach-refusal-chip-glyph-size` → `{semantic.avatar-chip-glyph-size}` = 8px
     #[inline]
     pub fn attach_refusal_chip_glyph_size(&self) -> LogicalPx {
-        self.move_source_chip_glyph_size()
+        LogicalPx((8.0 * self.ui_zoom).round())
     }
 
-    /// `component.attach-refusal-chip-size` → `{component.move-source-chip-size}` = 12px
+    /// `component.attach-refusal-chip-size` → `{semantic.avatar-chip-size}` = 12px
     #[inline]
     pub fn attach_refusal_chip_size(&self) -> LogicalPx {
-        self.move_source_chip_size()
+        LogicalPx((12.0 * self.ui_zoom).round())
     }
 
     /// `component.attach-refusal-glyph` → `{semantic.accent-warning-raised}`
@@ -172,7 +172,7 @@ impl crate::theme::Theme {
         self.border_width
     }
 
-    /// `component.autocomplete-max-height` → `{primitive.size-220}` = 220px
+    /// `component.autocomplete-max-height` → `{semantic.dropdown-max-height}` = 220px
     #[inline]
     pub fn autocomplete_max_height(&self) -> LogicalPx {
         LogicalPx((220.0 * self.ui_zoom).round())
@@ -1582,7 +1582,7 @@ impl crate::theme::Theme {
         self.font_size_body
     }
 
-    /// `component.explorer-address-pending-delay` → `{semantic.motion-ui-fade}` = 200ms
+    /// `component.explorer-address-pending-delay` → `{semantic.motion-busy-delay}` = 200ms
     #[inline]
     pub fn explorer_address_pending_delay(&self) -> Millis {
         Millis(200.0)
@@ -1768,10 +1768,10 @@ impl crate::theme::Theme {
         LogicalPx((200.0 * self.ui_zoom).round())
     }
 
-    /// `component.explorer-match-fg` → `{component.autocomplete-match-fg}`
+    /// `component.explorer-match-fg` → `{semantic.accent-primary-raised}`
     #[inline]
     pub fn explorer_match_fg(&self) -> HexColor {
-        self.autocomplete_match_fg()
+        self.accent_primary_raised()
     }
 
     /// `component.explorer-match-fg-active` → `{component.autocomplete-part-fg-active}`
@@ -2430,10 +2430,10 @@ impl crate::theme::Theme {
         LogicalPx((480.0 * self.ui_zoom).round())
     }
 
-    /// `component.graph-drawer-head-height` → `{component.drilldown-backbar-height}` = 36px
+    /// `component.graph-drawer-head-height` → `{component.graph-toolbar-height}` = 36px
     #[inline]
     pub fn graph_drawer_head_height(&self) -> LogicalPx {
-        self.drilldown_backbar_height()
+        self.graph_toolbar_height()
     }
 
     /// `component.graph-drawer-motion` → `{semantic.motion-ui}` = 120ms
@@ -3318,7 +3318,7 @@ impl crate::theme::Theme {
         LogicalPx((-(1.0 * self.ui_zoom)).round())
     }
 
-    /// `component.loading-overlay-delay` → `{semantic.motion-ui-fade}` = 200ms
+    /// `component.loading-overlay-delay` → `{semantic.motion-busy-delay}` = 200ms
     #[inline]
     pub fn loading_overlay_delay(&self) -> Millis {
         Millis(200.0)
@@ -3774,13 +3774,13 @@ impl crate::theme::Theme {
         LogicalPx((24.0 * self.ui_zoom).round())
     }
 
-    /// `component.move-source-chip-glyph-size` → `{primitive.size-8}` = 8px
+    /// `component.move-source-chip-glyph-size` → `{semantic.avatar-chip-glyph-size}` = 8px
     #[inline]
     pub fn move_source_chip_glyph_size(&self) -> LogicalPx {
         LogicalPx((8.0 * self.ui_zoom).round())
     }
 
-    /// `component.move-source-chip-size` → `{primitive.size-12}` = 12px
+    /// `component.move-source-chip-size` → `{semantic.avatar-chip-size}` = 12px
     #[inline]
     pub fn move_source_chip_size(&self) -> LogicalPx {
         LogicalPx((12.0 * self.ui_zoom).round())
@@ -3906,10 +3906,10 @@ impl crate::theme::Theme {
         self.spacing_xs
     }
 
-    /// `component.multiselect-menu-max-height` → `{component.autocomplete-max-height}` = 220px
+    /// `component.multiselect-menu-max-height` → `{semantic.dropdown-max-height}` = 220px
     #[inline]
     pub fn multiselect_menu_max_height(&self) -> LogicalPx {
-        self.autocomplete_max_height()
+        LogicalPx((220.0 * self.ui_zoom).round())
     }
 
     /// `component.multiselect-menu-max-width` → `{primitive.size-320}` = 320px
@@ -4356,10 +4356,10 @@ impl crate::theme::Theme {
         LogicalPx((200.0 * self.ui_zoom).round())
     }
 
-    /// `component.pending-indicator-delay` → `{component.loading-overlay-delay}` = 200ms
+    /// `component.pending-indicator-delay` → `{semantic.motion-busy-delay}` = 200ms
     #[inline]
     pub fn pending_indicator_delay(&self) -> Millis {
-        self.loading_overlay_delay()
+        Millis(200.0)
     }
 
     /// `component.pending-indicator-fg` → `{semantic.text-secondary-raised}`
@@ -4540,6 +4540,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn plugins_list_width(&self) -> LogicalPx {
         LogicalPx((288.0 * self.ui_zoom).round())
+    }
+
+    /// `component.plugins-tab-focus-ring` → `{semantic.accent-primary-raised}`
+    #[inline]
+    pub fn plugins_tab_focus_ring(&self) -> HexColor {
+        self.accent_primary_raised()
     }
 
     /// `component.popup-content-margin` → `{semantic.space-xs}` = 4px
@@ -4890,10 +4896,10 @@ impl crate::theme::Theme {
         self.notice_column_width()
     }
 
-    /// `component.search-bar-border` → `{component.menu-border}`
+    /// `component.search-bar-border` → `{semantic.border-strong}`
     #[inline]
     pub fn search_bar_border(&self) -> HexColor {
-        self.menu_border()
+        self.border_strong()
     }
 
     /// `component.segtoggle-on-bg` → `{semantic.accent-primary}`
@@ -4968,10 +4974,10 @@ impl crate::theme::Theme {
         self.spacing_md
     }
 
-    /// `component.select-placeholder` → `{component.input-placeholder}`
+    /// `component.select-placeholder` → `{semantic.text-placeholder}`
     #[inline]
     pub fn select_placeholder(&self) -> HexColor {
-        self.input_placeholder()
+        self.text_placeholder()
     }
 
     /// `component.select-radius` → `{semantic.radius}` = 4px
@@ -6432,10 +6438,10 @@ impl crate::theme::Theme {
         self.text_on_active()
     }
 
-    /// `component.trigger-menu-max-height` → `{component.autocomplete-max-height}` = 220px
+    /// `component.trigger-menu-max-height` → `{semantic.dropdown-max-height}` = 220px
     #[inline]
     pub fn trigger_menu_max_height(&self) -> LogicalPx {
-        self.autocomplete_max_height()
+        LogicalPx((220.0 * self.ui_zoom).round())
     }
 
     /// `component.trigger-menu-min-width` → `{semantic.field-width-lg}` = 200px
