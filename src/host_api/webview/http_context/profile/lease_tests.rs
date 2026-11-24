@@ -731,7 +731,9 @@ fn release_after_retention_alone() {
 #[test]
 fn a_file_in_execution_or_mapped_executable_retains_the_root() {
     let dead = DeadRoot::new();
-    let tool = dead.path("data/tool");
+    // A multi-call build (uutils coreutils, BusyBox) picks its tool by the executable's own file
+    // name, so a copy under any other name exits at once and nothing would be executing.
+    let tool = dead.path("data/sleep");
     disk::copy("/bin/sleep", &tool).unwrap();
     disk::set_permissions(&tool, disk::Permissions::from_mode(0o700)).unwrap();
     let mut running = loop {
@@ -745,8 +747,13 @@ fn a_file_in_execution_or_mapped_executable_retains_the_root() {
         }
     };
     let verdict = dead.sweep_with(&nothing_found, &lease::KERNEL);
+    let executing = running.try_wait().unwrap().is_none();
     running.kill().unwrap();
     running.wait().unwrap();
+    assert!(
+        executing,
+        "the process must have been executing through the sweep"
+    );
     assert_eq!(verdict, (0, 1), "executing");
     dead.assert_retained_intact();
     let holder = Holder::start(true).hold("map-exec", &dead.path("data/target"));
