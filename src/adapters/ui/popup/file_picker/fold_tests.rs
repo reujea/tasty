@@ -1,4 +1,5 @@
-//! 펼친 파일 선택기의 Esc. 경로 메뉴가 닫혀 있어도 펼친 묶음 안의 Esc 는 피커를 닫지 않고 다시 접는다.
+//! 파일 선택기의 Esc. 본문은 Esc 를 읽지 않고 선언대로 중앙 단계가 닫는다. 경로 메뉴가 닫혀 있어도 펼친 묶음 안의
+//! Esc 는 피커를 닫지 않고 다시 접는다.
 
 use super::FILE_PICKER_POPUP_ID;
 use crate::adapters::ui::popup::{PopupFit, PopupPayload, defs};
@@ -57,23 +58,7 @@ fn escape_on_an_expanded_file_picker_folds_it_and_keeps_the_request() {
     let (mut state, mut session) = crate::state::tests::test_state();
     let engine = session.borrow_mut();
     let read = engine.read();
-    for def in defs::all_defs() {
-        state.popups.register_def(def, 1.0);
-    }
-    let surface = state.focused_surface_id(&read).expect("포커스 surface");
-    let iid = state
-        .popups
-        .open_request(
-            &crate::intent::OpenRequest::new(
-                FILE_PICKER_POPUP_ID,
-                crate::model::popup_kind::PopupScope::Surface(surface),
-            )
-            .centered()
-            .focused()
-            .with_payload(PopupPayload::FilePicker(Box::new(data()))),
-            true,
-        )
-        .expect("파일 선택기");
+    let iid = open_picker(&mut state, &read);
     if let Some(p) = state.popups.instance_mut(iid) {
         p.arrange.fit = PopupFit::Collapse;
         p.size_user_overridden = true;
@@ -92,6 +77,46 @@ fn escape_on_an_expanded_file_picker_folds_it_and_keeps_the_request() {
         "펼쳤다"
     );
 
+    escape_through_the_window(&ctx, &mut state, &read);
+    let p = state.popups.instance(iid);
+    assert!(p.is_some_and(|p| p.open), "피커는 닫히지 않는다");
+    assert!(p.is_some_and(|p| p.collapsed()), "피커가 다시 접힌다");
+    assert!(
+        state.dialogs.finished_file_pickers.is_empty(),
+        "요청은 취소되지 않는다"
+    );
+}
+
+/// 정의를 등록하고 포커스 surface 범위의 키 주인 파일 선택기를 연다.
+fn open_picker(
+    state: &mut crate::state::MainViewState,
+    read: &crate::runtime::engine_read::EngineRead<'_>,
+) -> crate::adapters::ui::popup::PopupInstanceId {
+    for def in defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    let surface = state.focused_surface_id(read).expect("포커스 surface");
+    state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new(
+                FILE_PICKER_POPUP_ID,
+                crate::model::popup_kind::PopupScope::Surface(surface),
+            )
+            .centered()
+            .focused()
+            .with_payload(PopupPayload::FilePicker(Box::new(data()))),
+            true,
+        )
+        .expect("파일 선택기")
+}
+
+/// 창을 거친 수식키 없는 Esc 한 패스와 빈 패스 하나.
+fn escape_through_the_window(
+    ctx: &egui::Context,
+    state: &mut crate::state::MainViewState,
+    read: &crate::runtime::engine_read::EngineRead<'_>,
+) {
     let mut events = vec![egui::Event::Key {
         key: egui::Key::Escape,
         physical_key: Some(egui::Key::Escape),
@@ -101,20 +126,43 @@ fn escape_on_an_expanded_file_picker_folds_it_and_keeps_the_request() {
     }];
     assert!(
         crate::adapters::ui::popup::window_input_test_support::window_escape_step(
-            &mut state,
-            &read,
+            state,
+            read,
             &mut events,
             false
         ),
         "창이 Esc 를 처리한다"
     );
-    frame(&ctx, &mut state, &read, events);
+    frame(ctx, state, read, events);
+    frame(ctx, state, read, Vec::new());
+}
+
+/// M-P1-1 F: Given 펼치지 않은 키 주인 파일 선택기(경로 메뉴 닫힘), When 창을 거친 수식키 없는 Esc 가 오면, Then
+/// 본문은 Esc 를 읽지 않고 선언(`PopupEscape::Close`)대로 중앙 단계가 닫으며 요청은 취소로 끝난다.
+#[test]
+fn escape_on_the_picker_closes_it_by_its_declaration() {
+    crate::i18n::init("en");
+    let (mut state, mut session) = crate::state::tests::test_state();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let iid = open_picker(&mut state, &read);
+    let ctx = egui::Context::default();
     frame(&ctx, &mut state, &read, Vec::new());
-    let p = state.popups.instance(iid);
-    assert!(p.is_some_and(|p| p.open), "피커는 닫히지 않는다");
-    assert!(p.is_some_and(|p| p.collapsed()), "피커가 다시 접힌다");
+    frame(&ctx, &mut state, &read, Vec::new());
     assert!(
-        state.dialogs.finished_file_pickers.is_empty(),
-        "요청은 취소되지 않는다"
+        state.popups.instance(iid).is_some_and(|p| p.open),
+        "열려 있다"
     );
+    escape_through_the_window(&ctx, &mut state, &read);
+    assert!(
+        state.popups.instance(iid).is_none_or(|p| !p.open),
+        "피커가 닫힌다"
+    );
+    let results: Vec<_> = state
+        .dialogs
+        .finished_file_pickers
+        .iter()
+        .map(|f| matches!(f.result, crate::state::FilePickerResult::Cancelled))
+        .collect();
+    assert_eq!(results, vec![true], "요청은 취소로 한 번 끝난다");
 }

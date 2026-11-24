@@ -250,7 +250,8 @@ pub struct ResizeEdges {
 
 /// Result of PopupManager::draw(), including input layer hit information.
 pub struct PopupDrawResult {
-    /// Popup IDs that were closed this frame.
+    /// 셸이 이 프레임에 닫은 팝업 id. 시험이 읽는다. 창은 사유를 담은 닫기 큐를 읽는다(`draw_view_local`).
+    #[cfg(test)]
     pub closed: Vec<PopupId>,
     /// 본문이 낸 결과(`PopupAction::None` 제외)와 그 인스턴스. 처리(닫기·포커스 해제)는 호출자가 한다.
     pub actions: Vec<(PopupInstanceId, PopupAction)>,
@@ -1297,7 +1298,8 @@ impl PopupManager {
             .any(|c| c.id == id && c.scope == *scope)
     }
 
-    /// 닫힌 인스턴스의 선언 id만 꺼낸다. 사유와 데이터가 필요 없는 호출자가 쓴다.
+    /// 닫힌 인스턴스의 선언 id만 꺼낸다. 사유와 데이터가 필요 없는 시험이 쓴다.
+    #[cfg(test)]
     pub fn take_closed_ids(&mut self) -> Vec<PopupId> {
         self.take_closed_queue().into_iter().map(|c| c.id).collect()
     }

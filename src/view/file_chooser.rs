@@ -176,6 +176,15 @@ impl LocalFileChooser {
         }
     }
 
+    /// 시험용: 열린 선택의 디렉토리 읽기를 빈 목록으로 끝낸다(확정할 수 있는 상태).
+    #[cfg(test)]
+    pub(crate) fn read_empty_for_test(&mut self) {
+        if let Some(s) = self.session.as_mut() {
+            s.query = None;
+            s.accept_read(Ok(Vec::new()));
+        }
+    }
+
     /// popup 이 view 밖의 경로(타이틀바 ✕)로 닫혔을 때 — 미확정이면 취소로 남긴다.
     pub(crate) fn cancel(&mut self) {
         if let Some(s) = self.session.take() {
@@ -194,14 +203,12 @@ impl LocalFileChooser {
 
     /// popup 콘텐츠. 닫혀야 하면 `done`이 참이다. `child_menu`는 그린 숨은 경로 메뉴의 egui popup id이고,
     /// 호출자가 자기 인스턴스로 등록한다.
-    /// `keys` 는 관리자가 이 인스턴스에 넘긴 키 통로이고 폴더 키를 읽는다. `escape` 는 호출자가 이 패스 Esc 를 이
-    /// 피커에 썼는지다(`FilePickerProps::escape`).
+    /// `keys` 는 관리자가 이 인스턴스에 넘긴 키 통로이고 폴더 키를 읽는다. Esc 취소는 선언대로 중앙 단계가 한다.
     pub(crate) fn draw(
         &mut self,
         ui: &mut egui::Ui,
         th: &Theme,
         keys: &mut crate::adapters::ui::popup::keys::PopupKeys,
-        escape: bool,
     ) -> ChooserDraw {
         let Some(s) = self.session.as_mut() else {
             return ChooserDraw {
@@ -209,7 +216,7 @@ impl LocalFileChooser {
                 child_menu: None,
             };
         };
-        let (action, child_menu) = draw_view(ui, th, s, keys, escape);
+        let (action, child_menu) = draw_view(ui, th, s, keys);
         let done = match s.apply(action) {
             Some(o) => {
                 self.finish(o);
@@ -342,9 +349,7 @@ impl ChooserSession {
                 self.selected.clear();
                 None
             }
-            FilePickerAction::Cancel | FilePickerAction::Escape => {
-                Some(FileChooserOutcome::Cancelled)
-            }
+            FilePickerAction::Cancel => Some(FileChooserOutcome::Cancelled),
             // 단일 클릭은 선택만 한다. 저장 모드의 이름 칸은 파일을 골랐을 때만 바꾼다.
             FilePickerAction::Select(name) => {
                 if self.is_folder() {
@@ -445,7 +450,6 @@ fn draw_view(
     th: &Theme,
     s: &ChooserSession,
     keys: &mut crate::adapters::ui::popup::keys::PopupKeys,
-    escape: bool,
 ) -> (FilePickerAction, Option<egui::Id>) {
     let crumbs: Vec<CrumbView> = s
         .ancestors()
@@ -513,7 +517,6 @@ fn draw_view(
         entries: &entries,
         selected: &s.selected,
         mode,
-        escape,
         title_label: s.title(),
         name_field_label: t(if s.is_folder() {
             "picker.folder.label"

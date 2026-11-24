@@ -107,8 +107,6 @@ pub(crate) struct PopupKeys {
     super_held: bool,
     edits: EditBindings,
     consumed: Vec<ConsumedKey>,
-    /// 이 인스턴스가 펼친 묶음 안이라 본문이 쓰지 않은 Esc 를 중앙 단계가 다시 접는다(`refolding`).
-    refolds: bool,
     /// 이번 몫의 결속이 이 인스턴스의 `Bound::Popup` 인지(`FrameKeys::bound`). 같은 노드의 누름 끊기도 결속을 만들고
     /// `Bound::NoPopup` 은 결속이 아니다.
     routed: bool,
@@ -140,7 +138,6 @@ impl PopupKeys {
             super_held: tasty_key_match::super_held(ctx),
             edits: edits.clone(),
             consumed: Vec::new(),
-            refolds: false,
             routed: false,
             handed_escape: false,
         }
@@ -162,18 +159,6 @@ impl PopupKeys {
     /// 그리기)에도 이 본문 것이다.
     pub(crate) fn routed_by_window(&self) -> bool {
         self.routed
-    }
-
-    /// 이 인스턴스가 펼친 묶음 안인지 싣는다. 관리자가 본문을 부르기 전에 정한다.
-    pub(crate) fn refolding(mut self, expanded: bool) -> Self {
-        self.refolds = expanded;
-        self
-    }
-
-    /// 이 패스 Esc 가 펼친 묶음을 다시 접는 몫인지. 참이면 본문은 Esc 로 취소·닫기 같은 자기 동작을 하지 않고 남겨,
-    /// 중앙 단계가 묶음 뿌리부터 접게 한다.
-    pub(crate) fn escape_refolds(&self) -> bool {
-        self.refolds
     }
 
     /// 아무 키도 주지 않는 통로.

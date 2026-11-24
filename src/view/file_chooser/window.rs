@@ -115,12 +115,7 @@ impl WindowFileChooser {
             if cx.id != FILE_PICKER_POPUP_ID {
                 return false;
             }
-            // 이 패스 Esc 는 경로 메뉴가 닫혀 있을 때만 피커 것이다.
-            let escape = !crate::adapters::ui::popup::child_popup_open(ui.ctx(), cx.instance)
-                && cx
-                    .keys
-                    .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
-            let drawn = chooser.draw(ui, &crate::theme::theme(), &mut cx.keys, escape);
+            let drawn = chooser.draw(ui, &crate::theme::theme(), &mut cx.keys);
             report_hidden_crumbs_menu(ui, cx.instance, drawn.child_menu);
             drawn.done
         });

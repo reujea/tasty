@@ -137,9 +137,6 @@ pub struct FilePickerProps<'a> {
     /// 선택된 엔트리 이름(현재 디렉토리 기준).
     pub selected: &'a [String],
     pub mode: FilePickerMode<'a>,
-    /// 호출자가 이 패스 Esc 를 이 보기에 썼다(본문 전에 자식 팝업이 닫혀 있고 키 통로가 Esc 를 소비했다). 참이면 보기는
-    /// 다른 것을 그리지 않고 취소한다.
-    pub escape: bool,
 
     // i18n — 호출처가 t() 로 미리 해상해서 전달(file_handler_picker.rs 관례).
     pub title_label: &'a str,
@@ -198,8 +195,6 @@ pub enum FilePickerAction {
     None,
     /// 헤더 ✕/[취소] — popup 닫기 + result=Cancelled.
     Cancel,
-    /// ESC — Cancel과 같고 닫기 사유가 Escape다.
-    Escape,
     /// 목록 행 단일 클릭 — 선택만 갱신, popup 유지.
     Select(String),
     /// 디렉토리 행 더블클릭 — 그 하위로 내비게이트.
@@ -252,14 +247,6 @@ pub fn draw_file_picker_view(
 ) -> FilePickerViewOut {
     let ctx = ui.ctx().clone();
     let nested_popup_open = ctx.memory(|m| m.any_popup_open());
-    if props.escape {
-        return FilePickerViewOut {
-            action: FilePickerAction::Escape,
-            header_rect: egui::Rect::NOTHING,
-            hidden_crumbs_menu: None,
-        };
-    }
-
     // 콘텐츠 영역은 창 가장자리까지 온다. 구역마다 배경·구분선은 전폭으로 두고
     // 내용은 `fp-*` 인셋 안에 그린다.
     let outer = ui.available_rect_before_wrap();
@@ -696,11 +683,8 @@ pub fn draw_file_picker(
 
     let th = theme::theme();
     // 키 입력은 관리자가 키를 준 인스턴스만 읽는다(`cx.keys`). 다른 범위의 피커는 같은 키에 취소·확정되지 않는다.
-    // Esc 는 본문 전에 자식 팝업(경로 메뉴)이 닫혀 있을 때만 이 피커 것이다. 열려 있으면 egui 가 그 메뉴를 닫는다.
-    // 펼친 묶음 안의 Esc 는 취소하지 않고 남겨 중앙 단계가 묶음 뿌리부터 접는다.
-    let escape = !super::child_popup_open(ui.ctx(), cx.instance)
-        && !cx.keys.escape_refolds()
-        && cx.keys.consume(super::keys::BasicKey::Escape);
+    // Esc 취소는 선언(`PopupEscape::Close`)대로 중앙 단계가 한다. 경로 메뉴가 열려 있으면 egui 가 그 메뉴만 닫고,
+    // 펼친 묶음 안이면 중앙 단계가 묶음 뿌리부터 접는다.
 
     let is_remote = data.mirror_ws_id.is_some();
     let crumb_targets = path_ancestors(is_remote, &data.current_dir);
@@ -810,7 +794,6 @@ pub fn draw_file_picker(
                 selection_text: &selection_text,
             },
         },
-        escape,
         title_label,
         name_field_label,
         name_placeholder: t(if data.save_name.is_some() {
@@ -870,10 +853,6 @@ fn apply_action(
         FilePickerAction::Cancel => {
             d.result = Some(FilePickerResult::Cancelled);
             PopupAction::Close
-        }
-        FilePickerAction::Escape => {
-            d.result = Some(FilePickerResult::Cancelled);
-            PopupAction::CloseBy(crate::adapters::ui::popup::PopupCloseReason::Escape)
         }
         FilePickerAction::EditName(name) => {
             if d.save_name.is_some() {

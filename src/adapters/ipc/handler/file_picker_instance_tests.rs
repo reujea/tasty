@@ -252,21 +252,21 @@ fn draw_two_pickers_with_key(key: egui::Key, keys: [bool; 2]) -> [&'static str; 
     results
 }
 
-/// Given 두 범위에 피커가 보이고 위의 피커가 키 주인일 때, When Escape나 폴더 모드 Enter를 누르면,
-/// Then 그 피커만 반응한다. 키 주인이 없으면 어느 피커도 반응하지 않는다.
+/// Given 두 범위에 피커가 보이고 위의 피커가 키 주인일 때, When 폴더 모드 Enter를 누르면, Then 그 피커만 반응한다.
+/// 키 주인이 없으면 어느 피커도 반응하지 않는다. Escape 는 키 주인 본문도 읽지 않는다. 취소는 선언대로 관리자 중앙
+/// 단계가 키 주인에게만 한다(`escape_on_the_picker_closes_it_by_its_declaration`).
 #[test]
 fn only_the_key_owner_picker_reads_keys() {
-    for key in [egui::Key::Escape, egui::Key::Enter] {
-        let [below, above] = draw_two_pickers_with_key(key, [false, true]);
-        assert_eq!(below, "none", "{key:?}");
-        assert_ne!(above, "none", "{key:?}");
-        if key == egui::Key::Escape {
-            assert_eq!(above, "escape", "the close reason is escape");
-        }
-        assert_eq!(
-            draw_two_pickers_with_key(key, [false, false]),
-            ["none", "none"],
-            "{key:?}"
-        );
-    }
+    let [below, above] = draw_two_pickers_with_key(egui::Key::Enter, [false, true]);
+    assert_eq!(below, "none");
+    assert_ne!(above, "none");
+    assert_eq!(
+        draw_two_pickers_with_key(egui::Key::Enter, [false, false]),
+        ["none", "none"]
+    );
+    assert_eq!(
+        draw_two_pickers_with_key(egui::Key::Escape, [false, true]),
+        ["none", "none"],
+        "본문은 Escape 를 읽지 않는다"
+    );
 }

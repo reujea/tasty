@@ -161,7 +161,6 @@ fn folder_key(
         entries: &entries,
         selected: &selected,
         mode,
-        escape: false,
         title_label: "",
         name_field_label: "",
         name_placeholder: "",

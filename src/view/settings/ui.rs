@@ -864,12 +864,7 @@ pub fn draw_settings_panel(ctx: &egui::Context, panel: SettingsPanelCtx<'_>) -> 
         let chooser = &mut ui_state.file_chooser;
         ui_state.popups.draw_view_local(ctx, &mut |cx, ui, _| {
             if cx.id == FILE_PICKER_POPUP_ID {
-                // 이 패스 Esc 는 경로 메뉴가 닫혀 있을 때만 피커 것이다.
-                let escape = !crate::adapters::ui::popup::child_popup_open(ui.ctx(), cx.instance)
-                    && cx
-                        .keys
-                        .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
-                let drawn = chooser.draw(ui, &th, &mut cx.keys, escape);
+                let drawn = chooser.draw(ui, &th, &mut cx.keys);
                 crate::adapters::ui::popup::file_picker::report_hidden_crumbs_menu(
                     ui,
                     cx.instance,

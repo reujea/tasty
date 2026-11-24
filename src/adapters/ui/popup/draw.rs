@@ -195,7 +195,7 @@ impl PopupManager {
 
     /// Draw all open popups. The `content_fn` callback is invoked for each popup with its id.
     /// `draw_ctx` provides scope context for visibility and boundary clamping.
-    /// Returns draw result including closed popup IDs and hover state for input layer.
+    /// Returns draw result including body actions and hover state for input layer. Closes go through the close queue.
     #[allow(clippy::cognitive_complexity)] // complexity-exempt: egui 즉시모드 draw — 열린 popup별 content_fn 콜백 + 경계 clamp, 클로저 중첩이 구조적
     pub fn draw(
         &mut self,
@@ -873,7 +873,6 @@ impl PopupManager {
                             ctx,
                             edge.opaque,
                             || {
-                                let refolds = popup.expanded();
                                 let mut cx = PopupCx {
                                     id: popup.id,
                                     instance: popup.instance,
@@ -891,7 +890,6 @@ impl PopupManager {
                                         && unowned_keys(popup.instance));
                                 let escape_here = cx.focused && pass_escape;
                                 let keys = PopupKeys::new(ctx, takes_keys, popup.keyboard, edits)
-                                    .refolding(refolds)
                                     .with_window_route(routed_host == Some(popup.instance))
                                     .with_handed_escape(escape_here);
                                 bodies.push(text_focus::BodyKeys {
@@ -997,11 +995,12 @@ impl PopupManager {
             }
         }
 
-        let mut closed_ids = Vec::with_capacity(closed.len());
+        #[cfg(test)]
+        let closed_ids: Vec<PopupId> = closed
+            .iter()
+            .filter_map(|(iid, _)| self.instance(*iid).map(|p| p.id))
+            .collect();
         for (iid, reason) in closed {
-            if let Some(p) = self.instance(iid) {
-                closed_ids.push(p.id);
-            }
             self.close_instance(iid, reason);
         }
 
@@ -1017,6 +1016,7 @@ impl PopupManager {
         }
 
         PopupDrawResult {
+            #[cfg(test)]
             closed: closed_ids,
             actions,
             covers,

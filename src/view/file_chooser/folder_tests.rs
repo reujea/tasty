@@ -124,20 +124,14 @@ fn frame_with(
     };
     drop(ctx.run(input, |ctx| {
         egui::CentralPanel::default().show(ctx, |ui| {
-            // 관리자 없이 그리므로 키 주인 통로와 그 Esc 를 피커에 쓴 것은 시험이 정한다(관리자 통로가 소비한 경우와
-            // 같다).
+            // 관리자 없이 그리므로 키 주인 통로는 시험이 정한다. Esc 취소는 관리자 중앙 단계 몫이라 여기서 생기지 않는다.
             let mut keys = crate::adapters::ui::popup::keys::PopupKeys::new(
                 ctx,
                 true,
                 crate::adapters::ui::popup::PopupKeyboard::Text,
                 &crate::adapters::ui::input::edit_key::EditBindings::default(),
             );
-            ch.draw(
-                ui,
-                &crate::theme::theme(),
-                &mut keys,
-                key == egui::Key::Escape,
-            );
+            ch.draw(ui, &crate::theme::theme(), &mut keys);
         });
     }));
 }
@@ -163,11 +157,10 @@ fn folder_keyboard_skips_files_and_enter_confirms_while_right_enters() {
         PathBuf::from("/fixture").join("sub")
     );
     assert!(ch.take_outcome("folder.test").is_none());
+    // 본문은 Esc 를 읽지 않는다. 취소는 선언대로 관리자 중앙 단계가 한다
+    // (`escape_closes_the_separate_chooser_with_the_escape_reason`).
     frame(&mut ch, &ctx, egui::Key::Escape);
-    assert_eq!(
-        ch.take_outcome("folder.test"),
-        Some(FileChooserOutcome::Cancelled)
-    );
+    assert!(ch.take_outcome("folder.test").is_none());
 }
 
 /// T-9b-5: Given egui 드롭다운이 열린 별도 창 폴더 선택, When Alt+↑ 를 누르면, Then 상위 폴더로 가지 않는다.

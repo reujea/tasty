@@ -50,11 +50,7 @@ fn run_frames(ctx: &egui::Context, st: &mut SettingsUiState, inputs: Vec<egui::R
                 if cx.id != FILE_PICKER_POPUP_ID {
                     return false;
                 }
-                let escape = !crate::adapters::ui::popup::child_popup_open(ui.ctx(), cx.instance)
-                    && cx
-                        .keys
-                        .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
-                chooser.draw(ui, &th, &mut cx.keys, escape).done
+                chooser.draw(ui, &th, &mut cx.keys).done
             });
             if closed.contains(&FILE_PICKER_POPUP_ID) {
                 st.file_chooser.cancel();
@@ -91,7 +87,7 @@ fn the_settings_chooser_has_no_shell_title_bar() {
             ctx,
             &mut |id, ui| {
                 if id.id == FILE_PICKER_POPUP_ID {
-                    chooser.draw(ui, &th, &mut id.keys, false);
+                    chooser.draw(ui, &th, &mut id.keys);
                 }
             },
             None,
@@ -927,15 +923,15 @@ fn conflict_shown(
 }
 
 /// 별도 창 사건 입구(`view::window_input` 하네스)로 키를 받고 제품과 같은 순서 함수로 설정 창을 그리는 패스를
-/// 남은 몫이 없을 때까지 돌리고 빈 패스 하나를 더 그린다.
+/// 남은 몫이 없을 때까지 돌리고 빈 패스 하나를 더 그린다. 마지막 패스의 출력을 돌려준다.
 fn drain_settings(
     h: &mut crate::view::window_input::tests::Harness,
     p: &mut Panel,
     st: &mut SettingsUiState,
-) {
+) -> egui::FullOutput {
     loop {
         let more = h.has_input();
-        drop(h.run_pass(st, |ctx, pass| {
+        let out = h.run_pass(st, |ctx, pass| {
             let action = draw_settings_panel(
                 ctx,
                 SettingsPanelCtx {
@@ -948,11 +944,173 @@ fn drain_settings(
                 },
             );
             assert_eq!(action, None, "the panel was not saved or cancelled");
-        }));
+        });
         if !more {
-            break;
+            return out;
         }
     }
+}
+
+/// 설정 창 폴더 선택기를 `start` 에서 열고 읽기를 빈 목록으로 끝낸 뒤(확정할 수 있다) 별도 창 사건 입구 하네스로
+/// 그려 W1 키 주인임을 단정한다. 버튼 자리를 찾을 출력을 돌려준다.
+fn loaded_chooser(
+    h: &mut crate::view::window_input::tests::Harness,
+    p: &mut Panel,
+    st: &mut SettingsUiState,
+    start: std::path::PathBuf,
+) -> egui::FullOutput {
+    st.open_file_chooser_at(
+        CONSUMER,
+        file_chooser::FileChooserMode::Folder,
+        Vec::new(),
+        None,
+        Some(start),
+    );
+    st.file_chooser.read_empty_for_test();
+    drop(drain_settings(h, p, st));
+    let out = drain_settings(h, p, st);
+    assert_eq!(
+        next_owner(&h.ctx, st),
+        Some(chooser_instance(st)),
+        "W1 키 주인이 선택기다"
+    );
+    out
+}
+
+/// 읽기를 끝낸 설정 창 폴더 선택기에 별도 창 사건 입구로 bare Esc 와 확정 버튼 클릭을 `escape_first` 순서로 보낸다.
+/// (결과, 선택기가 열린 채인지, 시작 폴더).
+fn escape_and_confirm(
+    escape_first: bool,
+) -> (
+    Option<file_chooser::FileChooserOutcome>,
+    bool,
+    std::path::PathBuf,
+) {
+    let (mut p, mut st) = plain_panel();
+    let mut h = crate::view::window_input::tests::Harness::new();
+    let start = std::env::temp_dir();
+    let out = loaded_chooser(&mut h, &mut p, &mut st, start.clone());
+    let confirm = text_rect_in(&out, t("picker.folder.confirm")).center();
+    if escape_first {
+        h.key(&mut st, egui::Key::Escape, None);
+        h.click(&mut st, confirm);
+    } else {
+        h.click(&mut st, confirm);
+        h.key(&mut st, egui::Key::Escape, None);
+    }
+    drop(drain_settings(&mut h, &mut p, &mut st));
+    (
+        st.file_chooser.take_outcome(CONSUMER),
+        st.popups.is_open(FILE_PICKER_POPUP_ID),
+        start,
+    )
+}
+
+/// M-P1-3 F: Given 읽기를 끝낸 설정 창 폴더 선택기, When 별도 창 사건 입구로 bare Esc 뒤 확정 버튼 클릭이 오면, Then
+/// Esc 몫이 먼저 그려져 선언(`PopupEscape::Close`)대로 중앙 단계가 선택기를 닫고 결과는 취소다. 클릭은 닫힌 선택기에
+/// 가지 않는다.
+#[test]
+fn escape_then_confirm_click_cancels_the_chooser() {
+    let (outcome, open, _) = escape_and_confirm(true);
+    assert_eq!(outcome, Some(file_chooser::FileChooserOutcome::Cancelled));
+    assert!(!open, "선택기가 닫힌다");
+}
+
+/// M-P1-3 P: Given 읽기를 끝낸 설정 창 폴더 선택기, When 확정 버튼 클릭 뒤 bare Esc 가 오면, Then 클릭이 먼저
+/// 그려져 시작 폴더를 확정한다. 뒤의 Esc 는 닫힌 선택기를 취소하지 않는다.
+#[test]
+fn confirm_click_then_escape_picks_the_file() {
+    let (outcome, open, start) = escape_and_confirm(false);
+    assert_eq!(
+        outcome,
+        Some(file_chooser::FileChooserOutcome::Confirmed(vec![
+            start.to_string_lossy().into_owned()
+        ]))
+    );
+    assert!(!open, "선택기가 닫힌다");
+}
+
+/// 설정 창 관리자의 선택기를 별도 창 사건 입구 하네스의 패스로 남은 몫이 없을 때까지 그린다(본문 호출은 설정 창
+/// 그리기와 같다). 그 프레임들에 선택기가 닫힌 사유(`draw_view_local` 이 꺼낸 닫기 큐)와 마지막 출력을 돌려준다.
+fn chooser_close_reasons(
+    h: &mut crate::view::window_input::tests::Harness,
+    st: &mut SettingsUiState,
+) -> (
+    Vec<crate::adapters::ui::popup::PopupCloseReason>,
+    egui::FullOutput,
+) {
+    let th = crate::theme::theme();
+    let mut reasons = Vec::new();
+    loop {
+        let more = h.has_input();
+        let out = h.run_pass(st, |ctx, pass| {
+            let st = &mut *pass.state;
+            st.popups.put_window_pass_keys(ctx, &pass.keys);
+            let chooser = &mut st.file_chooser;
+            let closed = st.popups.draw_view_local(ctx, &mut |cx, ui, _| {
+                if cx.id != FILE_PICKER_POPUP_ID {
+                    return false;
+                }
+                chooser.draw(ui, &th, &mut cx.keys).done
+            });
+            if closed.contains(&FILE_PICKER_POPUP_ID) {
+                st.file_chooser.cancel();
+            }
+            reasons.extend(closed.reasons_of(&FILE_PICKER_POPUP_ID));
+        });
+        if !more {
+            return (reasons, out);
+        }
+    }
+}
+
+/// 설정 창 선택기를 열고 별도 창 사건 입구 하네스로 두 번 그린다. 버튼 자리를 찾을 출력을 돌려준다.
+fn reasons_chooser(
+    h: &mut crate::view::window_input::tests::Harness,
+    st: &mut SettingsUiState,
+) -> egui::FullOutput {
+    drop(chooser_close_reasons(h, st));
+    let (reasons, out) = chooser_close_reasons(h, st);
+    assert!(reasons.is_empty(), "열린 채다: {reasons:?}");
+    out
+}
+
+/// M-P1-2 F: Given 설정 창 선택기, When 별도 창 사건 입구로 bare Esc 가 오면, Then 선언대로 중앙 단계가 닫고 닫기
+/// 사유는 Escape 다(관측점: `draw_view_local` 이 사유를 버리지 않고 꺼낸 닫기 큐). 결과는 취소다.
+#[test]
+fn escape_closes_the_separate_chooser_with_the_escape_reason() {
+    let mut st = opened();
+    let mut h = crate::view::window_input::tests::Harness::new();
+    drop(reasons_chooser(&mut h, &mut st));
+    h.key(&mut st, egui::Key::Escape, None);
+    let (reasons, _) = chooser_close_reasons(&mut h, &mut st);
+    assert_eq!(
+        reasons,
+        vec![crate::adapters::ui::popup::PopupCloseReason::Escape]
+    );
+    assert_eq!(
+        st.file_chooser.take_outcome(CONSUMER),
+        Some(file_chooser::FileChooserOutcome::Cancelled)
+    );
+}
+
+/// M-P1-2 P: Given 설정 창 선택기, When 취소 버튼을 클릭하면, Then 본문이 끝내 닫기 사유는 Command 다.
+#[test]
+fn the_cancel_button_closes_the_separate_chooser_with_the_command_reason() {
+    let mut st = opened();
+    let mut h = crate::view::window_input::tests::Harness::new();
+    let out = reasons_chooser(&mut h, &mut st);
+    let cancel = text_rect_in(&out, t("button.cancel")).center();
+    h.click(&mut st, cancel);
+    let (reasons, _) = chooser_close_reasons(&mut h, &mut st);
+    assert_eq!(
+        reasons,
+        vec![crate::adapters::ui::popup::PopupCloseReason::Command]
+    );
+    assert_eq!(
+        st.file_chooser.take_outcome(CONSUMER),
+        Some(file_chooser::FileChooserOutcome::Cancelled)
+    );
 }
 
 /// 충돌 질문을 띄운 설정 창에 별도 창 사건 입구로 키 둘을 보내고 끊은 수를 돌려준다.
@@ -1441,8 +1599,10 @@ fn escape_with_another_window_dropdown_open() {
     );
 }
 
-/// T-4a3-21y1: Given 설정 창 선택기, When 확정 버튼 누름 다음 패스에 [확정 버튼 뗌, bare Esc] 가 오면, Then 결과는
-/// 취소다(보기의 Esc 갈래가 확정보다 먼저다).
+/// T-4a3-21y1: Given 설정 창 선택기(디렉토리를 아직 읽지 않아 확정할 수 없다), When 확정 버튼 누름 다음 패스에
+/// [확정 버튼 뗌, bare Esc] 가 오면, Then 확정은 생기지 않고 Esc 는 선언대로 중앙 단계가 닫아 결과는 취소다. 사건
+/// 순서에 따른 확정·취소는 `escape_then_confirm_click_cancels_the_chooser`·`confirm_click_then_escape_picks_the_file`
+/// 가 별도 창 사건 입구로 잰다.
 #[test]
 fn escape_and_a_confirm_click_in_one_pass_cancel_the_chooser() {
     let (mut p, mut st) = plain_panel();
@@ -1543,11 +1703,7 @@ fn chooser_pass(
                 return false;
             }
             owned |= owns_keys;
-            let escape = !crate::adapters::ui::popup::child_popup_open(ui.ctx(), cx.instance)
-                && cx
-                    .keys
-                    .consume(crate::adapters::ui::popup::keys::BasicKey::Escape);
-            chooser.draw(ui, &th, &mut cx.keys, escape).done
+            chooser.draw(ui, &th, &mut cx.keys).done
         });
         assert!(closed.is_empty(), "the chooser stays open: {closed:?}");
     });
