@@ -24,8 +24,10 @@ pub(crate) struct FrameKeys {
     pub(crate) owner: Option<PopupKeyOwner>,
     /// 키 주인이 host 팝업이면 그 인스턴스. 창이 묶은 인스턴스는 닫혔거나 숨었어도 그대로다.
     pub(crate) host: Option<PopupInstanceId>,
-    /// 이번 그리기 몫이 이 주인 팝업에 결속됐는지(`Bound::Popup`). 결속은 창이 그 몫의 입력을 받을 때와 노드 차이로
-    /// 끊어 닫힌 몫에서 생긴다. 거짓이면 그리기가 정한 주인이다.
+    /// 이번 그리기 몫의 결속이 `Bound::Popup`(이 주인 팝업)인지. 창이 그 몫의 키를 팝업에 묶을 때
+    /// (`bind_input_key_owner`)와 끊어 닫힌 몫의 포커스 노드가 팝업일 때(`cut_key_frame`, 같은 노드의 누름 끊기 포함)
+    /// 생긴다. `Bound::NoPopup` 은 결속이 아니라 이 값은 거짓이고 키 주인도 없다. 결속이 없는 몫도 거짓이고 그때는
+    /// 그리기가 정한 주인이다.
     pub(crate) bound: bool,
 }
 

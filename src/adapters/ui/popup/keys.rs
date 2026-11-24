@@ -144,7 +144,8 @@ pub(crate) struct PopupKeys {
     escape_marks: Option<super::body_keys::EscapeMarks>,
     /// 이 인스턴스가 펼친 묶음 안이라 본문이 쓰지 않은 Esc 를 중앙 단계가 다시 접는다(`refolding`).
     refolds: bool,
-    /// 창 키 경로가 이번 몫의 키를 이 인스턴스에 묶었는지(`FrameKeys::bound`).
+    /// 이번 몫의 결속이 이 인스턴스의 `Bound::Popup` 인지(`FrameKeys::bound`). 같은 노드의 누름 끊기도 결속을 만들고
+    /// `Bound::NoPopup` 은 결속이 아니다.
     routed: bool,
 }
 
