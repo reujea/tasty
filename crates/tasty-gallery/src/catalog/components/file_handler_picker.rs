@@ -8,7 +8,7 @@ use tasty_type_appearance::theme::Theme;
 
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::catalog::widgets::dialog as kit;
-use frame::{FrameState, RemoteHead, fh_footer, frame, header_card, remote_frame};
+use frame::{FrameState, RemoteHead, fh_footer, frame, header_card, remote_spec_frame};
 use tasty_ui_widgets::file_handler as fh_model;
 use tasty_ui_widgets::tokens::FH_FRAME_WIDTH;
 
@@ -232,56 +232,137 @@ const PATH_SAMPLES: [&str; 3] = [
 /// 이 예제는 글꼴을 실측하지 않고 측정할 수 없을 때의 문자 수 상한을 사용한다.
 const PATH_BUDGET: usize = tasty_ui_widgets::tokens::FH_TARGET_ELIDE_FALLBACK;
 
-/// 원격 경로 표본 — 디자인 Spec `file-handler-remote-path` 의 줄. 호스트 글자는 attach 프로필 이름이다.
-/// 넷째 칸은 이름으로 연 경로가 정한 형식이다(경로 링크는 None → `format unknown`).
-const REMOTE_PATH_ROWS: [(&str, &str, &str, Option<&str>); 4] = [
-    ("remote path — profile host", "host", "src/main.rs", None),
-    (
-        "remote path opened by name (plugin, mirror file open) — the format its name settled keeps the accent Tag",
-        "host",
-        "docs/architecture.md",
-        Some("markdown"),
-    ),
-    (
-        "93-char path beside work-laptop-attach — whole segments drop, the filename stays",
-        "work-laptop-attach",
-        PATH_SAMPLES[1],
-        None,
-    ),
-    (
-        "same path at the host cap — the one segment is cut at its front",
-        "build-runner-eu-west-07-staging-attach",
-        PATH_SAMPLES[1],
-        None,
-    ),
+/// 원격 경로 표본 한 줄 — 라벨, 호스트(None 이면 로컬 경로), 경로, 이름이 정한 형식, 프레임 상태.
+struct RemotePathRow {
+    label: &'static str,
+    host: Option<&'static str>,
+    path: &'static str,
+    format: Option<&'static str>,
+    state: FrameState,
+}
+
+/// 디자인 Spec `file-handler-remote-path` 의 표본 줄, 정본 순서. 호스트 글자는 attach 프로필 이름이다.
+/// 이름으로 연 경로(Ctrl+click·탐색기·파일 열기 도구·plugin)는 이름이 정한 형식의 accent Tag 이고,
+/// 링크 메뉴의 열기 동작은 detector 가 없어 fallback(`format unknown`, 1 회성 띠, All handlers)이다.
+const REMOTE_PATH_ROWS: [RemotePathRow; 5] = [
+    RemotePathRow {
+        label: "local path — no mark",
+        host: None,
+        path: "docs/architecture.md",
+        format: None,
+        state: FrameState::Default,
+    },
+    RemotePathRow {
+        label: "remote path identified by name (path link Ctrl+click, mirror explorer, file open tool, plugin) — profile host, the format its name settled keeps the accent Tag · Ctrl+click opens it only when the first handler cannot open the file remotely and another can",
+        host: Some("host"),
+        path: "docs/architecture.md",
+        format: Some("markdown"),
+        state: FrameState::Default,
+    },
+    RemotePathRow {
+        label: "remote path from the link menu's open action — no detector: format unknown, All handlers and the one-time strip, remote handlers only",
+        host: Some("host"),
+        path: "src/main.rs",
+        format: None,
+        state: FrameState::Fallback,
+    },
+    RemotePathRow {
+        label: "93-char path beside work-laptop-attach (link menu) — 258px box, 43 chars: whole segments drop, the filename stays",
+        host: Some("work-laptop-attach"),
+        path: PATH_SAMPLES[1],
+        format: None,
+        state: FrameState::Fallback,
+    },
+    RemotePathRow {
+        label: "same path at the host cap (link menu) — 206px box, 34 chars: …/ + the 33-char file name is 35, so only the slash drops — … + the whole file name",
+        host: Some("build-runner-eu-west-07-staging-attach"),
+        path: PATH_SAMPLES[1],
+        format: None,
+        state: FrameState::Fallback,
+    },
 ];
+
+/// 디자인 `ThemePair` — 같은 내용을 Mocha·Latte 열로 나란히(좁으면 줄을 바꿔) 그린다. 열마다 자기
+/// bg-app 바탕이고, 갤러리 UI 배율을 따른다.
+fn theme_pair(ui: &mut egui::Ui, theme: &Theme, id: &str, add: impl Fn(&mut egui::Ui, &Theme)) {
+    let with_zoom =
+        |base: Theme| Theme::with_colors_and_zoom(base.to_colors(), base.is_light, theme.ui_zoom);
+    let themes = [
+        ("Mocha", with_zoom(tasty_themes::mocha_fallback())),
+        ("Latte", with_zoom(crate::host_shell::latte_theme())),
+    ];
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing =
+            egui::vec2(theme.spacing_lg.value(), theme.spacing_lg.value());
+        for (label, th) in &themes {
+            spec::wrap_item(ui, |ui| {
+                egui::Frame::new()
+                    .fill(th.bg_app().to_egui())
+                    .corner_radius(th.corner_radius.value())
+                    .inner_margin(egui::Margin::same(th.spacing_md.value() as i8))
+                    .show(ui, |ui| {
+                        ui.vertical(|ui| {
+                            ui.spacing_mut().item_spacing.y = th.spacing_md.value();
+                            ui.push_id((id, *label), |ui| add(ui, th));
+                        });
+                    });
+            });
+        }
+    });
+}
+
+/// 표본 한 줄 — 라벨과 그 아래 프레임.
+fn remote_path_row(
+    ui: &mut egui::Ui,
+    th: &Theme,
+    row: &RemotePathRow,
+    mark: Option<&tasty_ui_widgets::RemoteMark<'_>>,
+) {
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing.y = th.spacing_xs.value();
+        ui.label(
+            egui::RichText::new(row.label)
+                .size(th.font_size_caption.value())
+                .color(th.text_muted().to_egui()),
+        );
+        let head = mark.map(|mark| RemoteHead {
+            mark,
+            format: row.format,
+        });
+        remote_spec_frame(ui, th, row.path, head.as_ref(), row.state);
+    });
+}
 
 pub fn draw_remote_path(ui: &mut egui::Ui, theme: &Theme) {
     let empty_label = crate::i18n::t("attach.mirror_pill_label");
-    let row = |ui: &mut egui::Ui, (label, host, path, format): (&str, &str, &str, Option<&str>)| {
-        spec::cluster(ui, theme, label, |ui| {
-            remote_frame(
-                ui,
-                theme,
-                path,
-                &RemoteHead {
-                    mark: &tasty_ui_widgets::RemoteMark {
-                        host,
-                        empty_label,
-                        reconnecting: None,
-                    },
-                    format,
-                },
-            );
+    spec::stage(ui, theme, StageVariant::Column, |ui| {
+        theme_pair(ui, theme, "fh_remote_path", |ui, th| {
+            for row in &REMOTE_PATH_ROWS {
+                let mark = row.host.map(|host| tasty_ui_widgets::RemoteMark {
+                    host,
+                    empty_label,
+                    reconnecting: None,
+                });
+                remote_path_row(ui, th, row, mark.as_ref());
+            }
         });
-    };
-    spec::stage(ui, theme, StageVariant::Wrap, |ui| {
-        spec::cluster(ui, theme, "local path — no mark", |ui| {
-            header_card(ui, theme, "docs/architecture.md");
+        // 디자인의 숨은 View `file-handler-remote-no-host`. 카탈로그 Spec 에 View 칸이 없어 같은 Spec
+        // 아래에 라벨을 달아 둔다.
+        let no_host = RemotePathRow {
+            label: "View · file-handler-remote-no-host — no profile name (--ssh or --target-port from the CLI or IPC): the word Remote in the host slot, label font, remote ink",
+            host: Some(""),
+            path: "docs/architecture.md",
+            format: Some("markdown"),
+            state: FrameState::Default,
+        };
+        theme_pair(ui, theme, "fh_remote_no_host", |ui, th| {
+            let mark = tasty_ui_widgets::RemoteMark {
+                host: "",
+                empty_label,
+                reconnecting: None,
+            };
+            remote_path_row(ui, th, &no_host, Some(&mark));
         });
-        for r in REMOTE_PATH_ROWS {
-            row(ui, r);
-        }
     });
     spec::meta(
         ui,
@@ -292,37 +373,67 @@ pub fn draw_remote_path(ui: &mut egui::Ui, theme: &Theme) {
                 "path line, before the path — never in the title row",
             ),
             ("mark", "remote glyph 12 + host · mono caption · no fill"),
-            ("ink", "fh-remote-fg → accent-remote-raised"),
+            (
+                "ink",
+                "fh-remote-fg → accent-remote-raised · base 10.54 · 6.63",
+            ),
             (
                 "gap",
                 "glyph ↔ host fh-remote-gap 4 · mark ↔ path space-sm 8",
             ),
             (
                 "host cap",
-                "fh-remote-max-width 160 on the host text · end-elided with …",
+                "fh-remote-max-width 160 on the host text (glyph and gap outside it) · end-elided with …",
             ),
             (
                 "host text",
-                "attach profile name, as it was at connect time",
+                "the host text rule: attach profile name, as it was at connect time (R-57) · set once when the picker opens, unchanged after a drop · no profile name (--ssh or --target-port from the CLI or IPC, a profile saved with an empty name) → the word Remote (next row) · never 127.0.0.1:<port>, the local end of the tunnel",
+            ),
+            (
+                "no host",
+                "attach.mirror_pill_label in the host slot · font-label (mono in en and ko, UI sans in ja and zh-Hans) · fh-remote-fg, glyph unchanged · never elides · for an attach with no profile name: --ssh (whatever its value, 127.0.0.1:<port> included) or --target-port from the CLI or IPC, a profile saved with an empty name · the app draws the same word for any empty host, also one from missing connection info (before the first location sync) — whether a picker opens in that span is not settled",
+            ),
+            (
+                "no-host path box",
+                "390 − (12 + 4 + word) − 8, measured · when the measure is not valid or not one character fits, the common cap 34, the same as an unknown host width — no per-language estimate",
+            ),
+            (
+                "widths",
+                "6px advance: 'host' 24 · 'work-laptop-attach' 108 · cap 160",
             ),
             ("path box", "390 − mark − 8; mark = 12 + 4 + host text"),
             (
                 "path measure",
-                "front elision against the path box, at a segment boundary",
+                "front elision against the path box: 1 whole leading segments drop, prefix …/ · 2 when …/ + the last segment does not fit but … + it does, drop the slash · 3 only when … + the last segment does not fit is the segment cut at its front by characters, prefix …",
             ),
-            ("path cap, unmeasured", "34 — the box left at the host cap"),
             (
-                "no host text",
-                "the word Remote (attach.mirror_pill_label) in the host slot, font-label",
+                "path cap, unmeasured",
+                "floor((366 − min(6 × host chars, 160)) / 6): 'host' 57 · 'work-laptop-attach' 43 · at the cap 34 (also when the host width is unknown)",
+            ),
+            (
+                "disconnected",
+                "no form (user decision, R-58 Q1: the scrim takes the pointer, drawn on Layouts › Saved remote workspace) — on a saved remote row that is not connected, reconnecting included, nothing under the scrim answers, so no link opens the picker, so it has no form here · an agent mirror is closed once it drops (R-58 decision 23-4), so it has no disconnected form",
+            ),
+            (
+                "format Tag",
+                "identified by name (path link Ctrl+click, mirror explorer, file open tool, plugin) → Tag accent, the format its extension or file name settled, beside the host mark, over the remote handler list · the link menu's open action → no detector, so the fallback: the All handlers group and the one-time strip, over the remote handlers only, Tag format unknown (default, outline)",
+            ),
+            (
+                "Ctrl+click opens",
+                "the picker only when the first handler cannot open the file on the remote host and another candidate can, so its detector has always matched — no match → the download-and-run dialog, no picker · the first handler can open it remotely → it runs, no picker",
             ),
             ("local path", "no mark — the line is the path alone"),
             (
-                "format Tag",
-                "remote target from a path link → format unknown, Tag default (outline) · remote target opened by name → Tag accent, the format its name settled",
+                "body",
+                "the handler list, never the empty state — a remote path with no remote handler does not open the picker · every user route (path link, open by name) opens the download-and-run dialog instead · an outside request (CLI, agent) opens nothing and is logged",
             ),
             (
-                "body",
-                "the remote handler list, never the empty state (no All handlers group, no one-time strip) — with no remote handler the picker does not open and the download-and-run dialog opens instead",
+                "rows",
+                "only the handlers that can open the file on the remote host (the app filters them) · no default Tag on any row — the app sets no default for a remote target",
+            ),
+            (
+                "copy",
+                "none new — the no-host word attach.mirror_pill_label",
             ),
         ],
         &[
@@ -336,7 +447,14 @@ pub fn draw_remote_path(ui: &mut egui::Ui, theme: &Theme) {
         ui,
         theme,
         "Don't join host and path into one string (host:/src/main.rs). The path line elides at \
-         the front, so the host would be the first thing cut.",
+         the front, so the host would be the first thing cut. The title row is not the place either: \
+         it already holds the format Tag, and a host there is not attached to the path it qualifies.",
+    );
+    spec::note(
+        ui,
+        theme,
+        "The File Picker keeps its tinted host badge in the title row: there the host is the \
+         context for a whole browsing window, here it qualifies one path.",
     );
 }
 
@@ -614,6 +732,50 @@ mod tests {
         assert_eq!(
             cut,
             "…on-federation-sidebar-category-header-contrast-exploration-v2.md"
+        );
+    }
+
+    /// 원격 경로 표본의 긴 경로 두 줄이 라벨대로 줄어든다 — 앱 글꼴(D2Coding)로 잰 표지가 남긴 상자에서
+    /// work-laptop-attach 옆 상자는 43자(앞 조각을 통째로 버림), 상한 호스트 옆 상자는 34자(슬래시만 빠짐)다.
+    #[test]
+    fn the_remote_long_path_rows_cut_as_their_labels_say() {
+        let ctx = egui::Context::default();
+        crate::fonts::install(&ctx);
+        let theme = crate::host_shell::latte_theme();
+        let mut cuts = Vec::new();
+        let _frame = ctx.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let font = egui::FontId::monospace(theme.font_size_caption.value());
+                let w = |t: &str| {
+                    ui.fonts(|f| {
+                        f.layout_no_wrap(t.into(), font.clone(), egui::Color32::PLACEHOLDER)
+                            .rect
+                            .width()
+                    })
+                };
+                let advance = tasty_type_geometry::length::LogicalPx(w("00") - w("0"));
+                for row in &REMOTE_PATH_ROWS[3..] {
+                    let mark = tasty_ui_widgets::RemoteMark {
+                        host: row.host.expect("remote row"),
+                        empty_label: "Remote",
+                        reconnecting: None,
+                    };
+                    let budget = fh_model::target_budget_chars_beside(
+                        advance,
+                        tasty_ui_widgets::fh_remote_mark_width(ui, &theme, &mark),
+                        theme.spacing_sm,
+                    );
+                    cuts.push((budget, fh_model::elide_target_front(row.path, budget)));
+                }
+            });
+        });
+        // 정본 표본의 생략 결과(overlays-dialogs 의 긴 경로 두 줄).
+        assert_eq!(
+            cuts,
+            vec![
+                (43, "…/SidebarCategoryHeaderContrast.tsx".to_owned()),
+                (34, "…SidebarCategoryHeaderContrast.tsx".to_owned()),
+            ]
         );
     }
 }

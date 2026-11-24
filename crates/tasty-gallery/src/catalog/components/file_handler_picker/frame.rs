@@ -753,7 +753,7 @@ pub(super) fn frame_with_path(
         if state == FrameState::Empty {
             fh_empty(ui, theme);
         } else {
-            fh_list(ui, theme, state);
+            fh_list(ui, theme, state, false);
         }
         fh_footer(ui, theme, state != FrameState::Empty);
     });
@@ -766,16 +766,19 @@ pub(super) fn header_card(ui: &mut egui::Ui, theme: &Theme, path: &str) {
     });
 }
 
-/// 원격 경로 picker — 본문은 원격에 열 수 있는 핸들러 목록(빈 상태·전체 핸들러 그룹·1 회성 띠 없음)이고
-/// 머리 경로 줄 앞에 원격 표지가 붙는다. 원격 picker 는 후보가 있을 때만 열린다.
+/// 원격 경로 Spec 의 프레임 하나 — 디자인 `FileHandlerFrame` 에 `remote` 를 준 형태. `head` 가 없으면 로컬
+/// 경로의 전체 프레임이다. 원격이면 머리 경로 줄 앞에 원격 표지가 붙고 목록은 원격에 열 수 있는 핸들러
+/// (디자인 `FH_REMOTE`: built-in 행만, `default` Tag 없음)다. `state` 가 `Fallback` 이면 링크 메뉴의 열기
+/// 동작처럼 1 회성 띠와 `All handlers` 그룹을 그린다. 원격 picker 는 후보가 있을 때만 열려 빈 상태가 없다.
+/// 디자인의 420px 은 테두리를 포함하므로(헤더 줄 상자 390 = 420 − 1×2 − 14×2) 본문 폭은 420 − 테두리×2 다.
 /// 경로는 표지가 남긴 상자에 대해 본체와 같은 공용 함수로 앞을 줄인다.
-pub(super) fn remote_frame(
+pub(super) fn remote_spec_frame(
     ui: &mut egui::Ui,
     theme: &Theme,
     raw_path: &str,
-    head: &RemoteHead<'_>,
+    head: Option<&RemoteHead<'_>>,
+    state: FrameState,
 ) {
-    let mark = head.mark;
     let font = egui::FontId::monospace(theme.font_size_caption.value());
     let advance = ui.fonts(|f| {
         f.layout_no_wrap("00".into(), font.clone(), egui::Color32::PLACEHOLDER)
@@ -785,25 +788,48 @@ pub(super) fn remote_frame(
                 .rect
                 .width()
     });
-    let budget = fh_model::target_budget_chars_beside(
-        tasty_type_geometry::length::LogicalPx(advance),
-        tasty_ui_widgets::fh_remote_mark_width(ui, theme, mark),
-        theme.spacing_sm,
-    );
+    let advance = tasty_type_geometry::length::LogicalPx(advance);
+    let budget = match head {
+        Some(head) => fh_model::target_budget_chars_beside(
+            advance,
+            tasty_ui_widgets::fh_remote_mark_width(ui, theme, head.mark),
+            theme.spacing_sm,
+        ),
+        None => fh_model::target_budget_chars(advance),
+    };
     let path = fh_model::elide_target_front(raw_path, budget);
-    kit::frame_card(ui, theme, FH_FRAME_WIDTH, kit::panel_fill(theme), |ui| {
-        fh_header(ui, theme, FrameState::Default, &path, Some(head));
-        fh_list(ui, theme, FrameState::Default);
+    let width = FH_FRAME_WIDTH - theme.border_width.scaled(2.0);
+    kit::frame_card(ui, theme, width, kit::panel_fill(theme), |ui| {
+        fh_header(ui, theme, state, &path, head);
+        if state == FrameState::Fallback {
+            fh_fallback_strip(ui, theme);
+        }
+        fh_list(ui, theme, state, head.is_some());
         fh_footer(ui, theme, true);
     });
 }
 
-fn fh_list(ui: &mut egui::Ui, theme: &Theme, state: FrameState) {
+/// 원격 대상의 목록 — 디자인 `FH_REMOTE`. 원격에 열 수 있는 행(표본은 built-in 행)만 두고 어느 행에도
+/// `default` Tag 가 없다. 앱은 원격 대상에 기본 핸들러를 두지 않는다.
+fn remote_rows(rows: &[Row]) -> Vec<Row> {
+    rows.iter()
+        .filter(|r| r.owner == Owner::Host)
+        .map(|r| Row { dflt: false, ..*r })
+        .collect()
+}
+
+fn fh_list(ui: &mut egui::Ui, theme: &Theme, state: FrameState, remote: bool) {
     let long = state == FrameState::Long;
     let suggested: Vec<Row> = match state {
+        _ if remote => remote_rows(SUGGESTED),
         FrameState::Mixed => MIXED.to_vec(),
         FrameState::Long => SUGGESTED.iter().chain(LONG_EXTRA).copied().collect(),
         _ => SUGGESTED.to_vec(),
+    };
+    let all: Vec<Row> = if remote {
+        remote_rows(ALL)
+    } else {
+        ALL.to_vec()
     };
     let draw = |ui: &mut egui::Ui| {
         kit::region(ui, egui::Margin::same(FH_LIST_PAD.value() as i8), |ui| {
@@ -813,11 +839,11 @@ fn fh_list(ui: &mut egui::Ui, theme: &Theme, state: FrameState) {
                     ui,
                     theme,
                     "All handlers",
-                    ALL.len(),
+                    all.len(),
                     Some(crate::i18n::t("file_handler.picker.fallback_caption")),
                     true,
                 );
-                for (i, r) in ALL.iter().enumerate() {
+                for (i, r) in all.iter().enumerate() {
                     fh_row(ui, theme, r, i == 0, false);
                 }
             } else {
