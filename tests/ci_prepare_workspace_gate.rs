@@ -108,8 +108,13 @@ fn git(root: &Path, args: &[&str]) {
 }
 
 fn repo() -> Repo {
+    repo_at("r")
+}
+
+/// 임시 디렉토리 아래 `rel`(공백 포함 가능)에 저장소를 만든다.
+fn repo_at(rel: &str) -> Repo {
     let dir = tempfile::tempdir().expect("임시 디렉토리");
-    let root = dir.path().join("r");
+    let root = dir.path().join(rel);
     fs::create_dir_all(root.join("scripts")).expect("scripts");
     fs::copy(script_src(), root.join(SCRIPT)).expect("스크립트 복사");
     fs::write(root.join(".gitignore"), "target/\n*.sig\n").expect(".gitignore");
@@ -506,7 +511,11 @@ fn the_threshold_compares_bytes_at_an_odd_gigabyte() {
 
 /// 지울 target이 마운트 경계에 걸린 상태를 만들고, 준비가 표지와 파일을 건드리지 않고 멈추는지 본다.
 fn assert_mount_boundary_is_refused(stubs: &[(&str, String)]) {
-    let r = repo();
+    assert_mount_boundary_is_refused_at("r", stubs);
+}
+
+fn assert_mount_boundary_is_refused_at(rel: &str, stubs: &[(&str, String)]) {
+    let r = repo_at(rel);
     let root = &r.root;
     put(root, "target/debug/deps/libfoo.rlib");
     fs::write(root.join(MARKER), "2000-01-01\n").expect("표지");
@@ -536,6 +545,37 @@ fn a_mount_point_inside_target_is_refused() {
     // 스텁은 준비 스크립트와 같은 작업 폴더에서 돌므로 target의 실제 경로를 실행 중에 읽는다.
     let mount = "#!/bin/sh\nprintf '%s\\n' '/dev/root on / type ext4 (rw)' \"tmpfs on $(cd target && pwd -P)/debug type tmpfs (rw)\"\n".to_string();
     assert_mount_boundary_is_refused(&[("mount", mount)]);
+}
+
+/// macOS(Darwin)로 보이게 하는 uname 스텁.
+fn darwin_uname() -> (&'static str, String) {
+    ("uname", "#!/bin/sh\necho Darwin\n".to_string())
+}
+
+/// macOS의 mount 출력은 type 필드가 없다. 작업 트리 안 `target type logs`라는 폴더에 걸린 마운트를
+/// target 자체의 마운트로 잘못 읽으면 안 된다.
+#[test]
+fn a_macos_mount_whose_path_contains_type_is_not_read_as_target() {
+    let r = repo();
+    let root = &r.root;
+    let day = today();
+    put(root, "target/debug/deps/libfoo.rlib");
+    fs::write(root.join(MARKER), format!("{day}\n")).expect("표지");
+    let mount = "#!/bin/sh\nprintf '%s\\n' '/dev/disk1s1 on / (apfs, local, journaled)' \"/dev/disk3s1 on $(pwd -P)/target type logs (apfs, local)\"\n".to_string();
+    let (code, log) = run_stubbed(root, "0", &[darwin_uname(), ("mount", mount)], &[]);
+    if today() != day {
+        return a_macos_mount_whose_path_contains_type_is_not_read_as_target();
+    }
+    assert_eq!(code, 0, "{log}");
+    assert!(log.contains("action=keep reason=cached"), "{log}");
+    assert!(root.join("target/debug/deps/libfoo.rlib").exists(), "{log}");
+}
+
+/// 작업 트리 경로에 ` type `이 있어도 macOS 형식의 target 아래 마운트를 찾아 거부한다.
+#[test]
+fn a_macos_mount_inside_target_is_refused_when_the_work_tree_path_contains_type() {
+    let mount = "#!/bin/sh\nprintf '%s\\n' '/dev/disk1s1 on / (apfs, local, journaled)' \"/dev/disk3s1 on $(cd target && pwd -P)/debug (apfs, local)\"\n".to_string();
+    assert_mount_boundary_is_refused_at("ci type arm/r", &[darwin_uname(), ("mount", mount)]);
 }
 
 /// `rm -rf target`만 실패시키는 rm 스텁. 다른 호출은 진짜 rm으로 넘긴다.

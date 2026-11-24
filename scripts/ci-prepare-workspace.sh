@@ -75,11 +75,18 @@ fi
 dev_of() {
     stat -c %d "$1" 2>/dev/null || stat -f %d "$1"
 }
-# mount 출력 한 줄("<장치> on <경로> type <종류> (<옵션>)" 또는 "<장치> on <경로> (<옵션>)")에서 경로를 꺼낸다.
+# mount 출력 한 줄에서 경로를 꺼낸다. 형식은 OS마다 다르다.
+#   Linux·Git Bash: "<장치> on <경로> type <종류> (<옵션>)"
+#   macOS(Darwin): "<장치> on <경로> (<옵션>)". type 필드가 없으므로 " type "을 자르지 않는다. 경로에 " type "이 들어 있어도 그대로 둔다.
+mount_os="$(uname -s)"
 mount_path() {
     local p="${1#* on }"
     p="${p% (*}"
-    echo "${p% type *}"
+    if [[ "$mount_os" == Darwin ]]; then
+        echo "$p"
+    else
+        echo "${p% type *}"
+    fi
 }
 if [[ -d target ]]; then
     if ! root_dev="$(dev_of "$root")" || ! target_dev="$(dev_of "$root/target")"; then
