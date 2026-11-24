@@ -371,15 +371,17 @@ fn a_character_or_sequence_split_across_reads_maps_each_part() {
     assert_eq!(ranges(&third), [(0, 3, "normal")]);
 }
 
-/// Given 한 문자에 잠정(unknown) 바이트와 재그리기 바이트가 함께 들고 그 문자가 제거된 OSC 안이면, Then 그
-/// 문자는 unknown이지만 원문에 확정 재그리기가 있어 gap이 남는다. unknown 바이트만 제거된 자리는 gap이 아니다.
+/// Given 제거된 OSC에서 재그리기 바이트가 잠정(unknown) 바이트와 한 문자로 합쳐진 그 한 문자에만 있고 나머지는
+/// 일반 바이트면, Then 그 문자는 unknown이지만 원문에 확정 재그리기가 있어 gap이 남는다. 합친 문자 출처만 보면
+/// 이 OSC는 normal과 unknown뿐이라 gap을 놓친다. unknown 바이트만 제거된 자리(`ESC[2J`)는 gap이 아니다.
 #[test]
 fn a_removed_sequence_with_redraw_bytes_is_a_gap_even_if_merged_unknown() {
     let mut t = idle_terminal();
     let t0 = Instant::now();
+    t.feed_bytes_at(b"\x1b]0;x", t0 - Duration::from_secs(1));
     notify_at(&t, t0);
     let _before = t.lock_state().begin_os_resize(t0 + Duration::from_secs(2));
-    t.feed_bytes_at(b"\x1b]0;x\xC3", t0 + 100 * MS);
+    t.feed_bytes_at(b"\xC3", t0 + 100 * MS);
     t.feed_bytes_at(
         b"\xA9\x07rest\x1b[2J",
         t0 + Duration::from_secs(2) + 10 * MS,
