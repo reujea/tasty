@@ -50,3 +50,37 @@ fn the_host_badge_draws_the_no_host_word_in_the_label_font() {
         )]
     );
 }
+
+const JA_PROBE: &str = "FILE_PICKER_HOST_BADGE_JA_PROBE";
+
+/// en에서는 label 글꼴 가족이 고정폭이라 빈 호스트 낱말을 mono로 되돌려도 위 시험이 지나간다. 가족이 갈리는 ja로
+/// 이 시험을 새 프로세스에서 다시 실행해 낱말이 label 가족(UI sans)이고 이름은 고정폭인지 본다
+/// (label 글꼴 조회는 프로세스 환경을 한 번 읽어 캐시한다).
+#[test]
+fn the_host_badge_no_host_word_takes_the_ja_label_family() {
+    if std::env::var(JA_PROBE).is_ok() {
+        let sans = egui::FontFamily::Name(egui::epaint::text::MONO_LINE_SANS_FAMILY.into());
+        assert_eq!(tasty_ui_widgets::label_font_family(), sans);
+        let word = painted_badge("");
+        assert_eq!(word.len(), 1, "{word:?}");
+        assert_eq!(word[0].1.family, sans);
+        let named = painted_badge("work-laptop-attach");
+        assert_eq!(named.len(), 1, "{named:?}");
+        assert_eq!(named[0].1.family, egui::FontFamily::Monospace);
+        return;
+    }
+    let exe = std::env::current_exe().expect("test binary path");
+    let out = std::process::Command::new(&exe)
+        .args([
+            "--exact",
+            "adapters::ui::popup::file_picker::host_badge_tests::the_host_badge_no_host_word_takes_the_ja_label_family",
+        ])
+        .env(JA_PROBE, "1")
+        .env("TASTY_LOCALE", "ja")
+        .output()
+        .expect("run the test binary again");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "TASTY_LOCALE=ja: {stdout}");
+    // 다시 실행한 프로세스가 이 시험 하나를 실제로 돌렸는지 본다(이름이 어긋나면 0개가 돌고 성공한다).
+    assert!(stdout.contains("1 passed"), "TASTY_LOCALE=ja: {stdout}");
+}

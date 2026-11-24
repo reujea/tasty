@@ -1266,6 +1266,48 @@ fn the_drawn_remote_mark_follows_the_location_while_the_picker_is_open() {
     assert!(texts.iter().any(|t| t == word), "{texts:?}");
 }
 
+/// 표지는 출처 mirror 의 값만 읽는다. 같은 호스트 이름의 다른 mirror 가 재연결 중이고 그 mirror 가 활성
+/// workspace 가 되어도 이 picker 는 평소 표지다. 출처 mirror 가 재연결이 되면 그때 상태 단어가 붙는다.
+#[test]
+fn the_drawn_remote_mark_reads_its_own_mirror_not_another_or_the_active_one() {
+    use crate::remote::state::MirrorLocation;
+    crate::i18n::init("en");
+    let word = crate::i18n::t("status_bar.remote_reconnecting");
+    let host = "work-laptop-attach";
+    let (mut state, mut engine_session, mut payload, ws) =
+        open_user_remote_picker(Some(MirrorLocation {
+            host: host.into(),
+            reconnecting: false,
+        }));
+    let other = push_other_mirror(&mut engine_session);
+    {
+        let engine = engine_session.borrow_mut();
+        engine.remote.mirror_locations.insert(
+            other,
+            MirrorLocation {
+                host: host.into(),
+                reconnecting: true,
+            },
+        );
+        let last = engine.workspaces().len() - 1;
+        state.set_active_workspace_index(&engine.read(), last);
+        assert_eq!(engine.workspace_at(last).map(|w| w.id), Some(other));
+    }
+    let texts = painted_picker(&mut state, &mut engine_session, &mut payload);
+    assert!(texts.iter().any(|t| t == host), "{texts:?}");
+    assert!(!texts.iter().any(|t| t == word), "{texts:?}");
+
+    engine_session.borrow_mut().remote.mirror_locations.insert(
+        ws,
+        MirrorLocation {
+            host: host.into(),
+            reconnecting: true,
+        },
+    );
+    let texts = painted_picker(&mut state, &mut engine_session, &mut payload);
+    assert!(texts.iter().any(|t| t == word), "{texts:?}");
+}
+
 /// 출처 surface 의 workspace 를 찾지 못하면 연 workspace 가 없다. 연 때의 활성 workspace(재연결 중인 다른
 /// mirror)로 남지 않아 그 상태를 그리지 않는다.
 #[test]
