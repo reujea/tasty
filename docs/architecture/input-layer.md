@@ -289,8 +289,9 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 수신자는 `key_route::route_key`가 정한다. 출발 노드가 쓰는 키는 그 노드가, 쓰지 않는 키는 경로의 단축키 단계
 (`KeyReceiver::Shortcut`)가 받고, 그 끝은 그 함수가 정한다. 노드마다 쓰는 키는 `key_route::start_takes`에, 입력칸 팝업의
 명령 키 규칙은 `key_route::text_or_up`에 있다. egui 수신자가 팝업이면 그 몫을 그 팝업에 묶고
-(`MainViewState::window_feeds_key`), 끝이 surface 인 경로 키는 그 surface 의 갈래로 PTY 전송 끝까지 보낸다
-(`surface_input_destination`, `MainView::handle_keyboard_input`). 장면별 기대는 `key_route_tests.rs`와
+(`MainViewState::window_feeds_key`), 끝이 surface 인 경로 키는 그 surface 의 입력 갈래로 보낸다
+(`MainViewState::surface_input_destination`, `MainView::handle_keyboard_input`). PTY 전송은 그중 터미널 갈래
+(`InputDestination::Terminal`)다. 장면별 기대는 `key_route_tests.rs`와
 `key_nodes_tests.rs`가 정본이다.
 
 ### 단축키 level
