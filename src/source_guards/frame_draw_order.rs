@@ -79,10 +79,20 @@ fn the_popup_bodies_are_decoded_before_the_edge_reads_them() {
         "팝업 본문 디코드 → 합성 본문 읽기 → egui 패스 순서가 아니다"
     );
     let path = repo_root().join("src/gfx/gpu/egui_mesh_prepare.rs");
-    let src = std::fs::read_to_string(&path).expect("egui_mesh_prepare.rs");
-    let composite = strip_comments(
-        &fn_body(&src.replace("\r\n", "\n"), "fn render_egui_mesh_popups").expect("합성 함수"),
+    let src = strip_comments(
+        &std::fs::read_to_string(&path)
+            .expect("egui_mesh_prepare.rs")
+            .replace("\r\n", "\n"),
     );
+    // 합성 함수의 시그니처부터 다음 함수 정의 앞까지를 본문으로 읽는다.
+    let start = src
+        .find("fn render_egui_mesh_popups(")
+        .expect("egui_mesh_prepare.rs 에 팝업 합성 함수가 있어야 한다");
+    let rest = &src[start + 1..];
+    let end = rest
+        .find("\n    pub(super) fn ")
+        .or_else(|| rest.find("\n    fn "));
+    let composite = &rest[..end.unwrap_or(rest.len())];
     assert!(
         composite.contains("self.decode_mesh_popup(") && !composite.contains("decode_and_track("),
         "팝업 합성은 egui 패스 전과 같은 디코드 함수를 거쳐야 한다(이미 디코드한 generation은 다시 디코드하지 않는다)"
