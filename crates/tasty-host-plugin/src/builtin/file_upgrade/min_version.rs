@@ -10,6 +10,7 @@ use tasty_plugin_manifest::Manifest;
 /// Tasty보다 높은 버전을 요구해 받아들일 수 없으면 그 거절을 돌려준다. 버전 부족을 경고만 하는
 /// 빌드에서는 그 경우만 `None`이다. 로그는 Display(영어), 사용자 보고는
 /// [`crate::manifest_error::describe`]로 쓴다. 매니페스트 파일을 읽지 못하면 `None`이다.
+/// 번들 경로는 이 판정을 id 대조·서명 읽기보다 먼저 한다.
 pub(crate) fn bundle_requires_newer_tasty(src: &Path) -> Option<anyhow::Error> {
     Manifest::admit_bundle_host_tasty(src).err()
 }
@@ -125,7 +126,9 @@ mod tests {
     }
 
     /// upgrade-builtins 계획: 서명이 없는 번들이어도 버전 사유가 먼저다(거절 순서).
-    /// release 시험(`cargo test --release`)에서는 서명 판정이 켜져 있어 순서를 실제로 가린다.
+    /// debug 빌드는 서명 결과로 거절하지 않아, 이 시험이 서명 판정과의 순서를 가리는 것은
+    /// release 프로필로 돌릴 때뿐이다(자동 실행은 debug). 서명 파일 읽기·id 대조와의 순서는
+    /// 아래 시험들이 모든 빌드에서 가린다.
     #[test]
     fn upgrade_plan_fails_an_unsigned_newer_bundle_with_the_version_reason_first() {
         crate::test_support::host_tasty_1_0_0();
@@ -190,6 +193,35 @@ mod tests {
             BuiltinUpgradeAction::Failed { reason } => reason,
             other => panic!("expected Failed, got {other:?}"),
         }
+    }
+
+    /// 다른 id를 선언한 번들도 더 높은 Tasty를 요구하면 버전 사유가 먼저다(부팅·업그레이드).
+    #[test]
+    fn a_newer_bundle_with_another_id_is_refused_for_the_version_first() {
+        crate::test_support::host_tasty_1_0_0();
+        let home = tempfile::tempdir().expect("tempdir");
+        let src = home.path().join("bundle/com.tasty.html");
+        plugin(&src, "com.tasty.other", r#"min_tasty_version = "99.0.0""#);
+        let err = crate::official::bundle_source(&home.path().join("bundle"), "com.tasty.html")
+            .expect_err("refused");
+        assert!(err.contains("99.0.0"), "{err}");
+        let reason = failed_reason(plan_html(home.path()));
+        assert!(reason.contains("99.0.0"), "{reason}");
+        assert!(!home.path().join("installed/com.tasty.html").exists());
+    }
+
+    /// 서명 파일을 읽지 못하는 번들도 더 높은 Tasty를 요구하면 버전 사유가 먼저다.
+    #[test]
+    fn a_newer_bundle_with_an_unreadable_signature_is_refused_for_the_version_first() {
+        crate::test_support::host_tasty_1_0_0();
+        let home = tempfile::tempdir().expect("tempdir");
+        let src = home.path().join("bundle/com.tasty.html");
+        plugin(&src, "com.tasty.html", r#"min_tasty_version = "99.0.0""#);
+        // 폴더는 '없음'이 아닌 읽기 오류라 서명 파일 읽기가 실패한다.
+        std::fs::create_dir(src.join("tasty-plugin.toml.sig")).expect("sig dir");
+        let reason = failed_reason(plan_html(home.path()));
+        assert!(reason.contains("99.0.0"), "{reason}");
+        assert!(!home.path().join("installed/com.tasty.html").exists());
     }
 
     /// TOML로 읽히지 않는 번들 매니페스트는 복사 전에 거절한다(부팅 선택·업그레이드 계획).

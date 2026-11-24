@@ -125,6 +125,10 @@ fn plan_entry(
     let Some(source) = bundle.map(|b| b.join(spec.id)).filter(|p| p.is_dir()) else {
         return Entry::Done(not_in_bundle_item(spec));
     };
+    // 이 Tasty가 받아들이지 못할 번들은 서명 파일 읽기·id 대조보다 먼저 버전 사유로 거절한다.
+    if let Some(item) = min_version::refused_item(spec.id, &source) {
+        return Entry::Done(item);
+    }
     let (known_path, known) = observation;
     let prepared = match source::PreparedSource::capture(&source, known_path, known, spec.id) {
         Ok(prepared) => prepared,
@@ -309,16 +313,17 @@ pub(super) fn verify_trust(
     dest: &Path,
     known: &crate::known_plugins::KnownPlugins,
 ) -> Result<(), BuiltinUpgradeItem> {
+    // 이 Tasty가 받아들이지 못할 번들로 파일을 바꾸거나 실행 중인 플러그인을 멈추지 않는다.
+    // 버전 사유가 id 대조·서명 판정보다 먼저다.
+    if let Some(item) = min_version::refused_item(spec.id, src) {
+        return Err(item);
+    }
     // 폴더 이름과 다른 id를 선언한 번들은 서명과 관계없이 복사하지 않는다(모든 빌드).
     if let Some(reason) = crate::official::bundle_identity_mismatch(spec.id, src) {
         return Err(BuiltinUpgradeItem {
             id: spec.id.into(),
             action: BuiltinUpgradeAction::Failed { reason },
         });
-    }
-    // 이 Tasty가 받아들이지 못할 번들로 파일을 바꾸거나 실행 중인 플러그인을 멈추지 않는다.
-    if let Some(item) = min_version::refused_item(spec.id, src) {
-        return Err(item);
     }
     #[cfg(not(debug_assertions))]
     {
