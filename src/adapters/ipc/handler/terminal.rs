@@ -615,6 +615,46 @@ fn decode_nickname(params: &Value, id: &Value) -> Result<Option<String>, JsonRpc
     }
 }
 
+/// 숫자 부모 없이 `workspace`로 창을 고른 요청은 그 workspace가 이 창에 있어야 한다.
+/// 라우터는 찾지 못한 `workspace`를 포커스 창으로 보낸다(`terminal.*` 공통 동작). 그 창에 같은 External 키와
+/// 번호의 자식이 있으면 명시하지 않은 창의 자식을 고치게 되므로, 이 메서드는 여기서 거절한다.
+fn require_named_workspace_here(
+    engine: &EngineRef<'_>,
+    params: &Value,
+    id: &Value,
+) -> Result<(), JsonRpcResponse> {
+    if params.get("surface").is_some_and(|v| !v.is_null()) {
+        return Ok(());
+    }
+    let target = match params.get("workspace") {
+        None | Some(Value::Null) => return Ok(()),
+        Some(Value::String(target)) => target,
+        Some(_) => {
+            return Err(JsonRpcResponse::invalid_params(
+                id.clone(),
+                "'workspace' must be a string",
+            ));
+        }
+    };
+    // 라우터(find_main_with_workspace_target)와 같이 숫자면 workspace ID, 아니면 이름으로 맞춘다.
+    let numeric = target.parse::<u32>().ok();
+    let here = engine
+        .core
+        .workspaces()
+        .into_iter()
+        .any(|ws| Some(ws.id) == numeric || ws.name == *target);
+    if here {
+        return Ok(());
+    }
+    Err(JsonRpcResponse::invalid_params(
+        id.clone(),
+        format!(
+            "workspace '{target}' is not open in the window that received this request — \
+             nothing was changed; check the name with `tasty list workspaces`"
+        ),
+    ))
+}
+
 /// 실행 중인 child의 nickname을 바꾸거나 지운다. 이 인스턴스의 registry만 바꾸며 PTY·점유는 건드리지 않는다.
 /// 저장 명령이 끝난 뒤 답한다. 저장이 접수되지 않거나 실패하면 오류로 답한다.
 pub(crate) fn handle_set_nickname(
@@ -624,6 +664,9 @@ pub(crate) fn handle_set_nickname(
     params: &Value,
 ) -> JsonRpcResponse {
     engine.reconcile_child_terminals();
+    if let Err(e) = require_named_workspace_here(&engine.as_ref(), params, &id) {
+        return e;
+    }
     let parent = match resolve_parent(&engine.as_ref(), params, &id) {
         Ok(p) => p,
         Err(e) => return e,
@@ -1777,6 +1820,51 @@ mod tests {
             &json!({ "parent_external": "codex:n" }),
         ));
         assert_eq!(list["children"][0]["nickname"], json!("x"));
+    }
+
+    /// 라우터가 찾지 못한 workspace 요청은 포커스 창으로 온다. 그 창에 같은 External 키·번호의 자식이
+    /// 열려 있어도 고치지 않는다. 이 창의 workspace 이름이나 ID를 주면 그대로 고친다.
+    #[test]
+    fn set_nickname_refuses_a_workspace_this_window_does_not_hold() {
+        let mut e_session = engine_with_extra(&[5918]);
+        let mut e = e_session.borrow_mut();
+        let mut entry = child(5918, 0);
+        entry.nickname = Some("kept".into());
+        e.runtime
+            .child_terminals
+            .register_child(external("codex:f"), entry);
+        for workspace in [json!("elsewhere"), json!("77")] {
+            let resp = handle_set_nickname(
+                &mut e,
+                json!(1),
+                &json!({ "parent_external": "codex:f", "workspace": workspace,
+                         "child": 0, "nickname": "x" }),
+            );
+            let err = resp.error.expect("unresolved workspace must be refused");
+            assert_eq!(err.code, -32602, "{}", err.message);
+            assert!(err.message.contains("is not open"), "{}", err.message);
+            let kept = e
+                .runtime
+                .child_terminals
+                .find_child(&external("codex:f"), 0)
+                .expect("child stays");
+            assert_eq!(kept.nickname.as_deref(), Some("kept"), "{workspace}");
+        }
+        let bad = handle_set_nickname(
+            &mut e,
+            json!(2),
+            &json!({ "parent_external": "codex:f", "workspace": 1, "child": 0, "nickname": "x" }),
+        );
+        assert_eq!(bad.error.expect("non-string workspace").code, -32602);
+        for (workspace, name) in [("workspace", "by-name"), ("1", "by-id")] {
+            let resp = ok(handle_set_nickname(
+                &mut e,
+                json!(3),
+                &json!({ "parent_external": "codex:f", "workspace": workspace,
+                         "child": 0, "nickname": name }),
+            ));
+            assert_eq!(resp["nickname"], json!(name));
+        }
     }
 
     /// 없는 child는 유효한 번호를 안내하는 -32602이고 registry는 그대로다.
