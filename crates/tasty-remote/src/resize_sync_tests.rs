@@ -356,3 +356,25 @@ fn a_manual_retry_is_not_dropped_by_the_target_check() {
     assert!(sync.take_due(t2 + RESIZE_ACK_TIMEOUT).is_empty());
     assert!(failed(&sync).is_empty());
 }
+
+/// Given 배너의 다시 시도 중 배너를 닫았고 레이아웃 목표가 바뀌었을 때, When 그 요청의 마감이 오면, Then
+/// 목표 대조로 지우지 않고 실패로 올린다. 닫은 다시 시도는 배너의 진행 표시에서만 빠진다.
+#[test]
+fn a_dismissed_manual_retry_still_skips_the_target_check() {
+    let (mut sync, t0) = acked();
+    sync.note_sent(S, 100, 30, t0);
+    for r in sync.take_due(t0 + RESIZE_ACK_TIMEOUT) {
+        sync.note_resent(r, t0 + RESIZE_ACK_TIMEOUT);
+    }
+    assert!(sync.take_due(t0 + RESIZE_ACK_TIMEOUT * 2).is_empty());
+    let t1 = t0 + RESIZE_ACK_TIMEOUT * 3;
+    assert_eq!(sync.retry_failed(t1).len(), 1);
+    sync.dismiss_failed();
+    assert!(!sync.retrying(), "닫은 다시 시도는 진행 표시에서 빠진다");
+    assert!(sync.banner_surfaces().is_empty());
+
+    let due = t1 + RESIZE_ACK_TIMEOUT;
+    sync.abandon_due(due, |_| false, |_, target| target != (80, 24));
+    assert!(sync.take_due(due).is_empty());
+    assert_eq!(failed(&sync), vec![S], "실패 배너가 돌아온다");
+}

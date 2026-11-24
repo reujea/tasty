@@ -30,6 +30,15 @@ struct Pending {
     attempt: Attempt,
     /// 첫 시도가 거절됐다. 마감까지 기다렸다가 자동 재시도한다.
     rejected: bool,
+    /// 배너를 닫아 다시 시도 진행 표시에서 뺐다. 시도 종류(`attempt`)와 판정은 그대로다.
+    banner_dismissed: bool,
+}
+
+impl Pending {
+    /// 배너가 다시 시도 중으로 보일 대기인가.
+    fn shows_retry(&self) -> bool {
+        self.attempt == Attempt::Manual && !self.banner_dismissed
+    }
 }
 
 /// 마감이 지나 다시 보내야 하는 요청. 호출자가 전송한 뒤 [`ResizeSync::note_resent`]로 알린다.
@@ -111,6 +120,7 @@ impl ResizeSync {
                 deadline: now + RESIZE_ACK_TIMEOUT,
                 attempt,
                 rejected: false,
+                banner_dismissed: false,
             },
         );
     }
@@ -239,14 +249,11 @@ impl ResizeSync {
     }
 
     /// 배너 닫기. 진행 중인 다시 시도는 계속 기다리되 배너에는 보이지 않는다.
-    /// 이후 새로 실패하면 다시 목록에 오른다.
+    /// 수동 재시도라는 판정(마감의 목표 대조 제외)은 남는다. 이후 새로 실패하면 다시 목록에 오른다.
     pub fn dismiss_failed(&mut self) {
         self.failed.clear();
         for p in self.pending.values_mut() {
-            if p.attempt == Attempt::Manual {
-                // 자동 재시도와 판정이 같고 배너의 다시 시도 표시에서만 빠진다.
-                p.attempt = Attempt::AutoRetry;
-            }
+            p.banner_dismissed = true;
         }
     }
 
@@ -264,7 +271,7 @@ impl ResizeSync {
             .chain(
                 self.pending
                     .iter()
-                    .filter(|(_, p)| p.attempt == Attempt::Manual)
+                    .filter(|(_, p)| p.shows_retry())
                     .map(|(&id, _)| id),
             )
             .collect();
@@ -275,7 +282,7 @@ impl ResizeSync {
 
     /// 배너의 다시 시도 응답을 기다리는 중인지.
     pub fn retrying(&self) -> bool {
-        self.pending.values().any(|p| p.attempt == Attempt::Manual)
+        self.pending.values().any(Pending::shows_retry)
     }
 
     /// 가장 이른 마감. 타이머가 이 시각에 루프를 깨운다.
