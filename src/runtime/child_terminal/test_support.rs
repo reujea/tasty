@@ -36,6 +36,43 @@ impl Hub {
         *self.fixture_writer.lock().unwrap() = Some(parts);
     }
 }
+/// `Hub::test_hold_writer`가 writer 큐 앞에 넣은 막힌 명령. `release`하기 전까지 뒤 명령은 실행되지 않는다.
+pub(crate) struct WriterHold {
+    release: std::sync::mpsc::SyncSender<()>,
+    receipt: crate::app::file_writer::command::Ticket<()>,
+}
+impl WriterHold {
+    pub(crate) fn release(self) {
+        self.release.send(()).unwrap();
+        // 영수증 poll은 이미 나온 결과만 꺼낸다. 원래 간격(yield)을 지킨다.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while self.receipt.poll().is_none() {
+            assert!(Instant::now() < deadline, "writer hold receipt missing");
+            std::thread::yield_now();
+        }
+    }
+}
+impl Hub {
+    /// `test_attach_writer`로 붙인 writer를 막는다. 막힌 명령이 실행을 시작한 뒤 돌아온다.
+    pub(crate) fn test_hold_writer(&self) -> WriterHold {
+        let (entered, ready) = std::sync::mpsc::sync_channel(1);
+        let (release, wait) = std::sync::mpsc::sync_channel(1);
+        let fixture = self.fixture_writer.lock().unwrap();
+        let parts = fixture.as_ref().expect("test_attach_writer first");
+        let receipt = crate::app::file_writer::command::submit(
+            Some(&parts.writer.handle()),
+            1,
+            move || {
+                entered.send(()).unwrap();
+                wait.recv_timeout(Duration::from_secs(10)).unwrap();
+            },
+            |_| 0,
+        )
+        .expect("hold admitted");
+        ready.recv_timeout(Duration::from_secs(5)).unwrap();
+        WriterHold { release, receipt }
+    }
+}
 impl ChildTerminalRegistry {
     #[cfg(all(unix, feature = "gui"))]
     pub(crate) fn flush_for_test(&mut self) {

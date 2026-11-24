@@ -2096,11 +2096,12 @@ mod tests {
         );
     }
 
-    /// 접수된 저장이 쓰기 오류로 끝나면 -32603이다. 성공 응답은 값이 파일에 쓰인 뒤에 온다.
-    #[cfg(unix)]
+    /// 저장을 막아 둔 동안 응답은 보류되고, 풀린 뒤 값이 파일에 쓰인 다음에 성공으로 온다. 접수된 저장이
+    /// 쓰기 오류로 끝나면 -32603이고 조회 값은 이전 값이다. 실패는 경로를 디렉터리로 바꿔 만들어 실행자
+    /// 권한과 무관하다.
     #[test]
-    fn set_nickname_answers_a_failed_write_with_an_error_and_success_after_the_write() {
-        use std::os::unix::fs::PermissionsExt;
+    fn set_nickname_answers_only_after_the_write_and_reports_a_failed_write() {
+        let core = super::super::cli_entry_tests::test_core();
         let mut e_session = engine_with_extra(&[5919]);
         let mut e = e_session.borrow_mut();
         let parent = e
@@ -2109,7 +2110,7 @@ mod tests {
             .all_surface_ids()[0];
         let path = tasty_utils::path::tasty_home()
             .expect("isolated test home")
-            .join("child-terminals-write-error.json");
+            .join("child-terminals-write-order.json");
         let hub = crate::runtime::child_terminal::Hub::new(Some(path.clone()));
         hub.test_attach_writer();
         e.runtime.child_terminals =
@@ -2117,27 +2118,64 @@ mod tests {
         e.runtime
             .child_terminals
             .register_child(parent, child(5919, 0));
-        let first = ok(handle_set_nickname(
+
+        let hold = hub.test_hold_writer();
+        let immediate = super::handle_set_nickname(
+            &core,
             &mut e,
             json!(1),
             &json!({ "surface": parent, "child": 0, "nickname": "first" }),
-        ));
-        assert_eq!(first["nickname"], json!("first"));
+        );
+        let parked = core
+            .memory_replies()
+            .take_parked()
+            .unwrap_or_else(|| panic!("answered before the save: {immediate:?}"));
+        let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+        core.memory_replies()
+            .push(parked, super::super::deferred::ReplyTo::Ipc(sender));
+        for _ in 0..200 {
+            e.poll_child_registry_effects();
+            core.poll_memory_replies(None);
+            assert!(
+                receiver.try_recv().is_err(),
+                "answered while the save was held"
+            );
+            std::thread::yield_now();
+        }
+        assert!(!path.exists(), "nothing written while held");
+        hold.release();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let answered = loop {
+            e.poll_child_registry_effects();
+            core.poll_memory_replies(None);
+            if let Ok(response) = receiver.try_recv() {
+                break response;
+            }
+            assert!(std::time::Instant::now() < deadline, "reply missing");
+            std::thread::yield_now();
+        };
+        assert_eq!(ok(answered)["nickname"], json!("first"));
         let on_disk = std::fs::read_to_string(&path).expect("registry file");
         assert!(on_disk.contains("\"first\""), "{on_disk}");
 
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o400)).unwrap();
+        // 파일 자리를 디렉터리로 바꾸면 읽기부터 실패한다(권한과 무관).
+        std::fs::remove_file(&path).unwrap();
+        std::fs::create_dir(&path).unwrap();
         let resp = handle_set_nickname(
             &mut e,
             json!(2),
             &json!({ "surface": parent, "child": 0, "nickname": "second" }),
         );
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
         let err = resp.error.expect("a failed write must not answer success");
         assert_eq!(err.code, -32603, "{}", err.message);
         assert!(err.message.contains("child registry"), "{}", err.message);
-        let on_disk = std::fs::read_to_string(&path).expect("registry file");
-        assert!(!on_disk.contains("\"second\""), "{on_disk}");
+        let shown = e.runtime.child_terminals.find_child(&parent.into(), 0);
+        assert_eq!(
+            shown.expect("child").nickname.as_deref(),
+            Some("first"),
+            "-32603으로 답한 값은 조회에 남지 않는다"
+        );
+        std::fs::remove_dir_all(&path).unwrap();
     }
 
     /// 다른 창이 등록한 자식은 이 창에서 고치지 않는다. 고치면 이 창이 그 자식을 소유한 것으로 기록해
