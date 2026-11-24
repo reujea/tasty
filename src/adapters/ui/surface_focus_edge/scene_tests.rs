@@ -245,3 +245,136 @@ fn the_occupancy_ring_is_clipped_below_the_row() {
         .collect();
     assert_eq!(clips, vec![below]);
 }
+
+/// 칠한 띠 도형이 덮는 논리 점인지. 도형 사각형과 그 도형의 잘림 영역이 함께 덮어야 한다.
+fn painted_at(shapes: &[egui::epaint::ClippedShape], at: egui::Pos2) -> bool {
+    shapes.iter().any(|c| match &c.shape {
+        egui::Shape::Rect(r) => r.rect.intersect(c.clip_rect).contains(at),
+        _ => false,
+    })
+}
+
+/// 실제 칠하기 경로(`paint`)를 egui 패스로 돌린다. 배율 1.75·물리 위 끝 117 leaf에서 띠 도형 아래 끝은 host가
+/// 정한 물리 121이다(논리 왕복으로 다시 계산하면 120). host 팝업이 위인 프레임에는 합성되는 본문의 잘림 영역만
+/// 띠에서 빠지고, 같은 팝업 영역이라도 잘림 영역 밖은 칠한다. host 팝업이 아래면 행을 그대로 칠한다.
+#[test]
+fn the_painted_edge_ends_on_the_host_row_and_opens_only_the_composited_clip() {
+    const PPP: f32 = 1.75;
+    const POPUP: u64 = 9_001;
+    let px = PhysicalPx;
+    let theme = crate::theme::theme();
+    let (mut state, _session) = crate::state::tests::test_state();
+    let leaf = PhysicalRect {
+        x: px(35.0),
+        y: px(117.0),
+        width: px(700.0),
+        height: px(350.0),
+    };
+    let rows = crate::state::surface_focus::edge_rows(&theme, leaf, PPP);
+    assert_eq!(rows.bottom, 121.0, "전제: host 경계");
+    let below = crate::state::surface_focus::below_edge(&theme, leaf, PPP);
+    state.surface_focus_edges = vec![crate::state::surface_focus::FocusEdgeLeaf {
+        surface_id: SID,
+        leaf: crate::adapters::ui::to_egui_rect(leaf, PPP),
+        below: crate::adapters::ui::to_egui_rect(below, PPP),
+        rows,
+        focused: true,
+        ring: None,
+    }];
+    // 팝업 영역은 논리 x 120..220, 그중 합성되는 본문의 잘림 영역은 120..170이다.
+    state.plugin_mesh_popup_regions = vec![(
+        POPUP,
+        PhysicalRect {
+            x: px(210.0),
+            y: px(70.0),
+            width: px(175.0),
+            height: px(175.0),
+        },
+    )];
+    let composed = std::collections::HashMap::from([(
+        POPUP,
+        super::ComposedPopup {
+            ppp: PPP,
+            clips: vec![egui::Rect::from_min_max(
+                egui::pos2(0.0, 0.0),
+                egui::pos2(50.0, 100.0),
+            )],
+        },
+    )]);
+    let mut mgr = crate::plugin::PluginManager::with_registries(
+        std::sync::Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
+        std::sync::Arc::new(crate::file::format::FileFormatRegistry::new()),
+        std::sync::Arc::new(crate::file::handler::FileHandlerRegistry::new()),
+    );
+    mgr.insert_popup_mesh_frame_for_test(
+        POPUP,
+        tasty_host_plugin::EguiMeshFrame {
+            plugin_id: "com.example.popup".into(),
+            buffer_id: tasty_plugin_protocol::SharedBufferId(1),
+            generation: 1,
+            frame_seq: 1,
+            full_textures: true,
+            byte_len: 0,
+            ime_cursor: None,
+            banner_body_cut: None,
+        },
+    );
+    let paint = |host_popup_on_top: bool| {
+        let ctx = egui::Context::default();
+        ctx.set_pixels_per_point(PPP);
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1000.0, 800.0),
+            )),
+            ..Default::default()
+        };
+        ctx.run(input, |ctx| {
+            super::paint(
+                ctx,
+                &state,
+                Some(crate::app::plugin_display::PluginDisplay::new(&mgr)),
+                &composed,
+                host_popup_on_top,
+                PPP,
+            );
+        })
+        .shapes
+    };
+
+    let under = paint(false);
+    let bottom = under
+        .iter()
+        .filter_map(|c| match &c.shape {
+            egui::Shape::Rect(r) => Some(r.rect.intersect(c.clip_rect).bottom()),
+            _ => None,
+        })
+        .fold(f32::MIN, f32::max);
+    assert!(
+        (bottom * PPP - rows.bottom).abs() < 0.01,
+        "띠 도형 아래 끝 {}(물리)이 host 경계 {}와 다르다",
+        bottom * PPP,
+        rows.bottom
+    );
+    let row_y = (117.0 + 121.0) / 2.0 / PPP;
+    for x in [50.0, 145.0, 195.0] {
+        assert!(
+            painted_at(&under, egui::pos2(x, row_y)),
+            "host 팝업이 아래면 x={x}도 칠한다"
+        );
+    }
+
+    let over = paint(true);
+    assert!(
+        !painted_at(&over, egui::pos2(145.0, row_y)),
+        "합성 본문의 잘림 영역은 비운다"
+    );
+    assert!(
+        painted_at(&over, egui::pos2(195.0, row_y)),
+        "팝업 영역이어도 잘림 영역 밖은 칠한다"
+    );
+    assert!(
+        painted_at(&over, egui::pos2(50.0, row_y)),
+        "팝업 밖은 칠한다"
+    );
+}
