@@ -401,9 +401,9 @@ fn effect_marks_after_owner_leaves(head: &[u8], tail: &[u8]) -> Vec<(Effect, boo
         .collect()
 }
 
-/// Given 효과를 맡은 구독이 8비트 C1 도입자(또는 UTF-8로 인코딩한 C1 도입자)로 연 CSI·DCS·SOS·PM·APC의
+/// Given 효과를 맡은 구독이 8비트 C1 도입자(또는 UTF-8로 인코딩한 C1 도입자)로 연 CSI·DCS·SOS·PM 시퀀스의
 /// 앞부분만 받았다, When 수신자가 닫힌 뒤 ESC가 그 시퀀스를 취소하며 OSC 52 쓰기나 읽기를 시작한다,
-/// Then 새 OSC 52는 서버 몫이다.
+/// Then 새 OSC 52는 서버 몫이다. 0x9F는 ECMA-48의 APC 자리지만 이 판 vtparse는 SOS/PM 문자열로 연다.
 #[test]
 fn an_owner_sequence_opened_by_a_c1_introducer_ends_at_the_esc_that_cancels_it() {
     let heads: [(&str, &[u8]); 10] = [
@@ -411,12 +411,12 @@ fn an_owner_sequence_opened_by_a_c1_introducer_ends_at_the_esc_that_cancels_it()
         ("DCS", b"\x901;"),
         ("SOS", b"\x98abc"),
         ("PM", b"\x9eabc"),
-        ("APC", b"\x9fabc"),
+        ("0x9F(SOS/PM)", b"\x9fabc"),
         ("UTF-8 CSI", b"\xc2\x9b1;"),
         ("UTF-8 DCS", b"\xc2\x901;"),
         ("UTF-8 SOS", b"\xc2\x98abc"),
         ("UTF-8 PM", b"\xc2\x9eabc"),
-        ("UTF-8 APC", b"\xc2\x9fabc"),
+        ("UTF-8 0x9F(SOS/PM)", b"\xc2\x9fabc"),
     ];
     let tails: [(&[u8], Effect); 2] = [
         (b"\x1b]52;c;Ymll\x07", Effect::ClipboardSet),
