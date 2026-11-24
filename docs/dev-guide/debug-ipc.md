@@ -252,8 +252,10 @@ for _ in $(seq 1 20); do
   sleep 0.1
 done
 [ -n "$S" ] || { echo "settings window did not appear in debug windows" >&2; exit 1; }
-# Filter sections 입력칸을 클릭해 egui 포커스를 준다. Linux 설정창은 앱 제목 줄(36)만큼 높은 1100x736이라
-# 100,102 → 창 정규화 0.0909,0.1386이다. macOS·Windows(1100x700)에서는 100,66 → 0.0909,0.0943이다.
+# Filter sections 입력칸을 클릭해 egui 포커스를 준다. 아래 좌표는 앱이 제목 줄을 그리는 Linux 설정창(X11,
+# Wayland Client 장식)의 값이다. 제목 줄(36)만큼 높은 1100x736이라 100,102 → 창 정규화 0.0909,0.1386이다.
+# 앱 제목 줄이 없는 창(macOS·Windows, 서버 장식을 고른 Wayland, 1100x700)에서는 100,66 → 0.0909,0.0943이다.
+# 타일·최대화로 창 크기가 다르면 그 inner 크기로 다시 나눈다.
 for e in move press release; do
   tasty debug inject egui-mouse --window-id $S --fx 0.0909 --fy 0.1386 --event-type $e
 done

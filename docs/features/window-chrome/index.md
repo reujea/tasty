@@ -52,10 +52,10 @@ MainView 타이틀바는 항상 그려지며 `top_inset`(= `titlebar_height` 토
 Linux 설정창(`SettingsView`)은 OS 장식이 Tasty 테마를 따르지 않으므로 창을 만들 때 `apply_csd_attributes`로 장식을 끄고, 같은 렌더러(`draw_titlebar_view`)로 제목 줄을 그린다. macOS·Windows 설정창은 OS 장식을 그대로 쓴다.
 
 - **모양**: 디자인 정본의 `settings-titlebar-linux`를 따른다. 메인 Linux 타이틀바와 같은 높이(`titlebar-height`)·배경·아래 1px 선·원형 버튼이고, 제목 글자 없이 오른쪽 끝에 닫기 버튼 하나만 둔다. 창 이름은 L1 밴드의 "Settings" 라벨이 맡는다.
-- **키보드 포커스**: 설정창은 egui가 키 입력을 받으므로 닫기 버튼이 Tab 포커스를 받고 Space·Enter로 눌린다. 포커스를 받은 닫기 버튼에는 `focus-ring-width` 링(`border-focus`)을 버튼에서 `focus-ring-offset`만큼 띄워 그린다. 이름 툴팁(`titlebar.close`)은 hover와 포커스 때 디자인 시스템 Tooltip으로 버튼 아래, 오른쪽 변을 버튼에 맞춰 띄운다. 메인 창은 키 입력이 터미널로 가므로 이 표시가 없다(`TitlebarProps::keyboard_focus`).
-- **창 크기**: 앱이 제목 줄을 그리면 창 inner·최소 높이가 `settings-window-csd-height`(700 + 제목 줄 36 = 736)라 제목 줄 아래 1100 × 700은 다른 OS와 같다. 서버 장식이면 `settings-window-height`(700)이고, 장식 모드가 바뀌면 최소 높이와 현재 높이를 제목 줄만큼 맞춘다.
+- **키보드 포커스**: 설정창은 egui가 키 입력을 받으므로 닫기 버튼이 Tab 포커스를 받고 Space·Enter로 눌린다. 포커스를 받은 닫기 버튼에는 `focus-ring-width` 링(`border-focus`)을 버튼에서 `focus-ring-offset`만큼 띄워 그린다. 이름 툴팁(`titlebar.close`)은 hover와 포커스 때 디자인 시스템 Tooltip으로 버튼 아래, 오른쪽 변을 버튼에 맞춰 띄운다. 메인 창은 키 입력이 터미널로 가므로 이 표시가 없다(`TitlebarProps::keyboard_focus`). 설정창 팝업이 그 패스의 키 주인이면 제목 줄도 본문처럼 키 입력을 보지 않는다(`body_keys::with_body_keys`).
+- **창 크기**: 앱이 제목 줄을 그리면 창 inner·최소 높이가 `settings-window-csd-height`(700 + 제목 줄 36 = 736)라 제목 줄 아래 1100 × 700은 다른 OS와 같다. 서버 장식이면 `settings-window-height`(700)을 요청한다. 장식 모드가 정해지거나 바뀌면 최소 높이를 그 모드의 값으로 바꾸고 현재 높이를 제목 줄만큼 늘이거나 줄이도록 요청한다. 요청한 높이는 떠 있는 창에만 적용된다. 타일 배치·최대화·전체화면에서는 컴포지터가 크기를 정하고 winit도 그 상태의 크기 요청을 적용하지 않으므로 inner 높이가 700이나 736이 아닐 수 있다. Wayland는 요청한 크기를 그 자리에서 적용하고 `Resized` 없이 다시 그리기만 요청하므로, 설정창은 적용된 크기를 받아 그 패스 뒤에 GPU 표면 크기를 맞춘다.
 - **닫기**: 제목 줄의 닫기는 설정 모달만 닫고 초안을 버린다(OS 닫기와 같다, [설정 화면](../settings/screens/settings.md)). 메인 창의 `AppEvent::CloseWindow`로 가지 않는다. 저널이 halt 된 동안에도 이 버튼의 클릭만 받는다.
-- **이동·크기**: 빈 제목 줄 드래그는 `drag_window`다. 최소화·최대화 버튼이 없고 빈 영역 더블클릭도 최대화하지 않는다. 창 가장자리 누름은 `drag_resize_window`로 OS 리사이즈를 시작하고 최소 크기는 창 속성 그대로다. 닫기 버튼이나 가장자리 밴드와 겹치는 egui 위젯(본문 스크롤바 등) 위의 누름은 위젯이 받는다. 저널이나 편집 키 보류 뒤 재생된 누름으로는 OS 이동·리사이즈를 시작하지 않는다. 판정 조건은 `src/view/settings/chrome.rs`의 `SettingsChrome`과 그 시험이 정본이다.
+- **이동·크기**: 빈 제목 줄의 왼쪽 버튼 드래그는 `drag_window`다(`TitlebarProps::primary_drag_only`, 메인 창은 버튼을 가리지 않는다). 최소화·최대화 버튼이 없고 빈 영역 더블클릭도 최대화하지 않는다. 창 가장자리 누름은 `drag_resize_window`로 OS 리사이즈를 시작하고 최소 크기는 창 속성 그대로다. 닫기 버튼이나 가장자리 밴드와 겹치는 egui 위젯(본문 스크롤바 등) 위의 누름은 위젯이 받는다. 저널이나 편집 키 보류 뒤 재생된 누름으로는 OS 이동·리사이즈를 시작하지 않는다. 판정 조건은 `src/view/settings/chrome.rs`의 `SettingsChrome`과 그 시험이 정본이다. 장식 판정(`decoration_step`: 높이 맞춤과 제목 줄 그리기)과 닫기 결과(`close_outcome`)는 순수 함수로 시험한다. 그 결과를 창에 적용하는 호출부(창 생성 직후의 높이 맞춤, 서버 장식일 때 그리기 생략)는 `Window`가 필요해 단위 시험 밖이다.
 - **Wayland 서버 장식**: 컴포지터가 서버 장식을 고르면(xdg-decoration 협상, winit `Window::is_decorated`) 앱 제목 줄을 그리지 않고 가장자리 입력도 OS에 맡긴다. 그때 닫기는 OS 제목 줄의 닫기다. 장식 모드가 바뀌면 다음 그리기에 반영한다. 컴포지터에 subcompositor가 없거나 winit 프레임 생성이 실패한 Client 모드도 winit이 서버 장식과 같은 값을 돌려주므로 그때는 제목 줄이 없다(닫기는 Cancel·설정 단축키). MainView 는 이 값을 보지 않는다.
 
 ## 인터페이스
@@ -78,11 +78,13 @@ Linux 설정창(`SettingsView`)은 OS 장식이 Tasty 테마를 따르지 않으
 - Given 캡션 close 버튼 When 클릭 Then 네이티브 닫기와 동일 경로로 윈도우가 닫힌다.
 - Given 터미널 위에 있던 포인터 When 캡션 버튼으로 옮기자마자 누르면 Then 버튼 동작만 일어나고 터미널에 선택·커서 이동 입력이 가지 않는다. 단 최대화·전체화면이 아닌 Windows 창에서 닫기 버튼 오른쪽 끝(창 가장자리 리사이즈 띠 `RESIZE_EDGE_MARGIN` 8 물리 px)은 직전 hover 가 버튼이 아니면 OS 리사이즈가 먼저 누름을 가져간다(egui 에도 전달하지 않는다, [입력 계층](../../architecture/input-layer.md)의 타이틀바 단락).
 - Given 창 가장자리 When 드래그 Then 해당 방향으로 리사이즈된다.
-- Given Linux 설정창 When 창을 연다 Then OS 장식 없이 앱 제목 줄 하나가 선택한 Tasty 테마로 그려지고, 시스템 테마만 바꿔도 따라가지 않는다.
+- Given 앱이 제목 줄을 그리는 Linux 설정창(X11, Wayland Client 장식) When 창을 연다 Then OS 장식 없이 앱 제목 줄 하나가 선택한 Tasty 테마로 그려지고, 시스템 테마만 바꿔도 따라가지 않는다.
 - Given Linux 설정창 제목 줄 When 닫기 버튼을 누른다 Then 설정 모달만 닫히고 편집 중인 초안은 버려진다.
 - Given Linux 설정창 제목 줄 When 빈 영역을 더블클릭한다 Then 창 크기는 바뀌지 않는다.
 - Given Linux 설정창 When Tab으로 닫기 버튼에 포커스를 준다 Then 버튼 둘레에 포커스 링과 Close 툴팁이 보이고, Space를 누르면 초안을 버리고 닫힌다.
-- Given 앱이 제목 줄을 그리는 Linux 설정창 When 창을 연다 Then 창 inner 높이는 736이고 그보다 줄지 않는다.
+- Given 앱이 제목 줄을 그리는 Linux 설정창 When 떠 있는 창(타일·최대화·전체화면 아님)으로 연다 Then 창 inner 높이는 736이고 그보다 줄지 않는다.
+- Given Linux 설정창 제목 줄의 빈 영역 When 오른쪽 버튼으로 끈다 Then 창은 움직이지 않는다. 왼쪽 버튼 드래그만 창 이동이다.
+- Given Linux 설정창에서 팝업이 키 입력을 가진 동안 When Tab·Space·Enter를 누른다 Then 제목 줄 닫기 버튼은 그 키로 눌리지 않는다.
 - Given 서버 장식을 고른 Wayland 컴포지터 When Linux 설정창을 연다 Then 앱 제목 줄은 그려지지 않는다.
 
 > OS별 시각·동작이라 각 플랫폼 스크린샷 + 수동 윈도우 조작으로 검증. `resize_direction_at` 은 단위 테스트(OS 무관).
