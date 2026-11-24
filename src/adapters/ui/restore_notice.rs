@@ -49,6 +49,8 @@ pub(crate) struct RestoreNotices {
     /// 이번 프레임에 안내 열이 차지한 사각형. 안내가 없으면 `None`이다. 같은 열 아래에 이어 그리는 attach
     /// 대기 칩은 이 값의 아래쪽 + `notice-column-gap`에서 시작한다.
     pub(crate) column: Option<egui::Rect>,
+    /// 팝업을 그린 뒤의 배너·범위 위쪽 팝업 자리로 다시 잰 안내 열의 위쪽. attach 대기 칩이 쓴다.
+    pub(crate) column_top: Option<LogicalPx>,
 }
 
 impl RestoreNotices {

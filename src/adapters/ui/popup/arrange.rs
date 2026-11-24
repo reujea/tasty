@@ -76,11 +76,6 @@ impl PopupManager {
         self.notice_column = column;
     }
 
-    /// 이번 프레임에 정한 안내 열의 자리.
-    pub fn notice_column(&self) -> Option<NoticeColumn> {
-        self.notice_column
-    }
-
     /// 열에 놓는 보이는 인스턴스를 연 순서로 위에서부터 쌓고, 차지한 사각형의 합을 돌려준다.
     /// 높이는 인스턴스의 지금 크기(직전 프레임에 잰 값)다.
     pub(super) fn place_column(&mut self, open_indices: &[usize]) -> Option<egui::Rect> {

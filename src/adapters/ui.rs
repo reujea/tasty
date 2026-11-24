@@ -108,19 +108,34 @@ pub fn draw_popups(
     fullscreen::drain_on_close_hooks(ctx, state, engine);
 
     // 안내 열은 같은 프레임의 창 범위 배너와 범위 위쪽에 붙은 팝업(직전 프레임 자리) 아래에서 시작한다.
+    let column = notice_column_now(state, terminal_rect, scale_factor);
+    state.popups.set_notice_column(Some(column));
+
+    popup::frame::draw_popup_layer(ctx, state, engine, &draw_ctx);
+    // 열 아래에 잇는 attach 대기 칩은 이번 프레임에 그린 자리(처음 띄우거나 옮긴 검색 막대 포함)로 열을 다시 잰다.
+    state.restore_notices.column_top = Some(crate::model::LogicalPx(
+        notice_column_now(state, terminal_rect, scale_factor)
+            .rect
+            .top(),
+    ));
+    overlay::draw_overlays(ctx, state, engine, &draw_ctx, terminal_rect, scale_factor);
+    draw_ctx
+}
+
+/// 지금 창 범위 배너와 범위 위쪽에 붙은 팝업의 자리로 정한 안내 열.
+fn notice_column_now(
+    state: &crate::state::RequestContext,
+    terminal_rect: crate::model::PhysicalRect,
+    scale_factor: f32,
+) -> popup::NoticeColumn {
     let mut obstacles = state.banners.window_scope_rects();
     obstacles.extend(state.popups.reserved_top_bands());
-    let column = restore_notice::notice_column(
+    restore_notice::notice_column(
         terminal_rect,
         state.tab_bar_height,
         scale_factor,
         &obstacles,
-    );
-    state.popups.set_notice_column(Some(column));
-
-    popup::frame::draw_popup_layer(ctx, state, engine, &draw_ctx);
-    overlay::draw_overlays(ctx, state, engine, &draw_ctx, terminal_rect, scale_factor);
-    draw_ctx
+    )
 }
 
 /// PhysicalRect의 변환을 사용해 egui 논리 좌표를 만든다.

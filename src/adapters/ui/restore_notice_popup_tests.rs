@@ -247,3 +247,75 @@ fn typing_with_a_notice_shown_goes_to_the_focused_surface() {
     assert_eq!(state.restore_notices.take_acknowledged(), vec![1]);
     assert!(!has_keyboard_focus(&state.popups));
 }
+
+/// 한 프레임을 `terminal` 범위로 돈다. 열이 검색 막대와 가로로 겹치는 좁은 창을 만든다.
+fn frame_in(
+    ctx: &egui::Context,
+    state: &mut MainViewState,
+    engine: &crate::runtime::engine_read::EngineRead<'_>,
+    terminal: PhysicalRect,
+) {
+    let raw = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(terminal.width.value(), terminal.height.value()),
+        )),
+        ..Default::default()
+    };
+    drop(ctx.run(raw, |ctx| {
+        crate::adapters::ui::draw_popups(ctx, state, engine, &[], terminal, 1.0);
+    }));
+}
+
+/// Given 좁은 창, When 검색 막대를 처음 띄운 프레임, Then attach 대기 칩이 잇는 열의 위쪽은 그 프레임에 그린
+/// 막대 아래다(막대의 직전 자리로 잰 열이 아니다).
+#[test]
+fn the_chip_column_starts_below_a_search_bar_opened_this_frame() {
+    let (mut state, mut session) = test_state();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = egui::Context::default();
+    let narrow = PhysicalRect {
+        width: crate::model::PhysicalPx(520.0),
+        height: crate::model::PhysicalPx(400.0),
+        ..term_rect()
+    };
+    frame_in(&ctx, &mut state, &read, narrow);
+    state.popups.open_request(
+        &crate::intent::OpenRequest::new(
+            crate::adapters::ui::search_bar::SEARCH_BAR_POPUP_ID,
+            PopupScope::Window,
+        )
+        .at_top(),
+        true,
+    );
+    let before = notice_column(
+        narrow,
+        state.tab_bar_height,
+        1.0,
+        &state.popups.reserved_top_bands(),
+    );
+    frame_in(&ctx, &mut state, &read, narrow);
+    let bar = state.popups.reserved_top_bands();
+    assert_eq!(bar.len(), 1, "the search bar is drawn at the top");
+    let bar = bar[0];
+    let column = crate::adapters::ui::to_egui_rect(narrow, 1.0);
+    assert!(
+        bar.right() > before.rect.left() && bar.left() < column.right(),
+        "the bar {bar:?} spans the column {:?}",
+        before.rect
+    );
+    assert!(
+        before.rect.top() < bar.bottom(),
+        "the column measured before drawing ({:?}) ends above the drawn bar {bar:?}",
+        before.rect
+    );
+    let top = state
+        .restore_notices
+        .column_top
+        .expect("measured after drawing");
+    assert!(
+        top.value() >= bar.bottom(),
+        "chip column top {top:?} is below the drawn bar {bar:?}"
+    );
+}
