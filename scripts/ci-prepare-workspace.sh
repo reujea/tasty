@@ -5,7 +5,8 @@
 #       scripts/ci-prepare-workspace.sh --decide <오늘> <표지|-> <target 있음 0|1> <여유 KiB> <임계 KiB>
 #   --decide  판정만 하고 "<action> <reason>"을 출력한다. 시험이 df 없이 경계값을 고정할 때 쓴다.
 # 환경: TASTY_CI_CACHE_MIN_FREE_GB  빌드 캐시 볼륨의 여유가 이 값(GB = 10^9 바이트, 10진 정수) 이하면 target을 지운다. 기본 150.
-# 종료 코드: 0 완료, 1 삭제 실패(target 삭제 실패면 표지는 지워진 채 남는다), 2 사용법·환경 오류(target이 심볼릭 링크인 경우 포함).
+# 종료 코드: 0 완료, 1 삭제 실패(target 삭제 실패면 표지는 지워진 채 남는다), 2 사용법·환경 오류(target이 심볼릭 링크이거나
+#   마운트 경계에 걸린 경우 포함).
 #   표지는 git 정리 전에 기록한다. git reset·clean이 실패하면 git의 종료 코드로 끝나고 표지는 기록된 채로 남는다.
 # 기준: docs/dev-guide/ci-gates.md#러너의-빌드-캐시. Windows는 Git Bash에서 실행한다.
 set -euo pipefail
@@ -45,7 +46,7 @@ if [[ "${1:-}" == "--decide" ]]; then
     exit 0
 fi
 if [[ $# -ne 0 ]]; then
-    sed -n '4,9p' "$0" | sed 's/^# \{0,1\}//' >&2
+    sed -n '4,10p' "$0" | sed 's/^# \{0,1\}//' >&2
     exit 2
 fi
 
@@ -68,8 +69,43 @@ if [[ -L target ]]; then
     exit 2
 fi
 
+# target이 마운트 지점이거나 그 아래에 다른 볼륨이 마운트돼 있으면 재귀 삭제가 그 볼륨의 파일까지 지우고
+# 마운트 지점에서 EBUSY로 멈춘다. 표지와 파일을 건드리기 전에 거부한다.
+# 장치 번호: GNU stat(Linux·Git Bash)의 -c, BSD stat(macOS)의 -f.
+dev_of() {
+    stat -c %d "$1" 2>/dev/null || stat -f %d "$1"
+}
+# mount 출력 한 줄("<장치> on <경로> type <종류> (<옵션>)" 또는 "<장치> on <경로> (<옵션>)")에서 경로를 꺼낸다.
+mount_path() {
+    local p="${1#* on }"
+    p="${p% (*}"
+    echo "${p% type *}"
+}
+if [[ -d target ]]; then
+    if ! root_dev="$(dev_of "$root")" || ! target_dev="$(dev_of "$root/target")"; then
+        echo "Error: could not read the device of $root or $root/target with stat" >&2
+        exit 2
+    fi
+    if [[ "$root_dev" != "$target_dev" ]]; then
+        echo "Error: $root/target is on a different device than the work tree; a mounted build cache is not supported" >&2
+        exit 2
+    fi
+    target_phys="$(cd target && pwd -P)"
+    if ! mounts="$(mount)"; then
+        echo "Error: could not list mount points with mount" >&2
+        exit 2
+    fi
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        mp="$(mount_path "$line")"
+        if [[ "$mp" == "$target_phys" || "$mp" == "$target_phys"/* ]]; then
+            echo "Error: $mp is a mount point inside $root/target; a mounted build cache is not supported" >&2
+            exit 2
+        fi
+    done <<<"$mounts"
+fi
+
 # 빌드 캐시(target)가 놓인 볼륨의 Available(KiB). target이 없으면 작업 트리 볼륨을 본다.
-# target은 지울 수 있는 일반 디렉터리여야 한다(마운트 지점이면 rm -rf가 EBUSY로 실패한다).
 # df -P의 데이터 행은 "<파일시스템> <전체> <사용> <여유> <비율%> <마운트>"이고 파일시스템·마운트 이름에 공백이 있을 수
 # 있다. 그래서 비율 칸 바로 앞의 세 숫자를 찾아 여유를 읽는다. 여유는 음수일 수 있고 그때는 0(여유 없음)으로 본다.
 free_kib() {

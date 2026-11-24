@@ -143,27 +143,44 @@ fn run(root: &Path, min_free_gb: &str) -> (i32, String) {
 
 /// `df_line`이 있으면 PATH 앞에 그 한 줄을 데이터 행으로 내는 가짜 df를 둔다.
 fn run_with(root: &Path, min_free_gb: &str, df_line: Option<&str>) -> (i32, String) {
+    let stubs: Vec<(&str, String)> = df_line
+        .map(|line| {
+            (
+                "df",
+                format!(
+                    "#!/bin/sh\nprintf '%s\\n' 'Filesystem 1024-blocks Used Available Capacity Mounted on' '{line}'\n"
+                ),
+            )
+        })
+        .into_iter()
+        .collect();
+    run_stubbed(root, min_free_gb, &stubs, &[])
+}
+
+/// PATH 앞의 폴더에 `stubs`(이름, 셸 스크립트)를 두고 `envs`를 더해 준비 스크립트를 돌린다.
+fn run_stubbed(
+    root: &Path,
+    min_free_gb: &str,
+    stubs: &[(&str, String)],
+    envs: &[(&str, &str)],
+) -> (i32, String) {
     let mut cmd = command("bash");
     cmd.current_dir(root)
         .arg(SCRIPT)
         .env("TASTY_CI_CACHE_MIN_FREE_GB", min_free_gb)
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .env("GIT_CONFIG_NOSYSTEM", "1");
-    let fake_bin = root.parent().expect("부모").join("fake-bin");
-    if let Some(line) = df_line {
-        use std::os::unix::fs::PermissionsExt;
+    if !stubs.is_empty() {
+        let fake_bin = root.parent().expect("부모").join("fake-bin");
         fs::create_dir_all(&fake_bin).expect("fake-bin");
-        let df = fake_bin.join("df");
-        fs::write(
-            &df,
-            format!(
-                "#!/bin/sh\nprintf '%s\\n' 'Filesystem 1024-blocks Used Available Capacity Mounted on' '{line}'\n"
-            ),
-        )
-        .expect("가짜 df");
-        fs::set_permissions(&df, fs::Permissions::from_mode(0o755)).expect("권한");
+        for (name, body) in stubs {
+            tasty_test_support::write_executable(&fake_bin.join(name), body).expect("스텁");
+        }
         let path = std::env::var("PATH").unwrap_or_default();
         cmd.env("PATH", format!("{}:{path}", fake_bin.display()));
+    }
+    for (k, v) in envs {
+        cmd.env(k, v);
     }
     let out = cmd.output().expect("bash 실행");
     let text = format!(
@@ -172,6 +189,17 @@ fn run_with(root: &Path, min_free_gb: &str, df_line: Option<&str>) -> (i32, Stri
         String::from_utf8_lossy(&out.stderr)
     );
     (out.status.code().unwrap_or(-1), text)
+}
+
+/// PATH에서 실행 가능한 `name`을 찾는다. 스텁이 진짜 명령으로 넘길 때 쓴다.
+fn real_command(name: &str) -> String {
+    use std::os::unix::fs::PermissionsExt;
+    std::env::split_paths(&std::env::var_os("PATH").expect("PATH"))
+        .map(|d| d.join(name))
+        .find(|p| fs::metadata(p).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0))
+        .unwrap_or_else(|| panic!("PATH 에 실행 가능한 {name} 이 없다"))
+        .display()
+        .to_string()
 }
 
 /// 자정을 넘기면 오늘이 바뀌므로 스크립트와 같은 명령으로 읽는다.
@@ -475,4 +503,38 @@ fn the_threshold_compares_bytes_at_an_odd_gigabyte() {
         assert_eq!(code, 0, "{log}");
         assert!(log.contains(want), "여유 {avail}KiB, 임계 1GB\n{log}");
     }
+}
+
+/// 지울 target이 마운트 경계에 걸린 상태를 만들고, 준비가 표지와 파일을 건드리지 않고 멈추는지 본다.
+fn assert_mount_boundary_is_refused(stubs: &[(&str, String)]) {
+    let r = repo();
+    let root = &r.root;
+    put(root, "target/debug/deps/libfoo.rlib");
+    fs::write(root.join(MARKER), "2000-01-01\n").expect("표지");
+    let (code, log) = run_stubbed(root, "0", stubs, &[]);
+    assert_eq!(code, 2, "{log}");
+    assert!(
+        log.contains("a mounted build cache is not supported"),
+        "{log}"
+    );
+    assert!(root.join("target/debug/deps/libfoo.rlib").exists(), "{log}");
+    assert_eq!(marker(root).as_deref(), Some("2000-01-01"), "{log}");
+}
+
+/// target의 장치 번호가 작업 트리와 다르면(target 자체가 마운트 지점) 거부한다. 장치 판정은 stat 스텁으로 준다.
+#[test]
+fn a_target_on_another_device_is_refused() {
+    let stat = format!(
+        "#!/bin/sh\nfor last; do :; done\ncase \"$last\" in */target) echo 2 ;; *) exec {} \"$@\" ;; esac\n",
+        real_command("stat")
+    );
+    assert_mount_boundary_is_refused(&[("stat", stat)]);
+}
+
+/// target 아래에 다른 볼륨이 마운트돼 있으면 거부한다. 마운트 목록은 mount 스텁으로 준다.
+#[test]
+fn a_mount_point_inside_target_is_refused() {
+    // 스텁은 준비 스크립트와 같은 작업 폴더에서 돌므로 target의 실제 경로를 실행 중에 읽는다.
+    let mount = "#!/bin/sh\nprintf '%s\\n' '/dev/root on / type ext4 (rw)' \"tmpfs on $(cd target && pwd -P)/debug type tmpfs (rw)\"\n".to_string();
+    assert_mount_boundary_is_refused(&[("mount", mount)]);
 }
