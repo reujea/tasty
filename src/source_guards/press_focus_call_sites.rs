@@ -654,16 +654,6 @@ fn a_key_that_opens_a_focused_popup_applies_the_open_before_the_next_event() {
         "main.settle_key_event(&engine.read(),event);true",
         "메인 창의 단계 3~5",
     );
-    // plugin 단계는 출발 노드를 다시 정하지 않는다(정규화는 호출자 몫).
-    assert!(
-        !fn_body(
-            &read("src/app/plugin_glue/shortcut.rs"),
-            "fn plugin_shortcut_in_window("
-        )
-        .expect("plugin_shortcut_in_window")
-        .contains("normalize_focus"),
-        "plugin 단계가 출발 노드를 다시 정한다"
-    );
     let to_view =
         squeeze(&fn_body(&src, "fn dispatch_key_to_view(").expect("dispatch_key_to_view"));
     let key = at(
@@ -788,5 +778,33 @@ fn a_key_that_opens_a_focused_popup_applies_the_open_before_the_next_event() {
         &open_request,
         "letfocused=self.request_takes_focus(request,by_user);",
         "실제 열기의 포커스 술어",
+    );
+}
+
+/// App plugin 단축키 단계는 그 사건의 출발 노드를 다시 정하지 않고(정규화는 호출자 몫), 게이트와 경로 level 도 다시
+/// 계산하지 않는다. 창이 그 사건에 정한 값(`PluginKeyGate::Settled`, `key_nodes::settle_key`)을 읽는다. 재생한 키는 재생
+/// 때 입구(`route_input_steps`)를 처음부터 다시 지나 그때 다시 정한다.
+#[test]
+fn the_app_plugin_step_reads_the_settled_decision() {
+    let plugin_step = fn_body(
+        &read("src/app/plugin_glue/shortcut.rs"),
+        "fn plugin_shortcut_in_window(",
+    )
+    .expect("plugin_shortcut_in_window");
+    for recompute in [
+        "normalize_focus",
+        "focus_path_levels",
+        "plugin_key_gate_open",
+        "settle_key(",
+    ] {
+        assert!(
+            !plugin_step.contains(recompute),
+            "plugin 단계가 그 사건의 판정을 다시 계산한다: `{recompute}`"
+        );
+    }
+    at(
+        &squeeze(&plugin_step),
+        "PluginKeyGate::Settled(step)=>(step.gate_open,None,step.levels),",
+        "창이 정한 게이트·level 읽기",
     );
 }
