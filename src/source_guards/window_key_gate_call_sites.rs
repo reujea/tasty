@@ -1,6 +1,6 @@
 //! 창이 키를 egui·터미널로 보내는 두 게이트가 시험이 밟는 판정 함수를 그대로 쓰는지 확인한다. 팝업 시험
 //! (`adapters::ui::popup::window_key_gate_tests`)은 창 없이 같은 함수(단계 4 `key_nodes::window_key_decision` 뒤
-//! `window_feeds_key`, `window_escape`, `window_holds_terminal_keys`)로 키를 보낸다. 판정 함수 안의 변이는 그 장면 시험이 잡는다. 호출부가 그 함수를
+//! `window_feeds_key`, `apply_escape_decision`, `window_holds_terminal_keys`)로 키를 보낸다. 판정 함수 안의 변이는 그 장면 시험이 잡는다. 호출부가 그 함수를
 //! 거치지 않고 키를 보내는 우회는 장면 시험이 보지 못하므로 호출부의 모양을 여기서 고정한다.
 //!
 //! 잡지 못하는 것: 호출부 앞에 같은 키를 다른 길로 egui·PTY 에 보내는 코드를 더하는 것(첫 게이트만 본다).
@@ -70,7 +70,7 @@ fn the_terminal_goes_through_the_window_hold_gate() {
     let body = squeeze(&fn_body(&src, "fn handle_keyboard_input(").expect("handle_keyboard_input"));
     let escape = at(
         &body,
-        "ifself.try_consume_escape_key(event){return;}",
+        "ifself.apply_escape_key_event(event){return;}",
         "Esc 처리",
     );
     let hold = at(
@@ -96,7 +96,7 @@ fn the_terminal_goes_through_the_window_hold_gate() {
         "Esc 처리 → 터미널 게이트 → 터미널 순서가 아니다"
     );
     let consume =
-        squeeze(&fn_body(&src, "fn try_consume_escape_key(").expect("try_consume_escape_key"));
+        squeeze(&fn_body(&src, "fn apply_escape_key_event(").expect("apply_escape_key_event"));
     at(
         &consume,
         "letescape_held=self.base.gpu.egui_escape_held();",
@@ -137,7 +137,7 @@ fn a_double_tap_during_the_settings_latch_does_nothing() {
     for then in [
         "self.try_consume_fullscreen_stage_key(engine,event)",
         "self.try_consume_double_tap_key(engine)",
-        "self.try_consume_escape_key(event)",
+        "self.apply_escape_key_event(event)",
         "self.try_consume_shortcut_key(",
         "self.forward_key_to_terminal(",
     ] {

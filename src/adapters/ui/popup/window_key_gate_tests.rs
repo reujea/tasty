@@ -1,4 +1,4 @@
-//! 창의 키 처리(egui 전달 게이트 `window_feeds_key`, Esc 처리 `window_escape`, 터미널 게이트
+//! 창의 키 처리(egui 전달 게이트 `window_feeds_key`, Esc 처리 `apply_escape_decision`, 터미널 게이트
 //! `window_key_holds_terminal`)를 거친 키를 실은 프레임은 창이 정한 키 주인 하나만 그 키를 소비한다. 본문, 접힌
 //! 보기 버튼의 Enter·Space, 접기 버튼이 모두 그 값을 쓴다.
 //!
@@ -65,7 +65,7 @@ fn window_key(
         return false;
     }
     if escape
-        && state.window_escape(
+        && state.apply_escape_decision(
             decision,
             fed,
             pending,
@@ -580,7 +580,7 @@ fn an_unloaded_escape_leaves_an_older_press_in_the_queue() {
         crate::adapters::ui::input::key_nodes::bare_escape_decision(&state, &read, egui_surface);
     let mut pending = vec![key(egui::Key::Escape)];
     assert!(
-        state.window_escape(decision, false, &mut pending, false),
+        state.apply_escape_decision(decision, false, &mut pending, false),
         "키 주인이 있어 창이 처리한다"
     );
     assert_eq!(
@@ -1445,4 +1445,131 @@ fn a_popup_shown_over_the_window_and_its_child_light_nothing() {
     let (listed, edges, _) = surface_marks(&mut state, &mut session);
     assert!(listed > 0, "the edge leaf is listed");
     assert!(edges >= 1, "keys back on the surface light its edge");
+}
+
+/// 알림 목록을 Window 범위에 연 장면. `focused` 면 포커스를 주며 연다(사이드바 클릭), 아니면 포커스 없이 연다(단축키).
+fn notifications_scene(
+    focused: bool,
+) -> (
+    RequestContext,
+    crate::runtime::engine_session::EngineSession,
+    egui::Context,
+    PopupInstanceId,
+) {
+    crate::i18n::init("en");
+    let (mut state, session) = crate::state::tests::test_state();
+    for def in super::defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    let req = OpenRequest::new("notifications", PopupScope::Window);
+    let req = if focused { req.focused() } else { req };
+    let iid = state.popups.open_request(&req, focused).unwrap();
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut state, Vec::new());
+    assert_eq!(state.popups.is_instance_focused(iid), focused);
+    (state, session, ctx, iid)
+}
+
+/// [`frame`]과 같은 창의 한 프레임이고, 본문 결과 가운데 닫기를 창처럼 적용한다(`frame::draw_popup_layer`).
+fn frame_applying_closes(
+    ctx: &egui::Context,
+    state: &mut RequestContext,
+    events: Vec<egui::Event>,
+) {
+    let layout = layout();
+    let raw = egui::RawInput {
+        screen_rect: Some(rect(0.0, 0.0, 1200.0, 700.0)),
+        events,
+        ..Default::default()
+    };
+    state
+        .popups
+        .begin_key_pass(ctx.input(|i| i.key_down(egui::Key::Escape)));
+    let mut actions = Vec::new();
+    drop(ctx.run(raw, |ctx| {
+        state.popups.prepare_frame_for_draw(ctx, Some(&layout));
+        state.decide_frame_key_owner(Some(&layout));
+        actions = state
+            .popups
+            .draw(ctx, &mut |_, _| {}, Some(&layout), &[])
+            .actions;
+    }));
+    state.close_input_pass(ctx);
+    for (iid, action) in actions {
+        if let PopupAction::CloseBy(reason) = action {
+            state.popups.close_instance(iid, reason);
+        }
+    }
+}
+
+/// 처리하지 않은 요청을 적용한다(알림 목록 닫기 요청 등).
+fn apply_intents(
+    state: &mut RequestContext,
+    session: &mut crate::runtime::engine_session::EngineSession,
+) {
+    let mut engine = session.borrow_mut();
+    for intent in state.take_pending_intents() {
+        crate::intent::popup::handle(state, &mut engine, &intent);
+    }
+}
+
+/// M-12b-4 F(모델 §6.3, 결정 J-3). Given 터미널이 포커스이고 알림 목록이 포커스 없이 열려 있을 때, When bare Esc 를
+/// 누르면, Then Esc 는 터미널(PTY)로 가고 창은 그 Esc 를 처리하지 않으며 알림 목록은 열린 채 남는다.
+#[test]
+fn escape_on_the_terminal_goes_to_the_pty_with_notifications_open() {
+    let (mut state, mut session, ctx, _) = notifications_scene(false);
+    let engine = session.borrow_mut();
+    state.normalize_focus(&engine.read());
+    let sid = state.focused_surface_id(&engine.read()).expect("터미널");
+    let decision = super::window_input_test_support::window_key_decision_of(
+        &state,
+        &engine.read(),
+        &key(egui::Key::Escape),
+        false,
+    );
+    assert!(matches!(
+        decision,
+        crate::adapters::ui::input::key_nodes::KeyDecision::Path(r)
+            if r.receiver == crate::adapters::ui::input::key_route::KeyReceiver::Surface(sid)
+    ));
+    let mut pending = Vec::new();
+    assert!(
+        window_key(
+            &ctx,
+            &mut state,
+            &engine.read(),
+            &mut pending,
+            key(egui::Key::Escape)
+        ),
+        "Esc 는 터미널(PTY)로 간다"
+    );
+    frame_applying_closes(&ctx, &mut state, pending);
+    apply_intents(&mut state, &mut session);
+    assert!(
+        state.popups.is_open("notifications"),
+        "알림 목록은 열린 채 남는다"
+    );
+}
+
+/// M-12b-4 P. Given 알림 목록이 포커스일 때, When bare Esc 를 누르면, Then 알림 목록(선언 Close)이 그 Esc 를 받아
+/// 닫힌다.
+#[test]
+fn escape_on_a_focused_notification_closes_it() {
+    let (mut state, mut session, ctx, iid) = notifications_scene(true);
+    let engine = session.borrow_mut();
+    state.normalize_focus(&engine.read());
+    let mut pending = Vec::new();
+    assert!(!window_key(
+        &ctx,
+        &mut state,
+        &engine.read(),
+        &mut pending,
+        key(egui::Key::Escape)
+    ));
+    frame_applying_closes(&ctx, &mut state, pending);
+    apply_intents(&mut state, &mut session);
+    assert!(
+        state.popups.instance(iid).is_none_or(|p| !p.open),
+        "알림 목록이 닫힌다"
+    );
 }

@@ -24,6 +24,9 @@ mod webview_edit;
 mod window_control;
 mod zoom;
 
+pub(crate) use explorer_keys::{
+    egui_dragging, explorer_cancels_address_check, explorer_takes_clear_selection,
+};
 #[cfg(all(test, target_os = "linux"))]
 pub(crate) use keybinding::CellGeometry;
 pub(crate) use webview_claims::webview_shortcut_policy;

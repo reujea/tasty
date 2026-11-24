@@ -233,7 +233,7 @@ wgpu 렌더 표면 **위**에 있다. 그리지 않아도 화면에 남으므로
 4단계 앞이 아니라 맨 앞인 이유: 무대는 뒤 콘텐츠와 로직상 무관하므로 뒤 콘텐츠의 어떤
 단축키도(double-tap 포함) 무대 중에 발화하면 안 된다.
 
-- **종료 키(기본 ESC)는 무대만 닫는다.** 4단계(`try_consume_escape_key`, settings 모달·
+- **종료 키(기본 ESC)는 무대만 닫는다.** 4단계(`apply_escape_key_event`, settings 모달·
   notifications 팝업 닫기)에 **도달하지 않는다** — 사용자 확정 계약이자 브라우저 Fullscreen
   API 와 같은 동작(UA 가 ESC 를 처리하고 페이지 `keydown` 으로 전파하지 않는다).
 - 그 외 키는 무대가 소비한다 — 뒤 화면의 단축키(6단계)·vi copy-mode(7단계)·터미널

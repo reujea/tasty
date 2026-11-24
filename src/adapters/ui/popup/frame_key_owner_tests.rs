@@ -194,7 +194,7 @@ fn plugin_escaped(state: &RequestContext) -> bool {
     state.plugin_popup_closes.iter().any(|(id, _)| *id == POPUP)
 }
 
-/// 창의 Esc 처리(`MainViewState::window_escape`)를 거쳐 그 Esc 를 실은 프레임을 그린다. 창은 그리기보다 먼저 돌므로
+/// 창의 Esc 처리(`MainViewState::apply_escape_decision`)를 거쳐 그 Esc 를 실은 프레임을 그린다. 창은 그리기보다 먼저 돌므로
 /// 직전 렌더의 범위·후보로 대상을 정하고, 그 프레임 키 주인은 창이 정한 대상이다. 창이 처리했으면 참이다.
 fn escape_through_the_window(
     ctx: &Context,

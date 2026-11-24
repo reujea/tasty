@@ -296,6 +296,11 @@ pub struct MainViewState {
     #[cfg(feature = "gui")]
     pub(crate) explorer_views: crate::adapters::ui::surface::explorer::view::ExplorerViewStore,
 
+    /// 지금 키 사건을 받을 때 egui 가 무언가를 끄는 중이었는지(`shortcuts::egui_dragging`). 메인 창이 단계 4 앞에서
+    /// 적고, 단계 4 의 탐색기 Esc 후보와 그 실행부가 같은 값을 읽는다.
+    #[cfg(feature = "gui")]
+    pub(crate) key_event_dragging: bool,
+
     /// Explorer의 파일 복사·잘라내기 목록. 앱의 모든 창이 같은 슬롯을 쓰며 로컬 경로는 OS 파일 클립보드에도 올린다. 저장하지 않는다.
     #[cfg(feature = "gui")]
     pub(crate) explorer_clipboard: super::explorer_clipboard_slot::ExplorerClipboardSlot,

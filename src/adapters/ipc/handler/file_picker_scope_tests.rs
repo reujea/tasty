@@ -724,7 +724,7 @@ fn escape_on_left_with_right_picker(press_escape: bool) {
         tab_content_rects: Vec::new(),
     };
     // 창의 키 경로가 읽는 판정만 잰다. L 은 egui 화면이 아니고 포커스 노드가 L 이라 Esc 는 egui 로 가지 않고
-    // (`window_feeds_egui`), 창 Esc 판정이 소비하지 않으며(`window_escape`), 터미널 게이트가 막지 않는다
+    // (`window_feeds_egui`), 창 Esc 판정이 소비하지 않으며(`apply_escape_decision`), 터미널 게이트가 막지 않는다
     // (`window_holds_terminal_keys`). L PTY 에 실제로 쓰는 것(`view::main::keyboard`)은 GPU 창이 있어야 불러 볼 수
     // 있어 이 시험이 관측하지 않는다. 아래 그리기는 같은 Esc 가 egui 프레임에 실려도 R 피커가 닫히지 않는지 따로 본다.
     if press_escape {

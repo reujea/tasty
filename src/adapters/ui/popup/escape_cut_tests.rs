@@ -18,7 +18,7 @@ fn escape_event() -> egui::Event {
     }
 }
 
-/// 창 Esc 처리(`window_escape`)를 거치지 않는 bare Esc 누름 하나. 창 Esc 처리가 노드를 옮기지 않는 경우(선언 Ignore)와
+/// 창 Esc 처리(`apply_escape_decision`)를 거치지 않는 bare Esc 누름 하나. 창 Esc 처리가 노드를 옮기지 않는 경우(선언 Ignore)와
 /// 같은 사건 입구다. 게이트 결과를 돌려준다.
 fn escape_key(s: &mut super::press_cut::Scene, input: &mut WindowInput) -> Option<bool> {
     let engine = s.session.borrow_mut();

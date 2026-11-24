@@ -77,7 +77,7 @@ pub struct MainView {
     /// (`key_nodes::settle_key`).
     pub(crate) key_plugin_step: crate::adapters::ui::input::key_nodes::PluginKeyStep,
     /// 지금 키 사건이 egui 입력에 실은 bare Esc 누름인지(단계 8 적재 결과). 단계 4 에서 지우고 egui 적재가 적으며 단계
-    /// 11 Esc 적용(`try_consume_escape_key`)이 읽는다.
+    /// 11 Esc 적용(`apply_escape_key_event`)이 읽는다.
     pub(crate) escape_fed: bool,
     /// App 이 다음에 넘길 사건의 출발 노드를 plugin 단축키 단계 앞에서 이미 정했는지(`settle_key_event`). App 이 사건을
     /// 넘기기 직전에 적고(`App::dispatch_key_to_view`), 창은 그 사건 입구에서 꺼낸다(`handle_engine_event`). 참이면 창은
@@ -559,6 +559,7 @@ impl MainView {
     /// 재생하는 원래 키는 보류 때 붙은 편집 표시로 편집 바인딩 키를 가른다(표시는 단계 6 이 소비한다).
     fn decide_key_receiver(&mut self, engine: &EngineRead<'_>, event: &WindowEvent) {
         self.escape_fed = false;
+        self.state.key_event_dragging = crate::shortcuts::egui_dragging(&self.base.gpu.egui_ctx);
         let settled = match event {
             WindowEvent::KeyboardInput { event: key, .. } => {
                 crate::adapters::ui::input::key_nodes::settle_key(

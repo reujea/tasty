@@ -342,6 +342,12 @@ App plugin 게이트와 WebView 전달 게이트도 같은 경로 결과를 읽�
 (`InputDestination::Terminal`)다. 장면별 기대는 `key_route_tests.rs`와
 `key_nodes_tests.rs`가 정본이다.
 
+bare Esc 는 `key_route::route_escape`가 노드마다 내용 → 그 level 단축키 → 그 범위 노드에 붙은 덮지 않는 팝업 순서로
+본다. 붙은 팝업은 `key_nodes::window_key_path`가 명령 대상의 같은 level 범위에 보이는 덮지 않는 인스턴스를 위에 있는 것
+먼저 붙인다(`PopupManager::attached_nodes`). 탐색기 Esc 단축키는 탐색기가 그 Esc 를 쓸 때만 후보다
+(`key_nodes::matching_levels`, 판정 함수는 실행부 거절 조건과 같은 `shortcuts::explorer_cancels_address_check`·
+`explorer_takes_clear_selection`). 쓰지 않으면 붙은 팝업이나 위 level 단축키로 간다(`explorer_escape_tests.rs`).
+
 ### 단축키 level
 
 단축키 필드마다 level이 있다(`key_level::KEYBINDING_LEVELS`). 키 경로에 없는 level의 후보는 매칭 전에 비운다

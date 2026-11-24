@@ -182,6 +182,18 @@ impl PopupManager {
             .map(|p| (p.instance, p.placement_scope(), p.z_seq))
     }
 
+    /// 범위를 덮지 않는 보이는 host 인스턴스와 그 배치 범위·순번·Esc 선언. 범위 노드에 붙는 팝업의 원천이다
+    /// (`key_nodes::window_key_path`). 부모 버튼이 대표하는(그리지 않는) 자식은 빠진다.
+    pub(crate) fn attached_nodes(
+        &self,
+    ) -> impl Iterator<Item = (PopupInstanceId, PopupScope, u64, super::PopupEscape)> + '_ {
+        self.popups
+            .iter()
+            .filter(|p| p.open && p.scope_visible && !p.covers())
+            .filter(|p| p.display != super::display::PopupDisplay::Collapsed(None))
+            .map(|p| (p.instance, p.placement_scope(), p.z_seq, p.escape_decl()))
+    }
+
     /// 이 인스턴스가 지금 화면에 보이는 passive popup인지.
     pub fn instance_is_visible_passive(&self, iid: PopupInstanceId) -> bool {
         self.instance(iid)

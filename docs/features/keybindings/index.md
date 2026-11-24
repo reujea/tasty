@@ -300,10 +300,13 @@ Option 시퀀스·튜플 원소와 중첩 Option의 Some(None)은 표현을 다�
 
 게이트에 막힌 단축키는 접수되지 않은 것이므로 그 액션의 거절 안내도 내지 않는다. 예를 들어 `enter_copy_mode`는 접수된 뒤에만 진입·거절 결과를 토스트로 알린다([복사 모드 진입 결과](../clipboard/index.md#복사-모드-진입-결과)).
 
-Escape 는 설정 창 열기 요청을 먼저 취소하고, 다른 팝업이 포커스가 아니면 열린 알림 패널을 닫는다. 그 밖에는 포커스된
-팝업 하나를 그 팝업의 Esc 선언과 펼침 상태대로 처리한다(포커스를 풀거나 닫거나 다시 접는다). 창을 덮는 피커처럼 다른
-팝업이 포커스면 알림 패널은 그대로 두고 그 팝업이 Esc 를 받으며(`notifications_take_escape`), 포커스 없는 팝업은 그대로
-남는다. 선언이 `Ignore` 인 팝업(explorer 충돌 질문)은 Esc 를 받지 않아 그 Esc 는 아래 범위의 단축키·surface 로 간다. 정본은 `key_route::route_escape`, `MainViewState::apply_escape_key`,
+Escape 는 설정 창 열기 요청을 먼저 취소한다. 그 밖에는 포커스 노드에서 시작한 경로가 받는다. 포커스된 팝업은 그
+팝업의 Esc 선언과 펼침 상태대로 처리한다(포커스를 풀거나 닫거나 다시 접는다). 선언이 `Ignore` 인 팝업(explorer 충돌
+질문)은 Esc 를 받지 않아 그 Esc 는 아래 범위로 간다. 범위마다 내용 → 그 범위 단축키 → 그 범위에 붙은 덮지 않는 팝업(알림
+패널·메뉴 등, 위에 있는 것 먼저) 순서로 본다. 그래서 터미널이 포커스면 알림 패널이 열려 있어도 Esc 는 터미널로 가고 알림은
+그대로 남는다. 탐색기는 주소 확인을 기다리거나 고른 항목·영역 선택이 있을 때만 Esc 를 쓰고(끄는 중이면 쓰지 않는다), 쓰지
+않으면 그 Esc 는 붙은 팝업이나 위 범위 단축키로 간다. 정본은 `key_route::route_escape`, `key_nodes::matching_levels`,
+`MainViewState::apply_escape_key`,
 팝업 층의 `popup::escape_step`, [popup.md의 Esc 소유권](../../design/systems/popup.md#plugin-popup--host-popup-부모-자식)이다.
 
 ### 편집 — 녹화 + 충돌

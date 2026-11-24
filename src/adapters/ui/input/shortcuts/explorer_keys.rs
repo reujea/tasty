@@ -61,27 +61,58 @@ pub(super) fn list_step(
     })
 }
 
+/// egui 가 무언가를 끄는 중인지. 그동안 Esc 는 끌기 취소에 쓰이므로 선택 해제가 받지 않는다.
+pub(crate) fn egui_dragging(ctx: &egui::Context) -> bool {
+    egui::DragAndDrop::has_any_payload(ctx) || ctx.dragged_id().is_some()
+}
+
+/// 포커스된 탐색기가 이 키로 원격 주소 확인을 버리는지: 수식키 없는 Esc 이고, 주소창을 편집 중이 아니며(편집 중이면
+/// PathField 가 받는다) 주소 확인을 기다린다. 단계 4 의 후보(`key_nodes::matching_levels`)와 실행부
+/// (`MainView::cancel_explorer_address_check`)가 같이 쓴다.
+pub(crate) fn explorer_cancels_address_check(
+    state: &crate::state::MainViewState,
+    engine: &EngineRead<'_>,
+    key: &Key,
+    mods: ModifiersState,
+) -> bool {
+    *key == Key::Named(winit::keyboard::NamedKey::Escape)
+        && mods.is_empty()
+        && super::focused_explorer_surface_id(state, engine)
+            .and_then(|sid| state.explorer_views.get(sid))
+            .is_some_and(|v| !v.addr_editing && v.address_waiting().is_some())
+}
+
+/// 포커스된 탐색기가 선택 해제 바인딩을 쓰는지: 글자 입력 중이 아니고, 키 사건 시점에 끄는 중이 아니며
+/// (`MainViewState::key_event_dragging`), 영역 선택 중이거나 고른 항목이 있다. 단계 4 의 후보와 실행부
+/// (`MainView::explorer_key_clear_selection`)가 같이 쓴다.
+pub(crate) fn explorer_takes_clear_selection(
+    state: &crate::state::MainViewState,
+    engine: &EngineRead<'_>,
+) -> bool {
+    !state.key_event_dragging
+        && !super::focused_explorer_typing(state, engine)
+        && super::focused_explorer_surface_id(state, engine)
+            .and_then(|sid| state.explorer_views.get(sid))
+            .is_some_and(|v| v.marquee.active() || !v.selected.is_empty())
+}
+
 impl MainView {
-    /// 포커스된 탐색기가 원격 주소 확인을 기다리는 중이면 `Esc` 가 그 확인을 버린다. 주소창은 현재
-    /// 폴더로 돌아간다. 주소창을 편집 중이면 PathField 가 `Esc` 를 처리하므로 여기서 받지 않는다.
+    /// 포커스된 탐색기가 원격 주소 확인을 기다리는 중이면 `Esc` 가 그 확인을 버린다
+    /// ([`explorer_cancels_address_check`]). 주소창은 현재 폴더로 돌아간다.
     pub(super) fn cancel_explorer_address_check(
         &mut self,
         engine: &EngineRead<'_>,
         key: &Key,
         mods: ModifiersState,
     ) -> bool {
-        if *key != Key::Named(winit::keyboard::NamedKey::Escape) || !mods.is_empty() {
+        if !explorer_cancels_address_check(&self.state, engine, key, mods) {
             return false;
         }
-        let Some(sid) = super::focused_explorer_surface_id(&self.state, engine) else {
+        let Some(view) = super::focused_explorer_surface_id(&self.state, engine)
+            .and_then(|sid| self.state.explorer_views.get_mut(sid))
+        else {
             return false;
         };
-        let Some(view) = self.state.explorer_views.get_mut(sid) else {
-            return false;
-        };
-        if view.addr_editing || view.address_waiting().is_none() {
-            return false;
-        }
         view.cancel_address_probe();
         self.mark_dirty();
         true
@@ -144,24 +175,19 @@ impl MainView {
         true
     }
 
-    /// 선택을 모두 푼다. 현재 항목은 그대로 두어 다음 이동 키가 그 자리에서 시작한다. 고른 항목이
-    /// 없거나 항목을 끄는 중(드래그 취소에 쓰는 Esc)이면 키를 소비하지 않는다.
+    /// 선택을 모두 푼다. 현재 항목은 그대로 두어 다음 이동 키가 그 자리에서 시작한다. 쓰지 않는 상태
+    /// ([`explorer_takes_clear_selection`])면 키를 소비하지 않고, 영역 선택 중에는 소비만 한다.
     fn explorer_key_clear_selection(&mut self, engine: &EngineRead<'_>) -> bool {
-        let Some(sid) = super::focused_explorer_surface_id(&self.state, engine) else {
-            return false;
-        };
-        let ctx = &self.base.gpu.egui_ctx;
-        if egui::DragAndDrop::has_any_payload(ctx) || ctx.dragged_id().is_some() {
+        if !explorer_takes_clear_selection(&self.state, engine) {
             return false;
         }
-        let Some(view) = self.state.explorer_views.get_mut(sid) else {
+        let Some(view) = super::focused_explorer_surface_id(&self.state, engine)
+            .and_then(|sid| self.state.explorer_views.get_mut(sid))
+        else {
             return false;
         };
         if view.marquee.active() {
             return true;
-        }
-        if view.selected.is_empty() {
-            return false;
         }
         view.clear_selection();
         self.mark_dirty();

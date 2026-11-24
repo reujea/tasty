@@ -1,7 +1,7 @@
-//! Escape 적용(단계 11)에서 설정 열기 요청 래치 수신자·알림 특례·사건 시점 수신자(단계 4) 분기의 순서를 확인한다.
+//! Escape 적용(단계 11)에서 설정 열기 요청 래치 수신자와 사건 시점 수신자(단계 4) 분기의 순서를 확인한다.
 //! plugin 팝업 수신자의 Esc는 펼쳤든 아니든 그 렌더에 넘긴다(렌더가 선언과 표시 상태로 닫기·다시 접기를 정한다).
-//! 설정 열기 요청 래치 분기는 단계 4 수신자가 래치 노드일 때, 알림 분기는 포커스 노드가 다른 팝업이 아닐 때 처리하므로 수신자 분기
-//! 보다 먼저 있어야 한다.
+//! 설정 열기 요청 래치 분기는 단계 4 수신자가 래치 노드일 때 처리하므로 수신자 분기보다 먼저 있어야 한다. 알림 목록은
+//! 특례 갈래가 없다. 범위 노드에 붙은 비덮음 팝업으로 사건 시점 수신자가 된다(`key_route::route_escape`).
 //! settings_open_requested는 열기 요청 상태다. 이미 열린 설정 모달을 Escape로 닫는 경로를 뜻하지 않는다.
 //! 팝업이 키 입력을 막기 전에 Escape를 처리하도록 오버레이 검사보다 앞에 있어야 한다.
 //! 여기서는 호출 위치·순서만 확인하며 대상 선택 동작은 adapters::ui::popup의 단위 테스트가 확인한다.
@@ -28,15 +28,15 @@ fn between<'a>(hay: &'a str, start: &str, end: &str) -> &'a str {
 }
 
 const KEYBOARD: &str = "src/view/main/keyboard.rs";
-/// 창의 Esc 적용(`MainViewState::window_escape` → `escape_gate`, 단계 11). keyboard.rs 의 Escape 처리가 이 적용만 부른다.
+/// 창의 Esc 적용(`MainViewState::apply_escape_decision` → `escape_outcome`, 단계 11). keyboard.rs 의 Escape 처리가 이 적용만 부른다.
 const ESCAPE_GATE: &str = "src/state/escape_gate.rs";
 
 #[test]
-fn the_three_escape_consumers_keep_their_order() {
+fn the_escape_consumers_keep_their_order() {
     let keyboard = read(KEYBOARD);
     let escape_key = between(
         &keyboard,
-        "fn try_consume_escape_key(",
+        "fn apply_escape_key_event(",
         "fn try_consume_shortcut_key(",
     );
     only_at(
@@ -45,29 +45,28 @@ fn the_three_escape_consumers_keep_their_order() {
         "Escape 처리의 단계 11 적용 호출",
     );
     let src = read(ESCAPE_GATE);
-    let window = between(&src, "fn window_escape(", "fn escape_gate(");
+    let window = between(&src, "fn apply_escape_decision(", "fn escape_outcome(");
     only_at(
         window,
-        "self.escape_gate(decision)",
+        "self.escape_outcome(decision)",
         "창 Esc 처리의 판정 호출",
     );
     // 판정 함수 하나만 있는 파일이다. 함수 시작부터 순서를 비교한다.
-    let start = only_at(&src, "fn escape_gate(", "창 Esc 판정 함수");
+    let start = only_at(&src, "fn escape_outcome(", "창 Esc 판정 함수");
     let body = &src[start..];
     let settings = only_at(
         body,
         "if crate::adapters::ui::input::key_nodes::settings_latch_receives(decision) {",
         "Escape 의 설정 열기 요청 래치 수신자 분기",
     );
-    let notifications = only_at(
-        body,
-        "if self.notifications_take_escape(self.live_key_owner()) {",
-        "Escape 의 notifications 분기",
+    assert!(
+        !body.contains("notifications"),
+        "창 Esc 판정에 알림 목록 갈래가 있다. 알림은 붙은 팝업으로 단계 4 수신자가 된다."
     );
     let receiver = only_at(body, "match routed.receiver {", "사건 시점 수신자 분기");
     let plugin_owner = only_at(
         body,
-        "KeyReceiver::PluginPopup(_) => EscapeGate::Consumed {",
+        "KeyReceiver::PluginPopup(_) => EscapeOutcome::Consumed {",
         "Escape 의 plugin 팝업 수신자 분기",
     );
     let general = only_at(
@@ -84,13 +83,8 @@ fn the_three_escape_consumers_keep_their_order() {
         "plugin 팝업 수신자 분기가 그 Esc 를 렌더에 넘기지 않는다. 펼친 plugin 팝업의 다시 접기와 선언 처리는 렌더가 한다."
     );
     assert!(
-        settings < notifications,
-        "settings 분기가 notifications 보다 뒤에 있다 — 앞의 둘은 포커스와 무관하게 먹으므로 \
-         순서가 바뀌면 동작이 바뀐다."
-    );
-    assert!(
-        notifications < receiver,
-        "수신자 분기가 설정 열기 요청·알림 특례보다 앞에 있다. 두 특례가 포커스와 무관하게 먼저 처리되도록 순서를 유지한다."
+        settings < receiver,
+        "수신자 분기가 설정 열기 요청 분기보다 앞에 있다. 래치 노드가 받은 Esc 는 수신자 분기 전에 요청을 취소한다."
     );
 }
 
@@ -99,7 +93,7 @@ fn the_escape_path_runs_before_the_overlay_gate() {
     let src = read(KEYBOARD);
     let escape_call = only_at(
         &src,
-        "if self.try_consume_escape_key(event) {",
+        "if self.apply_escape_key_event(event) {",
         "Escape 소비 호출",
     );
     let gate = only_at(
@@ -119,7 +113,7 @@ fn the_escape_path_runs_before_the_overlay_gate() {
 #[test]
 fn escape_follows_the_declaration() {
     let src = read(ESCAPE_GATE);
-    let start = only_at(&src, "fn escape_gate(", "창 Esc 판정 함수");
+    let start = only_at(&src, "fn escape_outcome(", "창 Esc 판정 함수");
     let gate = &src[start..];
     for gone in [
         "close_on_outside_click",

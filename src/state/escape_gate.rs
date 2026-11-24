@@ -8,7 +8,7 @@
 
 /// 창 Esc 처리 결과.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum EscapeGate {
+enum EscapeOutcome {
     /// 창이 처리하지 않았다. 다음 단계와 egui 입력으로 간다.
     Pass,
     /// 창이 처리했다. Esc 는 egui 입력에서 뺀다. `hand_to_owner`이면 묶인 키 주인(host 본문·plugin 렌더)이 뺀 원래
@@ -18,7 +18,7 @@ enum EscapeGate {
 
 impl super::MainViewState {
     /// 단계 11 입구: 창이 받은 키 사건(`value`)이 수식키 없는 Esc 누름이면 사건 시점 수신자(`decision`)의 결과를
-    /// 적용한다(`window_escape`). 대상인지는 단계 4 와 같은 판정이다(`key_class::is_bare_escape_press`, 논리 키가 없으면
+    /// 적용한다(`apply_escape_decision`). 대상인지는 단계 4 와 같은 판정이다(`key_class::is_bare_escape_press`, 논리 키가 없으면
     /// 물리 키). `fed` 는 단계 8 적재 결과다. 처리했으면 참이다.
     pub(crate) fn apply_escape_key(
         &mut self,
@@ -29,7 +29,7 @@ impl super::MainViewState {
         escape_held: bool,
     ) -> bool {
         crate::adapters::ui::input::key_class::is_bare_escape_press(value)
-            && self.window_escape(decision, fed, pending, escape_held)
+            && self.apply_escape_decision(decision, fed, pending, escape_held)
     }
 
     /// 단계 11 맨 앞: 단계 4 수신자가 설정 열기 요청 래치 노드면 그 누름을 여기서 끝낸다(참). 무대·더블탭·단축키·vi·끝
@@ -55,14 +55,14 @@ impl super::MainViewState {
     /// egui 수신자의 결속은 단계 8(`window_feeds_key`)이 이미 했다. Esc 뗌은 빼지 않는다. `escape_held` 는 직전 egui 패스
     /// 끝의 Escape 눌림 상태다(키 주인에게 되넣을 때 egui 와 같은 반복 판정의 출발점). 처리했으면 참이고, 아니면 단축키·끝
     /// 목적지 단계로 간다.
-    pub(crate) fn window_escape(
+    pub(crate) fn apply_escape_decision(
         &mut self,
         decision: crate::adapters::ui::input::key_nodes::KeyDecision,
         fed: bool,
         pending: &mut Vec<egui::Event>,
         escape_held: bool,
     ) -> bool {
-        let EscapeGate::Consumed { hand_to_owner } = self.escape_gate(decision) else {
+        let EscapeOutcome::Consumed { hand_to_owner } = self.escape_outcome(decision) else {
             return false;
         };
         let press = fed
@@ -82,43 +82,29 @@ impl super::MainViewState {
         true
     }
 
-    /// Escape 결과. 사건 시점 수신자가 래치 노드면 설정 요청을 취소하고, 알림 목록 특례(C12b-4 까지)를 본 뒤, 사건 시점 수신자가
+    /// Escape 결과. 사건 시점 수신자가 래치 노드면 설정 요청을 취소하고, 사건 시점 수신자가
     /// host 팝업이면 선언 `escape` 대로 포커스를 풀어 넘긴다(펼친 팝업은 풀지 않고 넘긴다). Ignore 팝업은 수신자가 되지
     /// 않는다(`route_escape` 가 부모 경로로 올린다). plugin 팝업이면 그 렌더가 받도록 넘긴다. 그 밖의 수신자는 창이
     /// 처리하지 않는다. 닫기는 팝업 층 중앙 단계가 정한다.
-    fn escape_gate(
+    fn escape_outcome(
         &mut self,
         decision: crate::adapters::ui::input::key_nodes::KeyDecision,
-    ) -> EscapeGate {
+    ) -> EscapeOutcome {
         use crate::adapters::ui::input::key_nodes::KeyDecision;
         use crate::adapters::ui::input::key_route::KeyReceiver;
-        // 래치 노드(단계 4 수신자)가 받은 Esc 는 아직 처리하지 않은 설정 창 열기 요청을 취소한다. 래치 중에는 다른
-        // 수신자가 없으므로 알림 특례보다 먼저다.
+        // 래치 노드(단계 4 수신자)가 받은 Esc 는 아직 처리하지 않은 설정 창 열기 요청을 취소한다.
         if crate::adapters::ui::input::key_nodes::settings_latch_receives(decision) {
             self.settings_open_requested = false;
-            return EscapeGate::Consumed {
-                hand_to_owner: false,
-            };
-        }
-        // 알림 목록은 포커스 노드가 다른 팝업이 아닐 때만 Esc 를 받는다. 창을 덮는 피커처럼 다른 팝업이 포커스 노드면
-        // Esc 는 그 팝업에서 시작한다.
-        if self.notifications_take_escape(self.live_key_owner()) {
-            self.dispatch_intent(
-                crate::intent::UiIntent::ClosePopup {
-                    id: "notifications",
-                }
-                .from_user_shortcut("escape_close_notifications"),
-            );
-            return EscapeGate::Consumed {
+            return EscapeOutcome::Consumed {
                 hand_to_owner: false,
             };
         }
         let KeyDecision::Path(routed) = decision else {
-            return EscapeGate::Pass;
+            return EscapeOutcome::Pass;
         };
         match routed.receiver {
             // plugin 팝업 렌더가 Esc 를 받아 선언과 표시 상태로 처리한다(펼쳤으면 다시 접기).
-            KeyReceiver::PluginPopup(_) => EscapeGate::Consumed {
+            KeyReceiver::PluginPopup(_) => EscapeOutcome::Consumed {
                 hand_to_owner: true,
             },
             // Close·Unfocus 는 지금 인스턴스 포커스를 풀고 그 Esc 를 넘긴다. 입력 시점의 키 주인(단계 8 이 묶은 이
@@ -129,28 +115,11 @@ impl super::MainViewState {
                 if !self.popups.instance(instance).is_some_and(|p| p.expanded()) {
                     self.popups.set_instance_focused(instance, false);
                 }
-                EscapeGate::Consumed {
+                EscapeOutcome::Consumed {
                     hand_to_owner: true,
                 }
             }
-            _ => EscapeGate::Pass,
+            _ => EscapeOutcome::Pass,
         }
-    }
-
-    /// 열린 알림 목록이 이 Esc 로 닫히는지. 포커스 노드가 팝업이 아니거나 알림 목록 자신일 때다.
-    fn notifications_take_escape(
-        &self,
-        live: Option<crate::adapters::ui::popup::focus::PopupNode>,
-    ) -> bool {
-        use crate::adapters::ui::popup::focus::PopupNode;
-        self.popups.is_open("notifications")
-            && match live {
-                None => true,
-                Some(PopupNode::Host(iid)) => self
-                    .popups
-                    .instance(iid)
-                    .is_some_and(|p| p.id == "notifications"),
-                Some(PopupNode::Plugin(_)) => false,
-            }
     }
 }

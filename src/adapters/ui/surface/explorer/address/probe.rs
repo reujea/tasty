@@ -66,6 +66,20 @@ impl ExplorerView {
             .map(|p| p.sent_at.elapsed())
     }
 
+    /// 시험: 응답을 기다리는 원격 주소 확인 하나를 둔다.
+    #[cfg(test)]
+    pub(crate) fn wait_address_for_test(&mut self) {
+        self.addr_probe = Some(AddressProbe {
+            request_id: 0,
+            from: PathBuf::new(),
+            target: PathBuf::new(),
+            dir: PathBuf::new(),
+            name: String::new(),
+            sent_at: Instant::now(),
+            answer: None,
+        });
+    }
+
     /// 기다리던 원격 확인을 버린다. 주소창은 다음 `sync` 에서 현재 폴더로 돌아간다.
     pub(crate) fn cancel_address_probe(&mut self) {
         self.addr_probe = None;

@@ -9,8 +9,8 @@ use super::edit_key::{EditBindings, edit_binding};
 use super::key_class::{KeyClass, KeyEventValue, classify_key};
 use super::key_level::{FieldLevel, KEYBINDING_LEVELS, KeyLevel, NumericAxis, numeric_axis_level};
 use super::key_route::{
-    KeyNode, KeyReceiver, PopupFold, PopupKeyNode, RouteKey, Routed, ScopeContent, ScopeKeyNode,
-    route_key, start_node_ends_key, text_edit_builtin,
+    AttachedPopup, KeyNode, KeyReceiver, PopupFold, PopupKeyNode, RouteKey, Routed, ScopeContent,
+    ScopeKeyNode, route_key, start_node_ends_key, text_edit_builtin,
 };
 use crate::adapters::ui::popup::focus::PopupNode;
 use crate::adapters::ui::popup::{PopupEscape, PopupKeyboard};
@@ -172,7 +172,7 @@ fn route_decision(
     let kb = &engine.settings.keybindings;
     let matching = matching_levels(
         kb,
-        explorer_focused(state, engine),
+        explorer_key_use(state, engine, lookup, mods),
         engine.settings.general.workspace_categories_enabled,
         lookup,
         mods,
@@ -290,7 +290,7 @@ pub(crate) fn window_key_path(
             KeyNode::Scope(ScopeKeyNode {
                 level,
                 content: ScopeContent::None,
-                attached: Vec::new(),
+                attached: attached_popups(state, engine, level),
             })
         })
         .collect::<Vec<_>>();
@@ -319,6 +319,35 @@ pub(crate) fn window_key_path(
     };
     scopes.insert(0, first);
     scopes
+}
+
+/// 이 level 범위 노드에 붙은 팝업(z 최상단 먼저): 그 level 범위에 놓인 보이는 비덮음 host 인스턴스 가운데 범위가
+/// 명령 대상의 같은 level 노드인 것. 경로의 범위 노드가 명령 대상의 조상이므로(`key_path::popup_scope_levels`) 같은
+/// 대상으로 고른다.
+fn attached_popups(
+    state: &MainViewState,
+    engine: &EngineRead<'_>,
+    level: KeyLevel,
+) -> Vec<AttachedPopup> {
+    use crate::adapters::ui::input::key_path::scope_level;
+    use crate::adapters::ui::popup::route::{path_of_command_target, path_of_scope};
+    let target = path_of_command_target(state, engine);
+    let mut found = state
+        .popups
+        .attached_nodes()
+        .filter(|(_, scope, _, _)| {
+            scope_level(scope) == level && path_of_scope(engine, scope).same_at(&target, level)
+        })
+        .map(|(iid, _, z, escape)| (z, iid, escape))
+        .collect::<Vec<_>>();
+    found.sort_by_key(|(z, _, _)| std::cmp::Reverse(*z));
+    found
+        .into_iter()
+        .map(|(_, iid, escape)| AttachedPopup {
+            node: PopupNode::Host(iid),
+            escape,
+        })
+        .collect()
 }
 
 /// 팝업 노드의 선언·표시 상태와 노드 키맵 수신 판정.
@@ -421,20 +450,47 @@ fn surface_content(
     ScopeContent::Egui { sid, takes }
 }
 
-fn explorer_focused(state: &MainViewState, engine: &EngineRead<'_>) -> bool {
-    crate::shortcuts::focused_explorer_surface_id(state, engine).is_some()
+/// 사건 시점 탐색기 키 사용: 탐색기가 포커스인지, 이 키로 주소 확인을 버리는지, 선택 해제 바인딩을 쓰는지. 판정은
+/// 실행부가 거절하는 조건과 같은 함수다(`shortcuts::explorer_cancels_address_check`·`explorer_takes_clear_selection`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ExplorerKeyUse {
+    pub(crate) focused: bool,
+    pub(crate) cancels_address_check: bool,
+    pub(crate) clears_selection: bool,
+}
+
+fn explorer_key_use(
+    state: &MainViewState,
+    engine: &EngineRead<'_>,
+    key: &Key,
+    mods: ModifiersState,
+) -> ExplorerKeyUse {
+    if crate::shortcuts::focused_explorer_surface_id(state, engine).is_none() {
+        return ExplorerKeyUse::default();
+    }
+    ExplorerKeyUse {
+        focused: true,
+        cancels_address_check: crate::shortcuts::explorer_cancels_address_check(
+            state, engine, key, mods,
+        ),
+        clears_selection: crate::shortcuts::explorer_takes_clear_selection(state, engine),
+    }
 }
 
 /// 이 키에 맞는 host 단축키 후보의 level(경로 필터 전). 메인 창 단축키 단계가 부르지 않는 필드(설정 창 코드
-/// 영역 키, 무대 종료 키는 무대 노드가 본다)와, 탐색기가 포커스가 아닐 때의 탐색기 키는 후보가 아니다.
+/// 영역 키, 무대 종료 키는 무대 노드가 본다)와, 탐색기가 포커스가 아닐 때의 탐색기 키는 후보가 아니다. 탐색기가 쓰지
+/// 않는 선택 해제는 후보가 아니고, 주소 확인을 버리는 Esc(바인딩이 아닌 고정 키)는 surface level 후보다.
 pub(crate) fn matching_levels(
     kb: &KeybindingSettings,
-    explorer: bool,
+    explorer: ExplorerKeyUse,
     categories: bool,
     key: &Key,
     mods: ModifiersState,
 ) -> Vec<KeyLevel> {
     let mut out = Vec::new();
+    if explorer.cancels_address_check {
+        out.push(KeyLevel::Surface);
+    }
     for (field, level) in KEYBINDING_LEVELS {
         let FieldLevel::Level(level) = level else {
             continue;
@@ -442,7 +498,8 @@ pub(crate) fn matching_levels(
         if matches!(
             *field,
             "code_area_apply" | "code_area_cancel" | "fullscreen_stage_exit"
-        ) || (field.starts_with("explorer_") && !explorer)
+        ) || (field.starts_with("explorer_") && !explorer.focused)
+            || (*field == "explorer_clear_selection" && !explorer.clears_selection)
         {
             continue;
         }
@@ -545,3 +602,7 @@ fn numeric_axis_for(
 #[cfg(test)]
 #[path = "key_nodes_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "explorer_escape_tests.rs"]
+mod explorer_escape_tests;

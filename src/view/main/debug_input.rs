@@ -314,7 +314,7 @@ impl PushedKey {
 /// (`push_egui_key`). 포인터(`press_focus`)·글자(`debug_inject_egui_text`) 주입과 진입 순서가 같다. 매핑 불가 키면
 /// 끊지도 넣지도 않고 `None`. 넣은 사건이 수식키 없는 Esc 누름이면(`RouteKey::bare_escape`, 수식키는 주입이 쥔 egui
 /// 수식키와 창이 지금 누른 것으로 보는 실물 Win·Super `EguiKeySink::super_held`) 실제 키처럼 메인 경로의 Esc 수신자
-/// (`key_nodes::bare_escape_decision`)를 정해 그 몫에 묶고(`window_feeds_key`) 단계 11 적용(`window_escape`)을 거친다.
+/// (`key_nodes::bare_escape_decision`)를 정해 그 몫에 묶고(`window_feeds_key`) 단계 11 적용(`apply_escape_decision`)을 거친다.
 /// 처리한 누름은 egui 큐에서 빠지고 키 주인 몫으로 넘어간다. egui 전용 입구라 단축키·끝 목적지 단계는 돌지 않는다.
 pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
     state: &mut crate::state::MainViewState,
@@ -354,7 +354,7 @@ pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
         // 결속은 winit 키의 단계 8 과 같은 판정이다. debug 주입은 수신자와 무관하게 egui 큐에 싣는다.
         let _ = state.window_feeds_key(decision, egui_surface, true);
         let held = sink.escape_held();
-        if !state.window_escape(decision, loaded, sink.queued_events(), held) {
+        if !state.apply_escape_decision(decision, loaded, sink.queued_events(), held) {
             tracing::debug!(
                 "the window did not take the injected Escape; it stays in the egui input"
             );

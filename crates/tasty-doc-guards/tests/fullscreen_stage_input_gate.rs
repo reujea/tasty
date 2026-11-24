@@ -33,7 +33,7 @@ fn keyboard_stage_gate_precedes_double_tap_and_escape() {
         "if self.try_consume_double_tap_key(engine) {",
         "1~3단계 double-tap",
     );
-    let escape = only_at(&src, "if self.try_consume_escape_key(event) {", "4단계 ESC");
+    let escape = only_at(&src, "if self.apply_escape_key_event(event) {", "4단계 ESC");
     assert!(
         gate < double_tap,
         "무대 입력 처리가 double-tap 뒤에 있어 일반 단축키가 실행될 수 있다."

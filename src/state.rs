@@ -359,6 +359,8 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             explorer_views: Default::default(),
             #[cfg(feature = "gui")]
+            key_event_dragging: false,
+            #[cfg(feature = "gui")]
             explorer_clipboard: Default::default(),
             #[cfg(feature = "gui")]
             file_clipboard: Default::default(),

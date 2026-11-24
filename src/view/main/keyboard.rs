@@ -110,7 +110,7 @@ impl MainView {
             return;
         }
 
-        if self.try_consume_escape_key(event) {
+        if self.apply_escape_key_event(event) {
             return;
         }
 
@@ -256,7 +256,7 @@ impl MainView {
     /// 수식키 없는 Escape 누름은 단계 11 적용(`MainViewState::apply_escape_key`)이 사건 시점 수신자(`self.key_decision`)로
     /// 처리한다. 대상인지는 단계 4 와 같은 판정(`key_class::is_bare_escape_press`, 논리 키가 없으면 물리 키)이다.
     /// 처리한 Esc 는 egui 입력에서 빼고, 키 주인이 읽을 몫은 그 원래 사건을 넘겨 둔다.
-    fn try_consume_escape_key(&mut self, event: &winit::event::KeyEvent) -> bool {
+    fn apply_escape_key_event(&mut self, event: &winit::event::KeyEvent) -> bool {
         let value = self.key_value(event);
         let escape_held = self.base.gpu.egui_escape_held();
         let consumed = self.state.apply_escape_key(
