@@ -15,7 +15,7 @@ use std::{
     collections::HashSet,
     fs as disk,
     fs::File,
-    io::{self, BufRead, Write},
+    io::{self, BufRead, Read, Write},
     os::unix::{
         fs::{MetadataExt, PermissionsExt},
         process::ExitStatusExt,
@@ -733,12 +733,16 @@ fn a_file_in_execution_or_mapped_executable_retains_the_root() {
     let dead = DeadRoot::new();
     // A multi-call build (uutils coreutils, BusyBox) picks its tool by the executable's own file
     // name, so a copy under any other name exits at once and nothing would be executing.
-    let tool = dead.path("data/sleep");
-    disk::copy("/bin/sleep", &tool).unwrap();
+    let tool = dead.path("data/cat");
+    disk::copy("/bin/cat", &tool).unwrap();
     disk::set_permissions(&tool, disk::Permissions::from_mode(0o700)).unwrap();
     let mut running = loop {
         // A process another test forks can hold the copy's write descriptor for a moment.
-        match Command::new(&tool).arg("30").spawn() {
+        let spawned = Command::new(&tool)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn();
+        match spawned {
             Ok(child) => break child,
             Err(e) if e.raw_os_error() == Some(libc::ETXTBSY) => {
                 std::thread::sleep(Duration::from_millis(5));
@@ -746,14 +750,27 @@ fn a_file_in_execution_or_mapped_executable_retains_the_root() {
             Err(e) => panic!("execute in the root: {e}"),
         }
     };
-    let verdict = dead.sweep_with(&nothing_found, &lease::KERNEL);
+    // The echo shows the copy running and waiting for more input, which it keeps doing until the
+    // input closes, so it is executing for the whole sweep.
+    let mut input = running.stdin.take().unwrap();
+    let mut output = running.stdout.take().unwrap();
+    let mut echo = [0; 1];
+    let echoed = input
+        .write_all(b"x")
+        .and_then(|()| output.read_exact(&mut echo))
+        .map(|()| echo);
+    let verdict = echoed
+        .as_ref()
+        .is_ok_and(|echo| echo == b"x")
+        .then(|| dead.sweep_with(&nothing_found, &lease::KERNEL));
     let executing = running.try_wait().unwrap().is_none();
     running.kill().unwrap();
     running.wait().unwrap();
     assert!(
-        executing,
-        "the process must have been executing through the sweep"
+        verdict.is_some() && executing,
+        "the copy must run: {echoed:?}"
     );
+    let verdict = verdict.unwrap();
     assert_eq!(verdict, (0, 1), "executing");
     dead.assert_retained_intact();
     let holder = Holder::start(true).hold("map-exec", &dead.path("data/target"));
