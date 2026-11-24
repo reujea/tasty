@@ -100,20 +100,22 @@ fn answered(
     surface_id: u32,
     read: tasty_terminal::OutputRead,
 ) -> JsonRpcResponse {
-    JsonRpcResponse::success(
-        id,
-        json!({
-            "text": read.text,
-            "surface_id": surface_id,
-            "stream": read.stream,
-            "cursor": read.cursor,
-            "next_cursor": read.next_cursor,
-            "raw_bytes": read.raw_bytes,
-            "retention_start": read.retention_start,
-            "retention_end": read.retention_end,
-            "skipped": read.skipped,
-        }),
-    )
+    JsonRpcResponse::success(id, read_fields(surface_id, read))
+}
+
+/// 원문 읽기 응답의 공통 키. 위치 읽기와 스캔 읽기가 같은 이름·뜻으로 싣는다.
+fn read_fields(surface_id: u32, read: tasty_terminal::OutputRead) -> serde_json::Value {
+    json!({
+        "text": read.text,
+        "surface_id": surface_id,
+        "stream": read.stream,
+        "cursor": read.cursor,
+        "next_cursor": read.next_cursor,
+        "raw_bytes": read.raw_bytes,
+        "retention_start": read.retention_start,
+        "retention_end": read.retention_end,
+        "skipped": read.skipped,
+    })
 }
 
 /// GUI와 헤드리스가 공유하는 원문 출력 조회 인자.
@@ -190,7 +192,9 @@ fn refused(
 }
 
 /// 스캐너 전용 커서를 읽고 전진시킨다. 사용자 마크와 별개다.
-/// 소비자가 둘이면 서로 읽을 구간을 건너뛰게 되므로 하나만 사용해야 한다(docs/surfaces/terminal/index.md).
+/// 소비자가 둘이면 서로 읽을 구간을 건너뛰게 되므로 하나만 사용해야 한다(docs/features/terminal-output/index.md).
+/// 응답은 위치 읽기와 같은 연속성 키를 늘 싣고, 출처 정보(`text_origins`)는 로컬 터미널에서 정할 수 있을
+/// 때만 싣는다. mirror는 로컬 사본이라 출처를 믿을 수 없어 계산하지 않는다(docs/reference/api.md).
 pub(crate) fn handle_read_since_scan_mark(
     engine: &mut EngineMut<'_>,
     id: serde_json::Value,
@@ -206,8 +210,30 @@ pub(crate) fn handle_read_since_scan_mark(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    let text = engine.take_since_output_scan_mark(surface_id, strip_ansi);
-    JsonRpcResponse::success(id, json!({ "text": text, "surface_id": surface_id }))
+    let with_origins = !engine.is_mirror_surface(surface_id);
+    let Some(scan) = engine.take_since_output_scan_mark(surface_id, strip_ansi, with_origins)
+    else {
+        return JsonRpcResponse::success(id, json!({ "text": "", "surface_id": surface_id }));
+    };
+    let mut result = read_fields(surface_id, scan.read);
+    if let Some(origins) = scan.origins {
+        result["text_origins"] = text_origins_json(&origins);
+    }
+    JsonRpcResponse::success(id, result)
+}
+
+fn text_origins_json(origins: &tasty_terminal::TextOrigins) -> serde_json::Value {
+    let ranges: Vec<serde_json::Value> = origins
+        .ranges
+        .iter()
+        .map(|r| json!({ "start": r.start, "end": r.end, "origin": r.origin.as_str() }))
+        .collect();
+    let gaps: Vec<serde_json::Value> = origins
+        .gaps
+        .iter()
+        .map(|g| json!({ "at": g.at, "reason": g.reason.as_str() }))
+        .collect();
+    json!({ "ranges": ranges, "gaps": gaps })
 }
 
 /// `surface.parse_since_mark` — read_since_mark 결과를 `tasty-output` 빌트인
@@ -379,3 +405,7 @@ mod tests {
         assert_eq!(r["surface_id"].as_u64(), Some(3));
     }
 }
+
+#[cfg(test)]
+#[path = "mark_scan_tests.rs"]
+mod scan_tests;

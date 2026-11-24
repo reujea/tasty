@@ -464,6 +464,11 @@ fn terminal_scan_cursor_is_separate_from_the_agent_mark() {
         "surface.read_since_scan_mark 응답에 text가 없다: {first:?}"
     );
     assert_eq!(first["surface_id"].as_u64(), Some(sid));
+    // 실제 PTY 터미널은 연속성 키와 출처 정보도 싣는다(키를 더하기만 한 응답).
+    for key in ["stream", "next_cursor", "skipped", "text_origins"] {
+        assert!(first.get(key).is_some(), "{key} 가 없다: {first:?}");
+    }
+    assert_eq!(first["cursor"].as_u64(), Some(0));
 
     let scan = |strip_ansi: bool| -> String {
         tasty.call(
