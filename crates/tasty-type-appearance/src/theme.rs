@@ -2200,6 +2200,20 @@ mod tests {
         }
     }
 
+    /// 알림 항목 줄 간격은 label-detail-gap의 alias다. 옛 size-2 배율 경로와 값이 같아야 한다.
+    #[test]
+    fn notification_item_line_gap_keeps_size_two_zoom_values() {
+        for (z, px) in [(0.85, 2.0), (1.0, 2.0), (1.25, 3.0), (1.5, 3.0), (2.0, 4.0)] {
+            let t = Theme::with_colors_and_zoom(dummy_colors(), false, z);
+            assert_eq!(t.notification_item_line_gap(), LogicalPx(px), "배율 {z}");
+            assert_eq!(
+                t.notification_item_line_gap(),
+                t.label_detail_gap,
+                "배율 {z}"
+            );
+        }
+    }
+
     /// 탭 밑줄·목록 선택 막대·워크스페이스 활성 막대는 selection-edge-width의 alias다.
     /// 별도 필드를 읽으면 selection-edge 값이 바뀔 때 혼자 남는다.
     #[test]

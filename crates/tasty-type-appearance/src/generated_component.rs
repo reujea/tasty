@@ -892,6 +892,30 @@ impl crate::theme::Theme {
         self.spacing_xs
     }
 
+    /// `component.collapsed-popup-specimen-flow-max-width` → `{primitive.size-560}` = 560px
+    #[inline]
+    pub fn collapsed_popup_specimen_flow_max_width(&self) -> LogicalPx {
+        LogicalPx((560.0 * self.ui_zoom).round())
+    }
+
+    /// `component.collapsed-popup-specimen-frame-width` → `{primitive.size-288}` = 288px
+    #[inline]
+    pub fn collapsed_popup_specimen_frame_width(&self) -> LogicalPx {
+        LogicalPx((288.0 * self.ui_zoom).round())
+    }
+
+    /// `component.collapsed-popup-specimen-tooltip-room` → `{primitive.size-96}` = 96px
+    #[inline]
+    pub fn collapsed_popup_specimen_tooltip_room(&self) -> LogicalPx {
+        LogicalPx((96.0 * self.ui_zoom).round())
+    }
+
+    /// `component.collapsed-popup-specimen-width` → `{primitive.size-440}` = 440px
+    #[inline]
+    pub fn collapsed_popup_specimen_width(&self) -> LogicalPx {
+        LogicalPx((440.0 * self.ui_zoom).round())
+    }
+
     /// `component.convert-popup-width` → `{primitive.size-240}` = 240px
     #[inline]
     pub fn convert_popup_width(&self) -> LogicalPx {
@@ -1238,6 +1262,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn dag_node_selected_ring(&self) -> HexColor {
         self.accent_primary()
+    }
+
+    /// `component.dag-node-selected-ring-offset` → `{semantic.border-width}` = 1px
+    #[inline]
+    pub fn dag_node_selected_ring_offset(&self) -> LogicalPx {
+        self.border_width
     }
 
     /// `component.dag-node-selected-ring-width` → `{semantic.focus-ring-width}` = 2px
@@ -1606,6 +1636,36 @@ impl crate::theme::Theme {
         LogicalPx((160.0 * self.ui_zoom).round())
     }
 
+    /// `component.explorer-detail-date-col-width` → `{primitive.size-132}` = 132px
+    #[inline]
+    pub fn explorer_detail_date_col_width(&self) -> LogicalPx {
+        LogicalPx((132.0 * self.ui_zoom).round())
+    }
+
+    /// `component.explorer-detail-name-col-min-width` → `{primitive.size-140}` = 140px
+    #[inline]
+    pub fn explorer_detail_name_col_min_width(&self) -> LogicalPx {
+        LogicalPx((140.0 * self.ui_zoom).round())
+    }
+
+    /// `component.explorer-detail-padding-x` → `{semantic.space-sm}` = 8px
+    #[inline]
+    pub fn explorer_detail_padding_x(&self) -> LogicalPx {
+        self.spacing_sm
+    }
+
+    /// `component.explorer-detail-size-col-width` → `{primitive.size-80}` = 80px
+    #[inline]
+    pub fn explorer_detail_size_col_width(&self) -> LogicalPx {
+        LogicalPx((80.0 * self.ui_zoom).round())
+    }
+
+    /// `component.explorer-detail-type-col-width` → `{primitive.size-92}` = 92px
+    #[inline]
+    pub fn explorer_detail_type_col_width(&self) -> LogicalPx {
+        LogicalPx((92.0 * self.ui_zoom).round())
+    }
+
     /// `component.explorer-drag-chip-max-width` → `{primitive.size-240}` = 240px
     #[inline]
     pub fn explorer_drag_chip_max_width(&self) -> LogicalPx {
@@ -1736,6 +1796,18 @@ impl crate::theme::Theme {
     #[inline]
     pub fn explorer_name_error_max_width(&self) -> LogicalPx {
         LogicalPx((240.0 * self.ui_zoom).round())
+    }
+
+    /// `component.explorer-name-error-specimen-row-room` → `{primitive.size-56}` = 56px
+    #[inline]
+    pub fn explorer_name_error_specimen_row_room(&self) -> LogicalPx {
+        LogicalPx((56.0 * self.ui_zoom).round())
+    }
+
+    /// `component.explorer-name-error-specimen-width` → `{primitive.size-560}` = 560px
+    #[inline]
+    pub fn explorer_name_error_specimen_width(&self) -> LogicalPx {
+        LogicalPx((560.0 * self.ui_zoom).round())
     }
 
     /// `component.explorer-preview-body-min-height` → `{primitive.size-120}` = 120px
@@ -2190,6 +2262,48 @@ impl crate::theme::Theme {
         self.spacing_sm
     }
 
+    /// `component.fp-host-badge-bg` → `{semantic.tint-info-bg}`
+    #[inline]
+    pub fn fp_host_badge_bg(&self) -> HexColor {
+        self.tint_info_bg()
+    }
+
+    /// `component.fp-host-badge-fg` → `{semantic.accent-remote-raised}`
+    #[inline]
+    pub fn fp_host_badge_fg(&self) -> HexColor {
+        self.accent_remote_raised()
+    }
+
+    /// `component.fp-host-badge-font-size` → `{semantic.font-size-caption}` = 11px
+    #[inline]
+    pub fn fp_host_badge_font_size(&self) -> LogicalPx {
+        self.font_size_caption
+    }
+
+    /// `component.fp-host-badge-gap` → `{semantic.space-xs}` = 4px
+    #[inline]
+    pub fn fp_host_badge_gap(&self) -> LogicalPx {
+        self.spacing_xs
+    }
+
+    /// `component.fp-host-badge-height` → `{semantic.chip-height}` = 22px
+    #[inline]
+    pub fn fp_host_badge_height(&self) -> LogicalPx {
+        LogicalPx((22.0 * self.ui_zoom).round())
+    }
+
+    /// `component.fp-host-badge-icon-size` → `{semantic.icon-size-xs}` = 12px
+    #[inline]
+    pub fn fp_host_badge_icon_size(&self) -> LogicalPx {
+        self.icon_glyph_size_xs
+    }
+
+    /// `component.fp-host-badge-padding-x` → `{semantic.space-sm}` = 8px
+    #[inline]
+    pub fn fp_host_badge_padding_x(&self) -> LogicalPx {
+        self.spacing_sm
+    }
+
     /// `component.fp-inset-end` → `{semantic.space-sm}` = 8px
     #[inline]
     pub fn fp_inset_end(&self) -> LogicalPx {
@@ -2230,6 +2344,36 @@ impl crate::theme::Theme {
     #[inline]
     pub fn fp_section_gap(&self) -> LogicalPx {
         self.spacing_sm
+    }
+
+    /// `component.fp-specimen-view-height` → `{primitive.size-300}` = 300px
+    #[inline]
+    pub fn fp_specimen_view_height(&self) -> LogicalPx {
+        LogicalPx((300.0 * self.ui_zoom).round())
+    }
+
+    /// `component.fp-specimen-view-width` → `{primitive.size-400}` = 400px
+    #[inline]
+    pub fn fp_specimen_view_width(&self) -> LogicalPx {
+        LogicalPx((400.0 * self.ui_zoom).round())
+    }
+
+    /// `component.git-diff-add-bg` → `{semantic.tint-success-bg}`
+    #[inline]
+    pub fn git_diff_add_bg(&self) -> HexColor {
+        self.tint_success_bg()
+    }
+
+    /// `component.git-diff-del-bg` → `{semantic.tint-danger-bg}`
+    #[inline]
+    pub fn git_diff_del_bg(&self) -> HexColor {
+        self.tint_danger_bg()
+    }
+
+    /// `component.git-diff-hunk-bg` → `{semantic.tint-info-bg}`
+    #[inline]
+    pub fn git_diff_hunk_bg(&self) -> HexColor {
+        self.tint_info_bg()
     }
 
     /// `component.git-toolbar-height` → `{semantic.toolbar-height}` = 32px
@@ -3168,7 +3312,7 @@ impl crate::theme::Theme {
         LogicalPx((38.0 * self.ui_zoom).round())
     }
 
-    /// `component.loading-lockup-tracking` → `{primitive.letter-spacing-n1px}` = -1px
+    /// `component.loading-lockup-tracking` → `{semantic.letter-spacing-brand-lockup}` = -1px
     #[inline]
     pub fn loading_lockup_tracking(&self) -> LogicalPx {
         LogicalPx((-(1.0 * self.ui_zoom)).round())
@@ -3996,10 +4140,10 @@ impl crate::theme::Theme {
         self.attention_completion()
     }
 
-    /// `component.notification-item-line-gap` → `{primitive.size-2}` = 2px
+    /// `component.notification-item-line-gap` → `{semantic.label-detail-gap}` = 2px
     #[inline]
     pub fn notification_item_line_gap(&self) -> LogicalPx {
-        LogicalPx((2.0 * self.ui_zoom).round())
+        self.label_detail_gap
     }
 
     /// `component.notification-item-meta-fg` → `{semantic.text-muted}`
@@ -4380,6 +4524,12 @@ impl crate::theme::Theme {
         self.text_primary()
     }
 
+    /// `component.plugins-attention-list-width` → `{primitive.size-240}` = 240px
+    #[inline]
+    pub fn plugins_attention_list_width(&self) -> LogicalPx {
+        LogicalPx((240.0 * self.ui_zoom).round())
+    }
+
     /// `component.plugins-header-glyph` → `{semantic.accent-decorative}`
     #[inline]
     pub fn plugins_header_glyph(&self) -> HexColor {
@@ -4654,6 +4804,36 @@ impl crate::theme::Theme {
     #[inline]
     pub fn remote_label_col(&self) -> LogicalPx {
         LogicalPx((112.0 * self.ui_zoom).round())
+    }
+
+    /// `component.remote-row-popup-width` → `{primitive.size-360}` = 360px
+    #[inline]
+    pub fn remote_row_popup_width(&self) -> LogicalPx {
+        LogicalPx((360.0 * self.ui_zoom).round())
+    }
+
+    /// `component.remote-row-specimen-height` → `{primitive.size-288}` = 288px
+    #[inline]
+    pub fn remote_row_specimen_height(&self) -> LogicalPx {
+        LogicalPx((288.0 * self.ui_zoom).round())
+    }
+
+    /// `component.remote-row-specimen-narrow-width` → `{primitive.size-320}` = 320px
+    #[inline]
+    pub fn remote_row_specimen_narrow_width(&self) -> LogicalPx {
+        LogicalPx((320.0 * self.ui_zoom).round())
+    }
+
+    /// `component.remote-row-specimen-rail-width` → `{primitive.size-288}` = 288px
+    #[inline]
+    pub fn remote_row_specimen_rail_width(&self) -> LogicalPx {
+        LogicalPx((288.0 * self.ui_zoom).round())
+    }
+
+    /// `component.remote-row-specimen-width` → `{primitive.size-480}` = 480px
+    #[inline]
+    pub fn remote_row_specimen_width(&self) -> LogicalPx {
+        LogicalPx((480.0 * self.ui_zoom).round())
     }
 
     /// `component.restore-notice-body-fg` → `{semantic.text-secondary}`
@@ -5112,6 +5292,12 @@ impl crate::theme::Theme {
         self.sidebar_wordmark_font_size
     }
 
+    /// `component.specimen-annotation-border` → `{semantic.border-control}`
+    #[inline]
+    pub fn specimen_annotation_border(&self) -> HexColor {
+        self.border_control()
+    }
+
     /// `component.spinner-duration` → `{primitive.duration-900}` = 900ms
     #[inline]
     pub fn spinner_duration(&self) -> Millis {
@@ -5380,6 +5566,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn surface_occupied_soft_border(&self) -> HexColor {
         self.accent_success_raised()
+    }
+
+    /// `component.swatch-border` → `{semantic.border-control}`
+    #[inline]
+    pub fn swatch_border(&self) -> HexColor {
+        self.border_control()
     }
 
     /// `component.swatch-radius` → `{semantic.radius-sm}` = 2px
@@ -5868,6 +6060,12 @@ impl crate::theme::Theme {
         self.overlay_hover()
     }
 
+    /// `component.titlebar-caption-glyph-size` → `{semantic.icon-size-window-caption}` = 10px
+    #[inline]
+    pub fn titlebar_caption_glyph_size(&self) -> LogicalPx {
+        LogicalPx((10.0 * self.ui_zoom).round())
+    }
+
     /// `component.titlebar-caption-width` → `{primitive.size-46}` = 46px
     #[inline]
     pub fn titlebar_caption_width(&self) -> LogicalPx {
@@ -6244,6 +6442,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn trigger_menu_min_width(&self) -> LogicalPx {
         self.field_width_lg
+    }
+
+    /// `component.tutorial-step-specimen-min-width` → `{primitive.size-440}` = 440px
+    #[inline]
+    pub fn tutorial_step_specimen_min_width(&self) -> LogicalPx {
+        LogicalPx((440.0 * self.ui_zoom).round())
     }
 
     /// `component.ui-code-bg` → `{semantic.surface-raised}`

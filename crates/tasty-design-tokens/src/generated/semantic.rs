@@ -22,6 +22,9 @@ pub const BORDER_DASH_GAP: LogicalPx = super::primitive::SIZE_4;
 /// `semantic.border-width` → `{primitive.size-1}` = 1px
 pub const BORDER_WIDTH: LogicalPx = super::primitive::SIZE_1;
 
+/// `semantic.chip-height` → `{primitive.size-22}` = 22px
+pub const CHIP_HEIGHT: LogicalPx = super::primitive::SIZE_22;
+
 /// `semantic.control-height` → `{primitive.size-28}` = 28px
 pub const CONTROL_HEIGHT: LogicalPx = super::primitive::SIZE_28;
 
@@ -109,11 +112,17 @@ pub const ICON_SIZE_MD: LogicalPx = super::primitive::SIZE_16;
 /// `semantic.icon-size-sm` → `{primitive.size-14}` = 14px
 pub const ICON_SIZE_SM: LogicalPx = super::primitive::SIZE_14;
 
+/// `semantic.icon-size-window-caption` → `{primitive.size-10}` = 10px
+pub const ICON_SIZE_WINDOW_CAPTION: LogicalPx = super::primitive::SIZE_10;
+
 /// `semantic.icon-size-xs` → `{primitive.size-12}` = 12px
 pub const ICON_SIZE_XS: LogicalPx = super::primitive::SIZE_12;
 
 /// `semantic.label-detail-gap` → `{primitive.size-2}` = 2px
 pub const LABEL_DETAIL_GAP: LogicalPx = super::primitive::SIZE_2;
+
+/// `semantic.letter-spacing-brand-lockup` → `{primitive.letter-spacing-n1px}` = -1px
+pub const LETTER_SPACING_BRAND_LOCKUP: LogicalPx = super::primitive::LETTER_SPACING_N1PX;
 
 /// `semantic.letter-spacing-ui` → `{primitive.letter-spacing-0}` = 0
 pub const LETTER_SPACING_UI: LogicalPx = super::primitive::LETTER_SPACING_0;
@@ -175,6 +184,9 @@ pub const RADIUS_PILL: LogicalPx = super::primitive::RADIUS_FULL;
 /// `semantic.radius-sm` → `{primitive.radius-2}` = 2px
 pub const RADIUS_SM: LogicalPx = super::primitive::RADIUS_2;
 
+/// `semantic.scrim-blur` → `{primitive.size-1}` = 1px
+pub const SCRIM_BLUR: LogicalPx = super::primitive::SIZE_1;
+
 /// `semantic.selection-edge-width` → `{primitive.size-2}` = 2px
 pub const SELECTION_EDGE_WIDTH: LogicalPx = super::primitive::SIZE_2;
 
@@ -198,6 +210,9 @@ pub const STATE_DIM_OPACITY: f32 = super::primitive::OPACITY_DISABLED;
 
 /// `semantic.state-disabled-opacity` → `{primitive.opacity-disabled}` = 0.5
 pub const STATE_DISABLED_OPACITY: f32 = super::primitive::OPACITY_DISABLED;
+
+/// `semantic.state-recessed-opacity` → `{primitive.opacity-recessed}` = 0.4
+pub const STATE_RECESSED_OPACITY: f32 = super::primitive::OPACITY_RECESSED;
 
 /// `semantic.status-bar-height` → `{primitive.size-24}` = 24px
 pub const STATUS_BAR_HEIGHT: LogicalPx = super::primitive::SIZE_24;
