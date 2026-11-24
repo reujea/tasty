@@ -347,27 +347,48 @@ fn a_symlinked_target_is_refused() {
     );
 }
 
-/// 남긴 target 안의 링크된 프로필 폴더는 따라가지 않는다.
+/// 남긴 target 안의 프로필 폴더(깊이 1)나 교차 타깃 프로필(깊이 2)이 링크면 링크만 지운다.
+/// 링크 대상의 파일은 그대로 두고, 뒤의 스테이징이 그 경로로 링크 대상을 쓰지 않게 링크는 남기지 않는다.
 #[test]
-fn a_cached_run_does_not_follow_symlinked_profile_dirs() {
+fn a_cached_run_removes_symlinked_profile_dirs_without_following_them() {
     let r = repo();
     let root = &r.root;
     let day = today();
     put(root, MARKER);
     fs::write(root.join(MARKER), format!("{day}\n")).expect("표지");
+    put(root, "target/x86_64-pc-windows-gnu/release/deps/keep");
     let outside = r.dir.path().join("outside-profile");
     put(&outside, "builtin-plugins/id/x");
+    put(&outside, "builtin-plugins.lock");
     put(&outside, "nested/builtin-plugins/id/x");
-    std::os::unix::fs::symlink(&outside, root.join("target/linked")).expect("링크");
+    let outside2 = r.dir.path().join("outside-cross-profile");
+    put(&outside2, "builtin-plugins/id/x");
+    std::os::unix::fs::symlink(&outside, root.join("target/debug")).expect("링크");
+    std::os::unix::fs::symlink(&outside2, root.join("target/x86_64-pc-windows-gnu/debug"))
+        .expect("링크");
     let (code, log) = run(root, "0");
     if today() != day {
-        return a_cached_run_does_not_follow_symlinked_profile_dirs();
+        return a_cached_run_removes_symlinked_profile_dirs_without_following_them();
     }
     assert_eq!(code, 0, "{log}");
     assert!(log.contains("action=keep reason=cached"), "{log}");
-    assert!(outside.join("builtin-plugins/id/x").exists(), "{log}");
+    for p in [
+        "builtin-plugins/id/x",
+        "builtin-plugins.lock",
+        "nested/builtin-plugins/id/x",
+    ] {
+        assert!(outside.join(p).exists(), "링크 대상의 {p}를 지웠다\n{log}");
+    }
+    assert!(outside2.join("builtin-plugins/id/x").exists(), "{log}");
+    for link in ["target/debug", "target/x86_64-pc-windows-gnu/debug"] {
+        assert!(
+            fs::symlink_metadata(root.join(link)).is_err(),
+            "링크 {link}가 남았다\n{log}"
+        );
+    }
     assert!(
-        outside.join("nested/builtin-plugins/id/x").exists(),
+        root.join("target/x86_64-pc-windows-gnu/release/deps/keep")
+            .exists(),
         "{log}"
     );
 }

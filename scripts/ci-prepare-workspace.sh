@@ -132,15 +132,24 @@ MSYS2_ARG_CONV_EXCL='*' git clean -ffdxq -e /target/
 # tests/spawn_diag/mod.rs의 BUNDLE_LINK_CACHE_DIR. 받기 캐시 target/official-plugins는 SHA-256 대조 뒤에만 쓰므로 남긴다.
 # workspace 원천 번들 플러그인(crates/tasty-host-plugin/src/builtin.rs의 BuiltinSource::Workspace, 지금은 mesh-demo)의
 # 실행 파일도 지운다. debug 호스트가 실행 파일 옆의 이 파일로 번들을 다시 만들기 때문이다. Cargo는 지워진 실행 파일을 다음 빌드에서 다시 놓는다.
+# 프로필·교차 타깃 폴더(target/*, target/*/*)가 링크면 링크 자체만 지운다. 링크 대상은 작업 트리 밖일 수 있어
+# 건드리지 않고, 남겨 두면 뒤의 스테이징이 그 링크를 따라가 이전 잠금·번들을 쓴다. 깊이 1을 먼저 지운 뒤 깊이 2를
+# 다시 펼쳐야 링크 안으로 들어가지 않는다. 파일을 가리키는 링크는 프로필 폴더가 아니므로 남긴다.
+unlink_dir_links() {
+    local d
+    for d in "$@"; do
+        if [[ -L "$d" && ! -f "$d" ]] && ! rm -f "$d"; then
+            echo "Error: could not remove the symbolic link $d" >&2
+            exit 1
+        fi
+    done
+}
 if [[ "$action" == keep ]]; then
     shopt -s nullglob
+    unlink_dir_links target/*
+    unlink_dir_links target/*/*
     leftovers=(target/official-plugin-fixtures-sync target/official-plugin-fixtures-sync.lock*)
     for dir in target/*/ target/*/*/; do
-        # 링크인 프로필·타깃 폴더는 작업 트리 밖일 수 있으므로 들어가지 않는다.
-        d="${dir%/}"
-        if [[ -L "$d" || -L "${d%/*}" ]]; then
-            continue
-        fi
         leftovers+=(
             "${dir}builtin-plugins"
             "${dir}builtin-plugins.lock"*
