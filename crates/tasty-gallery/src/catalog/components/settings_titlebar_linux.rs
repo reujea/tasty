@@ -117,7 +117,8 @@ fn frame(ui: &mut egui::Ui, th: &Theme, crop_w: f32, active: bool, close: Close,
             .max_rect(window.shrink(bw))
             .layout(egui::Layout::top_down(egui::Align::Min)),
     );
-    inner.set_clip_rect(crop);
+    // 상위 클립(갤러리 스크롤 영역)을 잃지 않도록 칸과 겹치는 부분만 남긴다.
+    inner.set_clip_rect(crop.intersect(ui.clip_rect()));
     inner.spacing_mut().item_spacing = egui::Vec2::ZERO;
     let inner_radius = (radius - bw).max(0.0) as u8;
     bar(&mut inner, th, active, close, tip, inner_radius);
@@ -346,6 +347,28 @@ mod tests {
                 .iter()
                 .any(|r| r.width() == 1100.0 && r.height() == 736.0);
             assert!(found, "zoom {zoom}: no 1100 x 736 window");
+        }
+    }
+
+    /// Given 칸 일부만 덮는 상위 클립(갤러리 스크롤 영역) When 칸을 그리면 Then 모든 도형의 클립이 그 안이다.
+    #[test]
+    fn the_crop_stays_inside_the_parent_clip() {
+        let parent = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1600.0, 40.0));
+        let out = shapes(1.0, Some(parent));
+        // 빈 자리 도형(Noop)은 그리지 않으므로 뺀다.
+        let drawn: Vec<_> = out
+            .iter()
+            .filter(|s| s.shape.visual_bounding_rect().is_positive())
+            .collect();
+        assert!(!drawn.is_empty());
+        for s in drawn {
+            assert_eq!(
+                s.clip_rect.intersect(parent),
+                s.clip_rect,
+                "clip {:?} leaves the parent clip: {:?}",
+                s.clip_rect,
+                s.shape.visual_bounding_rect()
+            );
         }
     }
 }
