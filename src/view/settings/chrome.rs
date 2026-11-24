@@ -197,9 +197,21 @@ impl SettingsChrome {
         }
     }
 
-    /// 장식 전환으로 그 자리에서 적용된 창 크기. 한 번만 돌려준다.
-    pub(crate) fn take_applied_size(&mut self) -> Option<PhysicalSize<u32>> {
-        self.applied_size.take()
+    /// 장식 전환으로 그 자리에서 적용된 창 크기가 있으면 한 번만 `resize`로 GPU 표면에 넘기고 참을 돌려준다.
+    /// `resize`는 GPU가 실제로 쓰는 표면 크기를 돌려준다. 텍스처 한계로 줄어들 수 있으므로 영역은 적용 크기가 아니라
+    /// 그 표면 크기로 그린 패스를 기다린다.
+    pub(crate) fn resize_surface(
+        &mut self,
+        resize: impl FnOnce(PhysicalSize<u32>) -> PhysicalSize<u32>,
+    ) -> bool {
+        let Some(applied) = self.applied_size.take() else {
+            return false;
+        };
+        let surface = resize(applied);
+        if self.awaited_size.is_some() {
+            self.awaited_size = Some(surface);
+        }
+        true
     }
 
     /// 저널이 멈춘 동안 창 배율이 바뀌었다. 다시 그리지 않으므로 직전 닫기 버튼 영역을 새 배율로 옮겨 계속 받는다.
@@ -877,20 +889,51 @@ mod tests {
         );
     }
 
+    /// Given 장식 전환으로 요청한 크기가 GPU 텍스처 한계보다 커서 표면이 그보다 작게 맞춰졌을 때, When 그 표면 크기로
+    /// 그린 패스가 끝나면 Then 가장자리 누름이 다시 리사이즈를 시작한다.
+    #[test]
+    fn edge_areas_come_back_when_the_surface_is_clamped() {
+        let applied = PhysicalSize::new(9000, 736);
+        let clamped = PhysicalSize::new(8192, 736);
+        let mut c = chrome(false);
+        c.cursor = at(8191.0, 300.0);
+        c.note_applied_size(Some(applied));
+        let mut asked = None;
+        assert!(c.resize_surface(|size| {
+            asked = Some(size);
+            clamped
+        }));
+        assert_eq!(asked, Some(applied));
+        record_empty_pass(&mut c, clamped);
+        assert_eq!(
+            run(&mut c, PRESS, true, clamped),
+            (true, Some(ResizeDirection::East))
+        );
+    }
+
     /// Given 장식 전환으로 요청한 크기를 창이 그 자리에서 적용했을 때 Then 호출자는 그 크기를 한 번 받아 GPU 표면을
     /// 맞추고, 새 패스가 영역을 다시 적기 전에는 리사이즈를 시작하지 않는다. When 적용되지 않았으면(X11) Then 받을
     /// 크기가 없다(`Resized`가 온다).
     #[test]
     fn a_size_applied_on_the_spot_reaches_the_gpu_once() {
         let mut c = chrome(false);
+        let mut sent = Vec::new();
         c.note_applied_size(None);
-        assert_eq!(c.take_applied_size(), None);
+        assert!(!c.resize_surface(|size| {
+            sent.push(size);
+            size
+        }));
         assert!(!c.areas_stale);
         let applied = PhysicalSize::new(1100, 736);
         c.note_applied_size(Some(applied));
         assert!(c.areas_stale);
-        assert_eq!(c.take_applied_size(), Some(applied));
-        assert_eq!(c.take_applied_size(), None);
+        for _ in 0..2 {
+            c.resize_surface(|size| {
+                sent.push(size);
+                size
+            });
+        }
+        assert_eq!(sent, vec![applied]);
     }
 
     /// Given 저널이 멈춘 창, When 배율이 1에서 2로 바뀌고 창이 2200으로 넓어지면 Then 닫기 버튼 영역도 두 배 자리로
