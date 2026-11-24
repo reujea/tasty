@@ -744,6 +744,27 @@ mod tests {
         assert_eq!(bar_actions(passes, true), Vec::new());
     }
 
+    /// Given 제목 줄에서 오른쪽 버튼을 누른 포인터, When 다음 패스에 본문에서 왼쪽을 누르고 둘 다 누른 채 움직이면
+    /// Then 드래그 후보를 만든 제목 줄 누름이 오른쪽이라 창 이동이 아니다.
+    #[test]
+    fn a_left_press_outside_the_bar_does_not_turn_a_right_drag_into_a_move() {
+        use egui::PointerButton::{Primary, Secondary};
+        let moved_to = |x: f32, y: f32| egui::Event::PointerMoved(egui::pos2(x, y));
+        // 제목 줄(높이 36) 아래 끝에서 눌러 클릭 한계 안(5)만 움직여 본문으로 나간다. 그보다 크게 움직이면 그 이동이
+        // 오른쪽 드래그를 먼저 시작한다.
+        let passes = vec![
+            vec![moved_to(500.0, 33.0)],
+            vec![pointer((500.0, 33.0), Secondary, true)],
+            vec![moved_to(500.0, 38.0)],
+            vec![pointer((500.0, 38.0), Primary, true)],
+            vec![moved_to(540.0, 38.0)],
+            vec![moved_to(580.0, 38.0)],
+            vec![pointer((580.0, 38.0), Primary, false)],
+            vec![pointer((580.0, 38.0), Secondary, false)],
+        ];
+        assert_eq!(bar_actions(passes, true), Vec::new());
+    }
+
     /// Given 설정창 제목 줄의 빈 영역, When 왼쪽 버튼으로 끌면 Then 창 이동이고, When 오른쪽 버튼으로 끌면 Then
     /// 아무것도 하지 않는다. 메인 창 설정(`primary_drag_only` 거짓)은 오른쪽 드래그도 이동으로 보고한다.
     #[test]
