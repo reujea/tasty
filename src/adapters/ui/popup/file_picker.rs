@@ -15,6 +15,8 @@ pub(crate) mod folder;
 #[cfg(test)]
 mod folder_tests;
 mod footer;
+#[cfg(test)]
+mod host_badge_tests;
 pub(crate) mod instances;
 #[cfg(test)]
 mod layout_tests;
@@ -568,13 +570,14 @@ pub(super) fn row_height(th: &Theme) -> LogicalPx {
     pad + name.max(th.icon_glyph_size_md) + pad
 }
 
-/// 원격 호스트를 user@host 형태로 표시하는 배지.
+/// 원격 호스트를 user@host 형태로 표시하는 배지. 프로필 이름이 없는 attach(빈 호스트)는 호스트 자리에
+/// `attach.mirror_pill_label` 낱말을 label 글꼴로 쓴다.
 fn host_badge(ui: &mut egui::Ui, th: &Theme, host: &str) {
     let info = th.accent_info();
-    let font = egui::FontId::monospace(th.font_size_caption.value());
+    let (text, font) = badge_text(th, host);
     let galley = ui
         .painter()
-        .layout_no_wrap(host.to_owned(), font, egui::Color32::PLACEHOLDER);
+        .layout_no_wrap(text, font, egui::Color32::PLACEHOLDER);
     let glyph = th.icon_glyph_size_xs.value();
     let gap = th.spacing_xs.value();
     let pad_x = th.spacing_sm.value();
@@ -608,6 +611,19 @@ fn host_badge(ui: &mut egui::Ui, th: &Theme, host: &str) {
         rect.center().y - galley.rect.height() * 0.5,
     );
     ui.painter().galley(pos, galley, info_color);
+}
+
+/// 배지에 쓸 글자와 글꼴. 호스트 이름은 mono, 빈 호스트의 낱말은 label 글꼴이다.
+fn badge_text(th: &Theme, host: &str) -> (String, egui::FontId) {
+    let size = th.font_size_caption.value();
+    if host.is_empty() {
+        (
+            t("attach.mirror_pill_label").to_string(),
+            tasty_ui_widgets::label_font(size),
+        )
+    } else {
+        (host.to_owned(), egui::FontId::monospace(size))
+    }
 }
 
 fn hline(ui: &egui::Ui, th: &Theme, x: egui::Rangef, y: f32) {
