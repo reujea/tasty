@@ -4,14 +4,14 @@
 //!
 //! 설정 필드와 script_bindings, 전달받은 PluginBindingInput을 읽는다.
 //! 더블탭·수식키 없는 키·수식키 단독 입력은 제외한다.
-//! 탭/workspace/카테고리/링크 역할은 현재 설정을 사용한다. 카테고리는 folders가 켜졌을 때만 표시한다.
+//! 탭/workspace/카테고리/링크 역할은 현재 설정을 사용한다. 링크 역할은 클릭을 일으키는 물리 키의 조합에 붙는다. 카테고리는 folders가 켜졌을 때만 표시한다.
 //! 마우스 캡처 우회는 Shift를 포함한 입력에 적용되지만 안내는 Shift 단독 섹션에 한 번만 표시한다.
 //! 빈 조합도 유지해 바인딩 없음을 보여준다(docs/design/policies/key-mapping.md).
 //!
 //! 현재 modifier_hint_overlay는 플러그인 바인딩에 빈 목록을 전달한다.
 //! 모델은 입력받은 플러그인 항목을 모두 포함하며 소유자·포커스 선택은 호출자 책임이다.
 
-use tasty_settings::KeybindingSettings;
+use tasty_settings::{KeybindingSettings, LinkModifier};
 
 use tasty_key_match::parse_binding;
 
@@ -103,6 +103,25 @@ pub fn build_hint_sections(
     categories_enabled: bool,
     plugin_bindings: &[PluginBindingInput],
 ) -> Vec<HintSection> {
+    build_hint_sections_for(
+        held,
+        kb,
+        link_click_modifier,
+        categories_enabled,
+        plugin_bindings,
+        cfg!(target_os = "macos"),
+    )
+}
+
+/// [`build_hint_sections`]의 OS를 인자로 받는 판. 시험이 macOS 매핑을 다른 OS에서 확인할 때 쓴다.
+fn build_hint_sections_for(
+    held: Combo,
+    kb: &KeybindingSettings,
+    link_click_modifier: &str,
+    categories_enabled: bool,
+    plugin_bindings: &[PluginBindingInput],
+    macos: bool,
+) -> Vec<HintSection> {
     let mut sections: Vec<HintSection> = combos_containing_all(held)
         .into_iter()
         .map(|combo| HintSection {
@@ -187,7 +206,9 @@ pub fn build_hint_sections(
     let tab_combo = Combo::parse_modifiers(&kb.tab_switch_modifier);
     let ws_combo = Combo::parse_modifiers(&kb.workspace_switch_modifier);
     let cat_combo = Combo::parse_modifiers(&kb.category_switch_modifier);
-    let link_combo = Combo::parse_modifiers(link_click_modifier); // "none" → None
+    // 클릭 판정(src/view/main/mouse.rs)과 같은 변환으로 실제 클릭 키의 토큰 조합을 구한다. macOS의 alt는 Option 줄이다.
+    let link_combo =
+        tasty_key_match::link_click_combo_for(LinkModifier::parse(link_click_modifier), macos);
     for sec in &mut sections {
         if sec.combo.shift && !sec.combo.ctrl && !sec.combo.alt && !sec.combo.option {
             sec.roles.push(HintRole::MouseCaptureBypass);
@@ -206,7 +227,7 @@ pub fn build_hint_sections(
         }
     }
 
-    if silent_option_hold(held, &sections, cfg!(target_os = "macos")) {
+    if silent_option_hold(held, &sections, macos) {
         return Vec::new();
     }
     sections
@@ -444,6 +465,34 @@ mod tests {
                     sec.combo.name()
                 );
             }
+        }
+    }
+
+    fn sections_with_link_role(sections: &[HintSection]) -> Vec<String> {
+        sections
+            .iter()
+            .filter(|s| s.roles.contains(&HintRole::LinkClick))
+            .map(|s| s.combo.name())
+            .collect()
+    }
+
+    /// macOS에서 링크 클릭 alt는 물리 Option이므로 안내는 Command(토큰 alt) 줄이 아니라 Option 줄에 붙는다.
+    #[test]
+    fn macos_alt_link_role_sits_on_the_option_row() {
+        let on_option = build_hint_sections_for(option(), &kb(), "alt", false, &[], true);
+        assert_eq!(sections_with_link_role(&on_option), ["option"]);
+        let on_alt = build_hint_sections_for(alt(), &kb(), "alt", false, &[], true);
+        assert_eq!(sections_with_link_role(&on_alt), Vec::<String>::new());
+    }
+
+    /// macOS 밖에서는 링크 클릭 alt가 토큰 alt와 같은 물리 Alt다. ctrl은 모든 OS에서 Ctrl 줄이다.
+    #[test]
+    fn other_os_alt_link_role_sits_on_the_alt_row() {
+        let on_alt = build_hint_sections_for(alt(), &kb(), "alt", false, &[], false);
+        assert_eq!(sections_with_link_role(&on_alt), ["alt"]);
+        for macos in [true, false] {
+            let on_ctrl = build_hint_sections_for(ctrl(), &kb(), "ctrl", false, &[], macos);
+            assert_eq!(sections_with_link_role(&on_ctrl), ["ctrl"], "macos={macos}");
         }
     }
 
