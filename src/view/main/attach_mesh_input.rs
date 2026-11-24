@@ -28,7 +28,7 @@ pub(crate) struct AttachMeshForwardState {
 }
 
 impl MainView {
-    /// 포인터 위치의 원격 mesh surface와 영역.
+    /// 포인터 위치의 원격 mesh surface와 영역. 버튼을 누른 채면 마지막으로 누른 leaf가 원격일 때만 그 leaf다.
     pub(super) fn attach_mesh_target_at(
         &self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
@@ -36,8 +36,8 @@ impl MainView {
         y: f32,
     ) -> Option<(u32, PhysicalRect)> {
         let regions = self.mesh_regions(engine);
-        let press = self.state.mesh_press.held(MeshSide::Attach);
-        crate::state::mesh_frames::pointer_target(&regions, press, MeshSide::Attach, x, y)
+        let presses = &self.state.mesh_press;
+        crate::state::mesh_frames::motion_target(&regions, presses, MeshSide::Attach, x, y)
             .map(|r| (r.id, r.rect))
     }
 

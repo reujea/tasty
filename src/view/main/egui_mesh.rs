@@ -72,7 +72,8 @@ struct MeshTarget {
 }
 
 impl MainView {
-    /// 합성과 같은 surface 영역으로 포인터 대상을 찾는다. 로컬 mesh를 누른 채면 그 leaf다.
+    /// 합성과 같은 surface 영역으로 포인터 대상을 찾는다. 버튼을 누른 채면 마지막으로 누른 leaf가 로컬일 때만
+    /// 그 leaf다(`mesh_frames::motion_target`).
     pub(super) fn egui_mesh_target_at(
         &self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
@@ -80,8 +81,8 @@ impl MainView {
         y: f32,
     ) -> Option<(u32, String, PhysicalRect)> {
         let regions = self.mesh_regions(engine);
-        let press = self.state.mesh_press.held(MeshSide::Local);
-        let r = crate::state::mesh_frames::pointer_target(&regions, press, MeshSide::Local, x, y)?;
+        let presses = &self.state.mesh_press;
+        let r = crate::state::mesh_frames::motion_target(&regions, presses, MeshSide::Local, x, y)?;
         let ms = engine.find_surface_by_id(r.id)?.mesh()?;
         Some((r.id, ms.plugin_id.clone(), r.rect))
     }

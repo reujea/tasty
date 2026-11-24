@@ -49,9 +49,9 @@ pub(crate) struct MeshPress {
 pub(crate) struct MeshPresses(Vec<(winit::event::MouseButton, MeshPress)>);
 
 impl MeshPresses {
-    /// `side`에서 누른 채인 leaf. 여럿이면 먼저 누른 것이다. 포인터 이동·휠이 이 leaf로 간다.
-    pub(crate) fn held(&self, side: MeshSide) -> Option<MeshPress> {
-        self.0.iter().map(|(_, p)| *p).find(|p| p.side == side)
+    /// 마지막으로 누른 채인 leaf(로컬·attach 가리지 않는다). 누른 동안의 포인터 이동·휠이 이 leaf로 간다.
+    pub(crate) fn last(&self) -> Option<MeshPress> {
+        self.0.last().map(|(_, p)| *p)
     }
 
     fn of(&self, button: winit::event::MouseButton) -> Option<MeshPress> {
@@ -82,6 +82,22 @@ pub(crate) fn pointer_target(
             .iter()
             .find(|r| r.side == side && r.rect.contains(PhysicalPx(x), PhysicalPx(y)))
             .copied(),
+    }
+}
+
+/// 포인터 이동·휠의 `side` 대상. 버튼을 누른 채면 마지막으로 누른 leaf가 받고, 그 leaf가 다른 쪽이면 이쪽은
+/// 받지 않는다(로컬 A를 누른 채 attach B를 누르면 이동·휠은 B로 간다). 누른 버튼이 없으면 포인터 아래 영역이다.
+/// 로컬과 attach가 같은 판정을 쓴다.
+pub(crate) fn motion_target(
+    regions: &[MeshFrameRegion],
+    presses: &MeshPresses,
+    side: MeshSide,
+    x: f32,
+    y: f32,
+) -> Option<MeshFrameRegion> {
+    match presses.last() {
+        Some(p) if p.side != side => None,
+        last => pointer_target(regions, last, side, x, y),
     }
 }
 
@@ -207,19 +223,9 @@ mod tests {
             true,
         );
         assert_eq!(down.map(|r| r.id), Some(1));
+        assert_eq!(presses.last(), Some(pressed(1, MeshSide::Local)));
         assert_eq!(
-            presses.held(MeshSide::Local),
-            Some(pressed(1, MeshSide::Local))
-        );
-        assert_eq!(
-            pointer_target(
-                &regions,
-                presses.held(MeshSide::Local),
-                MeshSide::Local,
-                5.0,
-                9.0
-            )
-            .map(|r| r.id),
+            motion_target(&regions, &presses, MeshSide::Local, 5.0, 9.0).map(|r| r.id),
             Some(1),
             "a move over the edge row stays with the pressed mesh"
         );
@@ -305,12 +311,48 @@ mod tests {
             assert_eq!(a.map(|r| r.id), Some(1), "{side:?}");
             let b = button_target(&regions, &mut presses, side, Right, (5.0, 80.0), true);
             assert_eq!(b.map(|r| r.id), Some(3), "{side:?}");
-            assert_eq!(presses.held(side), Some(pressed(1, side)), "{side:?} moves");
+            assert_eq!(presses.last(), Some(pressed(3, side)), "{side:?} moves");
             let left_up = button_target(&regions, &mut presses, side, Left, (5.0, 80.0), false);
             assert_eq!(left_up.map(|r| r.id), Some(1), "{side:?} left release");
             let right_up = button_target(&regions, &mut presses, side, Right, (5.0, 20.0), false);
             assert_eq!(right_up.map(|r| r.id), Some(3), "{side:?} right release");
             assert_eq!(presses, MeshPresses::default(), "{side:?}");
+        }
+    }
+
+    /// 로컬 A를 왼쪽으로 누른 채 attach B를 오른쪽으로 누르면, 누른 동안의 포인터 이동·휠은 마지막으로 누른 B가
+    /// 받는다. 포인터가 A 위여도 로컬 조회가 먼저 가져가지 않는다. B를 떼면 다시 A가 받는다. 반대 순서도 같다.
+    #[test]
+    fn moves_and_wheels_go_to_the_last_pressed_leaf() {
+        for (first, second) in [
+            (MeshSide::Local, MeshSide::Attach),
+            (MeshSide::Attach, MeshSide::Local),
+        ] {
+            let regions = [region(1, 10.0, first), region(3, 70.0, second)];
+            let mut presses = MeshPresses::default();
+            let a = button_target(&regions, &mut presses, first, Left, (5.0, 20.0), true);
+            assert_eq!(a.map(|r| r.id), Some(1));
+            let b = button_target(&regions, &mut presses, second, Right, (5.0, 80.0), true);
+            assert_eq!(b.map(|r| r.id), Some(3));
+            for (x, y) in [(5.0, 80.0), (5.0, 20.0), (5.0, 300.0)] {
+                assert!(
+                    motion_target(&regions, &presses, first, x, y).is_none(),
+                    "{first:?} lookup at {y} must not take the move"
+                );
+                assert_eq!(
+                    motion_target(&regions, &presses, second, x, y).map(|r| r.id),
+                    Some(3),
+                    "{second:?} B takes the move at {y}"
+                );
+            }
+            let b_up = button_target(&regions, &mut presses, second, Right, (5.0, 20.0), false);
+            assert_eq!(b_up.map(|r| r.id), Some(3));
+            assert_eq!(
+                motion_target(&regions, &presses, first, 5.0, 80.0).map(|r| r.id),
+                Some(1),
+                "A is pressed again the last one held"
+            );
+            assert!(motion_target(&regions, &presses, second, 5.0, 80.0).is_none());
         }
     }
 
