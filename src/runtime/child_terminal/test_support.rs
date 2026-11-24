@@ -74,6 +74,10 @@ impl Hub {
     }
 }
 impl ChildTerminalRegistry {
+    /// 이 registry의 hub에 붙은 시험 writer를 막는다(`Hub::test_hold_writer`).
+    pub(crate) fn test_hold_writer(&self) -> WriterHold {
+        self.hub.test_hold_writer()
+    }
     #[cfg(all(unix, feature = "gui"))]
     pub(crate) fn flush_for_test(&mut self) {
         wait(self.submit().expect("real child file admission"))

@@ -336,13 +336,25 @@ impl Installation {
         self.install_metadata(engine);
         let submit = self.child.as_ref().is_some_and(|child| !child.replacing);
         let mut child_receipt = None;
-        if let Some(child) = self.child.take() {
+        if let Some(mut child) = self.child.take() {
+            let mut named_nickname = None;
             if child.replacing {
                 let (parent, index) = (child.parent.clone(), child.index);
+                // respawn이 명시한 nickname은 필드 차이가 아니라 set_nickname과 같은 명시 대입으로 저장한다.
+                // 차이로만 옮기면 명시 값이 지금 확정 값과 같을 때 차이가 비어, 앞서 대기 중인 set_nickname
+                // 값이 남는다. 조회 값의 nickname은 쓰기가 성공한 뒤에 들어온다.
+                let named = child.nickname.take();
+                let mut surface = None;
                 engine
                     .runtime
                     .child_terminals
-                    .update_child(&parent, index, |entry| child.apply_replacement(entry));
+                    .update_child(&parent, index, |entry| {
+                        surface = Some(entry.child_surface_id);
+                        child.apply_replacement(entry);
+                    });
+                named_nickname = named
+                    .zip(surface)
+                    .map(|(nickname, surface)| (parent, index, surface, nickname));
                 engine
                     .runtime
                     .child_terminals
@@ -366,13 +378,15 @@ impl Installation {
                     },
                 );
             }
-            child_receipt = Some(
-                engine
-                    .runtime
-                    .child_terminals
-                    .submit()
-                    .map_err(anyhow::Error::msg)?,
-            );
+            let children = &mut engine.runtime.child_terminals;
+            child_receipt = Some(match named_nickname {
+                Some((parent, index, surface, nickname)) => children
+                    .set_nickname(&parent, index, surface, Some(nickname))
+                    .map_err(|refused| {
+                        anyhow::anyhow!("child nickname save not admitted: {refused:?}")
+                    })?,
+                None => children.submit().map_err(anyhow::Error::msg)?,
+            });
         }
         let pending_body = self.one_shot_input.take().map(|body| (body, submit));
         // A candidate may have become quiet or exited before its earlier wake was handled.

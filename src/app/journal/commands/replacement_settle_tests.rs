@@ -842,3 +842,73 @@ fn a_cwd_respawn_install_keeps_a_nickname_set_after_preparation_unless_named() {
         );
     }
 }
+
+/// set_nickname(new)이 writer에서 대기하는 동안 같은 자식에 `respawn --cwd --nickname old`(지금 확정 값과
+/// 같은 값) 설치가 접수되면, 요청 순서대로 뒤에 명시한 old가 조회 값과 파일에 남는다. 설치가 nickname을
+/// 필드 차이로만 옮기면 차이가 비어 old를 쓰지 않고 new가 남는다.
+#[test]
+fn a_cwd_respawn_naming_the_saved_nickname_wins_over_an_earlier_pending_set_nickname() {
+    use crate::runtime::child_terminal::{ChildEntry, ParentKey};
+    let _home = crate::test_support::TastyHomeGuard::new();
+    let (mut session, mut journal) = boot();
+    let parent = terminal_workspace(&mut journal, &mut session);
+    let child = terminal_workspace(&mut journal, &mut session);
+    let key = ParentKey::Surface(parent);
+    session.runtime.child_terminals.register_child(
+        parent,
+        ChildEntry {
+            child_surface_id: child,
+            index: 0,
+            cwd: None,
+            role: None,
+            nickname: Some("old".into()),
+        },
+    );
+    let saved = session.runtime.child_terminals.submit().expect("admitted");
+    settle_child_save(&mut journal, &mut session, &saved);
+    let cwd = tempfile::tempdir().expect("cwd");
+    let cwd_text = cwd.path().to_str().map(str::to_owned);
+    let params = serde_json::json!({
+        "surface": parent, "child": 0, "cwd": cwd.path(), "nickname": "old"
+    });
+    let rx = send(&mut journal, request("terminal.respawn", params, None, 740));
+    turn(&mut journal, &mut session, None);
+    assert!(rx.try_recv().is_err(), "installed in the preparing turn");
+    let hold = session.runtime.child_terminals.test_hold_writer();
+    let renamed = session
+        .runtime
+        .child_terminals
+        .set_nickname(&key, 0, child, Some("new".into()))
+        .expect("set_nickname admitted");
+    // 설치는 관계 항목의 cwd를 조회 값에 바로 반영한다. 그때까지 펌프하고 writer를 푼다.
+    let mut stall = StallBudget::new(&journal);
+    loop {
+        turn(&mut journal, &mut session, None);
+        let shown = session.runtime.child_terminals.find_child(&key, 0);
+        if shown.is_some_and(|entry| entry.cwd == cwd_text) {
+            break;
+        }
+        stall.nap("replacing install");
+    }
+    hold.release();
+    settle_child_save(&mut journal, &mut session, &renamed);
+    let response = reply(&mut journal, &mut session, &rx, |_, _| {});
+    assert!(response.error.is_none(), "{response:?}");
+    let shown = session
+        .runtime
+        .child_terminals
+        .find_child(&key, 0)
+        .expect("child");
+    assert_eq!(shown.nickname.as_deref(), Some("old"), "shown");
+    let file = tasty_utils::path::tasty_home()
+        .expect("isolated home")
+        .join("child-terminals.json");
+    let on_disk = std::fs::read_to_string(&file).expect("registry file");
+    let disk: serde_json::Value = serde_json::from_str(&on_disk).expect("registry json");
+    let entry = disk["children"][parent.to_string()]
+        .as_array()
+        .and_then(|list| list.iter().find(|c| c["index"] == 0))
+        .unwrap_or_else(|| panic!("child on disk: {on_disk}"));
+    assert_eq!(entry["nickname"].as_str(), Some("old"), "saved");
+    assert_eq!(entry["cwd"].as_str(), cwd_text.as_deref(), "cwd saved");
+}
