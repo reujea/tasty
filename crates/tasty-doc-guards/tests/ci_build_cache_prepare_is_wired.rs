@@ -610,11 +610,31 @@ fn check_cached_checkout(file: &str, job: &Job, k: usize, r: &mut Report) {
     }
 }
 
-/// prepare 스텝은 좁은 꼴 하나만 받는다. 키는 name·id·shell·run뿐이고, `shell: bash`면 run이
-/// [`PREPARE_RUN_BASH`] 한 줄, `shell: pwsh`면 run이 [`PREPARE_RUN_PWSH`] 블록과 정확히 같다.
-fn check_prepare_body(file: &str, s: &Step, r: &mut Report) {
+/// 잡의 OS가 Windows인가. runs-on 라벨에 `Windows`나 `win-`으로 시작하는 라벨이 있으면 Windows,
+/// `Linux`나 `macOS`가 있으면 아니다. 둘 다 있거나 둘 다 없으면 읽지 못한 것으로 None이다.
+fn job_is_windows(labels: &[String]) -> Option<bool> {
+    let lower: Vec<String> = labels.iter().map(|l| l.to_ascii_lowercase()).collect();
+    let windows = lower
+        .iter()
+        .any(|l| l == "windows" || l.starts_with("win-"));
+    let unix = lower.iter().any(|l| l == "linux" || l == "macos");
+    (windows != unix).then_some(windows)
+}
+
+/// prepare 스텝은 좁은 꼴 하나만 받는다. 키는 name·id·shell·run뿐이다. 잡의 OS(runs-on)가 Linux·macOS면
+/// `shell: bash`와 [`PREPARE_RUN_BASH`] 한 줄, Windows면 `shell: pwsh`와 [`PREPARE_RUN_PWSH`] 블록이다.
+fn check_prepare_body(file: &str, job: &Job, s: &Step, r: &mut Report) {
     let p = &mut r.problems;
     let at = format!("{file}:{} {}", s.line, s.job);
+    let windows = match runs_on_labels(file, job).map(|l| (job_is_windows(&l), l)) {
+        Ok((Some(w), _)) => w,
+        Ok((None, labels)) => {
+            return p.push(format!(
+                "{at} — {UNSUPPORTED}: prepare 잡의 OS를 runs-on에서 읽지 못했다: {labels:?}"
+            ));
+        }
+        Err(e) => return p.push(e),
+    };
     for f in &s.fields {
         if !PREPARE_KEYS.contains(&f.key.as_str()) {
             p.push(format!(
@@ -635,6 +655,12 @@ fn check_prepare_body(file: &str, s: &Step, r: &mut Report) {
         .iter()
         .map(|(_, l)| l.strip_prefix(&" ".repeat(10)))
         .collect();
+    let want_shell = if windows { "pwsh" } else { "bash" };
+    if shell.as_deref() != Some(want_shell) {
+        return p.push(format!(
+            "{at} — prepare 스텝의 꼴이 잡의 OS와 다르다: shell {shell:?}, 기대 {want_shell}"
+        ));
+    }
     let exact = match shell.as_deref() {
         Some("bash") => run.inline == PREPARE_RUN_BASH && run.children.is_empty(),
         Some("pwsh") => {
@@ -727,7 +753,7 @@ fn check(workflows: &[(String, String)]) -> Report {
                 }
                 if is_prepare(file, s, &mut r.problems) {
                     prepared = true;
-                    check_prepare_body(file, s, &mut r);
+                    check_prepare_body(file, job, s, &mut r);
                 } else if prepared {
                     check_after_prepare(file, s, &mut r);
                 }
@@ -1101,4 +1127,21 @@ fn a_comment_line_inside_the_windows_prepare_block_is_caught() {
         &all,
         "prepare 스텝의 run이 정해진 준비 스크립트 호출과 다르다",
     );
+}
+
+/// R4: prepare의 꼴은 잡의 OS(runs-on)로 고른다. Linux 잡에 Windows 블록이면 실패다.
+#[test]
+fn a_windows_prepare_block_in_a_linux_job_is_caught() {
+    let block: String = PREPARE_RUN_PWSH
+        .iter()
+        .map(|l| format!("          {l}\n"))
+        .collect();
+    let all = mutated(
+        "test.yml",
+        LINUX_PREPARE,
+        &format!(
+            "      - name: prepare the working tree (build cache)\n        id: prepare\n        shell: pwsh\n        run: |\n{block}"
+        ),
+    );
+    assert_caught(&all, "prepare 스텝의 꼴이 잡의 OS와 다르다");
 }
