@@ -73,6 +73,43 @@ pub(super) fn complete(
     result
 }
 
+/// 실패한 nickname 대입을 조회 값에서 거둔다. 쓰기 실패 뒤에도 visible은 보존되므로(위 `complete`), 두면
+/// 오류로 답한 값이 조회에 남고 다음 저장의 필드 차이에 섞여 파일에 쓰인다. 같은 자식에 대한 뒤 대입이
+/// 대기 중이거나 조회 값이 그 사이 다른 값으로 바뀌었으면 그 값을 덮지 않는다. 되돌릴 값은 확정 값에
+/// 뒤 명령을 얹은 `accepted`의 값이다.
+pub(super) fn restore_failed_nickname(client: &mut Client, operation: &Operation) {
+    let Operation::SetNickname {
+        parent,
+        index,
+        surface,
+        nickname,
+    } = operation
+    else {
+        return;
+    };
+    let later = client.intents.iter().any(|later| {
+        matches!(&later.operation, Operation::SetNickname { surface: next, .. } if next == surface)
+    });
+    if later {
+        return;
+    }
+    let nickname_in = |value: &RegistryData| {
+        value
+            .list_children(parent)
+            .iter()
+            .find(|c| c.index == *index && c.child_surface_id == *surface)
+            .map(|c| c.nickname.clone())
+    };
+    if nickname_in(&client.visible).as_ref() != Some(nickname) {
+        return;
+    }
+    if let Some(restored) = nickname_in(&client.accepted) {
+        client
+            .visible
+            .set_child_nickname(parent, *index, *surface, restored);
+    }
+}
+
 fn retain_present_states(value: &mut RegistryData) {
     // Disk and local deletion deltas remove fields, not just their values. Retire only
     // those fields' bookkeeping after replaying this layer's explicit assignments.

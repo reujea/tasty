@@ -77,3 +77,34 @@ fn a_nickname_save_fails_when_the_index_moved_on_disk() {
     assert_eq!(kept.nickname.as_deref(), Some("other"));
     f.drain();
 }
+
+/// 접수 뒤 쓰기가 실패한 nickname은 조회 값에서 거둔다. 장애가 풀린 뒤 같은 창의 다른 자식 저장에
+/// 실패한 값이 섞여 파일에 쓰이지 않는다.
+#[test]
+fn a_failed_nickname_write_leaves_no_value_for_a_later_save() {
+    let mut f = Fixture::new();
+    let mut client = f.client();
+    let parent = ParentKey::Surface(10);
+    client.register_child(10, named(100, 0, "a-old"));
+    client.register_child(10, named(200, 1, "b-old"));
+    wait(&client.submit().unwrap()).unwrap();
+    f.hub
+        .panic_next
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let failed = client
+        .set_nickname(&parent, 0, 100, Some("a-bad".into()))
+        .unwrap();
+    assert!(wait(&failed).is_err());
+    let shown = client.find_child(&parent, 0).expect("child");
+    assert_eq!(shown.nickname.as_deref(), Some("a-old"));
+    let saved = client
+        .set_nickname(&parent, 1, 200, Some("b-new".into()))
+        .unwrap();
+    assert_eq!(wait(&saved), Ok(None));
+    let disk = f.disk();
+    let a = disk.find_child(&parent, 0).expect("a on disk");
+    assert_eq!(a.nickname.as_deref(), Some("a-old"));
+    let b = disk.find_child(&parent, 1).expect("b on disk");
+    assert_eq!(b.nickname.as_deref(), Some("b-new"));
+    f.drain();
+}
