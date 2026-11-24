@@ -54,7 +54,7 @@ fn host_galley(
     ctx.fonts(|f| f.layout_job(job))
 }
 
-/// 글리프 + gap + 호스트 galley. 호스트 글자는 `max_w` 상한에서 끝을 줄인다.
+/// 글리프 + gap + 호스트 galley. 호스트 글자는 `max_w` 상한에서 끝을 줄이고, 줄였으면 상한 폭을 차지한다.
 fn layout(
     ui: &egui::Ui,
     th: &Theme,
@@ -62,7 +62,13 @@ fn layout(
     style: MarkStyle,
 ) -> (Arc<egui::Galley>, LogicalPx) {
     let galley = host_galley(ui.ctx(), th, mark, style.max_w);
-    let w = th.icon_glyph_size_xs + style.gap + LogicalPx(galley.rect.width());
+    // 상한에서 줄인 호스트는 상한 폭을 차지한다(정본: 경로 상자 = 390 − (12 + 4 + 160) − 8).
+    let host_w = if galley.elided {
+        style.max_w
+    } else {
+        LogicalPx(galley.rect.width())
+    };
+    let w = th.icon_glyph_size_xs + style.gap + host_w;
     (galley, w)
 }
 
@@ -272,9 +278,22 @@ mod tests {
         Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0)
     }
 
-    /// 한 프레임 안에서 `f` 를 부른다. 폭 계산에 글꼴이 필요하다.
+    /// 앱 글꼴(D2Coding mono)을 깐 한 프레임 안에서 `f` 를 부른다. 폭 계산에 글꼴이 필요하다.
     fn in_frame<R>(f: impl FnOnce(&egui::Ui) -> R) -> R {
         let ctx = egui::Context::default();
+        let mut fonts = egui::FontDefinitions::default();
+        fonts.font_data.insert(
+            "d2coding".to_owned(),
+            Arc::new(egui::FontData::from_static(
+                tasty_font::D2CODING_REGULAR_TTF,
+            )),
+        );
+        fonts
+            .families
+            .entry(egui::FontFamily::Monospace)
+            .or_default()
+            .insert(0, "d2coding".to_owned());
+        ctx.set_fonts(fonts);
         let mut f = Some(f);
         let mut out = None;
         // 그린 도형은 보지 않고 프레임 안에서 잰 값만 쓴다.
@@ -307,6 +326,24 @@ mod tests {
         assert!(
             w > outside + cap,
             "the word keeps its full width: mark {w:?}, cap {cap:?}"
+        );
+    }
+
+    /// 상한에서 줄인 호스트는 상한 폭을 차지한다. 경로 상자는 390 − (12 + 4 + 160) − 8 이다
+    /// (정본 'path box' 행, 상한 표본 206px).
+    #[test]
+    fn a_host_cut_at_the_cap_takes_the_whole_cap() {
+        let th = theme();
+        let w = in_frame(|ui| {
+            let mark = RemoteMark {
+                host: "build-runner-eu-west-07-staging-attach-with-a-longer-name",
+                empty_label: "Remote",
+            };
+            fh_remote_mark_width(ui, &th, &mark)
+        });
+        assert_eq!(
+            w,
+            th.icon_glyph_size_xs + th.fh_remote_gap() + th.fh_remote_max_width()
         );
     }
 
