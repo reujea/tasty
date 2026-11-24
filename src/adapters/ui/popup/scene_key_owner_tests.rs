@@ -1909,10 +1909,10 @@ fn the_tutorial_catalog_is_loaded_by_the_open_hook_before_escape() {
     );
 }
 
-/// T-4a3-33: Given 한 번 그린 주제 목록(선택 0, 진행 중 튜토리얼 없음), When 한 몫 [↓, Esc] 가 오면, Then 그 패스에 닫히고
-/// 선택은 1 이다. 다시 열어 그려도 선택은 1 이다.
+/// T-4a3-33: Given 한 번 그린 주제 목록(선택 0, 진행 중 튜토리얼 없음), When 그리기 전에 [↓, Esc] 가 오면, Then Esc
+/// 앞에서 끊겨(Esc 는 자기 몫을 갖는다) ↓ 패스가 선택을 1 로 옮기고 Esc 패스에 닫힌다. 다시 열어 그려도 선택은 1 이다.
 #[test]
-fn a_down_and_escape_in_one_share_move_the_tutorial_selection() {
+fn a_down_then_escape_move_the_tutorial_selection_before_closing() {
     let (mut state, mut session) = scene(PANE_L);
     registered(&mut state);
     let request = OpenRequest::new(TUTORIAL_TOPICS_POPUP_ID, PopupScope::Window)
@@ -1935,26 +1935,31 @@ fn a_down_and_escape_in_one_share_move_the_tutorial_selection() {
             .is_some()
     );
     assert!(input.escape(&ctx, &mut state, &read, true));
-    assert_eq!(input.cut_count(), 0, "한 몫이다: {}", input.cuts_text());
+    assert_eq!(
+        input.cut_count(),
+        1,
+        "↓ 몫과 Esc 몫으로 나뉜다: {}",
+        input.cuts_text()
+    );
     drop(read);
     about_to_wait(&mut state, &mut engine);
     let read = engine.read();
-    let actions = layer_pass(
-        &ctx,
-        &mut state,
-        &read,
-        &mut input,
-        &mut by_name(
-            topics,
-            crate::adapters::ui::tutorial::topic_popup::draw_tutorial_topics_popup,
-        ),
+    let mut body = by_name(
+        topics,
+        crate::adapters::ui::tutorial::topic_popup::draw_tutorial_topics_popup,
     );
+    let actions = layer_pass(&ctx, &mut state, &read, &mut input, &mut body);
+    assert!(
+        action_of(&actions, topics).is_empty(),
+        "↓ 패스는 닫지 않는다"
+    );
+    assert_eq!(state.tutorial.popup_selected, 1, "↓ 가 선택을 옮겼다");
+    let actions = layer_pass(&ctx, &mut state, &read, &mut input, &mut body);
     assert_eq!(
         action_of(&actions, topics),
         vec!["CloseBy(Escape)".to_string()],
-        "그 패스에 닫힌다"
+        "Esc 패스에 닫힌다"
     );
-    assert_eq!(state.tutorial.popup_selected, 1, "↓ 가 선택을 옮겼다");
     let again = state.popups.open_request(&request, true).expect("reopen");
     body_pass(&ctx, &mut state, &read, &mut input);
     assert!(is_open(&state, again));
