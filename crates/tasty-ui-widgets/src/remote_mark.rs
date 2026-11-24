@@ -460,6 +460,83 @@ mod tests {
         assert_eq!(texts, vec![muted, muted]);
     }
 
+    /// 링크 툴팁을 버블 크기대로 한 프레임 그리고 (버블 폭, 칠한 글자와 글꼴 가족, 칠한 글리프 수)를 돌려준다.
+    fn painted_tip(host: &str) -> (f32, Vec<(String, egui::FontFamily)>, usize) {
+        let th = theme();
+        let ctx = egui::Context::default();
+        egui_extras::install_image_loaders(&ctx);
+        let tip = LinkRemoteTip {
+            word: "Remote",
+            host,
+        };
+        let mut width = 0.0;
+        let out = ctx.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let size = tip.bubble_size(ctx, &th);
+                width = size.x;
+                let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+                tip.paint(ui, &th, rect);
+            });
+        });
+        let mut texts = Vec::new();
+        let mut glyphs = 0;
+        for clipped in out.shapes {
+            match clipped.shape {
+                egui::Shape::Rect(r) if r.brush.is_some() => glyphs += 1,
+                egui::Shape::Text(t) => texts.push((
+                    t.galley.text().to_owned(),
+                    t.galley.job.sections[0].format.font_id.family.clone(),
+                )),
+                _ => {}
+            }
+        }
+        (width, texts, glyphs)
+    }
+
+    /// 프로필 이름이 없는 attach(빈 호스트)의 링크 툴팁은 머리 낱말 Remote와 글리프만 그린다. 호스트 글자와
+    /// 글리프 뒤 간격이 없다(정본 Meta host 'no profile name → no host text, Remote then the glyph alone').
+    /// 머리 낱말은 호스트 자리의 낱말이 아니라 늘 붙는 툴팁 머리라 UI 글꼴(proportional)이다.
+    #[test]
+    fn a_link_tip_with_no_host_draws_the_word_and_the_glyph_alone() {
+        let th = theme();
+        let (empty_w, texts, glyphs) = painted_tip("");
+        assert_eq!(
+            texts,
+            vec![("Remote".to_owned(), egui::FontFamily::Proportional)]
+        );
+        assert_eq!(glyphs, 1);
+        let word_w = in_frame(|ui| {
+            ui.fonts(|f| {
+                f.layout_no_wrap(
+                    "Remote".to_owned(),
+                    egui::FontId::proportional(th.font_size_caption.value()),
+                    egui::Color32::PLACEHOLDER,
+                )
+            })
+            .rect
+            .width()
+        });
+        // 낱말 + space-sm + 글리프 + 좌우 여백 + 테두리 — 글리프 뒤 간격과 호스트 폭은 없다.
+        let bare = word_w
+            + th.spacing_sm.value()
+            + th.icon_glyph_size_xs.value()
+            + th.spacing_sm.scaled(2.0).value()
+            + th.border_width.scaled(2.0).value();
+        assert!((empty_w - bare).abs() < 0.01, "{empty_w} vs {bare}");
+
+        // 이름이 있으면 글리프 뒤에 간격과 mono 호스트가 붙는다.
+        let (named_w, texts, glyphs) = painted_tip("build-eu");
+        assert_eq!(
+            texts,
+            vec![
+                ("Remote".to_owned(), egui::FontFamily::Proportional),
+                ("build-eu".to_owned(), egui::FontFamily::Monospace),
+            ]
+        );
+        assert_eq!(glyphs, 1);
+        assert!(named_w > empty_w + th.link_remote_gap().value());
+    }
+
     fn bounds() -> egui::Rect {
         egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))
     }
