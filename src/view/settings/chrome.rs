@@ -868,40 +868,57 @@ mod tests {
     #[test]
     fn a_settings_move_needs_only_the_left_button_down() {
         let settings_moves = ["left only", "right click, then left drag"];
-        // StartDrag를 보고한 패스 번호들.
-        let move_passes = |passes: &[BarPass]| -> Vec<usize> {
+        let started = |passes: &[BarPass]| -> Vec<usize> {
             passes
                 .iter()
                 .enumerate()
-                .filter(|(_, p)| p.actions.contains(&TitlebarAction::StartDrag))
+                .filter(|(_, p)| p.drag_started)
                 .map(|(i, _)| i)
                 .collect()
         };
+        let actions = |passes: Vec<BarPass>| -> Vec<Vec<TitlebarAction>> {
+            passes.into_iter().map(|p| p.actions).collect()
+        };
+        // (이름, 설정창 드래그 시작 패스, 메인 드래그 시작 패스, 설정창 패스별 동작, 메인 패스별 동작)
         let got: Vec<_> = button_orders()
             .into_iter()
             .map(|(name, passes)| {
-                let main = bar_passes(passes.clone(), false, &[]);
-                let started: Vec<usize> = main
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, p)| p.drag_started)
-                    .map(|(i, _)| i)
-                    .collect();
-                let settings = bar_passes(passes, true, &[]);
-                (name, started, move_passes(&settings), move_passes(&main))
+                let settings = bar_passes(passes.clone(), true, &[]);
+                let main = bar_passes(passes, false, &[]);
+                (
+                    name,
+                    started(&settings),
+                    started(&main),
+                    actions(settings),
+                    actions(main),
+                )
             })
             .collect();
-        // 순서마다 드래그는 한 패스에서 시작하고, 이동 요청은 그 패스에만 나온다.
+        // 같은 입력이라 두 실행 모두 같은 한 패스에서 드래그가 시작되고, 이동하는 실행은 그 패스에만 [StartDrag]를
+        // 보고하며 다른 패스는 비어 있다. 이동하지 않는 실행은 모든 패스가 비어 있다.
         let expected: Vec<_> = got
             .iter()
-            .map(|(name, started, _, _)| {
-                let start = vec![started.first().copied().unwrap_or(usize::MAX)];
-                let settings = if settings_moves.contains(name) {
-                    start.clone()
-                } else {
-                    Vec::new()
+            .map(|(name, _, main_started, settings_actions, _)| {
+                let start = main_started.first().copied().unwrap_or(usize::MAX);
+                let count = settings_actions.len();
+                let moves_at = |moves: bool| -> Vec<Vec<TitlebarAction>> {
+                    (0..count)
+                        .map(|i| {
+                            if moves && i == start {
+                                vec![TitlebarAction::StartDrag]
+                            } else {
+                                Vec::new()
+                            }
+                        })
+                        .collect()
                 };
-                (*name, start.clone(), settings, start)
+                (
+                    *name,
+                    vec![start],
+                    vec![start],
+                    moves_at(settings_moves.contains(name)),
+                    moves_at(true),
+                )
             })
             .collect();
         assert_eq!(got, expected);
