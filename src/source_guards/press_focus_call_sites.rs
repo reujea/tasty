@@ -369,12 +369,9 @@ fn the_input_pass_order_is_shared_by_the_product_and_the_harness() {
     let pass = squeeze(&fn_body(&shared, "fn run_input_pass(").expect("run_input_pass"));
     let mut last = 0;
     for (needle, what) in [
+        ("state.begin_key_pass(host.escape_held());", "몫 열기"),
         (
-            "state.popups.begin_key_pass(host.escape_held());",
-            "몫 열기",
-        ),
-        (
-            "host.held_pastes().set_find_fields(&state.find_fields);",
+            "host.held_pastes().set_find_fields(state.find_fields());",
             "Find 입력칸 알림",
         ),
         ("letmutraw_input=host.take_input();", "입력 꺼내기"),
@@ -399,6 +396,39 @@ fn the_input_pass_order_is_shared_by_the_product_and_the_harness() {
         let pos = at(&pass, needle, what);
         assert!(last <= pos, "{what} 의 순서가 바뀌었다");
         last = pos;
+    }
+    for (name, body) in [
+        (
+            "fn begin_key_pass(",
+            "{self.popups.begin_key_pass(escape_held);}",
+        ),
+        ("fn find_fields(", "{&self.find_fields}"),
+        (
+            "fn drop_input_without_its_node(",
+            "{MainViewState::drop_input_without_its_node(self,ctx,events)}",
+        ),
+        (
+            "fn find_paste_open(",
+            "{MainViewState::find_paste_open(self)}",
+        ),
+        (
+            "fn fullscreen_stage_id(",
+            "{MainViewState::fullscreen_stage_id(self)}",
+        ),
+        (
+            "fn close_input_pass(",
+            "{MainViewState::close_input_pass(self,ctx);}",
+        ),
+        (
+            "fn seal_after_drawing_transition(",
+            "{MainViewState::seal_after_drawing_transition(self,drawn,cuts,raw_left);}",
+        ),
+    ] {
+        assert_eq!(
+            squeeze(&impl_fn(&shared, "for MainViewState", name)),
+            body,
+            "메인 창 상태의 {name}"
+        );
     }
     let bridge = read("src/gfx/gpu/egui_bridge.rs");
     for (name, body) in [

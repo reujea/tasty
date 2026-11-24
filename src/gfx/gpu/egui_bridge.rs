@@ -472,7 +472,7 @@ struct MainPass<'a> {
     window: &'a Window,
 }
 
-impl super::input_pass::InputPassHost for MainPass<'_> {
+impl super::input_pass::InputPassHost<MainViewState> for MainPass<'_> {
     fn escape_held(&self) -> bool {
         self.gpu.egui_escape_held()
     }

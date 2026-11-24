@@ -48,7 +48,7 @@ struct HarnessPass<'a> {
     hook: &'a mut dyn FnMut(PassHook<'_>),
 }
 
-impl InputPassHost for HarnessPass<'_> {
+impl InputPassHost<RequestContext> for HarnessPass<'_> {
     fn escape_held(&self) -> bool {
         self.ctx.input(|i| i.key_down(egui::Key::Escape))
     }
