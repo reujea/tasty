@@ -479,8 +479,11 @@ impl SettingsView {
                     return ViewAction::Close;
                 }
 
-                self.double_tap
-                    .on_key_event(&event.logical_key, event.state == ElementState::Pressed);
+                self.double_tap.on_key_event(
+                    &event.logical_key,
+                    event.state == ElementState::Pressed,
+                    self.base.gpu.event_arrival(),
+                );
                 if event.state == ElementState::Pressed
                     && let Some(dt) = self.double_tap.take()
                 {

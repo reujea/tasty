@@ -47,7 +47,8 @@ pub(crate) fn unbox_main(w: Box<dyn ui::View>) -> Option<Box<MainView>> {
 
 /// 자체 키 처리를 가진 egui 전용 창(설정·종료 확인·Preset·Plugins)이 다시 그리기 전에 부른다. 편집 키
 /// 판정이 보류했다 푼 이벤트를 받은 순서대로 `handle`(egui와 창 자체 처리)에 다시 준다. 원래 키는 판정한
-/// 편집으로 한 번만 넘기고, 보류 중에 온 이벤트는 판정부터 다시 거친다. 창이 닫히면 그 결과를 돌려준다.
+/// 편집으로 한 번만 넘기고, 보류 중에 온 이벤트는 그 도착 시각으로 판정부터 다시 거친다. 창이 닫히면 그 결과를
+/// 돌려준다.
 pub(crate) fn replay_edit_keys<V: ui::View>(
     view: &mut V,
     handle: fn(
@@ -60,7 +61,13 @@ pub(crate) fn replay_edit_keys<V: ui::View>(
     crate::gfx::gpu::edit_keys::replay_release(
         release,
         |action| !matches!(action, ViewAction::None),
-        |event, judged| handle(view, event, judged),
+        |event, judged, at| {
+            // 줄 선 사건은 처음 도착한 시각으로 다시 처리한다(더블탭·힌트 홀드 판정).
+            let before = view.base_mut().gpu.replace_event_arrival(at);
+            let action = handle(view, event, judged);
+            view.base_mut().gpu.replace_event_arrival(before);
+            action
+        },
     )
 }
 

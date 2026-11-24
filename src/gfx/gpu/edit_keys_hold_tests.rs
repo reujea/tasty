@@ -199,19 +199,21 @@ fn an_unsettled_key_goes_back_to_its_owner_after_the_earlier_input() {
 }
 
 /// A window replaying a finished hold gives the released key once, marked with its edit, then the
-/// queued events unmarked, and stops when the window closes.
+/// queued events unmarked with their arrival times, and stops when the window closes.
 #[test]
 fn a_release_replays_in_order_and_stops_when_the_window_closes() {
+    let arrived = Instant::now();
     let release = Release {
         replay: Some((press("c"), EditKey::Copy)),
         queued: vec![Ev::Other("escape"), Ev::Other("after")],
+        queued_at: vec![arrived, arrived],
     };
     let mut seen = Vec::new();
     let closed = replay_release(
         release,
         |closed: &bool| *closed,
-        |event, judged| {
-            seen.push((event.clone(), judged));
+        |event, judged, at| {
+            seen.push((event.clone(), judged, at));
             event == Ev::Other("escape")
         },
     );
@@ -219,9 +221,33 @@ fn a_release_replays_in_order_and_stops_when_the_window_closes() {
     assert_eq!(
         seen,
         vec![
-            (press("c"), Some(EditKey::Copy)),
-            (Ev::Other("escape"), None)
+            (press("c"), Some(EditKey::Copy), None),
+            (Ev::Other("escape"), None, Some(arrived))
         ]
+    );
+}
+
+/// An event queued behind a hold keeps the arrival time the window set when it came, and a later
+/// arrival keeps its own, so a replay long after still judges by when each one came.
+#[test]
+fn a_queued_event_keeps_the_arrival_the_window_set() {
+    let mut ui = Ui::new();
+    ui.focus("field");
+    let mut state = bound();
+    let now = Instant::now();
+    let first = now - Duration::from_millis(300);
+    let second = now - Duration::from_millis(100);
+    let mut pending = vec![egui::Event::Text("z".into())];
+    ui.judge(&mut state, &press("v"), &mut pending, now);
+    state.replace_arrival(Some(first));
+    ui.judge(&mut state, &Ev::Other("tap"), &mut pending, now);
+    state.replace_arrival(Some(second));
+    ui.judge(&mut state, &Ev::Other("tap again"), &mut pending, now);
+    ui.pass(&mut state, pending);
+    let (_, queued) = released(&mut state).split();
+    assert_eq!(
+        queued,
+        vec![(Ev::Other("tap"), first), (Ev::Other("tap again"), second)]
     );
 }
 

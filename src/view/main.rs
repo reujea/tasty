@@ -743,11 +743,13 @@ impl MainView {
                     dirty = true;
                 }
                 // 홀드 조합을 갱신한다. 조합별 표시 지연과 페이드는 modifier_hint_overlay의 sync·draw_hint_popup이 처리한다.
-                if self
-                    .state
-                    .modifier_hint
-                    .update_hold(ctrl, alt, option, shift)
-                {
+                if self.state.modifier_hint.update_hold(
+                    ctrl,
+                    alt,
+                    option,
+                    shift,
+                    self.base.gpu.event_arrival(),
+                ) {
                     dirty = true;
                 }
                 if dirty {

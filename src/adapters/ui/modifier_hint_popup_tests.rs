@@ -7,7 +7,9 @@ const ID: PopupId = MODIFIER_HINT_POPUP_ID;
 
 /// Ctrl을 표시 지연보다 오래 누른 상태로 둔다.
 fn hold_ctrl_long(state: &mut MainViewState) {
-    state.modifier_hint.update_hold(true, false, false, false);
+    state
+        .modifier_hint
+        .update_hold(true, false, false, false, std::time::Instant::now());
     state
         .modifier_hint
         .debug_backdate(std::time::Duration::from_millis(5000));
@@ -125,7 +127,9 @@ fn the_hint_is_a_window_instance_that_never_takes_focus() {
     );
     assert_eq!(state.popups.quiet_popup_rects(), vec![want]);
 
-    state.modifier_hint.update_hold(false, false, false, false);
+    state
+        .modifier_hint
+        .update_hold(false, false, false, false, std::time::Instant::now());
     frame(&ctx, &mut state, &read, Pointer::Idle);
     assert!(!state.popups.is_open(ID));
 }
@@ -231,7 +235,9 @@ fn the_hint_stays_below_other_popups() {
     hold_ctrl_long(&mut state);
     frame(&ctx, &mut state, &read, Pointer::Idle);
     let hint = hint_rect(&state);
-    state.modifier_hint.update_hold(false, false, false, false);
+    state
+        .modifier_hint
+        .update_hold(false, false, false, false, std::time::Instant::now());
     frame(&ctx, &mut state, &read, Pointer::Idle);
 
     state.popups.open_request(

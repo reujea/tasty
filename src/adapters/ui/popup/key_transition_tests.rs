@@ -399,13 +399,14 @@ fn a_letter_replayed_after_a_plugin_popup_shortcut_reaches_the_opened_popup() {
         Release {
             replay: None,
             queued: vec![Queued::Shortcut, Queued::W],
+            queued_at: Vec::new(),
         },
         HoldSite::BeforePluginShortcuts,
     );
     k_then_plugin_popup_takes_w(&mut s, &mut input, |s, input| {
         let mut fed = None;
         for step in steps {
-            let ReplayStep::Input(event) = step else {
+            let ReplayStep::Input(event, _) = step else {
                 panic!("plugin 보류 뒤 줄 선 입력은 단축키 단계부터 다시 거친다: {step:?}");
             };
             match event {

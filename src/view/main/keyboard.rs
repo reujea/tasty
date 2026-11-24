@@ -74,9 +74,13 @@ impl MainView {
         event: &winit::event::KeyEvent,
         edit_judged: Option<crate::adapters::ui::input::edit_key::EditKey>,
     ) {
-        // Feed all key events (Press + Release) to the double-tap detector
-        self.double_tap
-            .on_key_event(&event.logical_key, event.state == ElementState::Pressed);
+        // Feed all key events (Press + Release) to the double-tap detector, timed by their arrival.
+        let arrived = self.base.gpu.event_arrival();
+        self.double_tap.on_key_event(
+            &event.logical_key,
+            event.state == ElementState::Pressed,
+            arrived,
+        );
 
         if event.state != ElementState::Pressed {
             return;
@@ -240,11 +244,13 @@ impl MainView {
 
     /// 키보드 단축키를 사용하면 수식키 도움말의 표시 지연을 다시 시작한다.
     /// 팔레트 실행에는 적용하지 않으며 수식키를 누르고 있지 않으면 아무것도 하지 않는다.
+    /// 단축키를 실행한 사건이 도착한 시각으로 힌트 대기 시간을 다시 잰다.
     fn reset_modifier_hint_reveal_timer(&mut self) {
         let theme = crate::theme::theme();
+        let arrived = self.base.gpu.event_arrival();
         self.state
             .modifier_hint
-            .reset_reveal_timer_if_not_shown(&theme);
+            .reset_reveal_timer_if_not_shown(&theme, arrived);
     }
 
     /// 수식키 없는 Escape 누름은 단계 11 적용(`MainViewState::apply_escape_key`)이 사건 시점 수신자(`self.key_decision`)로

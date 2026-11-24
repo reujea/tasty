@@ -83,8 +83,8 @@ fn steps(item: &ResolvedPluginEdit) -> (Option<WindowEvent>, Vec<WindowEvent>) {
                 assert_eq!(*edit, EditKey::Paste);
                 original = Some(event.clone());
             }
-            ReplayStep::Input(event) => queued.push(event.clone()),
-            ReplayStep::View(_) => panic!("기다림 뒤 입력이 단축키 단계를 건너뛴다"),
+            ReplayStep::Input(event, _) => queued.push(event.clone()),
+            ReplayStep::View(..) => panic!("기다림 뒤 입력이 단축키 단계를 건너뛴다"),
         }
     }
     (original, queued)
@@ -104,7 +104,7 @@ fn arrived_text_is_sent_and_the_key_moves_to_the_reply_hold_with_its_queue() {
     let (mut mgr, mut holds, now) = (mgr(), PluginEditHolds::default(), Instant::now());
     let id = await_paste(&mut holds, &mut mgr, true, false, now);
     assert!(
-        holds.queue(window(), &key(1)),
+        holds.queue(window(), &key(1), Instant::now()),
         "기다리는 창의 키가 줄을 서지 않았다"
     );
     let out = settle(
@@ -127,7 +127,7 @@ fn arrived_text_is_sent_and_the_key_moves_to_the_reply_hold_with_its_queue() {
         )]
     );
     assert!(
-        holds.queue(window(), &key(2)),
+        holds.queue(window(), &key(2), Instant::now()),
         "회신 보류가 입력을 줄 세우지 않는다"
     );
     mgr.receive_edit_outcome_for_test(
@@ -144,8 +144,10 @@ fn arrived_text_is_sent_and_the_key_moves_to_the_reply_hold_with_its_queue() {
     let mut order = Vec::new();
     for step in &item.steps {
         match step {
-            ReplayStep::Original(event, _) | ReplayStep::Input(event) => order.push(event.clone()),
-            ReplayStep::View(_) => panic!("단계"),
+            ReplayStep::Original(event, _) | ReplayStep::Input(event, _) => {
+                order.push(event.clone())
+            }
+            ReplayStep::View(..) => panic!("단계"),
         }
     }
     assert_eq!(order, vec![key(0), key(1), key(2)]);
@@ -157,7 +159,7 @@ fn arrived_text_is_sent_and_the_key_moves_to_the_reply_hold_with_its_queue() {
 fn nothing_to_paste_replays_the_key_unless_the_surface_takes_formats() {
     let (mut mgr, mut holds, now) = (mgr(), PluginEditHolds::default(), Instant::now());
     let id = await_paste(&mut holds, &mut mgr, true, false, now);
-    holds.queue(window(), &key(1));
+    holds.queue(window(), &key(1), Instant::now());
     let out = settle(
         &mut holds,
         &mut mgr,
@@ -197,7 +199,7 @@ fn nothing_to_paste_replays_the_key_unless_the_surface_takes_formats() {
 fn a_replaced_read_drops_the_key_and_replays_the_queue() {
     let (mut mgr, mut holds, now) = (mgr(), PluginEditHolds::default(), Instant::now());
     await_paste(&mut holds, &mut mgr, true, true, now);
-    holds.queue(window(), &key(1));
+    holds.queue(window(), &key(1), Instant::now());
     let out = settle(
         &mut holds,
         &mut mgr,
@@ -268,12 +270,12 @@ fn focus_loss_and_a_pointer_press_end_the_await_without_the_key() {
         let id = await_paste(&mut holds, &mut mgr, true, false, now);
         assert!(holds.interrupt_await(window(), &moved).is_none());
         assert!(
-            !holds.queue(window(), &moved),
+            !holds.queue(window(), &moved, Instant::now()),
             "줄 선 것 없이 포인터가 섰다"
         );
-        assert!(holds.queue(window(), &key(1)));
+        assert!(holds.queue(window(), &key(1), Instant::now()));
         assert!(
-            holds.queue(window(), &moved),
+            holds.queue(window(), &moved, Instant::now()),
             "포인터가 줄 선 키를 앞질렀다"
         );
         assert!(
@@ -288,7 +290,7 @@ fn focus_loss_and_a_pointer_press_end_the_await_without_the_key() {
         assert_eq!(out.cancelled, vec![id]);
         assert_eq!(out.reads, vec![(window(), TAG)]);
         assert!(
-            !holds.queue(window(), &key(2)),
+            !holds.queue(window(), &key(2), Instant::now()),
             "끝난 기다림이 다시 줄 세웠다"
         );
         let out = settle(
@@ -332,9 +334,9 @@ impl super::AwaitSink for ReplayingApp {
                         self.originals.push(event);
                         continue;
                     }
-                    ReplayStep::Input(event) | ReplayStep::View(event) => event,
+                    ReplayStep::Input(event, _) | ReplayStep::View(event, _) => event,
                 };
-                if self.holds.queue(window(), &event) {
+                if self.holds.queue(window(), &event, Instant::now()) {
                     continue;
                 }
                 if event == key(PASTE) {
@@ -381,12 +383,12 @@ fn a_second_paste_queued_behind_an_await_does_not_outlive_focus_loss() {
             reads: Vec::new(),
         };
         let first = await_paste(&mut app.holds, &mut app.mgr, true, false, now);
-        assert!(app.holds.queue(window(), &key(PASTE)));
-        assert!(app.holds.queue(window(), &key(2)));
+        assert!(app.holds.queue(window(), &key(PASTE), Instant::now()));
+        assert!(app.holds.queue(window(), &key(2), Instant::now()));
         super::interrupt_awaits(&mut app, window(), &end);
         assert!(app.holds.await_deadline().is_none(), "기다림이 남았다");
         assert!(
-            !app.holds.queue(window(), &key(3)),
+            !app.holds.queue(window(), &key(3), Instant::now()),
             "끝난 기다림이 줄 세웠다"
         );
         assert_eq!(app.cancelled.len(), 2, "두 기다림의 요청을 모두 거둔다");
@@ -432,7 +434,7 @@ fn a_plugin_run_that_ends_while_waiting_gets_nothing() {
 fn a_keyless_await_queues_input_and_releases_it_when_it_ends() {
     let (mut mgr, mut holds, now) = (mgr(), PluginEditHolds::default(), Instant::now());
     let id = await_paste(&mut holds, &mut mgr, false, false, now);
-    assert!(holds.queue(window(), &key(1)));
+    assert!(holds.queue(window(), &key(1), Instant::now()));
     let out = settle(
         &mut holds,
         &mut mgr,
@@ -443,7 +445,7 @@ fn a_keyless_await_queues_input_and_releases_it_when_it_ends() {
     assert_eq!(out.sends.len(), 1);
     assert_eq!(steps(only(&out)), (None, vec![key(1)]));
     assert!(
-        !holds.queue(window(), &key(2)),
+        !holds.queue(window(), &key(2), Instant::now()),
         "키 없는 요청이 입력을 줄 세웠다"
     );
     mgr.receive_edit_outcome_for_test(
@@ -457,7 +459,7 @@ fn a_keyless_await_queues_input_and_releases_it_when_it_ends() {
     assert_eq!(resolved.len(), 1, "키 없는 요청이 회신으로 풀리지 않았다");
 
     await_paste(&mut holds, &mut mgr, false, false, now);
-    holds.queue(window(), &key(3));
+    holds.queue(window(), &key(3), Instant::now());
     let out = settle(
         &mut holds,
         &mut mgr,
@@ -481,5 +483,8 @@ fn an_arrival_of_another_read_is_dropped() {
         true,
     );
     assert!(out.sends.is_empty() && out.resolved.is_empty());
-    assert!(holds.queue(window(), &key(1)), "기다림이 끝났다");
+    assert!(
+        holds.queue(window(), &key(1), Instant::now()),
+        "기다림이 끝났다"
+    );
 }

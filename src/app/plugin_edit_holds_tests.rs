@@ -71,8 +71,8 @@ fn queued(item: &ResolvedPluginEdit) -> Vec<WindowEvent> {
         .iter()
         .filter_map(|step| match step {
             ReplayStep::Original(..) => None,
-            ReplayStep::Input(event) => Some(event.clone()),
-            ReplayStep::View(_) => panic!("플러그인 보류 뒤 입력이 단축키 단계를 건너뛴다"),
+            ReplayStep::Input(event, _) => Some(event.clone()),
+            ReplayStep::View(..) => panic!("플러그인 보류 뒤 입력이 단축키 단계를 건너뛴다"),
         })
         .collect()
 }
@@ -82,13 +82,24 @@ fn queued(item: &ResolvedPluginEdit) -> Vec<WindowEvent> {
 fn a_not_acted_reply_replays_the_key_before_the_queued_input() {
     let (mut holds, mut mgr, now) = (PluginEditHolds::default(), mgr(), Instant::now());
     let id = hold(&mut holds, &mut mgr, window(1), EditKey::Paste, now);
-    assert!(holds.queue(window(1), &key(1)));
-    assert!(holds.queue(window(1), &WindowEvent::HoveredFile("a".into())));
+    assert!(holds.queue(window(1), &key(1), Instant::now()));
+    assert!(holds.queue(
+        window(1),
+        &WindowEvent::HoveredFile("a".into()),
+        Instant::now()
+    ));
     assert!(
-        !holds.queue(window(1), &WindowEvent::Moved((0, 0).into())),
+        !holds.queue(
+            window(1),
+            &WindowEvent::Moved((0, 0).into()),
+            Instant::now()
+        ),
         "창 상태는 줄 서지 않는다"
     );
-    assert!(!holds.queue(window(2), &key(2)), "다른 창은 보류가 없다");
+    assert!(
+        !holds.queue(window(2), &key(2), Instant::now()),
+        "다른 창은 보류가 없다"
+    );
     reply(&mut mgr, id, EditResultWire::NotActed, Some("x"));
     let resolved = holds.resolve(mgr.take_edit_outcomes());
     assert_eq!(resolved.len(), 1);
@@ -100,7 +111,10 @@ fn a_not_acted_reply_replays_the_key_before_the_queued_input() {
         vec![key(1), WindowEvent::HoveredFile("a".into())]
     );
     assert_eq!(item.copied, None, "일어나지 않은 편집의 복사는 없다");
-    assert!(!holds.queue(window(1), &key(3)), "보류가 풀렸다");
+    assert!(
+        !holds.queue(window(1), &key(3), Instant::now()),
+        "보류가 풀렸다"
+    );
 }
 
 /// 실행 회신은 키를 소비하고 복사 글자를 넘긴다. 모름과 대상 사라짐도 재생하지 않는다.
@@ -139,7 +153,7 @@ fn acted_unknown_and_gone_replies_consume_the_key() {
 fn a_hold_without_a_reply_times_out_without_replaying() {
     let (mut holds, mut mgr, now) = (PluginEditHolds::default(), mgr(), Instant::now());
     let id = hold(&mut holds, &mut mgr, window(1), EditKey::Paste, now);
-    assert!(holds.queue(window(1), &key(1)));
+    assert!(holds.queue(window(1), &key(1), Instant::now()));
     assert_eq!(holds.deadline(), Some(now + PLUGIN_HOLD_LIMIT));
     let (early, cancelled) = holds.expire(now + PLUGIN_HOLD_LIMIT - Duration::from_millis(1));
     assert!(early.is_empty() && cancelled.is_empty());
@@ -162,7 +176,7 @@ fn a_hold_without_a_reply_times_out_without_replaying() {
 fn a_closed_target_ends_its_hold_before_the_time_limit() {
     let (mut holds, mut mgr, now) = (PluginEditHolds::default(), mgr(), Instant::now());
     let id = hold(&mut holds, &mut mgr, window(1), EditKey::Paste, now);
-    assert!(holds.queue(window(1), &key(1)));
+    assert!(holds.queue(window(1), &key(1), Instant::now()));
 
     let (ended, cancelled) = holds.end_lost_targets(|_, _| true);
     assert!(ended.is_empty() && cancelled.is_empty());
@@ -178,7 +192,7 @@ fn a_closed_target_ends_its_hold_before_the_time_limit() {
     let (late, expired) = holds.expire(now + PLUGIN_HOLD_LIMIT);
     assert!(late.is_empty() && expired.is_empty());
     assert!(
-        !holds.queue(window(1), &key(2)),
+        !holds.queue(window(1), &key(2), Instant::now()),
         "끝난 보류 뒤에 줄 서지 않는다"
     );
 }
@@ -189,7 +203,7 @@ fn a_closed_target_ends_its_hold_before_the_time_limit() {
 fn a_reply_from_a_target_closed_in_the_same_pump_is_dropped() {
     let (mut holds, mut mgr, now) = (PluginEditHolds::default(), mgr(), Instant::now());
     let not_acted = hold(&mut holds, &mut mgr, window(1), EditKey::Copy, now);
-    assert!(holds.queue(window(1), &key(1)));
+    assert!(holds.queue(window(1), &key(1), Instant::now()));
     let acted = hold(&mut holds, &mut mgr, window(2), EditKey::Copy, now);
     reply(&mut mgr, not_acted, EditResultWire::NotActed, None);
     reply(&mut mgr, acted, EditResultWire::Acted, Some("hi"));
@@ -282,7 +296,7 @@ fn a_keyless_edit_queues_nothing_and_returns_only_the_copy() {
     let id = request.edit_id;
     holds.track(window(1), request, EditKey::Copy, now);
     assert!(
-        !holds.queue(window(1), &key(1)),
+        !holds.queue(window(1), &key(1), Instant::now()),
         "키 없는 요청이 입력을 줄 세웠다"
     );
     assert_eq!(holds.deadline(), Some(now + PLUGIN_HOLD_LIMIT));

@@ -66,7 +66,8 @@ impl DoubleTapDetector {
         }
     }
 
-    pub fn on_key_event(&mut self, key: &Key, pressed: bool) {
+    /// `at` 은 그 키 사건이 창에 도착한 시각이다. 보류 뒤 재생한 탭도 도착 간격으로 판정한다.
+    pub fn on_key_event(&mut self, key: &Key, pressed: bool, at: Instant) {
         let input = Self::classify(key, self.macos_mapping);
         if input == TapInput::Blocker {
             self.blocker_held = pressed;
@@ -85,7 +86,7 @@ impl DoubleTapDetector {
 
                     if let Some((first_key, first_time)) = &self.first_tap
                         && *first_key == m
-                        && first_time.elapsed().as_millis() < self.threshold_ms
+                        && at.saturating_duration_since(*first_time).as_millis() < self.threshold_ms
                     {
                         self.fired = Some(m);
                         self.first_tap = None;
@@ -103,7 +104,7 @@ impl DoubleTapDetector {
                 && self.pending_key == Some(m)
             {
                 if !self.contaminated {
-                    self.first_tap = Some((m, Instant::now()));
+                    self.first_tap = Some((m, at));
                 }
                 self.pending_key = None;
                 self.contaminated = false;
@@ -151,20 +152,20 @@ mod tests {
     #[test]
     fn two_clean_taps_fire() {
         let mut d = DoubleTapDetector::with_mapping(false);
-        d.on_key_event(&alt(), true);
-        d.on_key_event(&alt(), false);
-        d.on_key_event(&alt(), true);
+        d.on_key_event(&alt(), true, Instant::now());
+        d.on_key_event(&alt(), false, Instant::now());
+        d.on_key_event(&alt(), true, Instant::now());
         assert_eq!(d.take(), Some(DoubleTapKey::Alt));
     }
 
     #[test]
     fn focus_change_reset_prevents_stale_first_tap() {
         let mut d = DoubleTapDetector::with_mapping(false);
-        d.on_key_event(&alt(), true);
+        d.on_key_event(&alt(), true, Instant::now());
         d.reset();
 
-        d.on_key_event(&alt(), false);
-        d.on_key_event(&alt(), true);
+        d.on_key_event(&alt(), false, Instant::now());
+        d.on_key_event(&alt(), true, Instant::now());
         assert_eq!(d.take(), None);
     }
 
@@ -173,10 +174,10 @@ mod tests {
     }
 
     fn tap_twice(d: &mut DoubleTapDetector, key: &Key) -> Option<DoubleTapKey> {
-        d.on_key_event(key, true);
-        d.on_key_event(key, false);
-        d.on_key_event(key, true);
-        d.on_key_event(key, false);
+        d.on_key_event(key, true, Instant::now());
+        d.on_key_event(key, false, Instant::now());
+        d.on_key_event(key, true, Instant::now());
+        d.on_key_event(key, false, Instant::now());
         d.take()
     }
 
@@ -198,10 +199,10 @@ mod tests {
     #[test]
     fn macos_mapping_held_option_blocks_other_modifier_taps() {
         let mut d = DoubleTapDetector::with_mapping(true);
-        d.on_key_event(&named(NamedKey::Alt), true);
+        d.on_key_event(&named(NamedKey::Alt), true, Instant::now());
         assert_eq!(tap_twice(&mut d, &named(NamedKey::Super)), None);
         assert_eq!(tap_twice(&mut d, &named(NamedKey::Shift)), None);
-        d.on_key_event(&named(NamedKey::Alt), false);
+        d.on_key_event(&named(NamedKey::Alt), false, Instant::now());
         assert_eq!(
             tap_twice(&mut d, &named(NamedKey::Shift)),
             Some(DoubleTapKey::Shift)
@@ -211,11 +212,11 @@ mod tests {
     #[test]
     fn macos_mapping_option_between_command_taps_cancels() {
         let mut d = DoubleTapDetector::with_mapping(true);
-        d.on_key_event(&named(NamedKey::Super), true);
-        d.on_key_event(&named(NamedKey::Super), false);
-        d.on_key_event(&named(NamedKey::Alt), true);
-        d.on_key_event(&named(NamedKey::Alt), false);
-        d.on_key_event(&named(NamedKey::Super), true);
+        d.on_key_event(&named(NamedKey::Super), true, Instant::now());
+        d.on_key_event(&named(NamedKey::Super), false, Instant::now());
+        d.on_key_event(&named(NamedKey::Alt), true, Instant::now());
+        d.on_key_event(&named(NamedKey::Alt), false, Instant::now());
+        d.on_key_event(&named(NamedKey::Super), true, Instant::now());
         assert_eq!(d.take(), None);
     }
 
@@ -259,10 +260,10 @@ mod tests {
     #[test]
     fn macos_mapping_command_released_under_option_clears_its_press() {
         let mut d = DoubleTapDetector::with_mapping(true);
-        d.on_key_event(&named(NamedKey::Super), true);
-        d.on_key_event(&named(NamedKey::Alt), true);
-        d.on_key_event(&named(NamedKey::Super), false);
-        d.on_key_event(&named(NamedKey::Alt), false);
+        d.on_key_event(&named(NamedKey::Super), true, Instant::now());
+        d.on_key_event(&named(NamedKey::Alt), true, Instant::now());
+        d.on_key_event(&named(NamedKey::Super), false, Instant::now());
+        d.on_key_event(&named(NamedKey::Alt), false, Instant::now());
         assert_eq!(
             tap_twice(&mut d, &named(NamedKey::Shift)),
             Some(DoubleTapKey::Shift)
@@ -273,11 +274,11 @@ mod tests {
         );
 
         let mut d = DoubleTapDetector::with_mapping(true);
-        d.on_key_event(&named(NamedKey::Super), true);
-        d.on_key_event(&named(NamedKey::Alt), true);
-        d.on_key_event(&named(NamedKey::Super), false);
-        d.on_key_event(&named(NamedKey::Alt), false);
-        d.on_key_event(&named(NamedKey::Super), true);
+        d.on_key_event(&named(NamedKey::Super), true, Instant::now());
+        d.on_key_event(&named(NamedKey::Alt), true, Instant::now());
+        d.on_key_event(&named(NamedKey::Super), false, Instant::now());
+        d.on_key_event(&named(NamedKey::Alt), false, Instant::now());
+        d.on_key_event(&named(NamedKey::Super), true, Instant::now());
         assert_eq!(d.take(), None, "조합의 Command가 첫 탭으로 남았다");
     }
 
@@ -286,7 +287,7 @@ mod tests {
     #[test]
     fn macos_mapping_reset_clears_a_held_option() {
         let mut d = DoubleTapDetector::with_mapping(true);
-        d.on_key_event(&named(NamedKey::Alt), true);
+        d.on_key_event(&named(NamedKey::Alt), true, Instant::now());
         d.reset();
         assert_eq!(
             tap_twice(&mut d, &named(NamedKey::Super)),
@@ -298,13 +299,38 @@ mod tests {
         );
     }
 
+    /// 보류 없이 바로 처리한 두 탭은 도착 시각이 곧 지금이라 지금 판정과 같다.
+    #[test]
+    fn a_double_tap_without_a_hold_is_judged_now() {
+        let mut d = DoubleTapDetector::with_mapping(false);
+        assert_eq!(tap_twice(&mut d, &alt()), Some(DoubleTapKey::Alt));
+    }
+
+    /// 판정은 처리 시각이 아니라 넘겨받은 도착 시각의 간격이다. 늦게 처리해도 도착 간격이 짧으면 더블탭이고, 바로
+    /// 처리해도 도착 간격이 길면 아니다.
+    #[test]
+    fn taps_are_judged_by_the_arrival_times_given() {
+        let start = Instant::now();
+        let at = |ms| start + std::time::Duration::from_millis(ms);
+        let mut d = DoubleTapDetector::with_mapping(false);
+        d.on_key_event(&alt(), true, at(0));
+        d.on_key_event(&alt(), false, at(50));
+        d.on_key_event(&alt(), true, at(300));
+        assert_eq!(d.take(), Some(DoubleTapKey::Alt));
+        d.on_key_event(&alt(), false, at(310));
+        d.on_key_event(&alt(), true, at(2000));
+        d.on_key_event(&alt(), false, at(2050));
+        d.on_key_event(&alt(), true, at(2500));
+        assert_eq!(d.take(), None, "도착 간격 450ms 는 문턱 400ms 를 넘는다");
+    }
+
     #[test]
     fn reset_discards_recorded_first_tap() {
         let mut d = DoubleTapDetector::with_mapping(false);
-        d.on_key_event(&alt(), true);
-        d.on_key_event(&alt(), false);
+        d.on_key_event(&alt(), true, Instant::now());
+        d.on_key_event(&alt(), false, Instant::now());
         d.reset();
-        d.on_key_event(&alt(), true);
+        d.on_key_event(&alt(), true, Instant::now());
         assert_eq!(d.take(), None);
     }
 }

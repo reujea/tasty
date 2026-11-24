@@ -3,6 +3,8 @@
 //! 그대로 다음 처리자에 넘긴다. 키 시점에 알 수 없으면 원래 키를 붙잡아 두고 결과를 본 뒤 정한다.
 //! 계약: `docs/design/policies/key-mapping.md`의 "편집 키 판정" 절.
 
+use std::time::Instant;
+
 use tasty_key_match::matches_any_binding;
 use winit::keyboard::{Key, ModifiersState};
 
@@ -141,8 +143,13 @@ pub(crate) struct EditKeyHold<E> {
     original: E,
     edit: EditKey,
     queued: Vec<E>,
+    /// 줄 선 사건이 창에 도착한 시각(`queued` 와 같은 순서).
+    queued_at: Vec<Instant>,
     replays_on_timeout: bool,
 }
+
+/// 줄 선 사건과 그것이 창에 도착한 시각.
+pub(crate) type Arrived<E> = (E, Instant);
 
 /// 보류를 푼 결과. `replay`는 다음 처리자에 한 번 줄 원래 키이고 편집 판정을 다시 하지 않는다.
 /// `queued`는 보류 중에 온 이벤트로, 받은 순서대로 평소 경로(판정 포함)로 처리한다.
@@ -150,6 +157,29 @@ pub(crate) struct EditKeyHold<E> {
 pub(crate) struct Release<E> {
     pub(crate) replay: Option<(E, EditKey)>,
     pub(crate) queued: Vec<E>,
+    /// 줄 선 사건이 창에 도착한 시각(`queued` 와 같은 순서). 재생한 사건의 더블탭·힌트 홀드는 처리 시각이 아니라 이
+    /// 시각으로 판정한다. 원래 키는 편집 키 누름이라 그 판정에 시각을 쓰지 않으므로 두지 않는다.
+    pub(crate) queued_at: Vec<Instant>,
+}
+
+impl<E> Release<E> {
+    /// 줄 선 사건 하나를 그 도착 시각과 함께 끝에 더한다.
+    pub(crate) fn push(&mut self, event: E, at: Instant) {
+        self.queued.push(event);
+        self.queued_at.push(at);
+    }
+
+    /// 원래 키와, 줄 선 사건을 그 도착 시각과 짝지은 값. 시각이 없는 사건(시험이 만든 값)은 처리 시각을 쓴다.
+    pub(crate) fn split(self) -> (Option<(E, EditKey)>, Vec<Arrived<E>>) {
+        let at = self.queued_at.into_iter().map(Some);
+        let queued = self
+            .queued
+            .into_iter()
+            .zip(at.chain(std::iter::repeat(None)))
+            .map(|(event, at)| (event, at.unwrap_or_else(Instant::now)))
+            .collect();
+        (self.replay, queued)
+    }
 }
 
 impl<E> EditKeyHold<E> {
@@ -161,6 +191,7 @@ impl<E> EditKeyHold<E> {
             original,
             edit,
             queued: Vec::new(),
+            queued_at: Vec::new(),
             replays_on_timeout,
         }
     }
@@ -170,8 +201,9 @@ impl<E> EditKeyHold<E> {
     }
 
     /// 보류 중에 온 키 이벤트(누름·떼기·IME·modifier)를 받은 순서대로 붙잡는다.
-    pub(crate) fn queue(&mut self, event: E) {
+    pub(crate) fn queue(&mut self, event: E, at: Instant) {
         self.queued.push(event);
+        self.queued_at.push(at);
     }
 
     /// 붙잡은 이벤트가 있다. 뒤에 온 이벤트가 이들을 앞지르지 않게 줄을 세울 때 본다.
@@ -195,6 +227,7 @@ impl<E> EditKeyHold<E> {
         Release {
             replay: replay.then_some((self.original, self.edit)),
             queued: self.queued,
+            queued_at: self.queued_at,
         }
     }
 }

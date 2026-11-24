@@ -3,6 +3,8 @@
 //! 넘기고, 보류 중에 온 이벤트는 받은 순서대로 다시 처리한다.
 //! 계약: `docs/design/policies/key-mapping.md`의 "편집 키 판정" 절.
 
+use std::time::Instant;
+
 use winit::event::WindowEvent;
 use winit::window::WindowId;
 
@@ -25,20 +27,20 @@ pub(crate) enum HoldSite {
 pub(crate) enum ReplayStep<E> {
     /// 판정한 편집으로 창 view 에 한 번 넘긴다.
     Original(E, EditKey),
-    /// 창 view 로 넘긴다. 새 플러그인 보류가 있으면 그 뒤에 줄을 선다.
-    View(E),
-    /// 플러그인 보류 줄부터 창 입력의 마지막 단계를 다시 거친다([`App::route_window_input`]).
-    Input(E),
+    /// 창 view 로 넘긴다. 새 플러그인 보류가 있으면 그 뒤에 줄을 선다. 시각은 처음 도착한 때다.
+    View(E, Instant),
+    /// 플러그인 보류 줄부터 창 입력의 마지막 단계를 다시 거친다([`App::route_window_input_at`]). 시각은 처음 도착한
+    /// 때다.
+    Input(E, Instant),
 }
 
 /// 풀린 보류의 재생 순서. 원래 키가 먼저이고, 줄 선 입력은 받은 순서대로 붙잡힌 단계부터 다시 거친다.
 pub(crate) fn replay_steps<E>(release: Release<E>, site: HoldSite) -> Vec<ReplayStep<E>> {
-    let original = release
-        .replay
-        .map(|(event, edit)| ReplayStep::Original(event, edit));
-    let queued = release.queued.into_iter().map(|event| match site {
-        HoldSite::View => ReplayStep::View(event),
-        HoldSite::BeforePluginShortcuts => ReplayStep::Input(event),
+    let (replay, queued) = release.split();
+    let original = replay.map(|(event, edit)| ReplayStep::Original(event, edit));
+    let queued = queued.into_iter().map(|(event, at)| match site {
+        HoldSite::View => ReplayStep::View(event, at),
+        HoldSite::BeforePluginShortcuts => ReplayStep::Input(event, at),
     });
     original.into_iter().chain(queued).collect()
 }
@@ -80,26 +82,42 @@ impl App {
     pub(crate) fn replay_edit_steps(&mut self, id: WindowId, steps: Vec<ReplayStep<WindowEvent>>) {
         for step in steps {
             match step {
+                // 원래 키는 편집 키 누름이라 더블탭·힌트 홀드 판정이 그 시각을 읽지 않는다.
                 ReplayStep::Original(event, edit) => {
                     self.set_edit_replay(id, Some(edit));
                     self.dispatch_key_to_view(id, event, false);
                     // 창이 키를 받지 않고 돌아갔으면 남은 표시가 다음 키에 붙지 않게 지운다.
                     self.set_edit_replay(id, None);
                 }
-                ReplayStep::View(event) => {
-                    if !self.queue_behind_plugin_edit(id, &event) {
+                ReplayStep::View(event, at) => {
+                    let before = self.replace_event_arrival(id, Some(at));
+                    if !self.queue_behind_plugin_edit(id, &event, at) {
                         self.dispatch_key_to_view(id, event, false);
                     }
+                    self.replace_event_arrival(id, before);
                 }
-                ReplayStep::Input(event) => self.route_window_input(id, event),
+                ReplayStep::Input(event, at) => self.route_window_input_at(id, event, at),
             }
         }
     }
 
+    /// 새로 도착한 창 입력([`Self::route_window_input_at`]의 도착 시각은 지금).
+    pub(super) fn route_window_input(&mut self, id: WindowId, event: WindowEvent) {
+        self.route_window_input_at(id, event, Instant::now());
+    }
+
+    /// `at` 에 처음 도착한 창 입력. 그 사건을 처리하는 동안 창은 그 시각으로 더블탭·힌트 홀드를 판정하고
+    /// (`GpuState::replace_event_arrival`), 끝나면 앞 값으로 되돌린다.
+    pub(super) fn route_window_input_at(&mut self, id: WindowId, event: WindowEvent, at: Instant) {
+        let before = self.replace_event_arrival(id, Some(at));
+        self.route_input_steps(id, event, at);
+        self.replace_event_arrival(id, before);
+    }
+
     /// 창 입력의 마지막 단계: 플러그인 편집 보류 줄, 키 사건의 출발 노드, 포커스된 plugin 의 단축키, 창 view 순서다.
     /// 보류가 없을 때의 창 이벤트와 플러그인 보류 뒤에 줄 섰던 입력이 같은 단계를 거친다.
-    pub(super) fn route_window_input(&mut self, id: WindowId, event: WindowEvent) {
-        if self.queue_behind_plugin_edit(id, &event) {
+    fn route_input_steps(&mut self, id: WindowId, event: WindowEvent, at: Instant) {
+        if self.queue_behind_plugin_edit(id, &event, at) {
             return;
         }
         // 키 사건의 출발 노드(정규화 → 끊기 → 수신자)를 plugin 단축키 단계 앞에서 한 번 정한다. plugin 단계와 창 view
@@ -114,6 +132,14 @@ impl App {
             return;
         }
         self.dispatch_key_to_view(id, event, settled);
+    }
+
+    /// 창이 처리할 사건의 도착 시각을 바꾸고 앞 값을 돌려준다.
+    fn replace_event_arrival(&mut self, id: WindowId, at: Option<Instant>) -> Option<Instant> {
+        self.view
+            .views
+            .get_mut(&id)
+            .and_then(|view| view.base_mut().gpu.replace_event_arrival(at))
     }
 
     /// winit 키 사건의 출발 노드를 메인 창에서 정한다(`MainView::settle_key_event`). 정했으면 참이고, 창 view 는 같은

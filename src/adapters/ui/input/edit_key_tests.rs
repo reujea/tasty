@@ -93,8 +93,8 @@ fn copy_and_paste_on_one_key_judges_copy_once() {
 
 fn held() -> EditKeyHold<&'static str> {
     let mut hold = EditKeyHold::new("press", EditKey::Paste, true);
-    hold.queue("release");
-    hold.queue("next");
+    hold.queue("release", std::time::Instant::now());
+    hold.queue("next", std::time::Instant::now());
     hold
 }
 
@@ -104,6 +104,19 @@ fn acted_consumes_the_key_and_keeps_the_queue_order() {
     let release = held().resolve(Outcome::Acted);
     assert!(release.replay.is_none());
     assert_eq!(release.queued, vec!["release", "next"]);
+}
+
+/// 줄 선 이벤트는 받은 때의 도착 시각을 들고 풀린다. 재생이 늦어도 그 시각은 그대로다.
+#[test]
+fn the_queue_keeps_each_arrival_time() {
+    let start = std::time::Instant::now();
+    let later = start + std::time::Duration::from_millis(30);
+    let mut hold = EditKeyHold::new("press", EditKey::Paste, true);
+    hold.queue("release", start);
+    hold.queue("next", later);
+    let (replay, queued) = hold.resolve(Outcome::NotActed).split();
+    assert_eq!(replay, Some(("press", EditKey::Paste)));
+    assert_eq!(queued, vec![("release", start), ("next", later)]);
 }
 
 /// 동작하지 않았으면 원래 키를 한 번, 뒤 이벤트보다 먼저 재생한다.
@@ -119,7 +132,7 @@ fn not_acted_replays_the_key_once_before_the_queue() {
 fn timeout_and_lost_target_follow_the_rule() {
     assert!(held().resolve(Outcome::TimedOut).replay.is_some());
     let mut consume = EditKeyHold::new("press", EditKey::Copy, false);
-    consume.queue("next");
+    consume.queue("next", std::time::Instant::now());
     let release = consume.resolve(Outcome::TimedOut);
     assert!(release.replay.is_none());
     assert_eq!(release.queued, vec!["next"]);

@@ -25,6 +25,8 @@ pub(super) struct PasteAwait {
     original: Option<WindowEvent>,
     /// 기다리는 동안 그 창에 온 키·IME·modifier, 그리고 그 뒤의 포인터 입력.
     queued: Vec<WindowEvent>,
+    /// 줄 선 입력이 창에 처음 도착한 시각(`queued` 와 같은 순서).
+    queued_at: Vec<Instant>,
     format_paste: bool,
     since: Instant,
 }
@@ -66,6 +68,7 @@ impl PluginEditHolds {
             tag,
             original,
             queued: Vec::new(),
+            queued_at: Vec::new(),
             format_paste,
             since: now,
         };
@@ -83,12 +86,14 @@ impl PluginEditHolds {
         &mut self,
         window: WindowId,
         event: &WindowEvent,
+        at: Instant,
     ) -> Option<bool> {
         let waiting = self.awaits.get_mut(&window)?;
         let queues =
             event.queues_behind_hold() || (event.is_pointer() && !waiting.queued.is_empty());
         if queues {
             waiting.queued.push(event.clone());
+            waiting.queued_at.push(at);
         }
         Some(queues)
     }
@@ -216,6 +221,7 @@ impl PluginEditHolds {
             request,
             original,
             queued,
+            queued_at,
             ..
         } = waiting;
         let target = request.target;
@@ -231,8 +237,8 @@ impl PluginEditHolds {
         match original {
             Some(original) => {
                 let mut hold = EditKeyHold::new(original, EditKey::Paste, false);
-                for event in queued {
-                    hold.queue(event);
+                for (event, at) in queued.into_iter().zip(queued_at) {
+                    hold.queue(event, at);
                 }
                 self.holds.insert(
                     window,
@@ -252,6 +258,7 @@ impl PluginEditHolds {
                         steps: plugin_replay(Release {
                             replay: None,
                             queued,
+                            queued_at,
                         }),
                         edit: EditKey::Paste,
                         result: None,
@@ -302,6 +309,7 @@ fn end_await(
         tag,
         original,
         queued,
+        queued_at,
         ..
     } = waiting;
     tracing::debug!(
@@ -319,6 +327,7 @@ fn end_await(
             .filter(|_| replay)
             .map(|original| (original, EditKey::Paste)),
         queued,
+        queued_at,
     };
     out.resolved.push(ResolvedPluginEdit {
         window,

@@ -81,11 +81,7 @@ fn synthetic_gate_precedes_every_mode_branch() {
     // window_event 의 마지막 단계는 route_window_input 이 맡는다. plugin 단축키 가로채기와 View 전달이 그
     // 안에 이 순서로 있어야 위 비교가 두 단계를 덮는다.
     let route_src = read("src/app/edit_key_replay.rs");
-    let route = only_at(
-        &route_src,
-        "pub(super) fn route_window_input(",
-        "창 입력 마지막 단계",
-    );
+    let route = only_at(&route_src, "fn route_input_steps(", "창 입력 마지막 단계");
     let body = &route_src[route..];
     let body = &body[..body.find("\n    }\n").expect("route_window_input body end")];
     let shortcut = only_at(
@@ -149,7 +145,7 @@ fn synthetic_gate_precedes_every_mode_branch() {
     );
     only_at(
         replay_body,
-        "ReplayStep::Input(event) => self.route_window_input(id, event),",
+        "ReplayStep::Input(event, at) => self.route_window_input_at(id, event, at),",
         "plugin 보류 줄의 재생",
     );
     // 다른 App 파일은 View 로 직접 넘기지 않고 재생 함수를 부른다.

@@ -237,9 +237,13 @@ pub(super) fn handle_debug_modhint_hold(
     params: &serde_json::Value,
 ) -> JsonRpcResponse {
     let axis = |k: &str| params.get(k).and_then(|v| v.as_bool()).unwrap_or(false);
-    state
-        .modifier_hint
-        .update_hold(axis("ctrl"), axis("alt"), axis("option"), axis("shift"));
+    state.modifier_hint.update_hold(
+        axis("ctrl"),
+        axis("alt"),
+        axis("option"),
+        axis("shift"),
+        std::time::Instant::now(),
+    );
     if let Some(ms) = p_try!(params::opt_int::<u64>(params, "elapsed_ms", &id)) {
         state
             .modifier_hint

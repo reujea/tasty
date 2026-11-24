@@ -28,8 +28,16 @@ pub struct ModifierHintRuntime {
 
 impl ModifierHintRuntime {
     /// modifier 조합을 갱신하고 화면을 다시 그려야 하면 true를 반환한다.
-    /// 조합이 바뀌어도 최초 홀드 시각은 유지한다. 모두 떼면 닫기 상태까지 초기화한다.
-    pub fn update_hold(&mut self, ctrl: bool, alt: bool, option: bool, shift: bool) -> bool {
+    /// 조합이 바뀌어도 최초 홀드 시각은 유지한다. 모두 떼면 닫기 상태까지 초기화한다. `at` 은 그 수식키 사건이 창에
+    /// 도착한 시각이고 최초 홀드 시각이 된다.
+    pub fn update_hold(
+        &mut self,
+        ctrl: bool,
+        alt: bool,
+        option: bool,
+        shift: bool,
+        at: Instant,
+    ) -> bool {
         let any = ctrl || alt || option || shift;
         if !any {
             let changed = self.hold_since.is_some() || self.held.is_some() || self.dismissed;
@@ -47,7 +55,7 @@ impl ModifierHintRuntime {
         let changed = self.held != Some(new);
         self.held = Some(new);
         if self.hold_since.is_none() {
-            self.hold_since = Some(Instant::now());
+            self.hold_since = Some(at);
         }
         changed
     }
@@ -61,14 +69,14 @@ impl ModifierHintRuntime {
 
     /// 단축키를 실행했을 때 아직 표시 전이면 대기 시간을 다시 잰다.
     /// 이미 표시 중이거나 홀드 중이 아니면 아무것도 바꾸지 않는다.
-    /// 닫기·드래그·조합 상태는 유지한다.
-    pub fn reset_reveal_timer_if_not_shown(&mut self, theme: &Theme) {
+    /// 닫기·드래그·조합 상태는 유지한다. `at` 은 단축키를 실행한 키 사건이 창에 도착한 시각이다.
+    pub fn reset_reveal_timer_if_not_shown(&mut self, theme: &Theme, at: Instant) {
         let (Some(held), Some(since)) = (self.held, self.hold_since) else {
             return;
         };
-        let held_ms = since.elapsed().as_secs_f32() * 1000.0;
+        let held_ms = at.saturating_duration_since(since).as_secs_f32() * 1000.0;
         if held_ms < reveal_delay_ms(held, theme) {
-            self.hold_since = Some(Instant::now());
+            self.hold_since = Some(at);
         }
     }
 }
@@ -866,7 +874,7 @@ mod tests {
     #[test]
     fn update_hold_stores_combo_and_dirties_on_change_keeping_timer() {
         let mut rt = ModifierHintRuntime::default();
-        assert!(rt.update_hold(true, false, false, false));
+        assert!(rt.update_hold(true, false, false, false, Instant::now()));
         assert_eq!(
             rt.held,
             Some(Combo {
@@ -877,7 +885,7 @@ mod tests {
         let t0 = rt.hold_since;
         assert!(t0.is_some());
         assert!(
-            rt.update_hold(true, false, false, true),
+            rt.update_hold(true, false, false, true, Instant::now()),
             "조합 변경 시 dirty"
         );
         assert_eq!(
@@ -889,15 +897,35 @@ mod tests {
             })
         );
         assert_eq!(rt.hold_since, t0, "조합 변경 시 타이머 리셋 금지");
-        assert!(!rt.update_hold(true, false, false, true));
+        assert!(!rt.update_hold(true, false, false, true, Instant::now()));
+    }
+
+    /// 최초 홀드 시각과 표시 전 재설정은 넘겨받은 도착 시각을 쓴다. 보류 뒤 늦게 처리한 수식키 사건도 누른 때부터 잰다.
+    #[test]
+    fn a_hold_and_its_reset_use_the_arrival_time_given() {
+        let theme = crate::theme::theme();
+        let mut rt = ModifierHintRuntime::default();
+        let pressed = Instant::now() - std::time::Duration::from_millis(600);
+        rt.update_hold(true, false, false, false, pressed);
+        let (_, elapsed, _) = rt.debug_snapshot();
+        assert!(elapsed.expect("held") >= std::time::Duration::from_millis(600));
+        let shortcut = pressed + std::time::Duration::from_millis(100);
+        rt.reset_reveal_timer_if_not_shown(&theme, shortcut);
+        let (_, elapsed, _) = rt.debug_snapshot();
+        let elapsed = elapsed.expect("held");
+        assert!(
+            elapsed >= std::time::Duration::from_millis(500)
+                && elapsed < std::time::Duration::from_millis(600),
+            "재설정은 단축키가 도착한 때(누른 뒤 100ms)로 맞춘다: {elapsed:?}"
+        );
     }
 
     #[test]
     fn update_hold_follows_combo_when_axis_released() {
         let mut rt = ModifierHintRuntime::default();
-        rt.update_hold(true, false, false, true); // Ctrl+Shift
+        rt.update_hold(true, false, false, true, Instant::now()); // Ctrl+Shift
         let t0 = rt.hold_since;
-        assert!(rt.update_hold(false, false, false, true));
+        assert!(rt.update_hold(false, false, false, true, Instant::now()));
         assert_eq!(
             rt.held,
             Some(Combo {
@@ -938,9 +966,9 @@ mod tests {
     #[test]
     fn update_hold_clears_and_resets_dismiss_on_full_release() {
         let mut rt = ModifierHintRuntime::default();
-        rt.update_hold(true, false, false, false);
+        rt.update_hold(true, false, false, false, Instant::now());
         rt.dismissed = true;
-        assert!(rt.update_hold(false, false, false, false));
+        assert!(rt.update_hold(false, false, false, false, Instant::now()));
         assert!(rt.held.is_none());
         assert!(rt.hold_since.is_none());
         assert!(!rt.dismissed, "전 modifier release 시 dismiss 리셋");
@@ -952,10 +980,10 @@ mod tests {
     fn reset_reveal_timer_rewinds_before_gate() {
         let theme = tasty_themes::mocha_fallback();
         let mut rt = ModifierHintRuntime::default();
-        rt.update_hold(true, false, false, false); // Ctrl 홀드 시작(delay 500ms).
+        rt.update_hold(true, false, false, false, Instant::now()); // Ctrl 홀드 시작(delay 500ms).
         rt.debug_backdate(std::time::Duration::from_millis(400));
 
-        rt.reset_reveal_timer_if_not_shown(&theme);
+        rt.reset_reveal_timer_if_not_shown(&theme, Instant::now());
 
         let (held, elapsed, _) = rt.debug_snapshot();
         let held = held.expect("held 는 리셋 대상 아님 — 유지돼야 한다");
@@ -974,10 +1002,10 @@ mod tests {
     fn reset_reveal_timer_keeps_timer_after_gate() {
         let theme = tasty_themes::mocha_fallback();
         let mut rt = ModifierHintRuntime::default();
-        rt.update_hold(true, false, false, false);
+        rt.update_hold(true, false, false, false, Instant::now());
         rt.debug_backdate(std::time::Duration::from_millis(700));
 
-        rt.reset_reveal_timer_if_not_shown(&theme);
+        rt.reset_reveal_timer_if_not_shown(&theme, Instant::now());
 
         let (held, elapsed, _) = rt.debug_snapshot();
         let held = held.expect("held 는 리셋 대상 아님");
@@ -996,7 +1024,7 @@ mod tests {
         let theme = tasty_themes::mocha_fallback();
         let mut rt = ModifierHintRuntime::default();
 
-        rt.reset_reveal_timer_if_not_shown(&theme);
+        rt.reset_reveal_timer_if_not_shown(&theme, Instant::now());
 
         assert!(rt.hold_since.is_none());
         assert!(rt.held.is_none());
@@ -1008,10 +1036,10 @@ mod tests {
     fn reset_reveal_timer_uses_shift_only_delay() {
         let theme = tasty_themes::mocha_fallback();
         let mut rt = ModifierHintRuntime::default();
-        rt.update_hold(false, false, false, true); // Shift 단독(delay 1200ms).
+        rt.update_hold(false, false, false, true, Instant::now()); // Shift 단독(delay 1200ms).
         rt.debug_backdate(std::time::Duration::from_millis(900));
 
-        rt.reset_reveal_timer_if_not_shown(&theme);
+        rt.reset_reveal_timer_if_not_shown(&theme, Instant::now());
 
         let (held, elapsed, _) = rt.debug_snapshot();
         let held = held.expect("held 는 리셋 대상 아님");
@@ -1030,11 +1058,11 @@ mod tests {
     fn reset_reveal_timer_does_not_touch_dismissed() {
         let theme = tasty_themes::mocha_fallback();
         let mut rt = ModifierHintRuntime::default();
-        rt.update_hold(true, false, false, false);
+        rt.update_hold(true, false, false, false, Instant::now());
         rt.dismissed = true;
         rt.debug_backdate(std::time::Duration::from_millis(200));
 
-        rt.reset_reveal_timer_if_not_shown(&theme);
+        rt.reset_reveal_timer_if_not_shown(&theme, Instant::now());
 
         assert!(rt.dismissed, "dismissed 는 리셋 대상 아님");
     }
@@ -1068,7 +1096,7 @@ mod tests {
         settings.modifier_hint.enabled = true;
 
         let mut rt = ModifierHintRuntime::default();
-        rt.update_hold(true, true, false, false); // Ctrl+Alt 홀드
+        rt.update_hold(true, true, false, false, Instant::now()); // Ctrl+Alt 홀드
         rt.debug_backdate(std::time::Duration::from_millis(5000)); // 표시 지연 게이트 통과
 
         let theme = tasty_themes::mocha_fallback();

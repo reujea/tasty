@@ -204,6 +204,9 @@ pub(crate) struct EditKeyState<E = WindowEvent> {
     /// Cut points now waiting in the window's egui input (`InputCuts`), kept by the window. An edit
     /// put into the input records it as `cuts_ahead`.
     cuts: usize,
+    /// When the window event now being run reached the window (`replace_arrival`). An event queued
+    /// behind a hold keeps it for its replay. `None` (no event being run with one) reads as now.
+    arrival: Option<Instant>,
 }
 
 impl<E> Default for EditKeyState<E> {
@@ -215,6 +218,7 @@ impl<E> Default for EditKeyState<E> {
             release: None,
             focus_deferred: false,
             cuts: 0,
+            arrival: None,
         }
     }
 }
@@ -238,6 +242,17 @@ impl<E: HeldEvent> EditKeyState<E> {
     /// the main window cuts its input; every other window keeps 0.
     pub(crate) fn set_cuts(&mut self, cuts: usize) {
         self.cuts = cuts;
+    }
+
+    /// When the window event now being run reached the window: now for a new event, its first
+    /// arrival for a replayed one, `None` once it has run. Returns the value it replaces.
+    pub(crate) fn replace_arrival(&mut self, at: Option<Instant>) -> Option<Instant> {
+        std::mem::replace(&mut self.arrival, at)
+    }
+
+    /// [`Self::replace_arrival`]'s value, or now when no event is being run with one.
+    pub(crate) fn arrival(&self) -> Instant {
+        self.arrival.unwrap_or_else(Instant::now)
     }
 
     /// The winit modifiers the next key press is judged with.
@@ -422,10 +437,11 @@ impl<E: HeldEvent> EditKeyState<E> {
     }
 
     fn queue(&mut self, event: E) {
+        let at = self.arrival();
         if let Some(held) = self.hold.as_mut() {
-            held.hold.queue(event);
+            held.hold.queue(event, at);
         } else if let Some((_, release)) = self.release.as_mut() {
-            release.queued.push(event);
+            release.push(event, at);
         }
     }
 
@@ -603,10 +619,14 @@ impl<E: HeldEvent> EditKeyState<E> {
         // A release still waiting for its owner keeps its place: the new one's events come after.
         match self.release.as_mut() {
             Some((_, earlier)) => {
-                earlier
-                    .queued
-                    .extend(release.replay.map(|(event, _)| event));
-                earlier.queued.extend(release.queued);
+                // The released key is an edit key press; no judgment reads its arrival time.
+                let (replay, queued) = release.split();
+                if let Some((event, _)) = replay {
+                    earlier.push(event, Instant::now());
+                }
+                for (event, at) in queued {
+                    earlier.push(event, at);
+                }
             }
             None => self.release = Some((owner, release)),
         }
@@ -625,6 +645,19 @@ impl super::GpuState {
     /// `None` leaves every key to egui-winit.
     pub fn set_edit_bindings(&mut self, bindings: Option<EditBindings>) {
         self.edit_keys.set_bindings(bindings);
+    }
+
+    /// When the window event now being run reached the window. The App sets it around each event
+    /// and each replayed one and puts the earlier value back after, so a key queued behind a hold
+    /// keeps it and double taps and modifier hint holds are judged by arrival, not by when the
+    /// event runs. Returns the value it replaces.
+    pub fn replace_event_arrival(&mut self, at: Option<Instant>) -> Option<Instant> {
+        self.edit_keys.replace_arrival(at)
+    }
+
+    /// [`Self::replace_event_arrival`]'s value (now when the event came by another way).
+    pub fn event_arrival(&self) -> Instant {
+        self.edit_keys.arrival()
     }
 
     /// Judges a window event before egui-winit. `owner` says who replays a released key.
@@ -802,17 +835,21 @@ pub(crate) fn frames_stopped(window: &winit::window::Window) -> bool {
 }
 
 /// Runs a finished hold's events through a window's own event handling, in order: the released key
-/// once, marked with the edit it was judged for, then the queued events unmarked (judged again).
+/// once, marked with the edit it was judged for, then the queued events unmarked (judged again)
+/// with their arrival times.
 /// Stops at the first result `done` accepts (the window closed) and returns it.
 pub(crate) fn replay_release<E, A>(
     release: Release<E>,
     done: impl Fn(&A) -> bool,
-    mut handle: impl FnMut(E, Option<EditKey>) -> A,
+    mut handle: impl FnMut(E, Option<EditKey>, Option<Instant>) -> A,
 ) -> Option<A> {
-    let replay = release.replay.map(|(event, edit)| (event, Some(edit)));
-    let queued = release.queued.into_iter().map(|event| (event, None));
-    for (event, judged) in replay.into_iter().chain(queued) {
-        let result = handle(event, judged);
+    let (replay, queued) = release.split();
+    let replay = replay.map(|(event, edit)| (event, Some(edit), None));
+    let queued = queued
+        .into_iter()
+        .map(|(event, at)| (event, None, Some(at)));
+    for (event, judged, at) in replay.into_iter().chain(queued) {
+        let result = handle(event, judged, at);
         if done(&result) {
             return Some(result);
         }

@@ -712,6 +712,10 @@ mod stream_wakes_go_through_the_gate;
 #[cfg(test)]
 mod edit_key_judgment_order;
 
+/// 더블탭·수식키 힌트 판정의 제품 호출자는 사건의 도착 시각을 넘긴다.
+#[cfg(test)]
+mod arrival_time_call_sites;
+
 #[cfg(test)]
 mod icon_texture_loader_installed;
 /// 제품 코드에서 memory.db 저장소를 memory writer만 소유하는지 확인한다.

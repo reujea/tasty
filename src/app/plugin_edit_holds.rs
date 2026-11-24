@@ -103,8 +103,9 @@ impl PluginEditHolds {
     }
 
     /// 보류 중인 창의 키·IME·modifier·포인터 입력을 줄 세운다. 줄을 섰으면 true 이고 호출자는 처리하지 않는다.
-    pub(crate) fn queue(&mut self, window: WindowId, event: &WindowEvent) -> bool {
-        if let Some(queued) = self.queue_behind_await(window, event) {
+    /// `at` 은 그 입력이 창에 처음 도착한 시각이고 재생 때 그대로 쓴다.
+    pub(crate) fn queue(&mut self, window: WindowId, event: &WindowEvent, at: Instant) -> bool {
+        if let Some(queued) = self.queue_behind_await(window, event, at) {
             return queued;
         }
         let Some(held) = self.holds.get_mut(&window) else {
@@ -113,7 +114,7 @@ impl PluginEditHolds {
         if !(event.queues_behind_hold() || event.is_pointer()) {
             return false;
         }
-        held.hold.queue(event.clone());
+        held.hold.queue(event.clone(), at);
         true
     }
 
@@ -328,9 +329,14 @@ fn plugin_replay(
 impl App {
     /// 보류 중인 창의 입력이면 줄 세운다. 줄을 섰으면 true 다. 글자를 기다리는 창의 포인터 누름·포커스 상실은
     /// 기다림을 끝내 줄 선 입력을 먼저 재생한 뒤 그 입력을 처리하게 한다. 재생이 만든 새 기다림도 끝낸다.
-    pub(super) fn queue_behind_plugin_edit(&mut self, id: WindowId, event: &WindowEvent) -> bool {
+    pub(super) fn queue_behind_plugin_edit(
+        &mut self,
+        id: WindowId,
+        event: &WindowEvent,
+        at: Instant,
+    ) -> bool {
         paste_await::interrupt_awaits(self, id, event);
-        self.plugin_edit_holds.queue(id, event)
+        self.plugin_edit_holds.queue(id, event, at)
     }
 
     /// 창마다 끝난 플러그인 붙여넣기 읽기.

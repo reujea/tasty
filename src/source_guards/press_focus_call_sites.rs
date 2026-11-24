@@ -626,7 +626,7 @@ fn a_debug_clipboard_injection_into_a_main_window_cuts_the_segment_first() {
 #[test]
 fn a_key_that_opens_a_focused_popup_applies_the_open_before_the_next_event() {
     let src = read("src/app/edit_key_replay.rs");
-    let route = squeeze(&fn_body(&src, "fn route_window_input(").expect("route_window_input"));
+    let route = squeeze(&fn_body(&src, "fn route_input_steps(").expect("route_input_steps"));
     // 키 사건의 출발 노드는 plugin 단축키 단계 앞에서 한 번 정하고(`settle_window_key` → `MainView::settle_key_event`),
     // 창 view 는 그 사실을 받아 다시 정하지 않는다. 동작은 `app::plugin_glue::shortcut::state_tests` 의
     // `a_key_after_a_bare_escape_on_the_search_bar_runs_its_plugin_global_command` 가 App 입구 순서로 잰다.
