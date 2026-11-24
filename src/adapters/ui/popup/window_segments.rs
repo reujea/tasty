@@ -209,7 +209,11 @@ impl PopupManager {
         *events = loaded;
         self.window.run_owner = owner;
     }
+}
 
+/// 수식키 Esc 시험(`file_chooser_popup_tests::entered_pass`)이 비-macOS 전용이라 이 대역도 같은 조건이다.
+#[cfg(all(test, not(target_os = "macos")))]
+impl PopupManager {
     /// 시험 대역: 이번 `run` 의 결속 없는 몫 키 주인을 `owner` 로 둔다.
     pub(crate) fn set_window_run_owner(&mut self, owner: Option<PopupInstanceId>) {
         self.window.run_owner = owner;
