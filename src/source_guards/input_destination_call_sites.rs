@@ -102,3 +102,42 @@ fn the_window_ime_path_picks_its_branch_through_the_input_destination() {
         "IME 갈래를 판정 밖에서 고른다"
     );
 }
+
+/// 버튼: mesh에서 누른 버튼의 뗌은 메뉴 닫기·분할선·위 층 분기보다 먼저 기록한 leaf로 간다. 나머지 사건은 위 층
+/// 판정 뒤 로컬·attach 공통 판정 하나로 mesh에 간다. 판정의 동작은 `state::mesh_frames` 시험이 단계 순서대로
+/// 불러 잰다. 창 호출부가 그 순서를 지키지 않으면 그 시험은 보지 못하므로 호출부의 모양을 여기서 고정한다.
+#[test]
+fn the_window_button_path_sends_a_recorded_mesh_release_first() {
+    let src = read("src/view/main/mouse.rs");
+    let body = squeeze(&fn_body(&src, "fn handle_mouse_input(").expect("handle_mouse_input"));
+    let find = |needle: &str| {
+        assert_eq!(
+            body.matches(needle).count(),
+            1,
+            "`{needle}` 이 하나가 아니다"
+        );
+        body.find(needle).unwrap_or_default()
+    };
+    let recorded =
+        find("ifself.forward_recorded_mesh_release(engine,button,button_state){return;}");
+    let order = [
+        recorded,
+        find("ifmenu_dismiss_swallow{"),
+        find("self.try_press_divider_first("),
+        find("button_stays_above("),
+        find("ifself.try_forward_mesh_button(engine,button,button_state){return;}"),
+    ];
+    assert!(
+        order.windows(2).all(|w| w[0] < w[1]),
+        "기록된 뗌 → 메뉴 닫기 → 분할선 → 위 층 → mesh 순서가 아니다: {order:?}"
+    );
+    for gone in [
+        "try_forward_egui_mesh_button",
+        "try_forward_attach_mesh_button",
+    ] {
+        assert!(
+            !src.contains(gone),
+            "mesh 버튼 전달은 한 판정으로 간다: {gone}"
+        );
+    }
+}

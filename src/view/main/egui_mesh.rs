@@ -18,7 +18,7 @@ use tasty_plugin_protocol::{
 use crate::app::plugin_display::PluginDisplay;
 use crate::model::{PhysicalPx, PhysicalRect};
 use crate::plugin_bridge::MeshForwardCommon;
-use crate::state::mesh_frames::MeshSide;
+use crate::state::mesh_frames::{MeshButtonStage, MeshSide};
 
 use super::MainView;
 use crate::view::ui::View as _;
@@ -87,25 +87,68 @@ impl MainView {
         Some((r.id, ms.plugin_id.clone(), r.rect))
     }
 
-    /// 버튼 사건의 로컬 mesh 대상. 누른 leaf를 기억해 뗌을 그 leaf로 보낸다.
-    pub(super) fn mesh_button(
+    /// mesh에서 누른 버튼의 뗌을 누른 leaf로 보낸다(로컬·attach). 창의 버튼 처리가 다른 분기보다 먼저 부른다.
+    pub(super) fn forward_recorded_mesh_release(
         &mut self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
-        x: f32,
-        y: f32,
-        (button, state): (winit::event::MouseButton, ElementState),
-    ) -> Option<(u32, String, PhysicalRect)> {
+        button: MouseButton,
+        button_state: ElementState,
+    ) -> bool {
+        self.forward_mesh_button(engine, button, button_state, MeshButtonStage::Recorded)
+    }
+
+    /// 위 층·분할선 판정 뒤의 버튼 사건을 포인터 아래 mesh leaf로 보낸다(로컬, 그다음 attach). 분할선 드래그
+    /// 중이면 로컬 mesh로 보내지 않는다. 보냈으면 `true`다.
+    pub(super) fn try_forward_mesh_button(
+        &mut self,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        button: MouseButton,
+        button_state: ElementState,
+    ) -> bool {
+        let stage = MeshButtonStage::Below {
+            dragging_divider: self.dragging_divider.is_some(),
+        };
+        self.forward_mesh_button(engine, button, button_state, stage)
+    }
+
+    /// 버튼 사건을 `stage` 판정([`crate::state::mesh_frames::mesh_button_target`])이 고른 leaf에 surface 기준
+    /// 좌표로 누적한다. 왼쪽 버튼 뗌이면 창의 왼쪽 누름 상태도 끈다.
+    fn forward_mesh_button(
+        &mut self,
+        engine: &crate::runtime::engine_read::EngineRead<'_>,
+        button: MouseButton,
+        button_state: ElementState,
+        stage: MeshButtonStage,
+    ) -> bool {
+        let Some(pos) = self.cursor_position else {
+            return false;
+        };
+        let (x, y) = (pos.x as f32, pos.y as f32);
         let regions = self.mesh_regions(engine);
-        let r = crate::state::mesh_frames::button_target(
+        let pressed = is_pressed(button_state);
+        let Some(r) = crate::state::mesh_frames::mesh_button_target(
             &regions,
             &mut self.state.mesh_press,
-            MeshSide::Local,
+            stage,
             button,
             (x, y),
-            is_pressed(state),
-        )?;
-        let ms = engine.find_surface_by_id(r.id)?.mesh()?;
-        Some((r.id, ms.plugin_id.clone(), r.rect))
+            pressed,
+        ) else {
+            return false;
+        };
+        if !pressed && button == MouseButton::Left {
+            self.left_mouse_down = false;
+        }
+        match r.side {
+            MeshSide::Local => {
+                self.egui_mesh_push_pointer_button(r.id, r.rect, x, y, button, pressed)
+            }
+            MeshSide::Attach => {
+                self.attach_mesh_push_pointer_button(r.id, r.rect, x, y, button, pressed)
+            }
+        }
+        self.mark_dirty();
+        true
     }
 
     /// 이번 배치의 mesh 프레임 영역(로컬·attach).

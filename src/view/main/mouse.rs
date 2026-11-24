@@ -368,6 +368,10 @@ impl MainView {
             pop_report_button(&mut self.report_buttons_down, code);
         }
 
+        // mesh에서 누른 버튼의 뗌은 아래 어느 분기보다 먼저 누른 leaf로 보낸다(분할선 드래그·위 층에서도).
+        if self.forward_recorded_mesh_release(engine, button, button_state) {
+            return;
+        }
         if menu_dismiss_swallow {
             if button_state == ElementState::Pressed {
                 self.dismiss_pending_native_menu();
@@ -428,14 +432,8 @@ impl MainView {
             return;
         }
 
-        // divider 드래그의 release는 mesh로 보내지 않는다. 아래 핸들러가
-        // 크기 변경을 확정하고 드래그 상태를 해제해야 한다.
-        if self.dragging_divider.is_none()
-            && self.try_forward_egui_mesh_button(engine, button, button_state)
-        {
-            return;
-        }
-        if self.try_forward_attach_mesh_button(engine, button, button_state) {
+        // divider 드래그 중에는 로컬 mesh로 보내지 않는다. 아래 핸들러가 크기 변경을 확정하고 드래그 상태를 해제한다.
+        if self.try_forward_mesh_button(engine, button, button_state) {
             return;
         }
 
@@ -579,51 +577,6 @@ impl MainView {
                 if changed_pane || changed_surf {
                     self.base.state.dirty = true;
                 }
-                self.mark_dirty();
-                return true;
-            }
-        }
-        false
-    }
-
-    /// egui-mesh surface 입력 forward (A1-S7): 포인터가 egui-mesh surface 위면 버튼
-    /// 이벤트를 surface-local 좌표로 누적해 다음 set_context 로 보내고 소비(`true`).
-    fn try_forward_egui_mesh_button(
-        &mut self,
-        engine: &crate::runtime::engine_read::EngineRead<'_>,
-        button: MouseButton,
-        button_state: ElementState,
-    ) -> bool {
-        if let Some(pos) = self.cursor_position {
-            let (x, y) = (pos.x as f32, pos.y as f32);
-            if let Some((sid, _, rect)) = self.mesh_button(engine, x, y, (button, button_state)) {
-                let pressed = super::egui_mesh::is_pressed(button_state);
-                if !pressed {
-                    self.left_mouse_down = false;
-                }
-                self.egui_mesh_push_pointer_button(sid, rect, x, y, button, pressed);
-                self.mark_dirty();
-                return true;
-            }
-        }
-        false
-    }
-
-    /// attach mesh mirror surface 입력 forward — 위와 동형이되 목적지가 원격.
-    fn try_forward_attach_mesh_button(
-        &mut self,
-        engine: &crate::runtime::engine_read::EngineRead<'_>,
-        button: MouseButton,
-        button_state: ElementState,
-    ) -> bool {
-        if let Some(pos) = self.cursor_position {
-            let (x, y) = (pos.x as f32, pos.y as f32);
-            if let Some((sid, r)) = self.attach_mesh_button(engine, x, y, (button, button_state)) {
-                let pressed = super::egui_mesh::is_pressed(button_state);
-                if !pressed {
-                    self.left_mouse_down = false;
-                }
-                self.attach_mesh_push_pointer_button(sid, r, x, y, button, pressed);
                 self.mark_dirty();
                 return true;
             }

@@ -133,6 +133,47 @@ pub(crate) fn button_target(
     }
 }
 
+/// 창의 버튼 처리에서 mesh 판정을 부르는 단계.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MeshButtonStage {
+    /// 다른 분기(메뉴 닫기·분할선·위 층)보다 먼저. mesh에서 누른 버튼의 뗌만 본다.
+    Recorded,
+    /// 위 층·분할선 판정 뒤의 나머지 사건. 분할선 드래그 중이면 로컬 mesh는 건너뛴다.
+    Below { dragging_divider: bool },
+}
+
+/// 창 버튼 사건의 mesh 대상(로컬·attach 공통). `Recorded` 단계는 기록된 버튼의 뗌을 기록한 leaf로 보내고 기록을
+/// 지운다. 이 단계가 다른 분기보다 앞이라 mesh에서 누른 버튼의 뗌은 분할선 드래그 중이든 위 층이 사건을 가져가든
+/// 사라지지 않는다. 그 leaf가 배치에서 사라졌으면 기록만 지우고 사건은 다른 분기로 간다. `Below` 단계는 로컬,
+/// 그다음 attach 순서로 [`button_target`]을 쓴다.
+pub(crate) fn mesh_button_target(
+    regions: &[MeshFrameRegion],
+    presses: &mut MeshPresses,
+    stage: MeshButtonStage,
+    button: winit::event::MouseButton,
+    (x, y): (f32, f32),
+    pressed: bool,
+) -> Option<MeshFrameRegion> {
+    match stage {
+        MeshButtonStage::Recorded => {
+            if pressed {
+                return None;
+            }
+            let p = presses.of(button)?;
+            presses.forget(button);
+            pointer_target(regions, Some(p), p.side, x, y)
+        }
+        MeshButtonStage::Below { dragging_divider } => {
+            let local = (!dragging_divider)
+                .then(|| button_target(regions, presses, MeshSide::Local, button, (x, y), pressed))
+                .flatten();
+            local.or_else(|| {
+                button_target(regions, presses, MeshSide::Attach, button, (x, y), pressed)
+            })
+        }
+    }
+}
+
 impl MainViewState {
     /// 활성 workspace의 그리는 탭에서 mesh 프레임 영역을 모은다.
     pub(crate) fn mesh_frame_regions(
@@ -354,6 +395,73 @@ mod tests {
             );
             assert!(motion_target(&regions, &presses, second, 5.0, 80.0).is_none());
         }
+    }
+
+    /// 창의 버튼 처리 한 번: 맨 앞 `Recorded` 단계가 사건을 가져가지 않았고 위 층이 가져가지 않았으면(`above`)
+    /// `Below` 단계로 간다. 분할선 누름은 mesh 판정 없이 드래그를 시작한다(`dragging`).
+    fn window_button(
+        regions: &[MeshFrameRegion],
+        presses: &mut MeshPresses,
+        button: winit::event::MouseButton,
+        at: (f32, f32),
+        (pressed, dragging, above): (bool, bool, bool),
+    ) -> Option<MeshFrameRegion> {
+        let recorded = mesh_button_target(
+            regions,
+            presses,
+            MeshButtonStage::Recorded,
+            button,
+            at,
+            pressed,
+        );
+        if recorded.is_some() || above {
+            return recorded;
+        }
+        let stage = MeshButtonStage::Below {
+            dragging_divider: dragging,
+        };
+        mesh_button_target(regions, presses, stage, button, at, pressed)
+    }
+
+    /// mesh leaf를 오른쪽으로 누른 뒤 왼쪽으로 분할선 드래그를 시작하고 오른쪽을 떼면, 뗌은 분할선 드래그 중에도
+    /// 누른 leaf로 가고 기록이 지워진다. 위 층(팝업)이 뗌을 가져가는 경우도 같다. 로컬과 attach가 같다.
+    #[test]
+    fn a_recorded_release_reaches_its_leaf_whichever_branch_takes_it() {
+        for side in [MeshSide::Local, MeshSide::Attach] {
+            for (dragging, above) in [(true, false), (false, true), (true, true)] {
+                let regions = [region(1, 10.0, side), region(3, 70.0, MeshSide::Local)];
+                let mut presses = MeshPresses::default();
+                let flags = (true, false, false);
+                let down = window_button(&regions, &mut presses, Right, (5.0, 20.0), flags);
+                assert_eq!(down.map(|r| r.id), Some(1), "{side:?}");
+                let flags = (false, dragging, above);
+                let up = window_button(&regions, &mut presses, Right, (5.0, 200.0), flags);
+                assert_eq!(
+                    up.map(|r| (r.id, r.side)),
+                    Some((1, side)),
+                    "{side:?} dragging={dragging} above={above}"
+                );
+                assert_eq!(presses, MeshPresses::default(), "{side:?} record cleared");
+            }
+        }
+    }
+
+    /// 분할선 드래그 중의 새 누름과 기록 없는 뗌은 로컬 mesh로 가지 않는다. attach는 받는다.
+    #[test]
+    fn a_divider_drag_keeps_unrecorded_events_from_the_local_mesh() {
+        let regions = [
+            region(1, 10.0, MeshSide::Local),
+            region(3, 70.0, MeshSide::Attach),
+        ];
+        let mut presses = MeshPresses::default();
+        let drag = (true, true, false);
+        let local = window_button(&regions, &mut presses, Right, (5.0, 20.0), drag);
+        assert!(local.is_none());
+        let remote = window_button(&regions, &mut presses, Right, (5.0, 80.0), drag);
+        assert_eq!(remote.map(|r| r.id), Some(3));
+        let release = (false, true, false);
+        let stray = window_button(&regions, &mut presses, Left, (5.0, 20.0), release);
+        assert!(stray.is_none(), "an unrecorded release during a drag");
     }
 
     /// 지난 누름이 남아 있어도 새 누름은 포인터 아래로 정한다. 빗나간 누름은 그 버튼의 지난 기억을 지운다.

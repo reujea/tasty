@@ -41,26 +41,6 @@ impl MainView {
             .map(|r| (r.id, r.rect))
     }
 
-    /// 버튼 사건의 원격 mesh 대상. 누른 leaf를 기억해 뗌을 그 leaf로 보낸다.
-    pub(super) fn attach_mesh_button(
-        &mut self,
-        engine: &crate::runtime::engine_read::EngineRead<'_>,
-        x: f32,
-        y: f32,
-        (button, state): (winit::event::MouseButton, winit::event::ElementState),
-    ) -> Option<(u32, PhysicalRect)> {
-        let regions = self.mesh_regions(engine);
-        crate::state::mesh_frames::button_target(
-            &regions,
-            &mut self.state.mesh_press,
-            MeshSide::Attach,
-            button,
-            (x, y),
-            super::egui_mesh::is_pressed(state),
-        )
-        .map(|r| (r.id, r.rect))
-    }
-
     /// 포인터 버튼 누름/뗌을 attach mesh surface 에 누적.
     pub(super) fn attach_mesh_push_pointer_button(
         &mut self,
