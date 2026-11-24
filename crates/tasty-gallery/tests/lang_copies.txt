@@ -147,11 +147,14 @@ src/catalog/components/explorer_view_cells.rs	Type	explorer.column.type,remote_t
 src/catalog/components/explorer_view_cells.rs	—	dag.detail.none,port_scanner.external_dash
 src/catalog/components/explorer_view_toggle.rs	off	settings.file_handler.extension_mapping.off
 src/catalog/components/file_handler_picker.rs	Open	button.open,explorer.props.open,file_handler.picker.open_button,filepicker.open_button
+src/catalog/components/file_handler_picker.rs	copy	explorer.remote.op_copy
 src/catalog/components/file_handler_picker.rs	default	file_handler.picker.default_tag
 src/catalog/components/file_handler_picker.rs	disabled	settings.file_handler.common.disabled
+src/catalog/components/file_handler_picker.rs	disconnected	status_bar.remote_disconnected
 src/catalog/components/file_handler_picker.rs	fallback	dag.rel.fallback
 src/catalog/components/file_handler_picker.rs	just now	file_handler.picker.when_just_now
 src/catalog/components/file_handler_picker.rs	plugin	file_handler.picker.origin_plugin
+src/catalog/components/file_handler_picker.rs	reconnecting	status_bar.remote_reconnecting
 src/catalog/components/file_handler_picker.rs	unknown	remote_tool.filter_unknown
 src/catalog/components/file_handler_picker.rs	yesterday	file_handler.picker.when_yesterday
 src/catalog/components/file_handler_picker/frame.rs	All handlers	file_handler.picker.fallback_heading

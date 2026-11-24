@@ -804,7 +804,7 @@ mod tests {
                 for row in &REMOTE_PATH_ROWS[4..] {
                     let mark = tasty_ui_widgets::RemoteMark {
                         host: row.host.expect("remote row"),
-                        empty_label: "Remote",
+                        empty_label: crate::i18n::t("attach.mirror_pill_label"),
                         reconnecting: None,
                     };
                     let budget = fh_model::target_budget_chars_beside(
