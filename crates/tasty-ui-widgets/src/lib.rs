@@ -329,8 +329,8 @@ pub use rail_marks::{
     paint_workspace_mirror_chip_offline, rail_category_line_length, rail_flat_divider_size,
 };
 pub use remote_mark::{
-    LinkRemoteTip, RemoteMark, fh_remote_mark_width, fh_remote_word_width, link_tip_rect,
-    paint_fh_remote_mark,
+    LinkRemoteTip, RemoteMark, fh_remote_mark_width, fh_remote_path_budget,
+    fh_remote_path_budget_from, fh_remote_word_width, link_tip_rect, paint_fh_remote_mark,
 };
 pub use remote_row_menu::{
     REMOTE_ROW_CLOSE_LOCAL_KEY, REMOTE_ROW_CLOSE_REMOTE_KEY, REMOTE_ROW_CONNECT_KEY,

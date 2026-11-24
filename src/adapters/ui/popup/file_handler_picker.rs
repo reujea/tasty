@@ -136,45 +136,15 @@ fn target_budget(
     let two = text_w(ui, "00", &font, egui::Color32::PLACEHOLDER);
     let advance = LogicalPx(two - one);
     match remote {
-        Some(mark) => remote_target_budget(
+        Some(mark) => tasty_ui_widgets::fh_remote_path_budget(
+            ui,
             th,
-            advance,
-            tasty_ui_widgets::fh_remote_mark_width(ui, th, mark),
-            mark.reconnecting
-                .map(|word| tasty_ui_widgets::fh_remote_word_width(ui, th, word)),
             mark,
+            advance,
             crate::i18n::current_language(),
         ),
         None => fh_model::target_budget_chars(advance),
     }
-}
-
-/// 원격 표지 옆 경로의 글자 수. 경로 상자는 표지와 그 뒤 간격(space-sm)을 뺀 나머지다.
-/// 잰 값(`advance`·`mark_w`)이 유효하지 않으면 Theme 토큰과 `language`로 추정하고, 상태 단어는 잰 폭
-/// `word_w`가 유효하면 그 값을 쓴다.
-fn remote_target_budget(
-    th: &Theme,
-    advance: LogicalPx,
-    mark_w: LogicalPx,
-    word_w: Option<LogicalPx>,
-    mark: &tasty_ui_widgets::RemoteMark<'_>,
-    language: &str,
-) -> usize {
-    fh_model::target_budget_chars_beside(
-        advance,
-        mark_w,
-        th.spacing_sm,
-        &fh_model::UnmeasuredMark {
-            host: mark.host,
-            reconnecting: mark.reconnecting,
-            word_width: word_w,
-            language,
-            glyph: th.icon_glyph_size_xs,
-            mark_gap: th.fh_remote_gap(),
-            host_cap: th.fh_remote_max_width(),
-            em: tasty_ui_widgets::tokens::FH_STATUS_WORD_EM_UNMEASURED,
-        },
-    )
 }
 
 /// 최근 사용 시각의 표시 구간.
@@ -1176,7 +1146,7 @@ mod tests {
         tasty_themes::mocha_fallback()
     }
 
-    /// 글자 폭을 잴 수 없을 때 앱 호출부가 넘기는 값(글리프·간격·호스트 상한·글자당 폭)으로 정본 Meta
+    /// 글자 폭을 잴 수 없을 때 앱 경로(`target_budget` → `fh_remote_path_budget_from`)가 넘기는 값(글리프·간격·호스트 상한·글자당 폭)으로 정본 Meta
     /// 'path cap, unmeasured'의 재연결 값이 나온다. 빈 호스트(상한 160) 옆 재연결: en 21 · ko 24 · ja 25 · zh-Hans 23.
     #[test]
     fn the_app_unmeasured_path_cap_beside_a_reconnecting_mark_follows_the_word_language() {
@@ -1193,7 +1163,7 @@ mod tests {
                 reconnecting: Some(word),
             };
             assert_eq!(
-                remote_target_budget(
+                tasty_ui_widgets::fh_remote_path_budget_from(
                     &th,
                     LogicalPx(f32::NAN),
                     LogicalPx(40.0),
@@ -1207,7 +1177,7 @@ mod tests {
         }
     }
 
-    /// 경로 글자 폭만 잴 수 없고 상태 단어 폭은 잰 경우, 앱 호출부는 언어별 추정 대신 잰 폭을 뺀다.
+    /// 경로 글자 폭만 잴 수 없고 상태 단어 폭은 잰 경우, 앱 경로는 언어별 추정 대신 잰 폭을 뺀다.
     /// 빈 호스트(상한 160) 옆: 잰 폭 30 → floor((366 − 160 − 4 − 30) / 6) = 28, 못 잰 en 추정(72) → 21.
     #[test]
     fn the_app_unmeasured_path_cap_uses_the_measured_status_word_width() {
@@ -1218,7 +1188,7 @@ mod tests {
             reconnecting: Some("reconnecting"),
         };
         let budget = |word_w| {
-            remote_target_budget(
+            tasty_ui_widgets::fh_remote_path_budget_from(
                 &th,
                 LogicalPx(f32::NAN),
                 LogicalPx(40.0),

@@ -145,6 +145,56 @@ pub fn fh_remote_word_width(ui: &egui::Ui, th: &Theme, word: &str) -> LogicalPx 
     LogicalPx(label_galley(ui.ctx(), th, word).rect.width())
 }
 
+/// 핸들러 picker 원격 표지 옆 경로의 글자 수. 표지 폭과 재연결 상태 단어 폭은 여기서 재고, 경로 글자 폭
+/// `advance`("00"과 "0"의 폭 차이)는 호출 쪽이 잰다. 본체와 갤러리가 같이 쓴다.
+pub fn fh_remote_path_budget(
+    ui: &egui::Ui,
+    th: &Theme,
+    mark: &RemoteMark<'_>,
+    advance: LogicalPx,
+    language: &str,
+) -> usize {
+    let word_w = mark
+        .reconnecting
+        .map(|word| fh_remote_word_width(ui, th, word));
+    fh_remote_path_budget_from(
+        th,
+        advance,
+        fh_remote_mark_width(ui, th, mark),
+        word_w,
+        mark,
+        language,
+    )
+}
+
+/// 잰 값으로 정하는 원격 표지 옆 경로의 글자 수. 경로 상자는 표지와 그 뒤 간격(space-sm)을 뺀 나머지다.
+/// 잰 값(`advance`·`mark_w`)이 유효하지 않으면 Theme 토큰과 `language`로 추정하고, 상태 단어는 잰 폭
+/// `word_w`가 유효하면 그 값을 쓴다.
+pub fn fh_remote_path_budget_from(
+    th: &Theme,
+    advance: LogicalPx,
+    mark_w: LogicalPx,
+    word_w: Option<LogicalPx>,
+    mark: &RemoteMark<'_>,
+    language: &str,
+) -> usize {
+    crate::file_handler::target_budget_chars_beside(
+        advance,
+        mark_w,
+        th.spacing_sm,
+        &crate::file_handler::UnmeasuredMark {
+            host: mark.host,
+            reconnecting: mark.reconnecting,
+            word_width: word_w,
+            language,
+            glyph: th.icon_glyph_size_xs,
+            mark_gap: th.fh_remote_gap(),
+            host_cap: th.fh_remote_max_width(),
+            em: crate::tokens::FH_STATUS_WORD_EM_UNMEASURED,
+        },
+    )
+}
+
 /// 핸들러 picker 경로 줄 앞 표지를 `left_center`(왼쪽 끝, 세로 가운데)에 그리고 폭을 돌려준다.
 pub fn paint_fh_remote_mark(
     ui: &egui::Ui,

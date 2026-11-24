@@ -790,23 +790,12 @@ pub(super) fn remote_spec_frame(
     });
     let advance = tasty_type_geometry::length::LogicalPx(advance);
     let budget = match head {
-        Some(head) => fh_model::target_budget_chars_beside(
+        Some(head) => tasty_ui_widgets::fh_remote_path_budget(
+            ui,
+            theme,
+            head.mark,
             advance,
-            tasty_ui_widgets::fh_remote_mark_width(ui, theme, head.mark),
-            theme.spacing_sm,
-            &fh_model::UnmeasuredMark {
-                host: head.mark.host,
-                reconnecting: head.mark.reconnecting,
-                word_width: head
-                    .mark
-                    .reconnecting
-                    .map(|word| tasty_ui_widgets::fh_remote_word_width(ui, theme, word)),
-                language: crate::i18n::current_language(),
-                glyph: theme.icon_glyph_size_xs,
-                mark_gap: theme.fh_remote_gap(),
-                host_cap: theme.fh_remote_max_width(),
-                em: tasty_ui_widgets::tokens::FH_STATUS_WORD_EM_UNMEASURED,
-            },
+            crate::i18n::current_language(),
         ),
         None => fh_model::target_budget_chars(advance),
     };

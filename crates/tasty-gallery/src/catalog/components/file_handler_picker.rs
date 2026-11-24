@@ -812,21 +812,8 @@ mod tests {
                         empty_label: crate::i18n::t("attach.mirror_pill_label"),
                         reconnecting: None,
                     };
-                    let budget = fh_model::target_budget_chars_beside(
-                        advance,
-                        tasty_ui_widgets::fh_remote_mark_width(ui, &theme, &mark),
-                        theme.spacing_sm,
-                        &fh_model::UnmeasuredMark {
-                            host: mark.host,
-                            reconnecting: None,
-                            word_width: None,
-                            language: "en",
-                            glyph: theme.icon_glyph_size_xs,
-                            mark_gap: theme.fh_remote_gap(),
-                            host_cap: theme.fh_remote_max_width(),
-                            em: tasty_ui_widgets::tokens::FH_STATUS_WORD_EM_UNMEASURED,
-                        },
-                    );
+                    let budget =
+                        tasty_ui_widgets::fh_remote_path_budget(ui, &theme, &mark, advance, "en");
                     cuts.push((budget, fh_model::elide_target_front(row.path, budget)));
                 }
             });
