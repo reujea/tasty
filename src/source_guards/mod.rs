@@ -712,6 +712,10 @@ mod stream_wakes_go_through_the_gate;
 #[cfg(test)]
 mod edit_key_judgment_order;
 
+/// 보류 검사는 창 입력 맨 앞 한 자리다.
+#[cfg(test)]
+mod window_input_hold_order;
+
 /// 더블탭·수식키 힌트 판정의 제품 호출자는 사건의 도착 시각을 넘긴다.
 #[cfg(test)]
 mod arrival_time_call_sites;

@@ -96,11 +96,6 @@ fn each_event_runs_with_its_arrival_time() {
     let replay = body("src/app/edit_key_replay.rs", "fn replay_edit_steps(");
     has(
         &replay,
-        "ReplayStep::View(event, at) => { let before = self.replace_event_arrival(id, Some(at));",
-        "view 보류 재생",
-    );
-    has(
-        &replay,
         "ReplayStep::Input(event, at) => self.route_window_input_at(id, event, at),",
         "plugin 보류 재생",
     );

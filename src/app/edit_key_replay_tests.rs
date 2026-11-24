@@ -18,12 +18,12 @@ fn release(queued: Vec<u32>) -> Release<u32> {
     }
 }
 
-/// 플러그인 보류 뒤에 줄 선 입력은 플러그인 단축키 단계 앞에서 붙잡혔으므로 그 단계부터 다시 거친다. 원래 키는
-/// view 에서 붙잡혔으므로 판정한 편집으로 view 에 한 번 넘긴다.
+/// 줄 선 입력은 창 입력 맨 앞의 보류 검사에서 붙잡혔으므로 그 자리부터 다시 거친다(플러그인 단축키 단계 포함). 원래
+/// 키는 view 에서 붙잡혔으므로 판정한 편집으로 view 에 한 번 넘긴다.
 #[test]
 fn input_queued_behind_a_plugin_hold_goes_through_plugin_shortcuts_again() {
     assert_eq!(
-        replay_steps(release(vec![1, 2]), HoldSite::BeforePluginShortcuts),
+        replay_steps(release(vec![1, 2])),
         vec![
             ReplayStep::Original(0, EditKey::Copy),
             ReplayStep::Input(1, arrived(1)),
@@ -32,15 +32,18 @@ fn input_queued_behind_a_plugin_hold_goes_through_plugin_shortcuts_again() {
     );
 }
 
-/// 호스트 입력칸 보류의 줄 선 입력은 view 안에서 붙잡혔으므로 view 로 넘긴다. 단축키를 두 번 판정하지 않는다.
+/// 창의 보류 줄(편집 보류·정착되지 않은 앞 입력)도 창 입력 맨 앞에서 붙잡으므로, 맨 앞에 줄 선 사건은 창 입력
+/// 처음부터 다시 거친다. 그 사건이 지나지 않은 출발 노드·plugin 단축키 단계를 건너뛰지 않는다.
 #[test]
-fn input_queued_inside_the_view_goes_back_to_the_view() {
+fn a_front_held_event_replays_from_the_window_input() {
+    let consumed = Release {
+        replay: None,
+        queued: vec![1],
+        queued_at: vec![arrived(1)],
+    };
     assert_eq!(
-        replay_steps(release(vec![1]), HoldSite::View),
-        vec![
-            ReplayStep::Original(0, EditKey::Copy),
-            ReplayStep::View(1, arrived(1))
-        ]
+        replay_steps(consumed),
+        vec![ReplayStep::Input(1, arrived(1))]
     );
 }
 
@@ -53,7 +56,7 @@ fn a_consumed_edit_replays_only_the_queued_input() {
         queued_at: vec![arrived(7)],
     };
     assert_eq!(
-        replay_steps(consumed, HoldSite::BeforePluginShortcuts),
+        replay_steps(consumed),
         vec![ReplayStep::Input(7, arrived(7))]
     );
 }

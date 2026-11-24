@@ -61,6 +61,9 @@ impl HeldEvent for Ev {
     fn is_pointer(&self) -> bool {
         false
     }
+    fn is_key(&self) -> bool {
+        true
+    }
 }
 
 fn ev(c: &str) -> Ev {

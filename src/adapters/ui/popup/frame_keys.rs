@@ -298,6 +298,12 @@ impl PopupManager {
         }
     }
 
+    /// 창이 egui 입력에서 빼 팝업에 넘긴 Esc 가 아직 그려지지 않았는지(정착 조건 3). 그 Esc 를 그린 패스가 팝업을
+    /// 닫거나 포커스를 옮길 수 있으므로 뒤 키는 그 패스 뒤에 정한다(`EditKeyState::hold_front`).
+    pub(crate) fn has_undrawn_handed_escape(&self) -> bool {
+        !self.keys.escape.is_empty() || self.keys.after_cut.iter().any(|a| !a.escape.is_empty())
+    }
+
     /// 이번 프레임 키 주인에게 넘길 Esc 사건을 꺼낸다. host 그리기가 host 키 주인일 때, 남은 것은 plugin 렌더가
     /// 꺼낸다.
     pub(crate) fn take_handed_escape(&mut self) -> HandedEscape {

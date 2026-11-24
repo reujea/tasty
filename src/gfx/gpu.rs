@@ -933,8 +933,11 @@ impl GpuState {
     /// debug 전용: 다음 frame 의 egui 입력 큐에 합성 이벤트를 주입한다(egui-mesh popup
     /// 입력 forward 의 헤드리스 검증용). release 미노출 — 사용자 입력 재현은 debug 격리.
     #[cfg(debug_assertions)]
+    /// 창의 보류 줄이 열려 있으면 그 줄이 다 돈 뒤 패스 입력에 넣는다(`EditKeyState::hold_injection`).
     pub fn debug_push_egui_events(&mut self, events: Vec<egui::Event>) {
-        self.egui_state.egui_input_mut().events.extend(events);
+        if let Some(events) = self.edit_keys.hold_injection(events) {
+            self.egui_state.egui_input_mut().events.extend(events);
+        }
         self.egui_ctx.request_repaint();
     }
 

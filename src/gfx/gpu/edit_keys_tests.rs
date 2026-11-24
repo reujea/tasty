@@ -26,6 +26,9 @@ impl HeldEvent for Ev {
     fn is_pointer(&self) -> bool {
         matches!(self, Ev::Pointer(_))
     }
+    fn is_key(&self) -> bool {
+        !matches!(self, Ev::Pointer(_))
+    }
 }
 
 /// The key position under a letter, as the US layout puts it. Shortcuts with Alt match by position.

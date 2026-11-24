@@ -72,7 +72,6 @@ fn queued(item: &ResolvedPluginEdit) -> Vec<WindowEvent> {
         .filter_map(|step| match step {
             ReplayStep::Original(..) => None,
             ReplayStep::Input(event, _) => Some(event.clone()),
-            ReplayStep::View(..) => panic!("플러그인 보류 뒤 입력이 단축키 단계를 건너뛴다"),
         })
         .collect()
 }

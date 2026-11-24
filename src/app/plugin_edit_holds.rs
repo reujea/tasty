@@ -10,7 +10,7 @@ use winit::event::WindowEvent;
 use winit::window::WindowId;
 
 use super::App;
-use super::edit_key_replay::{HoldSite, ReplayStep, replay_steps};
+use super::edit_key_replay::{ReplayStep, replay_steps};
 use crate::adapters::ui::input::edit_key::{EditKey, EditKeyHold, Outcome};
 use crate::gfx::gpu::edit_keys::HeldEvent;
 use crate::plugin::PluginManager;
@@ -323,7 +323,7 @@ pub(crate) fn copy_scope(target: PluginCopyTarget) -> crate::adapters::ui::Toast
 fn plugin_replay(
     release: crate::adapters::ui::input::edit_key::Release<WindowEvent>,
 ) -> Vec<ReplayStep<WindowEvent>> {
-    replay_steps(release, HoldSite::BeforePluginShortcuts)
+    replay_steps(release)
 }
 
 impl App {

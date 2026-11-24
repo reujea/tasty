@@ -384,7 +384,7 @@ fn a_letter_after_a_plugin_popup_shortcut_reaches_the_opened_popup() {
 #[test]
 fn a_letter_replayed_after_a_plugin_popup_shortcut_reaches_the_opened_popup() {
     use crate::adapters::ui::input::edit_key::Release;
-    use crate::app::edit_key_replay::{HoldSite, ReplayStep, replay_steps};
+    use crate::app::edit_key_replay::{ReplayStep, replay_steps};
     #[derive(Debug, Clone, Copy, PartialEq)]
     enum Queued {
         Shortcut,
@@ -395,14 +395,11 @@ fn a_letter_replayed_after_a_plugin_popup_shortcut_reaches_the_opened_popup() {
     let mut input = WindowInput::default();
     let point = terminal_point_r(&s);
     focus_terminal(&mut s, &mut input, PANE_R, point);
-    let steps = replay_steps(
-        Release {
-            replay: None,
-            queued: vec![Queued::Shortcut, Queued::W],
-            queued_at: Vec::new(),
-        },
-        HoldSite::BeforePluginShortcuts,
-    );
+    let steps = replay_steps(Release {
+        replay: None,
+        queued: vec![Queued::Shortcut, Queued::W],
+        queued_at: Vec::new(),
+    });
     k_then_plugin_popup_takes_w(&mut s, &mut input, |s, input| {
         let mut fed = None;
         for step in steps {

@@ -84,7 +84,6 @@ fn steps(item: &ResolvedPluginEdit) -> (Option<WindowEvent>, Vec<WindowEvent>) {
                 original = Some(event.clone());
             }
             ReplayStep::Input(event, _) => queued.push(event.clone()),
-            ReplayStep::View(..) => panic!("기다림 뒤 입력이 단축키 단계를 건너뛴다"),
         }
     }
     (original, queued)
@@ -147,7 +146,6 @@ fn arrived_text_is_sent_and_the_key_moves_to_the_reply_hold_with_its_queue() {
             ReplayStep::Original(event, _) | ReplayStep::Input(event, _) => {
                 order.push(event.clone())
             }
-            ReplayStep::View(..) => panic!("단계"),
         }
     }
     assert_eq!(order, vec![key(0), key(1), key(2)]);
@@ -334,7 +332,7 @@ impl super::AwaitSink for ReplayingApp {
                         self.originals.push(event);
                         continue;
                     }
-                    ReplayStep::Input(event, _) | ReplayStep::View(event, _) => event,
+                    ReplayStep::Input(event, _) => event,
                 };
                 if self.holds.queue(window(), &event, Instant::now()) {
                     continue;

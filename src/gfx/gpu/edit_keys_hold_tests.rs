@@ -456,3 +456,151 @@ fn a_paste_into_a_field_gone_from_its_pass_replays_the_key() {
         );
     }
 }
+
+/// The front hold check for one event with `pending` egui input not yet drawn.
+fn front(state: &mut EditKeyState<Ev>, event: &Ev, pending: &[egui::Event], handed: bool) -> bool {
+    state.hold_front(event, EditKeyOwner::Window, pending, handed, Instant::now())
+}
+
+/// The window's own release after the pass that took `pending`.
+fn front_release(ui: &mut Ui, state: &mut EditKeyState<Ev>, pending: Vec<egui::Event>) -> Vec<Ev> {
+    ui.pass(state, pending);
+    let (_, queued) = state
+        .take_release(EditKeyOwner::Window)
+        .expect("the line is released after the pass")
+        .split();
+    queued.into_iter().map(|(event, _)| event).collect()
+}
+
+/// A key after egui input that is not drawn yet (a letter typed into a palette that may close it)
+/// waits at the front for the pass that takes that input, with what came after it, and then runs
+/// again from the window's input entry.
+#[test]
+fn a_key_after_unsettled_egui_input_waits_for_its_pass() {
+    let mut ui = Ui::new();
+    let mut state = EditKeyState::<Ev>::default();
+    let pending = vec![egui::Event::Text("z".into())];
+    assert!(front(&mut state, &press("a"), &pending, false));
+    assert!(front(&mut state, &Ev::Pointer("click"), &pending, false));
+    assert!(front(&mut state, &press("b"), &pending, false));
+    assert_eq!(
+        front_release(&mut ui, &mut state, pending),
+        vec![press("a"), Ev::Pointer("click"), press("b")]
+    );
+}
+
+/// With no input waiting for a pass, a key goes on at once, and pointer input never waits alone.
+#[test]
+fn a_key_with_no_pending_input_runs_now() {
+    let mut state = EditKeyState::<Ev>::default();
+    assert!(!front(&mut state, &press("a"), &[], false));
+    let pending = vec![egui::Event::Text("z".into())];
+    assert!(!front(&mut state, &Ev::Pointer("click"), &pending, false));
+    assert!(!state.busy());
+}
+
+/// The App plugin step sits after the front check, so a plugin shortcut with nothing waiting runs
+/// at once (its waiting counterpart is the front check order, `press_focus_call_sites`).
+#[test]
+fn a_plugin_shortcut_with_no_pending_input_runs_now() {
+    let mut state = EditKeyState::<Ev>::default();
+    assert!(!front(&mut state, &press("p"), &[], false));
+}
+
+/// A separate window with nothing waiting runs a key at once (its waiting counterpart is the entry
+/// order, `press_focus_call_sites`).
+#[test]
+fn a_separate_window_key_with_no_pending_input_runs_now() {
+    let mut state = EditKeyState::<Ev>::default();
+    assert!(!front(&mut state, &press("y"), &[], false));
+}
+
+/// An Escape the window took out of egui's input for a popup is not in that input, but its pass
+/// may close the popup, so the next key waits for it too.
+#[test]
+fn a_key_after_a_handed_escape_waits_for_its_pass() {
+    let mut ui = Ui::new();
+    let mut state = EditKeyState::<Ev>::default();
+    assert!(front(&mut state, &press("a"), &[], true));
+    assert_eq!(
+        front_release(&mut ui, &mut state, Vec::new()),
+        vec![press("a")]
+    );
+}
+
+/// A pass that took a Tab moves focus only when the next pass begins, so a key right after it
+/// waits one more pass even with no input left.
+#[test]
+fn a_key_after_a_tab_focus_move_waits_for_the_next_pass() {
+    let mut ui = Ui::new();
+    let mut state = EditKeyState::<Ev>::default();
+    ui.pass(&mut state, vec![tab()]);
+    assert!(front(&mut state, &press("a"), &[], false));
+}
+
+/// A pass with no Tab leaves nothing deferred: the next key goes on.
+#[test]
+fn a_key_after_a_tab_with_no_focus_move_runs_now() {
+    let mut ui = Ui::new();
+    let mut state = EditKeyState::<Ev>::default();
+    ui.pass(&mut state, vec![egui::Event::Text("z".into())]);
+    assert!(!front(&mut state, &press("a"), &[], false));
+}
+
+/// A released line replays from the front: when its first key meets new unsettled input it starts a
+/// line again, and the rest of the replay and later keys stay behind it in arrival order.
+#[test]
+fn a_later_key_stays_behind_a_replayed_key_that_meets_a_new_hold() {
+    let mut ui = Ui::new();
+    let mut state = EditKeyState::<Ev>::default();
+    let pending = vec![egui::Event::Text("z".into())];
+    front(&mut state, &press("a"), &pending, false);
+    front(&mut state, &press("b"), &pending, false);
+    let replay = front_release(&mut ui, &mut state, pending);
+    // The first replayed key finds new input (from a key the pass left) and holds again.
+    let again = vec![egui::Event::Text("y".into())];
+    for event in &replay {
+        assert!(front(&mut state, event, &again, false));
+    }
+    assert!(front(&mut state, &press("c"), &again, false));
+    assert_eq!(
+        front_release(&mut ui, &mut state, again),
+        vec![press("a"), press("b"), press("c")]
+    );
+}
+
+fn tab() -> egui::Event {
+    egui::Event::Key {
+        key: egui::Key::Tab,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    }
+}
+
+/// A debug injection (text, key, clipboard) while a key waits in the line waits behind it: it goes
+/// into egui's input only after the line has run, so it is not drawn before that key.
+#[test]
+fn a_debug_text_after_a_held_key_draws_after_it() {
+    let mut ui = Ui::new();
+    let mut state = EditKeyState::<Ev>::default();
+    let pending = vec![egui::Event::Text("z".into())];
+    front(&mut state, &press("a"), &pending, false);
+    let typed = vec![egui::Event::Text("debug".into())];
+    assert_eq!(state.hold_injection(typed.clone()), None);
+    assert!(state.take_injections().is_empty(), "the line is still open");
+    assert_eq!(
+        front_release(&mut ui, &mut state, pending),
+        vec![press("a")]
+    );
+    assert_eq!(state.take_injections(), typed);
+}
+
+/// With no line open a debug injection goes into egui's input at once.
+#[test]
+fn a_debug_text_without_a_hold_draws_now() {
+    let mut state = EditKeyState::<Ev>::default();
+    let typed = vec![egui::Event::Text("debug".into())];
+    assert_eq!(state.hold_injection(typed.clone()), Some(typed));
+}

@@ -27,6 +27,11 @@ pub(crate) fn judged_window_event<V: View>(
     own: fn(&mut V, WindowEvent) -> ViewAction,
     input: WindowInputOf<V>,
 ) -> ViewAction {
+    // 보류 검사는 어느 단계도 사건을 읽기 전 맨 앞 한 자리다. 보류가 풀리면 `replay_edit_keys` 가 이 입구로 다시
+    // 보낸다. 판정받은 원래 키(`judged`)는 이미 지났다.
+    if judged.is_none() && hold_window_input(view, &event, input) {
+        return ViewAction::None;
+    }
     let node = WindowKeyNode {
         settle: |view: &mut V, event: &WindowEvent| {
             let mods = view.base_mut().state.modifiers;
@@ -62,6 +67,17 @@ pub(crate) fn judged_window_event<V: View>(
         node,
     );
     run_key_event(&mut steps, event)
+}
+
+/// 팝업 관리자를 가진 창(설정·Preset·Plugins)의 보류 줄(`GpuState::hold_window_input`). 관리자가 없는 종료 확인
+/// 창은 지금의 편집 키 보류(단계 6 안)만 쓴다.
+fn hold_window_input<V: View>(view: &mut V, event: &WindowEvent, input: WindowInputOf<V>) -> bool {
+    let Some((_, popups)) = input(view) else {
+        return false;
+    };
+    let handed = popups.has_undrawn_handed_escape();
+    let base = view.base_mut();
+    base.gpu.hold_window_input(&base.winit, event, handed)
 }
 
 /// 별도 창 단계 3~5(`settle`)와 egui 에 실은 키의 몫 결속(`bind`).

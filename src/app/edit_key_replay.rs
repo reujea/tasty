@@ -12,36 +12,25 @@ use crate::adapters::ui::input::edit_key::{EditBindings, EditKey, Release};
 use crate::app::App;
 use crate::app::window_access::engines_mut;
 
-/// 보류가 입력을 붙잡은 단계. 재생할 입력이 그 앞 단계를 이미 거쳤는지 정한다.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum HoldSite {
-    /// 창 view 안(호스트 입력칸 보류). 원래 키와 줄 선 입력 모두 플러그인 단축키 단계를 거친 뒤 붙잡혔다.
-    View,
-    /// 플러그인 단축키 단계 앞(플러그인 입력칸 보류의 줄). 원래 키는 view 에서 붙잡혔고, 줄 선 입력은 단축키
-    /// 단계를 아직 거치지 않았다.
-    BeforePluginShortcuts,
-}
-
 /// 재생 한 단계.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum ReplayStep<E> {
-    /// 판정한 편집으로 창 view 에 한 번 넘긴다.
+    /// 판정한 편집으로 창 view 에 한 번 넘긴다. 원래 키는 view 안에서 붙잡혔다.
     Original(E, EditKey),
-    /// 창 view 로 넘긴다. 새 플러그인 보류가 있으면 그 뒤에 줄을 선다. 시각은 처음 도착한 때다.
-    View(E, Instant),
-    /// 플러그인 보류 줄부터 창 입력의 마지막 단계를 다시 거친다([`App::route_window_input_at`]). 시각은 처음 도착한
-    /// 때다.
+    /// 창 입력 맨 앞의 보류 검사부터 다시 거친다([`App::route_window_input_at`]). 줄 선 입력은 모두 그 검사에서
+    /// 붙잡혔다(플러그인 편집 보류 줄, 창의 편집·정착 보류 줄). 시각은 처음 도착한 때다.
     Input(E, Instant),
 }
 
-/// 풀린 보류의 재생 순서. 원래 키가 먼저이고, 줄 선 입력은 받은 순서대로 붙잡힌 단계부터 다시 거친다.
-pub(crate) fn replay_steps<E>(release: Release<E>, site: HoldSite) -> Vec<ReplayStep<E>> {
+/// 풀린 보류의 재생 순서. 원래 키가 먼저이고, 줄 선 입력은 받은 순서대로 창 입력 처음부터 다시 거친다. 재생 중 새
+/// 보류를 만나면 그 사건과 남은 재생 사건이 그 줄 앞에 그대로 선다(재생은 한 호출 안에서 끝나 그 사이 새 입력이
+/// 끼지 않는다).
+pub(crate) fn replay_steps<E>(release: Release<E>) -> Vec<ReplayStep<E>> {
     let (replay, queued) = release.split();
     let original = replay.map(|(event, edit)| ReplayStep::Original(event, edit));
-    let queued = queued.into_iter().map(|(event, at)| match site {
-        HoldSite::View => ReplayStep::View(event, at),
-        HoldSite::BeforePluginShortcuts => ReplayStep::Input(event, at),
-    });
+    let queued = queued
+        .into_iter()
+        .map(|(event, at)| ReplayStep::Input(event, at));
     original.into_iter().chain(queued).collect()
 }
 
@@ -74,7 +63,7 @@ impl App {
         else {
             return;
         };
-        self.replay_edit_steps(id, replay_steps(release, HoldSite::View));
+        self.replay_edit_steps(id, replay_steps(release));
     }
 
     /// 풀린 보류를 그 창의 평소 이벤트 경로로 재생한다. 원래 키는 판정한 편집으로 한 번만 넘긴다. 재생 중에
@@ -88,13 +77,6 @@ impl App {
                     self.dispatch_key_to_view(id, event, false);
                     // 창이 키를 받지 않고 돌아갔으면 남은 표시가 다음 키에 붙지 않게 지운다.
                     self.set_edit_replay(id, None);
-                }
-                ReplayStep::View(event, at) => {
-                    let before = self.replace_event_arrival(id, Some(at));
-                    if !self.queue_behind_plugin_edit(id, &event, at) {
-                        self.dispatch_key_to_view(id, event, false);
-                    }
-                    self.replace_event_arrival(id, before);
                 }
                 ReplayStep::Input(event, at) => self.route_window_input_at(id, event, at),
             }
@@ -114,10 +96,12 @@ impl App {
         self.replace_event_arrival(id, before);
     }
 
-    /// 창 입력의 마지막 단계: 플러그인 편집 보류 줄, 키 사건의 출발 노드, 포커스된 plugin 의 단축키, 창 view 순서다.
-    /// 보류가 없을 때의 창 이벤트와 플러그인 보류 뒤에 줄 섰던 입력이 같은 단계를 거친다.
+    /// 창 입력의 마지막 단계: 보류 검사, 키 사건의 출발 노드, 포커스된 plugin 의 단축키, 창 view 순서다. 보류 검사는
+    /// 어느 단계도 사건을 읽기 전 한 자리다. 플러그인 편집 보류 줄과 창의 보류 줄(편집 보류, 정착되지 않은 앞 입력 뒤의
+    /// 키) 중 열린 쪽이 사건을 받는다. 둘은 동시에 열리지 않는다(한쪽이 열린 동안의 사건은 그 줄에 서므로 다른 쪽을
+    /// 만들지 못한다). 보류가 없을 때의 창 이벤트와 줄 섰던 입력이 같은 단계를 거친다.
     fn route_input_steps(&mut self, id: WindowId, event: WindowEvent, at: Instant) {
-        if self.queue_behind_plugin_edit(id, &event, at) {
+        if self.queue_behind_plugin_edit(id, &event, at) || self.hold_window_input(id, &event) {
             return;
         }
         // 키 사건의 출발 노드(정규화 → 끊기 → 수신자)를 plugin 단축키 단계 앞에서 한 번 정한다. plugin 단계와 창 view
@@ -132,6 +116,17 @@ impl App {
             return;
         }
         self.dispatch_key_to_view(id, event, settled);
+    }
+
+    /// 메인 창 보류 줄(`GpuState::hold_window_input`). 별도 창은 자기 입구에서 같은 검사를 한다.
+    fn hold_window_input(&mut self, id: WindowId, event: &WindowEvent) -> bool {
+        let Some(main) = self.view.views.get_mut(&id).and_then(|v| v.as_main_mut()) else {
+            return false;
+        };
+        let handed = main.state.popups.has_undrawn_handed_escape();
+        main.base
+            .gpu
+            .hold_window_input(&main.base.winit, event, handed)
     }
 
     /// 창이 처리할 사건의 도착 시각을 바꾸고 앞 값을 돌려준다.

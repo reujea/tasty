@@ -79,6 +79,9 @@ pub(crate) trait HeldEvent: Clone {
     /// Pointer input. It waits behind a held key too (see [`EditKeyState::judge`]), so a pass the
     /// hold runs carries no click that came after the key.
     fn is_pointer(&self) -> bool;
+    /// A key or IME event: it waits for the pass of unprocessed earlier input
+    /// ([`EditKeyState::hold_front`]).
+    fn is_key(&self) -> bool;
 }
 
 impl HeldEvent for WindowEvent {
@@ -97,6 +100,13 @@ impl HeldEvent for WindowEvent {
 
     fn is_pointer(&self) -> bool {
         held_order(self) == HeldOrder::Pointer
+    }
+
+    fn is_key(&self) -> bool {
+        matches!(
+            self,
+            WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
+        )
     }
 }
 
@@ -192,12 +202,27 @@ struct PasteMark {
     start: usize,
 }
 
+/// Keys that came while earlier input was unprocessed, with no edit judged: they wait for the
+/// pass that takes that input and then run again from the window's input entry.
+struct SettleLine<E> {
+    line: Release<E>,
+    owner: EditKeyOwner,
+    since: Instant,
+    /// A pass took the unprocessed input. The line is released when that pass ends.
+    taken: bool,
+}
+
 /// The edit key judgment of one window.
 pub(crate) struct EditKeyState<E = WindowEvent> {
     bindings: Option<EditBindings>,
     modifiers: ModifiersState,
     hold: Option<HostHold<E>>,
     release: Option<(EditKeyOwner, Release<E>)>,
+    settle: Option<SettleLine<E>>,
+    /// debug egui injections that came while the window's line was open. They go into egui's input
+    /// once the line has run, so they are not drawn before the events waiting ahead of them.
+    #[cfg(any(debug_assertions, test))]
+    held_injections: Vec<egui::Event>,
     /// The last frame's input moves focus only when the next pass begins (see [`defers_focus`]).
     /// Until that pass runs, the focus read between frames is not where an edit would go.
     focus_deferred: bool,
@@ -216,6 +241,9 @@ impl<E> Default for EditKeyState<E> {
             modifiers: ModifiersState::empty(),
             hold: None,
             release: None,
+            settle: None,
+            #[cfg(any(debug_assertions, test))]
+            held_injections: Vec::new(),
             focus_deferred: false,
             cuts: 0,
             arrival: None,
@@ -262,7 +290,43 @@ impl<E: HeldEvent> EditKeyState<E> {
 
     /// A key is held, or its release still waits for the owner.
     pub(crate) fn busy(&self) -> bool {
-        self.hold.is_some() || self.release.is_some()
+        self.hold.is_some() || self.release.is_some() || self.settle.is_some()
+    }
+
+    /// The one hold check at the front of a window's input, before any step reads the event. An
+    /// event behind a hold, a settle line or a release waiting for its owner takes its place at the
+    /// end of that line. A key that comes while earlier input is unsettled ([`Self::unsettled`] on
+    /// `events`, or `handed`: an Escape the window took out of egui's input for a popup that has
+    /// not drawn it yet) starts a settle line: it runs again from the window's input entry after
+    /// the pass that takes that input. True when the event waits.
+    pub(crate) fn hold_front(
+        &mut self,
+        event: &E,
+        owner: EditKeyOwner,
+        events: &[egui::Event],
+        handed: bool,
+        now: Instant,
+    ) -> bool {
+        if self.queues(event) {
+            self.queue(event.clone());
+            return true;
+        }
+        if !event.is_key() || !(handed || self.unsettled(events)) {
+            return false;
+        }
+        let mut line = Release {
+            replay: None,
+            queued: Vec::new(),
+            queued_at: Vec::new(),
+        };
+        line.push(event.clone(), self.arrival());
+        self.settle = Some(SettleLine {
+            line,
+            owner,
+            since: now,
+            taken: false,
+        });
+        true
     }
 
     pub(crate) fn awaits_text(&self) -> bool {
@@ -436,10 +500,33 @@ impl<E: HeldEvent> EditKeyState<E> {
         }
     }
 
+    /// A debug egui injection (key, text, clipboard) at the front of the window's input, like a
+    /// window event: while the line is open it waits behind it and `None` is returned; otherwise the
+    /// events go into egui's input now.
+    #[cfg(any(debug_assertions, test))]
+    pub(crate) fn hold_injection(&mut self, events: Vec<egui::Event>) -> Option<Vec<egui::Event>> {
+        if self.busy() {
+            self.held_injections.extend(events);
+            return None;
+        }
+        Some(events)
+    }
+
+    /// The injections held behind the line, once it has run (nothing while it is still open).
+    #[cfg(any(debug_assertions, test))]
+    pub(crate) fn take_injections(&mut self) -> Vec<egui::Event> {
+        if self.busy() {
+            return Vec::new();
+        }
+        std::mem::take(&mut self.held_injections)
+    }
+
     fn queue(&mut self, event: E) {
         let at = self.arrival();
         if let Some(held) = self.hold.as_mut() {
             held.hold.queue(event, at);
+        } else if let Some(settle) = self.settle.as_mut() {
+            settle.line.push(event, at);
         } else if let Some((_, release)) = self.release.as_mut() {
             release.push(event, at);
         }
@@ -457,6 +544,9 @@ impl<E: HeldEvent> EditKeyState<E> {
     /// pass is remembered whether or not a key is held.
     pub(crate) fn input_taken(&mut self, events: &[egui::Event]) {
         self.focus_deferred = events.iter().any(defers_focus);
+        if let Some(settle) = self.settle.as_mut() {
+            settle.taken = true;
+        }
         if let Some(held) = self.hold.as_mut() {
             match held.phase {
                 Phase::Injected if held.cuts_ahead == 0 => held.phase = Phase::InPass,
@@ -493,6 +583,11 @@ impl<E: HeldEvent> EditKeyState<E> {
         output: egui::PlatformOutput,
         ctx: &egui::Context,
     ) -> egui::PlatformOutput {
+        if let Some(settle) = self.settle.take_if(|s| s.taken) {
+            // The keys run again from the window's input entry, which judges them on what the pass
+            // left (a focus the pass deferred holds them for one more).
+            self.add_release(settle.owner, settle.line);
+        }
         if let Some(held) = self.hold.as_mut()
             && let Phase::Settling { again } = held.phase
         {
@@ -580,6 +675,12 @@ impl<E: HeldEvent> EditKeyState<E> {
         cancel_read: impl FnOnce(),
         frames_stopped: bool,
     ) {
+        if let Some(settle) = self.settle.take_if(|s| {
+            frames_stopped && now.saturating_duration_since(s.since) >= HOST_HOLD_LIMIT
+        }) {
+            // No pass will take the input: the keys go on as they are.
+            self.add_release(settle.owner, settle.line);
+        }
         let Some(held) = self.hold.as_ref() else {
             return;
         };
@@ -807,6 +908,26 @@ impl super::GpuState {
         self.edit_keys
             .text_arrived(text, &self.egui_ctx, events, Instant::now());
         true
+    }
+
+    /// The hold check at the front of this window's input ([`EditKeyState::hold_front`]). `handed`
+    /// is whether an Escape taken out of egui's input for a popup has not been drawn yet. True when
+    /// the event waits; the window draws to take the input it waits for.
+    pub fn hold_window_input(
+        &mut self,
+        window: &winit::window::Window,
+        event: &WindowEvent,
+        handed: bool,
+    ) -> bool {
+        self.expire_edit_hold(frames_stopped(window));
+        let events = &self.egui_state.egui_input().events;
+        let held =
+            self.edit_keys
+                .hold_front(event, EditKeyOwner::Window, events, handed, Instant::now());
+        if held {
+            window.request_redraw();
+        }
+        held
     }
 
     pub fn edit_keys_busy(&self) -> bool {

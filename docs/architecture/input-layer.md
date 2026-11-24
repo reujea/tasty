@@ -266,10 +266,36 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 사건과 편집 보류 재생은 view 의 단계(`MainKeySteps::settle_key_node`)가 같은 함수로 정한다. egui
 적재(`feed_egui_keyboard`)와 키 처리(`handle_keyboard_input`)는 그 결과를 읽고, App plugin 명령 단계는 같은 자리에서
 한 번 정한 게이트와 경로 level(`key_nodes::settle_key`, `MainView::key_plugin_step`)을 읽는다. 편집 보류 재생
-(`ReplayStep::Original`·`ReplayStep::View`·`ReplayStep::Input`)은 원래 사건 때 값을 쓰지 않고 재생 시점에 다시 정한다(`src/app/edit_key_replay.rs`). 단계 순서의 정본은
+(`ReplayStep::Original`·`ReplayStep::Input`)은 원래 사건 때 값을 쓰지 않고 재생 시점에 다시 정한다(`src/app/edit_key_replay.rs`). 단계 순서의 정본은
 `run_key_event`(`src/view/key_event.rs`)와 메인 창 단계 구현 `MainKeySteps`(`src/view/main/key_event_steps.rs`)이고
 `source_guards::edit_key_judgment_order`·`press_focus_call_sites`가 고정한다. egui 적재는 `MainViewState::window_feeds_key`,
 터미널로 보낼지는 `MainViewState::window_key_holds_terminal`이 정한다. vi 복사 모드는 지금 자리 그대로다.
+
+### 보류 줄
+
+보류 검사는 어느 단계도 사건을 읽기 전, 창 입력 맨 앞의 한 자리다. 메인 창은 App 입구(`App::route_input_steps`의 첫 줄),
+설정·plugins·preset 창은 그 창 입구(`judged_window_event`의 첫 줄)다. 열린 줄이 사건을 받는다. 메인 창의 줄은 plugin 편집
+보류 줄(`PluginEditHolds`)과 창의 줄(`EditKeyState`: 편집 보류, 정착 줄) 중 열린 하나다. 한쪽이 열린 동안 온 사건은 그 줄에
+서므로 다른 쪽을 만들지 못해 둘은 함께 열리지 않는다. 키·IME·수식키·포커스 사건의 입력 몫은 줄 끝에 서고, 포인터 입력도
+이미 줄 선 것이 있으면 뒤에 선다(`held_order`).
+
+정착 줄: 줄이 닫혀 있어도, 정착되지 않은 앞 입력이 있으면 키·IME 사건은 그 입력을 가져간 패스 뒤로 미룬다
+(`EditKeyState::hold_front`). 정착되지 않은 앞 입력은 egui 가 아직 처리하지 않은 입력(포인터 이동 등 포커스를 바꾸지 않는
+것은 빼고, 클릭은 넣는다), 직전 패스가 다음 패스 시작에 옮길 Tab 포커스, 창이 egui 입력에서 빼 팝업에 넘겼지만 아직 그리지
+않은 Esc(`PopupManager::has_undrawn_handed_escape`) 셋이다. 그래서 [팔레트를 닫는 Esc, 글자]의 글자는 Esc 를 그린 패스 뒤에
+그때의 포커스 노드(터미널)에서 정한다. 대가로 클릭 뒤 같은 묶음의 키는 한 패스 늦다. 터미널로 가는 키는 egui 에 싣지 않아
+뒤 키를 붙잡지 않는다.
+
+줄이 풀리면 원래 키(편집 판정을 받은 키)는 판정한 편집으로 view 에 한 번 넘기고, 줄 선 사건은 모두 받은 순서대로 창 입력
+처음부터 다시 지난다(`ReplayStep::Input`, 별도 창은 `view::replay_edit_keys`). 재생 중 사건이 새 보류를 만나면 그 사건과
+남은 재생 사건이 그 줄 앞에 그대로 선다(재생은 한 호출 안에서 끝나 그 사이 새 입력이 끼지 않는다). 출발 노드와 수신자는
+재생 시점에 다시 정한다. quit 창은 팝업 관리자가 없어 맨 앞 검사 없이 지금의 편집 보류(단계 6 안)만 쓴다. 단계 6 안의
+줄 서기(`EditKeyState::judge`의 `queues`)는 quit 창과 egui 전용 창이 쓰고, 메인 창과 세 창에서는 맨 앞 검사가 먼저 받는다.
+
+줄 밖 입력: debug egui 주입(키·글자·클립보드, 메인 창과 별도 창)은 winit 사건이 아니라 egui 입력 묶음이다. 줄이 열려 있으면
+그 묶음은 줄이 다 돈 뒤 패스 입력 끝에 들어가(`EditKeyState::hold_injection`), 기다리는 키보다 먼저 그려지지 않는다. X11
+`DeviceEvent::Key`는 입력이 아니라 관찰이라 줄에 서지 않는다. 누름 때 explorer 입력 주인을 기록하고, 키를 처리할 때 그때의
+주인으로 걸러 소비한다(`ExplorerImeKeys::take`). 그래서 줄 섰다 재생한 키도 재생 시점 주인을 쓴다.
 
 ### 별도 창 입력 패스
 

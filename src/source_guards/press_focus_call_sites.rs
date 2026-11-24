@@ -696,8 +696,8 @@ fn a_key_that_opens_a_focused_popup_applies_the_open_before_the_next_event() {
         replay
             .matches("self.dispatch_key_to_view(id,event,false);")
             .count(),
-        2,
-        "편집 보류 재생의 원래 키·view 갈래가 즉시 처리를 거치지 않는다"
+        1,
+        "편집 보류 재생의 원래 키 갈래가 즉시 처리를 거치지 않는다"
     );
     assert!(
         !replay.contains("dispatch_window_event_to_view"),

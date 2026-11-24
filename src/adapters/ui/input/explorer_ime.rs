@@ -353,4 +353,26 @@ mod tests {
         assert!(!find.consumes(&bindings, &Key::Named(NamedKey::ArrowDown), modifiers));
         assert!(InputOwner::List(7).consumes(&bindings, &Key::Character("j".into()), modifiers));
     }
+
+    /// X11 관찰은 줄에 서지 않고 누름이 도착한 때 그 explorer 를 기록한다. 그 키가 정착되지 않은 앞 입력 뒤에 섰다가
+    /// 재생될 때 그 사이 포커스가 그 explorer 를 떠났으면(앞 패스가 팝업을 열었다) 재생 시점 주인(`surface`)으로
+    /// 거르므로 기록이 그 키를 가져가지 않는다.
+    #[test]
+    fn an_x11_observed_key_held_behind_input_uses_its_replay_owner() {
+        let key = PhysicalKey::Code(KeyCode::ArrowDown);
+        let mut keys = ExplorerImeKeys::default();
+        keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
+        keys.press(key, Some(InputOwner::List(7)));
+        assert!(keys.take(key, None).is_none());
+    }
+
+    /// 보류 없이 처리한 같은 키는 도착 때 주인이 재생 시점 주인이라 그 explorer 가 가져간다.
+    #[test]
+    fn an_x11_observed_key_without_a_hold_uses_its_owner() {
+        let key = PhysicalKey::Code(KeyCode::ArrowDown);
+        let mut keys = ExplorerImeKeys::default();
+        keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
+        keys.press(key, Some(InputOwner::List(7)));
+        assert_eq!(keys.take(key, Some(7)), Some(InputOwner::List(7)));
+    }
 }
