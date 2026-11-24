@@ -91,6 +91,19 @@ pub fn check_min_tasty_version_source(source: &str, host: &semver::Version) -> a
     Ok(())
 }
 
+#[cfg(test)]
+thread_local! {
+    /// 이 스레드에서 매니페스트 원문을 읽은 횟수. 한 번 읽기 계약을 시험이 잰다.
+    pub(crate) static SOURCE_READS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// 매니페스트 원문 읽기. 판정과 역직렬화가 같은 내용을 쓰는지 시험이 셀 수 있게 한곳에 둔다.
+pub(crate) fn read_source(path: &Path) -> std::io::Result<String> {
+    #[cfg(test)]
+    SOURCE_READS.with(|n| n.set(n.get() + 1));
+    std::fs::read_to_string(path)
+}
+
 impl Manifest {
     /// `min_tasty_version`의 형식만 본다. [`Manifest::validate`]가 부른다.
     pub(crate) fn validate_min_tasty_version(&self) -> anyhow::Result<()> {
@@ -104,13 +117,18 @@ impl Manifest {
     /// 정해진 부족 처리를 적용한다. 본체 버전이 정해지지 않았거나 파일을 읽지 못하면 통과한다
     /// (읽기 오류는 뒤의 load가 알린다).
     pub fn admit_host_tasty(dir: &Path) -> anyhow::Result<()> {
+        match read_source(&dir.join("tasty-plugin.toml")) {
+            Ok(source) => Self::admit_host_tasty_source(&source, dir),
+            Err(_) => Ok(()),
+        }
+    }
+
+    /// 원문 `source`로 최소 버전을 판정하고 정해진 부족 처리를 적용한다. `dir`은 경고에만 쓴다.
+    fn admit_host_tasty_source(source: &str, dir: &Path) -> anyhow::Result<()> {
         let Some((host, shortfall)) = HOST.get() else {
             return Ok(());
         };
-        let Ok(source) = std::fs::read_to_string(dir.join("tasty-plugin.toml")) else {
-            return Ok(());
-        };
-        match check_min_tasty_version_source(&source, host) {
+        match check_min_tasty_version_source(source, host) {
             Err(error)
                 if *shortfall == VersionShortfall::Warn && error.is::<TastyVersionTooOld>() =>
             {
@@ -121,9 +139,21 @@ impl Manifest {
         }
     }
 
-    /// [`Manifest::admit_host_tasty`]를 통과한 뒤 [`Manifest::load`]한다.
+    /// 매니페스트를 한 번 읽어, 그 원문으로 [`Manifest::admit_host_tasty`]와 같은 판정을 한 뒤
+    /// 같은 원문을 [`Manifest::load`]와 같게 역직렬화·검사한다.
     pub fn load_for_host(dir: &Path) -> anyhow::Result<Self> {
-        Self::admit_host_tasty(dir)?;
-        Self::load(dir)
+        let path = dir.join("tasty-plugin.toml");
+        let source = read_source(&path)
+            .map_err(|e| anyhow::anyhow!("cannot read {}: {}", path.display(), e))?;
+        Self::admit_host_tasty_source(&source, dir)?;
+        let manifest = Self::parse_source(&source, &path)?;
+        manifest.validate()?;
+        Ok(manifest)
+    }
+
+    /// `path`에서 읽은 원문을 역직렬화만 한다. [`Manifest::read`]와 같은 오류 문구를 쓴다.
+    pub(crate) fn parse_source(source: &str, path: &Path) -> anyhow::Result<Self> {
+        toml::from_str(source)
+            .map_err(|e| anyhow::anyhow!("invalid manifest at {}: {}", path.display(), e))
     }
 }

@@ -236,3 +236,18 @@ fn load_for_host_reports_the_version_before_a_contract_this_tasty_does_not_know(
     .expect("write");
     assert!(Manifest::load_for_host(ok.path()).is_ok());
 }
+
+/// 받아들이는 자리는 매니페스트를 한 번만 읽고, 판정한 원문을 그대로 역직렬화한다.
+#[test]
+fn load_for_host_reads_the_manifest_once() {
+    set_host_tasty_version("1.0.0", VersionShortfall::Refuse).expect("host version");
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        dir.path().join("tasty-plugin.toml"),
+        source_with(r#"min_tasty_version = "1.0.0""#),
+    )
+    .expect("write");
+    host_version::SOURCE_READS.with(|n| n.set(0));
+    Manifest::load_for_host(dir.path()).expect("loads");
+    assert_eq!(host_version::SOURCE_READS.with(|n| n.get()), 1);
+}

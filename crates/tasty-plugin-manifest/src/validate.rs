@@ -31,10 +31,9 @@ impl Manifest {
     /// 파일이 없거나 TOML·스키마로 읽을 수 없을 때만 실패한다.
     pub fn read(dir: &Path) -> anyhow::Result<Self> {
         let path = dir.join("tasty-plugin.toml");
-        let s = std::fs::read_to_string(&path)
+        let s = super::host_version::read_source(&path)
             .map_err(|e| anyhow::anyhow!("cannot read {}: {}", path.display(), e))?;
-        toml::from_str(&s)
-            .map_err(|e| anyhow::anyhow!("invalid manifest at {}: {}", path.display(), e))
+        Self::parse_source(&s, &path)
     }
 
     pub fn validate(&self) -> anyhow::Result<()> {
