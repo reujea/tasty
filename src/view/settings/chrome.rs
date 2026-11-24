@@ -31,6 +31,8 @@ pub(crate) struct SettingsChrome {
     /// 장식 전환으로 요청한 크기를 창이 그 자리에서 적용했다(Wayland). `Resized`가 오지 않으므로 패스 뒤에
     /// 호출자가 GPU 표면을 이 크기로 맞춘다.
     applied_size: Option<PhysicalSize<u32>>,
+    /// 그 자리에서 적용한 창 크기. 그 크기로 그린 패스가 끝날 때까지 영역을 무효로 둔다.
+    awaited_size: Option<PhysicalSize<u32>>,
 }
 
 /// 그린 닫기 버튼 영역(egui 논리 좌표)과 그때의 창 너비·점당 픽셀. 버튼은 오른쪽에 붙으므로 너비가 바뀌면 그만큼
@@ -66,6 +68,7 @@ impl SettingsChrome {
             replayed_press: false,
             halted_press: false,
             applied_size: None,
+            awaited_size: None,
         }
     }
 
@@ -99,6 +102,8 @@ impl SettingsChrome {
                 false
             }
             WindowEvent::Resized(_) => {
+                // 다음 패스는 이 사건의 크기로 그리므로 그 자리 적용 크기를 더 기다리지 않는다.
+                self.awaited_size = None;
                 self.areas_stale = true;
                 false
             }
@@ -187,6 +192,7 @@ impl SettingsChrome {
     fn note_applied_size(&mut self, applied: Option<PhysicalSize<u32>>) {
         if let Some(size) = applied {
             self.applied_size = Some(size);
+            self.awaited_size = Some(size);
             self.areas_stale = true;
         }
     }
@@ -251,6 +257,17 @@ impl SettingsChrome {
         window: &Window,
         size: PhysicalSize<u32>,
     ) {
+        self.record_pass(ctx, size);
+        if !size_is_locked(window)
+            && let Some(dir) = self.edge_direction(size)
+        {
+            ctx.set_cursor_icon(titlebar::resize_cursor(dir));
+        }
+    }
+
+    /// 이번 패스에서 가장자리 밴드와 겹친 위젯을 적는다. `size`는 이 패스를 그린 크기다. 그 자리에서 적용한 크기를
+    /// 기다리는 중이면 옛 크기로 그린 패스의 영역이므로 무효를 유지한다.
+    fn record_pass(&mut self, ctx: &egui::Context, size: PhysicalSize<u32>) {
         let drag_area = egui::Id::new(titlebar::DRAG_AREA_ID);
         let ppp = ctx.pixels_per_point();
         let screen = ctx.screen_rect();
@@ -273,12 +290,11 @@ impl SettingsChrome {
                 .map(|w| titlebar::physical_panel_rect(w.interact_rect, ppp))
                 .collect()
         });
-        self.areas_stale = false;
-        if !size_is_locked(window)
-            && let Some(dir) = self.edge_direction(size)
-        {
-            ctx.set_cursor_icon(titlebar::resize_cursor(dir));
+        if self.awaited_size.is_some_and(|awaited| awaited != size) {
+            return;
         }
+        self.awaited_size = None;
+        self.areas_stale = false;
     }
 
     /// 저널이 멈춘 동안의 창 사건. 그 동안 설정창은 다시 그리지 않으므로 직전 패스의 닫기 버튼 영역에서 좌버튼을
@@ -547,6 +563,7 @@ mod tests {
             replayed_press: false,
             halted_press: false,
             applied_size: None,
+            awaited_size: None,
         }
     }
 
@@ -760,6 +777,34 @@ mod tests {
         );
         assert_eq!(decoration_step(true, true), step(None, false));
         assert_eq!(decoration_step(true, false), step(Some(false), true));
+    }
+
+    /// 빈 egui 패스 하나를 돌리고 그 패스의 위젯을 적는다.
+    fn record_empty_pass(c: &mut SettingsChrome, size: PhysicalSize<u32>) {
+        let ctx = egui::Context::default();
+        drop(ctx.run(egui::RawInput::default(), |ctx| c.record_pass(ctx, size)));
+    }
+
+    /// Given 장식 전환으로 창이 1100 × 700으로 그 자리에서 줄었을 때, When 같은 패스(옛 1100 × 736으로 그림)가 끝나면
+    /// Then 가장자리 누름은 아직 리사이즈를 시작하지 않고, When 새 크기로 그린 패스가 끝나면 Then 시작한다.
+    #[test]
+    fn edge_areas_wait_for_a_pass_at_the_applied_size() {
+        let old = PhysicalSize::new(1100, 736);
+        let mut c = chrome(false);
+        c.cursor = at(1099.0, 300.0);
+        c.note_applied_size(Some(SIZE));
+        record_empty_pass(&mut c, old);
+        assert_eq!(
+            run(&mut c, PRESS, true, SIZE),
+            (false, None),
+            "areas of the old size"
+        );
+        assert_eq!(run(&mut c, RELEASE, true, SIZE), (false, None));
+        record_empty_pass(&mut c, SIZE);
+        assert_eq!(
+            run(&mut c, PRESS, true, SIZE),
+            (true, Some(ResizeDirection::East))
+        );
     }
 
     /// Given 장식 전환으로 요청한 크기를 창이 그 자리에서 적용했을 때 Then 호출자는 그 크기를 한 번 받아 GPU 표면을
