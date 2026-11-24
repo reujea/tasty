@@ -586,9 +586,9 @@ fn composed_body(
 }
 
 impl GpuState {
-    /// 합성할 본문이 있는 plugin 팝업과 그 primitive 잘림 영역(팝업 안 논리 px). 본문 디코드는 egui 패스
-    /// 뒤라 직전에 디코드한 본문이다. `composite_mesh_target`이 건너뛰는 팝업(본문 없음·배율 0·primitive
-    /// 없음)은 넣지 않는다. 포커스 띠가 host 팝업 아래에서 이 영역만 비운다.
+    /// 합성할 본문이 있는 plugin 팝업과 그 primitive 잘림 영역(팝업 안 논리 px). [`Self::prepare_mesh_popups`]
+    /// 뒤에 읽으므로 이번 프레임에 합성할 본문과 같다. `composite_mesh_target`이 건너뛰는 팝업(본문 없음·배율 0·
+    /// primitive 없음)은 넣지 않는다. 포커스 띠가 host 팝업 아래에서 이 영역만 비운다.
     pub(super) fn composed_popups(
         &self,
     ) -> HashMap<u64, crate::adapters::ui::surface_focus_edge::ComposedPopup> {
@@ -815,65 +815,8 @@ impl GpuState {
         }
 
         for (iid, rect) in regions {
-            let Some(frame) = plugin_manager.popup_mesh_frame(*iid) else {
+            if !self.decode_mesh_popup(*iid, plugin_manager) {
                 continue;
-            };
-            let frame_plugin_id = frame.plugin_id.clone();
-            let frame_buffer_id = frame.buffer_id;
-            let frame_generation = frame.generation;
-            let frame_seq = frame.frame_seq;
-            let frame_full = frame.full_textures;
-            let host_ppp = self.scale_factor;
-
-            ensure_mesh_target(
-                &mut self.egui_mesh_popup_targets,
-                *iid,
-                &self.device,
-                self.config.format,
-            );
-
-            let (needs_decode, chain_ok, awaiting) = {
-                let t = &self.egui_mesh_popup_targets[iid];
-                (
-                    !t.has_content || t.generation != frame_generation,
-                    t.chain_accepts(frame_seq, frame_full),
-                    t.awaiting_full,
-                )
-            };
-            if needs_decode {
-                decode_and_track(
-                    &self.device,
-                    &self.queue,
-                    plugin_manager,
-                    &mut self.egui_mesh_popup_targets,
-                    &mut self.egui_mesh_popup_full_requests,
-                    *iid,
-                    &frame_plugin_id,
-                    frame_buffer_id,
-                    frame_generation,
-                    frame_seq,
-                    frame_full,
-                    chain_ok,
-                    awaiting,
-                    host_ppp,
-                    || {
-                        tracing::warn!(
-                            plugin = %frame_plugin_id,
-                            buffer = frame_buffer_id.0,
-                            popup = iid,
-                            "egui-mesh popup prepare: SharedMemory not registered"
-                        );
-                    },
-                    || {
-                        tracing::debug!(
-                            popup = iid,
-                            frame_seq,
-                            "egui-mesh popup prepare: texture delta chain broken; requesting full resend"
-                        );
-                    },
-                );
-            } else if awaiting {
-                self.egui_mesh_popup_full_requests.insert(*iid);
             }
 
             if let Some(t) = self.egui_mesh_popup_targets.get_mut(iid) {
@@ -888,6 +831,85 @@ impl GpuState {
                 );
             }
         }
+    }
+
+    /// egui 패스 전에 이 창에 그릴 plugin 팝업의 새 프레임을 디코드한다. 포커스 띠는 같은 프레임의 egui 패스에서
+    /// 이 결과([`Self::composed_popups`])로 구멍을 내고, 합성은 같은 결과를 그대로 쓴다. 그래서 첫 프레임과
+    /// clip이 바뀌는 프레임에도 띠 구멍과 합성 본문이 같은 clip이다.
+    pub(super) fn prepare_mesh_popups(
+        &mut self,
+        instances: impl IntoIterator<Item = u64>,
+        plugin_manager: PluginDisplay<'_>,
+    ) {
+        for iid in instances {
+            self.decode_mesh_popup(iid, plugin_manager);
+        }
+    }
+
+    /// 팝업 하나의 새 프레임을 디코드한다. 프레임이 없으면 `false`다. 이미 디코드한 generation이면 다시 하지
+    /// 않으므로 egui 패스 전 디코드 뒤 합성 단계에서 부르면 아무것도 바꾸지 않는다.
+    fn decode_mesh_popup(&mut self, iid: u64, plugin_manager: PluginDisplay<'_>) -> bool {
+        let Some(frame) = plugin_manager.popup_mesh_frame(iid) else {
+            return false;
+        };
+        let frame_plugin_id = frame.plugin_id.clone();
+        let frame_buffer_id = frame.buffer_id;
+        let frame_generation = frame.generation;
+        let frame_seq = frame.frame_seq;
+        let frame_full = frame.full_textures;
+        let host_ppp = self.scale_factor;
+
+        ensure_mesh_target(
+            &mut self.egui_mesh_popup_targets,
+            iid,
+            &self.device,
+            self.config.format,
+        );
+
+        let (needs_decode, chain_ok, awaiting) = {
+            let t = &self.egui_mesh_popup_targets[&iid];
+            (
+                !t.has_content || t.generation != frame_generation,
+                t.chain_accepts(frame_seq, frame_full),
+                t.awaiting_full,
+            )
+        };
+        if needs_decode {
+            decode_and_track(
+                &self.device,
+                &self.queue,
+                plugin_manager,
+                &mut self.egui_mesh_popup_targets,
+                &mut self.egui_mesh_popup_full_requests,
+                iid,
+                &frame_plugin_id,
+                frame_buffer_id,
+                frame_generation,
+                frame_seq,
+                frame_full,
+                chain_ok,
+                awaiting,
+                host_ppp,
+                || {
+                    tracing::warn!(
+                        plugin = %frame_plugin_id,
+                        buffer = frame_buffer_id.0,
+                        popup = iid,
+                        "egui-mesh popup prepare: SharedMemory not registered"
+                    );
+                },
+                || {
+                    tracing::debug!(
+                        popup = iid,
+                        frame_seq,
+                        "egui-mesh popup prepare: texture delta chain broken; requesting full resend"
+                    );
+                },
+            );
+        } else if awaiting {
+            self.egui_mesh_popup_full_requests.insert(iid);
+        }
+        true
     }
 
     /// host가 그린 배너 셸 위 content_rect에 플러그인 mesh를 합성한다.

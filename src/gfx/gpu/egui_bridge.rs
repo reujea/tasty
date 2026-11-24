@@ -144,6 +144,21 @@ impl GpuState {
 
         // 최소화 중 크기를 잘못 보고하는 것은 Windows 의 장식 없는 창이다. 다른 OS 는 그대로 둔다.
         let minimized = cfg!(windows) && window.is_minimized() == Some(true);
+        // 이번 프레임 팝업 본문을 egui 패스 전에 디코드해 띠 구멍과 합성이 같은 clip을 쓰게 한다.
+        if let Some(mgr) = plugin_manager {
+            let drawn: Vec<u64> = mgr
+                .popup_instances()
+                .filter(|(id, inst)| {
+                    crate::plugin_bridge::popup_scope::drawn_in_window(
+                        &state.plugin_window_popups,
+                        *id,
+                        inst.contribute.scope,
+                    )
+                })
+                .map(|(id, _)| id)
+                .collect();
+            self.prepare_mesh_popups(drawn, mgr);
+        }
         let composed_popups = self.composed_popups();
         self.run_main_pass(
             window,

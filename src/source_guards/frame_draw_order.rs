@@ -60,3 +60,31 @@ fn child_scope_is_resolved_before_the_first_host_paint() {
         "child scope must be applied before host paint and hit testing"
     );
 }
+
+/// host 팝업이 위일 때 포커스 띠는 egui 패스 안에서 합성될 plugin 팝업 본문의 clip으로 구멍을 내고, 합성은
+/// egui 패스 뒤에 한다. 둘이 같은 프레임의 같은 clip을 쓰려면 본문 디코드가 egui 패스보다 앞이어야 한다.
+/// 디코드가 합성 단계에만 있으면 첫 프레임과 clip이 바뀌는 프레임에 띠 구멍이 한 프레임 늦는다.
+#[test]
+fn the_popup_bodies_are_decoded_before_the_edge_reads_them() {
+    let body = frame_body();
+    let prepare = body
+        .find("self.prepare_mesh_popups(")
+        .expect("`run_egui_frame` 이 egui 패스 전에 팝업 본문을 디코드해야 한다");
+    let composed = body
+        .find("self.composed_popups()")
+        .expect("띠가 읽는 합성 본문");
+    let pass = body.find("self.run_main_pass(").expect("egui 패스");
+    assert!(
+        prepare < composed && composed < pass,
+        "팝업 본문 디코드 → 합성 본문 읽기 → egui 패스 순서가 아니다"
+    );
+    let path = repo_root().join("src/gfx/gpu/egui_mesh_prepare.rs");
+    let src = std::fs::read_to_string(&path).expect("egui_mesh_prepare.rs");
+    let composite = strip_comments(
+        &fn_body(&src.replace("\r\n", "\n"), "fn render_egui_mesh_popups").expect("합성 함수"),
+    );
+    assert!(
+        composite.contains("self.decode_mesh_popup(") && !composite.contains("decode_and_track("),
+        "팝업 합성은 egui 패스 전과 같은 디코드 함수를 거쳐야 한다(이미 디코드한 generation은 다시 디코드하지 않는다)"
+    );
+}
