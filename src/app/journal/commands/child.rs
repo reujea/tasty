@@ -489,7 +489,7 @@ mod tests {
         ];
         for (explicit, changed, expected) in cases {
             {
-                let mut engine = session.borrow_mut();
+                let engine = session.borrow_mut();
                 let children = &mut engine.runtime.child_terminals;
                 children.remove_child(&parent, 0);
                 children.register_child(
@@ -522,7 +522,7 @@ mod tests {
                 .input
                 .and_then(|input| input.child)
                 .expect("child recipe");
-            let mut engine = session.borrow_mut();
+            let engine = session.borrow_mut();
             let children = &mut engine.runtime.child_terminals;
             // 준비 뒤 terminal.set_nickname(또는 --clear)이 저장한 값.
             children.update_child(&parent, 0, |entry| {
