@@ -438,6 +438,7 @@ pub fn draw_download_run(
                     &tasty_ui_widgets::RemoteMark {
                         host: &host,
                         empty_label,
+                        reconnecting: None,
                     },
                     &path,
                 );

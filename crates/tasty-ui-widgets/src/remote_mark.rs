@@ -12,12 +12,17 @@ use tasty_type_geometry::length::LogicalPx;
 pub struct RemoteMark<'a> {
     pub host: &'a str,
     pub empty_label: &'a str,
+    /// 연결이 끊겨 다시 붙는 중이면 호스트 뒤에 붙는 상태 단어. 있으면 원격 색을 빼고 중립 잉크로
+    /// 그린다(상태바의 재연결 형태). None 이면 평소 표지다.
+    pub reconnecting: Option<&'a str>,
 }
 
 /// 표지 한 벌의 색·간격·상한.
 #[derive(Clone, Copy)]
 struct MarkStyle {
-    fg: egui::Color32,
+    glyph: egui::Color32,
+    host: egui::Color32,
+    word: egui::Color32,
     gap: LogicalPx,
     /// 호스트 글자 상한(글리프와 gap 은 밖).
     max_w: LogicalPx,
@@ -32,13 +37,7 @@ fn host_galley(
     let caption = th.font_size_caption.value();
     if mark.host.is_empty() {
         // 빈 호스트 자리의 낱말은 상한을 받지 않고 끝까지 그린다(정본 'no host' 행).
-        return ctx.fonts(|f| {
-            f.layout_no_wrap(
-                mark.empty_label.to_owned(),
-                crate::label_font(caption),
-                egui::Color32::PLACEHOLDER,
-            )
-        });
+        return label_galley(ctx, th, mark.empty_label);
     }
     let mut job = egui::text::LayoutJob::simple_singleline(
         mark.host.to_owned(),
@@ -54,55 +53,90 @@ fn host_galley(
     ctx.fonts(|f| f.layout_job(job))
 }
 
-/// 글리프 + gap + 호스트 galley. 호스트 글자는 `max_w` 상한에서 끝을 줄이고, 줄였으면 상한 폭을 차지한다.
-fn layout(
-    ui: &egui::Ui,
-    th: &Theme,
-    mark: &RemoteMark<'_>,
-    style: MarkStyle,
-) -> (Arc<egui::Galley>, LogicalPx) {
-    let galley = host_galley(ui.ctx(), th, mark, style.max_w);
-    // 상한에서 줄인 호스트는 상한 폭을 차지한다(정본: 경로 상자 = 390 − (12 + 4 + 160) − 8).
-    let host_w = if galley.elided {
-        style.max_w
-    } else {
-        LogicalPx(galley.rect.width())
-    };
-    let w = th.icon_glyph_size_xs + style.gap + host_w;
-    (galley, w)
+/// font-label caption 한 줄. 줄이지 않는다.
+fn label_galley(ctx: &egui::Context, th: &Theme, text: &str) -> Arc<egui::Galley> {
+    ctx.fonts(|f| {
+        f.layout_no_wrap(
+            text.to_owned(),
+            crate::label_font(th.font_size_caption.value()),
+            egui::Color32::PLACEHOLDER,
+        )
+    })
 }
 
-fn paint(
-    ui: &egui::Ui,
-    th: &Theme,
-    left_center: egui::Pos2,
-    galley: Arc<egui::Galley>,
-    style: MarkStyle,
-) {
+/// 잰 표지 — 호스트 galley 와 그 자리 폭, 재연결 상태 단어, 전체 폭.
+struct Laid {
+    host: Arc<egui::Galley>,
+    host_w: LogicalPx,
+    word: Option<Arc<egui::Galley>>,
+    width: LogicalPx,
+}
+
+/// 글리프 + gap + 호스트 (+ gap + 상태 단어). 호스트 글자는 `max_w` 상한에서 끝을 줄이고, 줄였으면 상한
+/// 폭을 차지한다. 상태 단어는 줄이지 않는다.
+fn layout(ui: &egui::Ui, th: &Theme, mark: &RemoteMark<'_>, style: MarkStyle) -> Laid {
+    let host = host_galley(ui.ctx(), th, mark, style.max_w);
+    // 상한에서 줄인 호스트는 상한 폭을 차지한다(정본: 경로 상자 = 390 − (12 + 4 + 160) − 8).
+    let host_w = if host.elided {
+        style.max_w
+    } else {
+        LogicalPx(host.rect.width())
+    };
+    let word = mark.reconnecting.map(|w| label_galley(ui.ctx(), th, w));
+    let word_w = word
+        .as_ref()
+        .map_or(LogicalPx(0.0), |g| style.gap + LogicalPx(g.rect.width()));
+    let width = th.icon_glyph_size_xs + style.gap + host_w + word_w;
+    Laid {
+        host,
+        host_w,
+        word,
+        width,
+    }
+}
+
+fn paint(ui: &egui::Ui, th: &Theme, left_center: egui::Pos2, laid: Laid, style: MarkStyle) {
     let gs = th.icon_glyph_size_xs.value();
     let grect = egui::Rect::from_center_size(
         egui::pos2(left_center.x + gs / 2.0, left_center.y),
         egui::Vec2::splat(gs),
     );
-    tasty_icons::REMOTE.image(gs, style.fg).paint_at(ui, grect);
-    let pos = egui::pos2(
-        left_center.x + gs + style.gap.value(),
-        left_center.y - galley.rect.height() / 2.0,
-    );
-    ui.painter().galley(pos, galley, style.fg);
+    tasty_icons::REMOTE
+        .image(gs, style.glyph)
+        .paint_at(ui, grect);
+    let host_left = left_center.x + gs + style.gap.value();
+    let pos = egui::pos2(host_left, left_center.y - laid.host.rect.height() / 2.0);
+    ui.painter().galley(pos, laid.host, style.host);
+    if let Some(word) = laid.word {
+        let pos = egui::pos2(
+            host_left + (laid.host_w + style.gap).value(),
+            left_center.y - word.rect.height() / 2.0,
+        );
+        ui.painter().galley(pos, word, style.word);
+    }
 }
 
-fn picker_style(th: &Theme) -> MarkStyle {
+/// 핸들러 picker 의 표지 색. 재연결 중이면 글리프는 glyph-dim, 호스트와 상태 단어는 text-muted 다.
+fn picker_style(th: &Theme, reconnecting: bool) -> MarkStyle {
+    let (glyph, host) = if reconnecting {
+        (th.glyph_dim().into(), th.text_muted().into())
+    } else {
+        let remote: egui::Color32 = th.fh_remote_fg().into();
+        (remote, remote)
+    };
     MarkStyle {
-        fg: th.fh_remote_fg().into(),
+        glyph,
+        host,
+        word: th.text_muted().into(),
         gap: th.fh_remote_gap(),
         max_w: th.fh_remote_max_width(),
     }
 }
 
-/// 핸들러 picker 경로 줄 앞 표지의 폭(글리프 + gap + 호스트, 호스트는 `fh-remote-max-width` 상한).
+/// 핸들러 picker 경로 줄 앞 표지의 폭(글리프 + gap + 호스트, 호스트는 `fh-remote-max-width` 상한,
+/// 재연결 중이면 + gap + 상태 단어).
 pub fn fh_remote_mark_width(ui: &egui::Ui, th: &Theme, mark: &RemoteMark<'_>) -> LogicalPx {
-    layout(ui, th, mark, picker_style(th)).1
+    layout(ui, th, mark, picker_style(th, mark.reconnecting.is_some())).width
 }
 
 /// 핸들러 picker 경로 줄 앞 표지를 `left_center`(왼쪽 끝, 세로 가운데)에 그리고 폭을 돌려준다.
@@ -112,9 +146,10 @@ pub fn paint_fh_remote_mark(
     left_center: egui::Pos2,
     mark: &RemoteMark<'_>,
 ) -> LogicalPx {
-    let style = picker_style(th);
-    let (galley, w) = layout(ui, th, mark, style);
-    paint(ui, th, left_center, galley, style);
+    let style = picker_style(th, mark.reconnecting.is_some());
+    let laid = layout(ui, th, mark, style);
+    let w = laid.width;
+    paint(ui, th, left_center, laid, style);
     w
 }
 
@@ -138,8 +173,11 @@ impl LinkRemoteTip<'_> {
     }
 
     fn style(th: &Theme) -> MarkStyle {
+        let fg: egui::Color32 = th.link_remote_fg().into();
         MarkStyle {
-            fg: th.link_remote_fg().into(),
+            glyph: fg,
+            host: fg,
+            word: fg,
             gap: th.link_remote_gap(),
             // 링크 툴팁은 따로 상한이 없고 툴팁 최대 폭 안에서 줄인다.
             max_w: th.tooltip_max_width,
@@ -165,6 +203,7 @@ impl LinkRemoteTip<'_> {
                 &RemoteMark {
                     host: self.host,
                     empty_label: "",
+                    reconnecting: None,
                 },
                 room,
             )
@@ -224,13 +263,15 @@ impl LinkRemoteTip<'_> {
         let gs = th.icon_glyph_size_xs.value();
         let grect =
             egui::Rect::from_center_size(egui::pos2(left + gs / 2.0, cy), egui::Vec2::splat(gs));
-        tasty_icons::REMOTE.image(gs, style.fg).paint_at(ui, grect);
+        tasty_icons::REMOTE
+            .image(gs, style.glyph)
+            .paint_at(ui, grect);
         if let Some(host) = host {
             let h = host.rect.height();
             painter.galley(
                 egui::pos2(left + gs + style.gap.value(), cy - h / 2.0),
                 host,
-                style.fg,
+                style.host,
             );
         }
     }
@@ -316,6 +357,7 @@ mod tests {
             let mark = RemoteMark {
                 host: "",
                 empty_label: &word,
+                reconnecting: None,
             };
             (
                 fh_remote_mark_width(ui, &th, &mark),
@@ -338,6 +380,7 @@ mod tests {
             let mark = RemoteMark {
                 host: "build-runner-eu-west-07-staging-attach-with-a-longer-name",
                 empty_label: "Remote",
+                reconnecting: None,
             };
             fh_remote_mark_width(ui, &th, &mark)
         });
@@ -345,6 +388,76 @@ mod tests {
             w,
             th.icon_glyph_size_xs + th.fh_remote_gap() + th.fh_remote_max_width()
         );
+    }
+
+    /// 재연결 중이면 상태 단어가 gap 뒤에 붙어 표지가 그만큼 넓어진다. 긴 호스트(상한)와 빈 호스트 모두
+    /// 단어를 줄이지 않는다.
+    #[test]
+    fn the_reconnecting_word_follows_the_host_and_widens_the_mark() {
+        let th = theme();
+        let word = "reconnecting";
+        for host in ["host", "build-runner-eu-west-07-staging-attach", ""] {
+            let (live, lost, word_w) = in_frame(|ui| {
+                let mark = |reconnecting| RemoteMark {
+                    host,
+                    empty_label: "Remote",
+                    reconnecting,
+                };
+                let word_w = label_galley(ui.ctx(), &th, word).rect.width();
+                (
+                    fh_remote_mark_width(ui, &th, &mark(None)),
+                    fh_remote_mark_width(ui, &th, &mark(Some(word))),
+                    LogicalPx(word_w),
+                )
+            });
+            assert_eq!(lost, live + th.fh_remote_gap() + word_w, "host {host:?}");
+        }
+    }
+
+    /// 그린 표지의 글리프 tint 와 글자 색들.
+    fn painted_inks(mark: RemoteMark<'_>) -> (Vec<egui::Color32>, Vec<egui::Color32>) {
+        let th = theme();
+        let ctx = egui::Context::default();
+        egui_extras::install_image_loaders(&ctx);
+        let out = ctx.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                paint_fh_remote_mark(ui, &th, egui::pos2(20.0, 20.0), &mark);
+            });
+        });
+        let mut glyphs = Vec::new();
+        let mut texts = Vec::new();
+        for clipped in out.shapes {
+            match clipped.shape {
+                egui::Shape::Rect(r) if r.brush.is_some() => glyphs.push(r.fill),
+                egui::Shape::Text(t) => texts.push(t.fallback_color),
+                _ => {}
+            }
+        }
+        (glyphs, texts)
+    }
+
+    /// 평소 표지는 글리프와 호스트 모두 fh-remote-fg, 재연결 중이면 글리프 glyph-dim · 호스트와 상태 단어
+    /// text-muted 다(정본 Meta 'reconnecting' 행).
+    #[test]
+    fn a_reconnecting_mark_drops_to_neutral_ink() {
+        let th = theme();
+        let remote: egui::Color32 = th.fh_remote_fg().into();
+        let (glyphs, texts) = painted_inks(RemoteMark {
+            host: "work-laptop-attach",
+            empty_label: "Remote",
+            reconnecting: None,
+        });
+        assert_eq!(glyphs, vec![remote]);
+        assert_eq!(texts, vec![remote]);
+
+        let muted: egui::Color32 = th.text_muted().into();
+        let (glyphs, texts) = painted_inks(RemoteMark {
+            host: "work-laptop-attach",
+            empty_label: "Remote",
+            reconnecting: Some("reconnecting"),
+        });
+        assert_eq!(glyphs, vec![egui::Color32::from(th.glyph_dim())]);
+        assert_eq!(texts, vec![muted, muted]);
     }
 
     fn bounds() -> egui::Rect {

@@ -1032,7 +1032,11 @@ pub fn draw_file_handler_picker(
     let remote = picker
         .remote_host
         .as_deref()
-        .map(|host| tasty_ui_widgets::RemoteMark { host, empty_label });
+        .map(|host| tasty_ui_widgets::RemoteMark {
+            host,
+            empty_label,
+            reconnecting: None,
+        });
     let target_display = fh_model::elide_target_front(
         &picker.target_display,
         target_budget(ui, &th, remote.as_ref()),

@@ -265,7 +265,11 @@ pub fn draw_remote_path(ui: &mut egui::Ui, theme: &Theme) {
                 theme,
                 path,
                 &RemoteHead {
-                    mark: &tasty_ui_widgets::RemoteMark { host, empty_label },
+                    mark: &tasty_ui_widgets::RemoteMark {
+                        host,
+                        empty_label,
+                        reconnecting: None,
+                    },
                     format,
                 },
             );
