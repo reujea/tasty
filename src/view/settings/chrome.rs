@@ -167,12 +167,14 @@ impl SettingsChrome {
     }
 
     /// 설정 패널보다 먼저 제목 줄을 그리고 이동 요청을 창에 보낸다. 닫기 버튼을 눌렀으면 참이다.
-    /// 컴포지터가 서버 장식을 골랐으면 그리지 않는다.
+    /// 컴포지터가 서버 장식을 골랐으면 그리지 않는다. `takes_keys`가 거짓이면(이번 패스의 키 주인이 팝업) 닫기
+    /// 버튼은 키 입력을 보지 않는다.
     pub(crate) fn draw_titlebar(
         &mut self,
         ctx: &egui::Context,
         window: &Window,
         size: PhysicalSize<u32>,
+        takes_keys: bool,
     ) -> bool {
         let server_decorated = window.is_decorated();
         if server_decorated != self.drawn_server_decorated {
@@ -185,7 +187,7 @@ impl SettingsChrome {
         }
         let th = crate::theme::theme();
         let props = settings_props(&th, window.has_focus(), window.is_maximized());
-        let result = titlebar::draw_titlebar_view(ctx, &props);
+        let result = draw_bar(ctx, &props, takes_keys);
         self.close = result.close_rect.map(|rect| {
             (
                 titlebar::physical_panel_rect(rect, ctx.pixels_per_point()),
@@ -295,6 +297,18 @@ fn settings_props(th: &crate::theme::Theme, active: bool, maximized: bool) -> Ti
         keyboard_focus: true,
         primary_drag_only: true,
     }
+}
+
+/// 제목 줄을 그린다. 팝업이 키 주인인 패스(`takes_keys` 거짓)에서는 본문처럼 키 입력을 가린 채 그려 닫기 버튼이
+/// Tab·Space·Enter를 읽지 않는다.
+fn draw_bar(
+    ctx: &egui::Context,
+    props: &TitlebarProps,
+    takes_keys: bool,
+) -> titlebar::TitlebarDrawResult {
+    crate::adapters::ui::popup::body_keys::with_body_keys(ctx, takes_keys, || {
+        titlebar::draw_titlebar_view(ctx, props)
+    })
 }
 
 fn size_is_locked(window: &Window) -> bool {
@@ -549,11 +563,21 @@ mod tests {
 
     /// 제목 줄 하나를 egui 패스 여러 번에 걸쳐 그리고 보고된 동작을 모은다.
     fn bar_actions(passes: Vec<Vec<egui::Event>>, primary_drag_only: bool) -> Vec<TitlebarAction> {
+        bar_actions_with_keys(passes, primary_drag_only, &[])
+    }
+
+    /// `bar_actions`와 같고, `popup_keys`에 든 패스 번호에서는 팝업이 키 주인이다.
+    fn bar_actions_with_keys(
+        passes: Vec<Vec<egui::Event>>,
+        primary_drag_only: bool,
+        popup_keys: &[usize],
+    ) -> Vec<TitlebarAction> {
         crate::i18n::init("en");
         let th = crate::theme::theme();
         let ctx = egui::Context::default();
         let mut actions = Vec::new();
-        for events in passes {
+        for (pass, events) in passes.into_iter().enumerate() {
+            let takes_keys = !popup_keys.contains(&pass);
             let input = egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
                     egui::Pos2::ZERO,
@@ -565,7 +589,7 @@ mod tests {
             drop(ctx.run(input, |ctx| {
                 let mut props = settings_props(&th, true, false);
                 props.primary_drag_only = primary_drag_only;
-                actions.extend(titlebar::draw_titlebar_view(ctx, &props).actions);
+                actions.extend(draw_bar(ctx, &props, takes_keys).actions);
             }));
         }
         actions
@@ -603,6 +627,39 @@ mod tests {
             bar_actions(drag_with(Secondary), false),
             vec![TitlebarAction::StartDrag],
             "the main window keeps any button"
+        );
+    }
+
+    fn key(key: egui::Key, pressed: bool) -> egui::Event {
+        egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+
+    /// Given 설정창 제목 줄, When Tab으로 닫기 버튼에 포커스를 주고 Space를 누르면 Then 닫는다. When 팝업이 그 패스의
+    /// 키 주인이면 Then 같은 Tab·Space로도 닫기 버튼은 포커스를 받지 않고 눌리지 않는다.
+    #[test]
+    fn the_close_button_takes_no_keys_while_a_popup_owns_them() {
+        use egui::Key::{Space, Tab};
+        let passes = || {
+            vec![
+                Vec::new(),
+                vec![key(Tab, true), key(Tab, false)],
+                vec![key(Space, true), key(Space, false)],
+            ]
+        };
+        assert_eq!(
+            bar_actions_with_keys(passes(), true, &[]),
+            vec![TitlebarAction::Close]
+        );
+        assert_eq!(
+            bar_actions_with_keys(passes(), true, &[1, 2]),
+            Vec::new(),
+            "a popup owns the keys"
         );
     }
 

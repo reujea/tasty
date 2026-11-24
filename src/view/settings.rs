@@ -272,10 +272,13 @@ impl View for SettingsView {
         // 이유: 제목 줄을 그리는 곳이 Linux뿐이라 다른 OS에서는 값이 바뀌지 않는다.
         #[cfg_attr(not(target_os = "linux"), allow(unused_mut))]
         let mut titlebar_close = false;
+        // 팝업이 키 주인이면 제목 줄도 본문처럼 키를 보지 않는다(`draw_settings_panel`의 `with_body_keys`).
+        #[cfg(target_os = "linux")]
+        let titlebar_keys = pass_keys.owner.is_none();
         let full_output = self.base.gpu.run_egui(raw_input, |ctx| {
             #[cfg(target_os = "linux")]
             {
-                titlebar_close |= chrome.draw_titlebar(ctx, &winit, size);
+                titlebar_close |= chrome.draw_titlebar(ctx, &winit, size, titlebar_keys);
             }
             action = settings_ui::draw_settings_panel(
                 ctx,
