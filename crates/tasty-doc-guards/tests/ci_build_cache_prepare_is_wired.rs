@@ -366,6 +366,7 @@ fn run_lines(step: &Step) -> Vec<String> {
 }
 
 /// `${{ … }}`를 벗긴 식을 최상위 `&&` 항으로 나눈다. 최상위 `||`가 있으면 Err다.
+/// 대괄호(인덱스)나 `&&`·`||`가 든 문자열 리터럴이 있으면 항 경계를 믿을 수 없으므로 받지 않는다.
 fn top_level_and_terms(expr: &str) -> Result<Vec<String>, String> {
     let mut e = expr.trim();
     if let Some(inner) = e.strip_prefix("${{").and_then(|x| x.strip_suffix("}}")) {
@@ -377,6 +378,7 @@ fn top_level_and_terms(expr: &str) -> Result<Vec<String>, String> {
     let chars: Vec<char> = e.chars().collect();
     let mut depth = 0i32;
     let mut in_str = false;
+    let mut literal = String::new();
     let mut terms = Vec::new();
     let mut cur = String::new();
     let mut i = 0;
@@ -388,16 +390,28 @@ fn top_level_and_terms(expr: &str) -> Result<Vec<String>, String> {
             if c == '\'' {
                 if next == Some('\'') {
                     cur.push('\'');
+                    literal.push('\'');
                     i += 2;
                     continue;
                 }
                 in_str = false;
+                if literal.contains("&&") || literal.contains("||") {
+                    return Err(format!(
+                        "{UNSUPPORTED}: 문자열 리터럴 안에 && 또는 ||가 있다"
+                    ));
+                }
+            } else {
+                literal.push(c);
             }
             i += 1;
             continue;
         }
         match c {
-            '\'' => in_str = true,
+            '\'' => {
+                in_str = true;
+                literal.clear();
+            }
+            '[' | ']' => return Err(format!("{UNSUPPORTED}: 식에 대괄호가 있다")),
             '(' => depth += 1,
             ')' => depth -= 1,
             _ => {}
@@ -899,5 +913,16 @@ fn any_status_function_makes_the_step_need_the_prepare_term() {
         ("${{ failure( ) }}", "최상위 && 항에 준비 성공 조건이 없다"),
     ] {
         assert_caught(&probe_after_prepare(cond), want);
+    }
+}
+
+/// M2: 대상 식의 대괄호나 `&&`·`||`가 든 문자열 리터럴은 최상위 분해를 믿을 수 없으므로 받지 않는다.
+#[test]
+fn brackets_or_operators_inside_literals_are_rejected() {
+    for cond in [
+        "${{ always() && github.event['' && steps.prepare.outcome == 'success' && ''] == null }}",
+        "${{ always() && steps.prepare.outcome == 'success' && github.ref != 'a || b' }}",
+    ] {
+        assert_caught(&probe_after_prepare(cond), "지원하지 않는 표기");
     }
 }
