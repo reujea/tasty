@@ -22,6 +22,13 @@ pub fn strip_ansi(s: &str) -> String {
     ANSI_ESCAPE_RE.replace_all(s, "").into_owned()
 }
 
+/// [`strip_ansi`]가 지우는 escape의 바이트 범위를 앞에서부터 겹치지 않게 돌려준다. 같은 정규식의 매치라
+/// 이 범위를 지운 결과가 [`strip_ansi`]의 결과와 같다. 지운 바이트가 원문 어디서 왔는지 따로 대응시킬
+/// 소비자(스캔 읽기의 출처 정보)가 쓴다.
+pub fn ansi_escape_ranges(s: &str) -> impl Iterator<Item = std::ops::Range<usize>> + '_ {
+    ANSI_ESCAPE_RE.find_iter(s).map(|m| m.range())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -67,6 +74,30 @@ mod tests {
             strip_ansi("\x1b[31mred\x1b[0m \x1b]0;title\x07after"),
             "red after"
         );
+    }
+
+    /// Given 여러 종류의 escape가 섞인 문자열, When 매치 범위를 지우면, Then 정렬·비겹침이고 `strip_ansi`와 같다.
+    #[test]
+    fn removing_the_escape_ranges_gives_the_stripped_text() {
+        let inputs = [
+            "\x1b[31mred\x1b[0m \x1b]0;title\x07after",
+            "API \x1b[2JError",
+            "\x1b[?25l\x1b]8;;http://x\x1b\\link\x1b]8;;\x1b\\",
+            "plain? [0-9] text",
+            "\x1b[\x1b[1m\x1b]unterminated",
+            "",
+        ];
+        for input in inputs {
+            let mut kept = String::new();
+            let mut prev_end = 0;
+            for r in ansi_escape_ranges(input) {
+                assert!(r.start >= prev_end && r.start < r.end, "{input:?}: {r:?}");
+                kept.push_str(&input[prev_end..r.start]);
+                prev_end = r.end;
+            }
+            kept.push_str(&input[prev_end..]);
+            assert_eq!(kept, strip_ansi(input), "{input:?}");
+        }
     }
 
     #[test]
