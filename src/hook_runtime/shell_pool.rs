@@ -679,28 +679,44 @@ mod tests {
     }
 
     /// Started 보고가 패닉하면 이미 띄운 자식을 끝내고 회수한 뒤 슬롯을 돌려준다.
-    /// 자식 `cat`은 시험이 쥔 stdin 파이프를 읽으므로 시험이 끝날 때까지 스스로 끝나지 않는다.
-    /// 끝내지 않고 기다리면 슬롯이 돌아오지 않고, 끝내지 않고 놓으면 자식이 쥔 stdout 파이프가 닫히지 않는다.
+    /// 자식은 자기 pid를 stdout에 쓰고 `cat`이 되어, 시험이 쥔 stdin 파이프를 읽으므로 시험이 끝날 때까지
+    /// 스스로 끝나지 않는다. Started 보고는 그 pid를 읽어 넘긴 뒤 패닉한다.
+    /// 끝내지 않고 기다리면 슬롯이 돌아오지 않고, 끝내지 않고 놓으면 자식이 쥔 stdout 파이프가 닫히지 않고,
+    /// 끝내고 회수하지 않으면 그 pid가 아직 이 프로세스의 자식으로 남는다.
     /// 두 기한은 고장 난 실행을 멈출 때만 닿는다. 같은 프로세스의 다른 시험이 패닉 출력 잠금을 쥐고
     /// backtrace를 찍는 동안 이 시험의 패닉 출력이 기다려 반납이 수 초 늦어질 수 있어 넉넉히 둔다.
     #[test]
     fn a_job_whose_report_panics_after_start_leaves_no_child() {
         let pool = ShellPool::new(1, 0);
         let (stdin, keep_stdin_open) = std::io::pipe().expect("stdin pipe");
-        let (mut child_stdout, stdout) = std::io::pipe().expect("stdout pipe");
-        let started = Arc::new(AtomicBool::new(false));
-        let saw_start = Arc::clone(&started);
+        let (child_stdout, stdout) = std::io::pipe().expect("stdout pipe");
+        let (started, saw_start) = mpsc::channel();
+        let mut child_stdout = Some(child_stdout);
         pool.submit(|| {
             ShellJob::new(
                 "panicky",
                 move || {
-                    let mut c = std::process::Command::new("cat");
-                    c.stdin(stdin).stdout(stdout);
+                    let mut c = std::process::Command::new("sh");
+                    c.args(["-c", "echo $$; exec cat"])
+                        .stdin(stdin)
+                        .stdout(stdout);
                     c
                 },
                 move |event| {
                     if let ShellEvent::Started = event {
-                        saw_start.store(true, Ordering::SeqCst);
+                        let mut out = child_stdout.take().expect("one Started report");
+                        let mut line = Vec::new();
+                        let mut byte = [0u8; 1];
+                        while line.last() != Some(&b'\n') {
+                            let n = std::io::Read::read(&mut out, &mut byte).expect("child pid");
+                            assert_eq!(n, 1, "the child closed stdout before writing its pid");
+                            line.push(byte[0]);
+                        }
+                        let pid: libc::pid_t = String::from_utf8_lossy(&line)
+                            .trim()
+                            .parse()
+                            .expect("child pid");
+                        let _ignored = started.send((pid, out));
                         panic!("test report panic");
                     }
                 },
@@ -708,10 +724,9 @@ mod tests {
         })
         .expect("accepted");
         wait_idle(&pool, Duration::from_secs(60));
-        assert!(
-            started.load(Ordering::SeqCst),
-            "the job never reported Started"
-        );
+        let (pid, mut child_stdout) = saw_start
+            .try_recv()
+            .expect("the job never reported Started");
         // 쓰기 끝은 자식과, 슬롯 반납 전에 버려지는 Command만 쥔다. 읽기가 끝나면 자식이 없다.
         let (closed, wait_closed) = mpsc::channel();
         std::thread::spawn(move || {
@@ -722,6 +737,24 @@ mod tests {
         assert!(
             matches!(read, Ok(Ok(0))),
             "the child outlived its panicked job: {read:?}"
+        );
+        // 회수된 pid는 더 이상 이 프로세스의 자식이 아니라 ECHILD가 난다. 좀비로 남았거나 살아 있으면 성공한다.
+        // WNOWAIT라 관찰만 하고 회수하지 않는다.
+        // SAFETY: siginfo_t는 POD이며 0으로 채운 값이 유효하다. waitid는 이 구조체에만 쓴다.
+        let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
+        // SAFETY: info는 유효한 포인터다.
+        let rc = unsafe {
+            libc::waitid(
+                libc::P_PID,
+                pid as libc::id_t,
+                &mut info,
+                libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
+            )
+        };
+        let error = std::io::Error::last_os_error();
+        assert!(
+            rc == -1 && error.raw_os_error() == Some(libc::ECHILD),
+            "the child {pid} was not reaped after its panicked job (waitid rc {rc}, {error})"
         );
         drop(keep_stdin_open);
     }
