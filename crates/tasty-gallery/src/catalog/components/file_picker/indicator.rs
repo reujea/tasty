@@ -137,6 +137,43 @@ pub(super) fn after_title(ui: &mut egui::Ui, theme: &Theme, v: Variant) {
     }
 }
 
+/// 디자인의 숨은 View `file-picker-remote-states-no-profile` — 빈 호스트 원격의 로딩과 두 연결 끊김 원인.
+/// 본문은 앱의 호스트 없는 값이고, 제목 배지는 낱말 Remote다.
+pub(super) fn draw_no_profile_states_view(ui: &mut egui::Ui, theme: &Theme) {
+    spec::stage(ui, theme, StageVariant::Wrap, |ui| {
+        ui.spacing_mut().item_spacing =
+            egui::vec2(theme.spacing_lg.value(), theme.spacing_lg.value());
+        spec::cluster(
+            ui,
+            theme,
+            "View · file-picker-remote-states-no-profile — no profile name (--ssh or --target-port from the CLI or IPC): loading and both connection-lost causes with the app's host-free values",
+            |ui| {
+                for (label, state) in [
+                    ("loading (remote, no profile name)", FpState::Loading),
+                    (
+                        "connection lost — session lost (remote, no profile name)",
+                        FpState::ErrorConn,
+                    ),
+                    (
+                        "connection lost — timeout (remote, no profile name)",
+                        FpState::ErrorConnTimeout,
+                    ),
+                ] {
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = theme.spacing_xs.value();
+                        ui.label(
+                            egui::RichText::new(label)
+                                .size(theme.font_size_caption.value())
+                                .color(theme.text_muted().to_egui()),
+                        );
+                        card(ui, theme, Variant::open(state, true, false).hostless());
+                    });
+                }
+            },
+        );
+    });
+}
+
 /// 디자인의 숨은 View `file-picker-remote-no-profile` — 빈 호스트 원격 프레임과 언어별 배지.
 pub(super) fn draw_no_profile_view(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
