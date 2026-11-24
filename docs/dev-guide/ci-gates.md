@@ -499,7 +499,8 @@ self-hosted 러너에서 도는 일반 검사 잡은 이전 실행의 `target/`�
     식(`${{ }}`)과 매핑은 받지 않는다.
   - 조건 식: 준비 뒤의 상태 함수가 든 판정 스텝과 `script-gates`의 판정기 사용 스텝에서는 최상위 `&&` 항으로 나눠 본다.
     이 식에 대괄호(문자열 리터럴 안 포함)나 `&&`·`||`가 든 문자열 리터럴이 있으면 항을 믿을 수 없으므로 받지 않는다.
-  가드는 `continue-on-error: true` 스텝을 준비 조건 검사에서 빼므로 관측용 e2e의 준비 조건은 고정하지 않는다.
+  - `continue-on-error: true` 예외: 준비 뒤 판정 스텝의 준비 조건 검사에서만 빠진다. 그래서 관측용 e2e의 준비 조건은
+    고정하지 않는다. `script-gates`의 판정기 사용 스텝 검사는 `continue-on-error`와 상관없이 준비·판정기 성공 조건을 모두 요구한다.
 - 로그 줄: 준비 스텝은 `[ci-cache] action=<wipe|keep|none> reason=<…>` 한 줄에 표지 값, 삭제 전후 여유(GB, 버림.
   삭제 뒤 값을 읽지 못하면 `unknown`), 임계값(GB), OS를 남긴다. `action=keep reason=cached`가 캐시를 쓴 실행이다. `action=none reason=target-absent`는
   `target`이 없던 실행이다. `clean: false`여도 checkout은 원격 URL이 다르거나 기존 저장소를 준비하지 못하면
