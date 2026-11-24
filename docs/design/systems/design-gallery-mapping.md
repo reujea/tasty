@@ -1245,7 +1245,7 @@ C 프레임보더) 중 **A 배지가 사용자 확정**되었다. 본체와 갤�
 | `FilePickerFrame`(container) | `card` | 640×480 · bg-panel · border-strong · modal shadow |
 | header(glyph·title·host indicator·✕) | `header` → `indicator::{header_glyph, after_title}` | 로컬과 A안은 `FILE` 글리프. B안은 `remote` 글리프(`accent-info`) + mono 호스트 글자, C안은 `remote` 글리프(muted) |
 | `FilePickerFrame indicator` prop · `overlays-windows.jsx` "Remote indicator — three candidates" | `Variant::indicated` · `indicator::top_strip` · `draw_remote_indicator`(Spec `filepicker-remote-indicator`) | A 배지 · B 글리프 + 호스트 · C 프레임 테두리(`accent-info` 테두리 + 위 2px 띠) 세 카드 + Meta + Don't |
-| host 배지(§6.1 A안, 채택) | `host_badge` | mono `user@host` · `accent-info` 14%/45% 배경/보더 |
+| host 배지(§6.1 A안, 채택) | `host_badge` | mono 호스트 글자(attach 프로필 이름) · 빈 호스트는 `attach.mirror_pill_label` 낱말을 font-label · 글리프 13 · 간격 5 · 잉크 `accent-info-raised` · `accent-info` 14%/45% 배경/보더 |
 | path bar(`FpCrumbs`+Up+refresh) | `path_bar` → `crumbs` | `bg-sidebar` 전폭 띠 · 아래 `separator` 1px. 경로 · Up(`chevronUp`) · refresh 를 `fp-section-gap` 간격으로 놓는다. root=mono, 조상=accent 링크, 현재 폴더=`text-primary` 보통 굵기 비클릭, 글자 `font-size-caption` |
 | list header(NAME/SIZE/MODIFIED) | `list_header` | loaded/multi 상태만, `cols()` 좌표 공유 |
 | `FpRow` | `row` | selected=surface-active+2px accent 좌측바, focus=1px accent outline(선택과 구분) |
