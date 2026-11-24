@@ -1156,7 +1156,6 @@ fn open_user_remote_picker(
     );
     let picker = crate::adapters::ui::popup::file_handler_picker::opened_picker(&mut state)
         .expect("user open shows the remote picker");
-    drop(engine);
     (
         state,
         engine_session,

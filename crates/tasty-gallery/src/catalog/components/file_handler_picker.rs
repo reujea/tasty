@@ -823,6 +823,9 @@ mod tests {
                             glyph: theme.icon_glyph_size_xs,
                             mark_gap: theme.fh_remote_gap(),
                             host_cap: theme.fh_remote_max_width(),
+                            em: tasty_type_geometry::length::LogicalPx(
+                                theme.font_size_caption.value().ceil(),
+                            ),
                         },
                     );
                     cuts.push((budget, fh_model::elide_target_front(row.path, budget)));

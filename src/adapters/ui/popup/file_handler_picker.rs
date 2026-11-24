@@ -148,6 +148,7 @@ fn target_budget(
                 glyph: th.icon_glyph_size_xs,
                 mark_gap: th.fh_remote_gap(),
                 host_cap: th.fh_remote_max_width(),
+                em: LogicalPx(th.font_size_caption.value().ceil()),
             },
         ),
         None => fh_model::target_budget_chars(advance),

@@ -81,7 +81,7 @@ impl Fixture {
             )),
             ..Default::default()
         };
-        let mut engine = self.session.borrow_mut();
+        let engine = self.session.borrow_mut();
         let read = engine.read();
         let state = &mut self.state;
         let payload = &mut self.payload;
@@ -115,7 +115,6 @@ impl Fixture {
                 .collect();
         }
         drop(read);
-        drop(engine);
         out
     }
 }

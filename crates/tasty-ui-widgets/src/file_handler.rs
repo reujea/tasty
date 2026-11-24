@@ -1,8 +1,8 @@
 //! 본체와 갤러리가 공유하는 파일 핸들러 ID·경로의 말줄임 규칙.
 
 use crate::tokens::{
-    FH_ID_ELIDE_MAX, FH_ID_ELIDE_TAIL, FH_STATUS_WORD_EM_UNMEASURED, FH_TARGET_ELIDE_FALLBACK,
-    FH_TARGET_LINE_BOX, FH_TARGET_MONO_ADVANCE,
+    FH_ID_ELIDE_MAX, FH_ID_ELIDE_TAIL, FH_TARGET_ELIDE_FALLBACK, FH_TARGET_LINE_BOX,
+    FH_TARGET_MONO_ADVANCE,
 };
 use tasty_type_geometry::length::LogicalPx;
 
@@ -46,6 +46,8 @@ pub struct UnmeasuredMark<'a> {
     pub mark_gap: LogicalPx,
     /// 호스트 글자 폭 상한(`fh-remote-max-width` 160). 빈 호스트와 폭을 모르는 호스트에 쓴다.
     pub host_cap: LogicalPx,
+    /// UI sans 로 그리는 상태 단어(ja · zh-Hans)의 글자당 폭. caption 글자 크기(11) 한 em 을 올림한 값(12)이다.
+    pub em: LogicalPx,
 }
 
 /// 원격 표지 옆 경로 상자(경로 줄 − 표지 − `gap`)에 들어갈 글자 수.
@@ -79,7 +81,7 @@ pub fn target_budget_chars_unmeasured(mark: &UnmeasuredMark<'_>, gap: LogicalPx)
         (FH_TARGET_MONO_ADVANCE * mark.host.chars().count() as f32).min(mark.host_cap)
     };
     let word = mark.reconnecting.map_or(LogicalPx(0.0), |word| {
-        mark.mark_gap + status_word_width_unmeasured(word, mark.language)
+        mark.mark_gap + status_word_width_unmeasured(word, mark.language, mark.em)
     });
     let room = FH_TARGET_LINE_BOX - mark.glyph - mark.mark_gap - gap - host - word;
     (room.value() / FH_TARGET_MONO_ADVANCE.value())
@@ -90,7 +92,7 @@ pub fn target_budget_chars_unmeasured(mark: &UnmeasuredMark<'_>, gap: LogicalPx)
 /// 재연결 상태 단어의 폭을 잴 수 없을 때의 추정. 그 언어의 label 글꼴이 고정폭(en · ko)이면 칸당 6 이고
 /// 한글 음절은 두 칸이다(reconnecting 72, 재연결 중 54). UI sans(ja · zh-Hans)면 글자당 12 다
 /// (再接続中 48, 重新连接中 60).
-pub fn status_word_width_unmeasured(word: &str, language: &str) -> LogicalPx {
+pub fn status_word_width_unmeasured(word: &str, language: &str, em: LogicalPx) -> LogicalPx {
     if crate::label_font_family_for(language) == egui::FontFamily::Monospace {
         let cells: usize = word
             .chars()
@@ -104,7 +106,7 @@ pub fn status_word_width_unmeasured(word: &str, language: &str) -> LogicalPx {
             .sum();
         FH_TARGET_MONO_ADVANCE * cells as f32
     } else {
-        FH_STATUS_WORD_EM_UNMEASURED * word.chars().count() as f32
+        em * word.chars().count() as f32
     }
 }
 
@@ -214,6 +216,7 @@ mod tests {
             glyph: LogicalPx(12.0),
             mark_gap: LogicalPx(4.0),
             host_cap: LogicalPx(160.0),
+            em: LogicalPx(12.0),
         };
         let budget = |host_px| {
             target_budget_chars_beside(LogicalPx(6.0), mark(host_px), LogicalPx(8.0), &unmeasured)
@@ -250,6 +253,7 @@ mod tests {
                 glyph: LogicalPx(12.0),
                 mark_gap: LogicalPx(4.0),
                 host_cap: LogicalPx(160.0),
+                em: LogicalPx(12.0),
             };
             // 글자 폭이 유효하지 않은 실제 경로로도 같은 값이 나온다.
             let beside = target_budget_chars_beside(
@@ -290,7 +294,7 @@ mod tests {
             ("重新连接中", "zh-Hans", 60.0),
         ] {
             assert_eq!(
-                status_word_width_unmeasured(word, language),
+                status_word_width_unmeasured(word, language, LogicalPx(12.0)),
                 LogicalPx(width),
                 "{language}"
             );
