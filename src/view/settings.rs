@@ -3,7 +3,7 @@ mod chrome;
 pub mod ui;
 
 #[cfg(target_os = "linux")]
-pub(crate) use chrome::fit_window_height;
+pub(crate) use chrome::{decoration_step, fit_window_height};
 
 use std::sync::Arc;
 
@@ -313,12 +313,9 @@ impl View for SettingsView {
 
         self.settings_ui_state.invalidate_edited_export();
         self.settings = settings;
-        if action.is_some() {
+        if let Some(committed) = close_outcome(action, titlebar_close) {
             self.should_close = true;
-            self.committed = action == Some(true);
-        } else if titlebar_close {
-            // 제목 줄 닫기는 OS 닫기와 같다. 초안을 버린다.
-            self.should_close = true;
+            self.committed = committed;
         }
         if let Some(msg) = self.settings_ui_state.take_import_export_toast() {
             self.toasts.push(
@@ -376,6 +373,15 @@ fn is_left_press(event: &WindowEvent) -> bool {
             ..
         }
     )
+}
+
+/// 패스의 footer 결과(`panel`: Save면 참, Cancel이면 거짓)와 제목 줄 닫기로 창을 닫는지. 닫으면 초안 저장 여부다.
+/// 제목 줄 닫기는 OS 닫기와 같이 초안을 버린다.
+fn close_outcome(panel: Option<bool>, titlebar_close: bool) -> Option<bool> {
+    match panel {
+        Some(save) => Some(save),
+        None => titlebar_close.then_some(false),
+    }
 }
 
 impl SettingsView {
@@ -519,5 +525,20 @@ impl SettingsView {
         } else {
             ViewAction::None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::close_outcome;
+
+    /// Given 설정창, When Save로 닫으면 Then 초안을 저장하고, When Cancel이나 제목 줄 닫기로 닫으면 Then 버린다.
+    /// 아무것도 누르지 않으면 닫지 않는다.
+    #[test]
+    fn only_save_keeps_the_draft() {
+        assert_eq!(close_outcome(Some(true), false), Some(true));
+        assert_eq!(close_outcome(Some(false), false), Some(false));
+        assert_eq!(close_outcome(None, true), Some(false), "title bar close");
+        assert_eq!(close_outcome(None, false), None);
     }
 }

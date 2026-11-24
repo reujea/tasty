@@ -66,9 +66,10 @@ impl App {
         };
 
         // Wayland 컴포지터가 서버 장식을 골랐으면(첫 configure를 받은 뒤 정해진다) 제목 줄이 없으므로 700으로 줄인다.
+        // 창은 앱 제목 줄 크기로 만들었다.
         #[cfg(target_os = "linux")]
-        if window.is_decorated()
-            && let Some(applied) = view::settings::fit_window_height(&window, true)
+        if let Some(server) = view::settings::decoration_step(false, window.is_decorated()).fit
+            && let Some(applied) = view::settings::fit_window_height(&window, server)
         {
             // 아래 GPU 생성이 창의 지금 inner 크기를 읽으므로 따로 넘기지 않는다.
             tracing::debug!("settings window starts at {applied:?} with server decorations");

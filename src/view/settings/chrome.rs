@@ -214,11 +214,12 @@ impl SettingsChrome {
         takes_keys: bool,
     ) -> bool {
         let server_decorated = window.is_decorated();
-        if server_decorated != self.drawn_server_decorated {
-            self.note_applied_size(fit_window_height(window, server_decorated));
+        let step = decoration_step(self.drawn_server_decorated, server_decorated);
+        if let Some(server) = step.fit {
+            self.note_applied_size(fit_window_height(window, server));
         }
         self.drawn_server_decorated = server_decorated;
-        if self.drawn_server_decorated {
+        if !step.draw {
             self.close = None;
             return false;
         }
@@ -378,6 +379,24 @@ fn edge_direction(
         return None;
     }
     resize_direction_at(pos.x, pos.y, w, h, RESIZE_EDGE_MARGIN)
+}
+
+/// 장식 협상 결과 하나로 할 일.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct DecorationStep {
+    /// 창 높이를 맞출 장식(서버 장식이면 참). 창 크기를 맞춰 둔 장식과 같으면 없다.
+    pub(crate) fit: Option<bool>,
+    /// 앱 제목 줄을 그린다. 서버 장식이면 OS가 제목 줄을 그리므로 그리지 않는다.
+    pub(crate) draw: bool,
+}
+
+/// 창 크기를 `sized_for_server` 장식(서버 장식이면 참)에 맞춰 두었을 때 지금 협상 결과 `server_decorated`로 할 일.
+/// 창은 앱 제목 줄 크기(`sized_for_server` 거짓)로 만들고, 그 뒤로는 마지막으로 그린 장식에 맞춰 둔 상태다.
+pub(crate) fn decoration_step(sized_for_server: bool, server_decorated: bool) -> DecorationStep {
+    DecorationStep {
+        fit: (sized_for_server != server_decorated).then_some(server_decorated),
+        draw: !server_decorated,
+    }
 }
 
 /// 장식 모드가 정해지거나 바뀌면 최소 크기를 그 모드의 값(`settings_window_size`)으로 바꾸고 현재 높이를
@@ -567,6 +586,19 @@ mod tests {
     fn an_edge_press_starts_a_resize_unless_something_else_owns_it() {
         let mut c = chrome(false);
         c.cursor = at(1099.0, 300.0);
+        c.edge_widgets = vec![PhysicalRect {
+            x: PhysicalPx(1090.0),
+            y: PhysicalPx(80.0),
+            width: PhysicalPx(10.0),
+            height: PhysicalPx(500.0),
+        }];
+        assert_eq!(
+            run(&mut c, PRESS, true, SIZE),
+            (false, None),
+            "a scrollbar on the edge keeps the press"
+        );
+        assert_eq!(run(&mut c, RELEASE, true, SIZE), (false, None));
+        c.edge_widgets.clear();
         assert_eq!(
             run(&mut c, PRESS, true, SIZE),
             (true, Some(ResizeDirection::East))
@@ -713,6 +745,21 @@ mod tests {
             Vec::new(),
             "a popup owns the keys"
         );
+    }
+
+    /// Given 앱 제목 줄 크기로 만든 창, When 협상이 서버 장식이면 Then 높이를 서버 장식에 맞추고 제목 줄을 그리지
+    /// 않는다. 이미 맞춰 둔 장식과 같으면 높이는 그대로이고, 앱 장식으로 돌아오면 다시 늘이고 그린다.
+    #[test]
+    fn the_decoration_decides_the_height_and_the_titlebar() {
+        let step = |fit, draw| DecorationStep { fit, draw };
+        assert_eq!(decoration_step(false, false), step(None, true));
+        assert_eq!(
+            decoration_step(false, true),
+            step(Some(true), false),
+            "a new window under server decorations"
+        );
+        assert_eq!(decoration_step(true, true), step(None, false));
+        assert_eq!(decoration_step(true, false), step(Some(false), true));
     }
 
     /// Given 장식 전환으로 요청한 크기를 창이 그 자리에서 적용했을 때 Then 호출자는 그 크기를 한 번 받아 GPU 표면을
