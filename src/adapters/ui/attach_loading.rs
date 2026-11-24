@@ -397,21 +397,22 @@ pub(crate) mod paint_order {
 mod chip_area_tests {
     use crate::model::LogicalPx;
 
-    /// Given notices pushed the chip to the bottom of the work area, When the chip is drawn, Then
-    /// it stays where the column put it (under the notices) and is clipped at the work area,
-    /// instead of being pulled back up over the notices.
-    #[test]
-    fn a_chip_past_the_work_area_bottom_stays_under_the_notices_and_is_clipped() {
+    const BOUNDS: egui::Rect = egui::Rect {
+        min: egui::pos2(0.0, 0.0),
+        max: egui::pos2(800.0, 300.0),
+    };
+    const LEFT_TOP: egui::Pos2 = egui::pos2(432.0, 290.0);
+
+    /// Draws the chip at `LEFT_TOP` in `BOUNDS` for a few frames on a screen `screen_height` tall.
+    fn drawn(screen_height: f32) -> (egui::Rect, Vec<egui::epaint::ClippedShape>) {
         let theme = crate::theme::theme();
         let ctx = egui::Context::default();
-        let bounds = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(800.0, 300.0));
-        let left_top = egui::pos2(432.0, 290.0);
         let mut shapes = Vec::new();
         for step in 0..3 {
             let input = egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
                     egui::Pos2::ZERO,
-                    egui::vec2(800.0, 400.0),
+                    egui::vec2(800.0, screen_height),
                 )),
                 time: Some(f64::from(step) * 0.1),
                 ..Default::default()
@@ -420,9 +421,9 @@ mod chip_area_tests {
                 super::show_chip(
                     ctx,
                     &theme,
-                    left_top,
+                    LEFT_TOP,
                     LogicalPx(360.0),
-                    bounds,
+                    BOUNDS,
                     &tasty_ui_widgets::PendingIndicator {
                         label: "Copying to clipboard",
                         time: "2s",
@@ -437,15 +438,28 @@ mod chip_area_tests {
         let area = ctx
             .memory(|m| m.area_rect(egui::Id::new("attach_response_wait")))
             .expect("the chip was drawn");
-        assert_eq!(
-            area.top(),
-            left_top.y,
-            "the chip is not pulled up: {area:?}"
-        );
+        (area, shapes)
+    }
+
+    /// Given notices pushed the chip past the bottom of a work area that ends at the screen
+    /// bottom, When the chip is drawn, Then it stays where the column put it (under the notices)
+    /// instead of being pulled back up over them.
+    #[test]
+    fn a_chip_at_the_screen_bottom_is_not_pulled_up_over_the_notices() {
+        let (area, _) = drawn(BOUNDS.bottom());
+        assert_eq!(area.top(), LEFT_TOP.y, "the chip is pulled up: {area:?}");
         assert!(
-            area.bottom() > bounds.bottom(),
+            area.bottom() > BOUNDS.bottom(),
             "the chip runs past the bottom"
         );
+    }
+
+    /// Given the chip runs past the work area bottom with screen left below it, When it is drawn,
+    /// Then every shape is clipped at the work area, as the design work area hides overflow.
+    #[test]
+    fn a_chip_past_the_work_area_bottom_is_clipped_at_the_work_area() {
+        let (area, shapes) = drawn(BOUNDS.bottom() + 100.0);
+        assert_eq!(area.top(), LEFT_TOP.y, "the chip is pulled up: {area:?}");
         let drawn: Vec<_> = shapes
             .iter()
             .filter(|c| !matches!(c.shape, egui::Shape::Noop))
@@ -453,7 +467,7 @@ mod chip_area_tests {
         assert!(!drawn.is_empty(), "the chip paints");
         for c in drawn {
             assert!(
-                bounds.contains_rect(c.clip_rect),
+                BOUNDS.contains_rect(c.clip_rect),
                 "chip shape clipped to {:?}, past the work area",
                 c.clip_rect
             );
