@@ -46,7 +46,7 @@ pub struct UnmeasuredMark<'a> {
     pub mark_gap: LogicalPx,
     /// 호스트 글자 폭 상한(`fh-remote-max-width` 160). 빈 호스트와 폭을 모르는 호스트에 쓴다.
     pub host_cap: LogicalPx,
-    /// UI sans 로 그리는 상태 단어(ja · zh-Hans)의 글자당 폭. caption 글자 크기(11) 한 em 을 올림한 값(12)이다.
+    /// UI sans 로 그리는 상태 단어(ja · zh-Hans)의 글자당 폭. 호출 쪽은 [`FH_STATUS_WORD_EM_UNMEASURED`](crate::tokens::FH_STATUS_WORD_EM_UNMEASURED)(12)를 넘긴다.
     pub em: LogicalPx,
 }
 

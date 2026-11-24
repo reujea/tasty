@@ -136,23 +136,40 @@ fn target_budget(
     let two = text_w(ui, "00", &font, egui::Color32::PLACEHOLDER);
     let advance = LogicalPx(two - one);
     match remote {
-        // 원격 표지가 있으면 경로 상자는 표지와 그 뒤 간격(space-sm)을 뺀 나머지다.
-        Some(mark) => fh_model::target_budget_chars_beside(
+        Some(mark) => remote_target_budget(
+            th,
             advance,
             tasty_ui_widgets::fh_remote_mark_width(ui, th, mark),
-            th.spacing_sm,
-            &fh_model::UnmeasuredMark {
-                host: mark.host,
-                reconnecting: mark.reconnecting,
-                language: crate::i18n::current_language(),
-                glyph: th.icon_glyph_size_xs,
-                mark_gap: th.fh_remote_gap(),
-                host_cap: th.fh_remote_max_width(),
-                em: LogicalPx(th.font_size_caption.value().ceil()),
-            },
+            mark,
+            crate::i18n::current_language(),
         ),
         None => fh_model::target_budget_chars(advance),
     }
+}
+
+/// 원격 표지 옆 경로의 글자 수. 경로 상자는 표지와 그 뒤 간격(space-sm)을 뺀 나머지다.
+/// 잰 값(`advance`·`mark_w`)이 유효하지 않으면 Theme 토큰과 `language`로 추정한다.
+fn remote_target_budget(
+    th: &Theme,
+    advance: LogicalPx,
+    mark_w: LogicalPx,
+    mark: &tasty_ui_widgets::RemoteMark<'_>,
+    language: &str,
+) -> usize {
+    fh_model::target_budget_chars_beside(
+        advance,
+        mark_w,
+        th.spacing_sm,
+        &fh_model::UnmeasuredMark {
+            host: mark.host,
+            reconnecting: mark.reconnecting,
+            language,
+            glyph: th.icon_glyph_size_xs,
+            mark_gap: th.fh_remote_gap(),
+            host_cap: th.fh_remote_max_width(),
+            em: tasty_ui_widgets::tokens::FH_STATUS_WORD_EM_UNMEASURED,
+        },
+    )
 }
 
 /// 최근 사용 시각의 표시 구간.
@@ -1152,6 +1169,30 @@ mod tests {
 
     fn test_theme() -> Theme {
         tasty_themes::mocha_fallback()
+    }
+
+    /// 글자 폭을 잴 수 없을 때 앱 호출부가 넘기는 값(글리프·간격·호스트 상한·글자당 폭)으로 정본 Meta
+    /// 'path cap, unmeasured'의 재연결 값이 나온다. 빈 호스트(상한 160) 옆 재연결: en 21 · ko 24 · ja 25 · zh-Hans 23.
+    #[test]
+    fn the_app_unmeasured_path_cap_beside_a_reconnecting_mark_follows_the_word_language() {
+        let th = test_theme();
+        for (word, language, want) in [
+            ("reconnecting", "en", 21),
+            ("재연결 중", "ko", 24),
+            ("再接続中", "ja", 25),
+            ("重新连接中", "zh-Hans", 23),
+        ] {
+            let mark = tasty_ui_widgets::RemoteMark {
+                host: "",
+                empty_label: "Remote",
+                reconnecting: Some(word),
+            };
+            assert_eq!(
+                remote_target_budget(&th, LogicalPx(f32::NAN), LogicalPx(40.0), &mark, language),
+                want,
+                "{language}"
+            );
+        }
     }
 
     /// 실제 앱 폰트로 경로 길이를 계산한다. 단일 글리프 폭과 글자 추가 시 증분의 차이도 확인한다.

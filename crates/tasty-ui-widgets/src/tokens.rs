@@ -161,6 +161,11 @@ pub const FH_TARGET_ELIDE_FALLBACK: usize = 65;
 /// 남는 상자 206(390 − 12 − 4 − 160 − 8)을 6 으로 나눈 값이다.
 pub const FH_TARGET_ELIDE_FALLBACK_REMOTE: usize = 34;
 
+/// 원격 표지의 재연결 상태 단어 폭을 잴 수 없을 때, UI sans 로 그리는 언어(ja · zh-Hans)의 글자당 폭.
+/// 정본 cc85136 overlays-dialogs/index.jsx:336 Meta 'path cap, unmeasured'의 '12 per character in ja and
+/// zh-Hans'(再接続中 48, 重新连接中 60)다. caption 글자 크기(11)에서 계산되지 않고 대응하는 역할 토큰도 없다.
+pub const FH_STATUS_WORD_EM_UNMEASURED: LogicalPx = LogicalPx(12.0);
+
 /// Recent 그룹 행 글리프의 흐리기. 디자인 `opacity: dim && !plugin ? 0.8 : 1` — plugin
 /// 행은 mauve 가 출처 표시라 흐리지 않는다.
 pub const FH_RECENT_DIM_OPACITY: f32 = 0.8;

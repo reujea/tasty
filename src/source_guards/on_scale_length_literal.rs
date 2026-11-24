@@ -201,7 +201,8 @@ const AREAS: &[(&str, Option<usize>, &str)] = &[
         // 함께 쓰는 graph_view 의 값이며 역할 토큰이 없다.
         // 탐색기 상세 표의 크기·날짜·종류 열 폭 80·132·92는 디자인 `DetailRow` 열 폭이며 같은 역할의
         // 토큰 접근자가 있지만, 접근자는 ui_zoom을 따라 열 폭이 배율에 따라 달라지므로 리터럴로 둔다.
-        Some(37),
+        // +1: ja·zh-Hans 재연결 상태어 글자당 폭 12(FH_STATUS_WORD_EM_UNMEASURED), 정본 Meta 출처, 대응 역할 토큰 없음.
+        Some(38),
         "공용 위젯",
     ),
     (

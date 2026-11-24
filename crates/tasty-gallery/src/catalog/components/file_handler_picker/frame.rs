@@ -801,7 +801,7 @@ pub(super) fn remote_spec_frame(
                 glyph: theme.icon_glyph_size_xs,
                 mark_gap: theme.fh_remote_gap(),
                 host_cap: theme.fh_remote_max_width(),
-                em: tasty_type_geometry::length::LogicalPx(theme.font_size_caption.value().ceil()),
+                em: tasty_ui_widgets::tokens::FH_STATUS_WORD_EM_UNMEASURED,
             },
         ),
         None => fh_model::target_budget_chars(advance),
