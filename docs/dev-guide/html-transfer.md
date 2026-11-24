@@ -63,7 +63,7 @@ completed body만 `Resource::body`로 제공한다. 완료 시 수신 buffer의 
 
 client는 descriptor의 `kind`가 `mirror_viewer`를 선언했으면 그 kind로, `kind`가 없는 이전 빌드 서버면 `mirror_viewer`를 선언한 철회되지 않은 kind 중 이름 순으로 첫 kind로 leaf를 만든다. 그 kind가 등록되지 않은 client에서는 deferred placeholder를 유지한다. 등록 뒤 같은 leaf를 원격 모드로 생성하며 원격 source를 client file URI로 변환하지 않는다. 현재 viewer는 Linux·Windows·macOS GUI가 광고한다. OS별 native 응답 어댑터와 실행 확인 범위는 [WebView 호스트 계약](../design/systems/webview.md)에 있다. macOS 11–26의 HTTP 미지원 계약은 파일 entry mirror와 별개이며 최소 OS 버전을 올리지 않는다.
 
-주소 띠는 원격 경로를 축약 없이 읽기 전용으로 보이고 Reload만 제공한다. 크기 배너, 스크립트 배너, 페이지 순서로 하나의 inset을 적용한다. 큰 entry는 수신 전에 Allow·Decline을 기다리며 Decline 뒤에는 receiving을 종료하고 skipped tag를 표시한다. 완료한 body는 disconnect 중에도 보존하고 Reload를 비활성화한다. reconnect는 새 connection epoch로 다시 받는다.
+주소 띠는 원격 경로를 축약 없이 읽기 전용으로 보이고 Reload만 제공한다. 크기 배너, 스크립트 배너, 페이지 순서로 하나의 inset을 적용한다. 큰 entry는 수신 전에 Allow·Decline을 기다리며 Decline 뒤에는 receiving을 종료하고 skipped tag를 표시한다. 본문을 게시한 뒤 native가 그 본문을 싣는 동안에는 로컬 문서처럼 로드 중을 보이고, 로드가 끝나면 입력 없이 본문을 드러낸다. 완료한 body는 disconnect 중에도 보존하고 Reload를 비활성화한다. reconnect는 새 connection epoch로 다시 받는다.
 
 스크립트 설정은 client 설정만 읽고 원격 설정이나 허용 메시지를 교환하지 않는다. 기존 스캐너가 받은 전체 body의 지문을 만들고 native 응답도 같은 body를 사용한다. 파일 source의 부모 cwd는 `SurfaceCwd::Remote`이며 client filesystem·PTY 상속·최근 파일로 사용하지 않는다. 지원 연결의 Explorer와 새 HTML 피커는 원래 pane에 원격 NewTab을 보낸다. 피커 결과는 원래 request ID·pane·session projection과 일치할 때만 적용하며 취소·pane 종료·연결 교체 뒤 늦은 결과를 버린다.
 
