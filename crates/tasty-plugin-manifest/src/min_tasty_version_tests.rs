@@ -288,3 +288,13 @@ fn a_bundle_manifest_that_is_not_utf8_is_refused_and_a_missing_one_passes() {
     let empty = tempfile::tempdir().expect("tempdir");
     assert!(Manifest::admit_bundle_host_tasty(empty.path()).is_ok());
 }
+
+/// 공식 번들은 디코딩 말고 다른 읽기 실패(여기서는 매니페스트 자리의 폴더)도 복사 전에 거절한다.
+#[test]
+fn a_bundle_manifest_that_cannot_be_read_is_refused() {
+    set_host_tasty_version("1.0.0", VersionShortfall::Refuse).expect("host version");
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::create_dir(dir.path().join("tasty-plugin.toml")).expect("dir");
+    let err = Manifest::admit_bundle_host_tasty(dir.path()).expect_err("refused");
+    assert!(err.to_string().contains("cannot read"), "{err}");
+}
