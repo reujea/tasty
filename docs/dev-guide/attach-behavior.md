@@ -878,7 +878,7 @@ mirror 터미널은 attach snapshot(보이는 화면·커서·주요 모드)과 
 - **프레임 크기**: 결과 한 프레임의 JSON 은 `MAX_FRAME_LEN`(1 MiB)의 절반 이하로 둔다. 원문은 제어 문자가 JSON 에서 최대 6바이트가 되므로 서버가 한 번에 읽는 원문을 256 KiB 이하로 줄이고, 그래도 넘으면 절반씩 줄여 다시 읽는다. 줄인 만큼은 `next_cursor < retention_end` 로 남으므로 기존처럼 `next_cursor` 로 이어 읽는다. 화면 읽기가 넘으면 줄 수를 몰래 줄이지 않고 `too_large` 로 거절한다.
 - **client 대기**(`src/remote/terminal_read/client.rs`): 핸들러는 요청을 넣고 `attach.agent_call` 처럼 응답을 미룬다(상한 10초, 넘으면 `remote_timeout`). 메인 루프의 `about_to_wait` 와 attach 출력 처리가 `pump_terminal_reads` 로 세션 상태를 알리고 요청을 보낸다. 요청은 보낸 연결 세대(`ConnectionEpoch`)를 기록하며 다른 세대로 온 결과는 버린다. 세션이 Connected 가 아니게 되거나 세대가 바뀌면 대기 읽기는 `remote_disconnected` 로 끝난다. 응답의 `surface_id` 는 로컬 mirror id 로 바꾸고 `remote_surface_id`·`remote: true` 를 붙인다.
 - **mirror 마크**: client 는 (mirror workspace, 원격 surface) 마다 서버 stream·위치를 보관한다. `set_mark` 는 서버에 `position` 을 묻고, 답을 받은 뒤 로컬 마크(로컬 `parse_since_mark` 용)와 mirror 마크를 함께 바꾼다. 실패하면 둘 다 그대로다. cursor 없는 `read_since_mark` 는 mirror 마크부터, 마크가 없으면 서버 보관 시작부터 읽는다(잃은 앞부분은 `skipped`). 마크의 stream 이 서버와 다르면(서버 터미널 교체) 처음부터 조용히 읽지 않고 `stream_mismatch` 로 답하며 마크를 지우고 set mark 를 다시 하라고 알린다. 호출자가 준 cursor 의 오류는 바꾸지 않고 그대로 전달한다.
-- **범위 밖**: `parse_since_mark`·`read_since_scan_mark`·명령 인덱스·output observe 는 mirror 에서 로컬 사본 기준이다. 화면 렌더도 스트림 재구성이다.
+- **범위 밖**: `parse_since_mark`·`read_since_scan_mark`·명령 인덱스·output observe 는 mirror 에서 로컬 사본 기준이다. `read_since_scan_mark` 의 연속성 키도 로컬 사본 값이고, 출처 정보(`text_origins`)는 로컬 사본의 분류를 믿을 수 없어 싣지 않는다([적용이 일으킨 출력](../design/policies/render-on-draw.md#적용이-일으킨-출력)). 화면 렌더도 스트림 재구성이다.
 
 ## 원격 파일 다운로드 (`ipc.stream.file-download`)
 

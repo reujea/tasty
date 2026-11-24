@@ -47,15 +47,33 @@
 attach mirror 터미널의 출력 보관 버퍼는 attach 화면으로 다시 만든 사본이라 attach 이전 원문이 없고 유실을 `skipped` 로 알리지 못한다.
 그래서 mirror 의 `read since-mark`·`set mark`·`read screen` 은 서버 원본 터미널을 읽는다. stream·cursor·보존 범위·`skipped` 는 서버 값이다.
 mirror 의 마크는 client 가 보관하므로 서버 쪽 다른 소비자의 공유 마크를 바꾸지 않는다. 서버 터미널이 바뀌어 마크의 stream 이 맞지 않으면 `stream_mismatch` 로 거절하고 set mark 를 다시 하라고 알린다.
-서버가 이 기능을 지원하지 않거나 연결이 끊긴 동안은 로컬 사본으로 답하지 않고 오류로 답한다. `parse_since_mark`·스캐너 커서·명령 인덱스는 mirror 의 로컬 사본 기준이다.
+서버가 이 기능을 지원하지 않거나 연결이 끊긴 동안은 로컬 사본으로 답하지 않고 오류로 답한다. `parse_since_mark`·스캐너 커서·명령 인덱스는 mirror 의 로컬 사본 기준이다. 스캐너 커서 응답의 연속성 키도 로컬 사본 값이고, 출처 정보(`text_origins`)는 싣지 않는다.
 전송 계약은 [Attach 메커니즘](../../dev-guide/attach-behavior.md#mirror-터미널-읽기-ipcstreamterminal-read)에 있다.
 
 ### 출력 스캐너 전용 커서
 
 `surface.read_since_scan_mark`는 TerminalRead 권한으로 읽고 커서를 전진시킨다.
-`OutputBuffer::take_since_scan_mark`가 읽기와 전진을 한 번에 수행한다.
+`OutputBuffer::take_scan_snapshot`이 상태 락 안에서 원문 복사와 전진을 한 번에 수행한다.
 둘을 나누면 읽은 뒤 전진하기 전에 도착한 출력이 처리되지 않고 넘어갈 수 있다.
+디코딩·ANSI 제거·출처 대응은 락을 놓은 뒤 한다(`ScanSnapshot::finish`). 그래서 PTY reader가 상태 락을 기다리는 시간은 원문 복사만큼이다.
 첫 호출은 현재 보관한 전체 출력을 받을 수 있고 이후부터 새 출력만 받는다.
+
+응답은 `surface.read_since_mark`와 같은 연속성 키(`stream`·`cursor`·`next_cursor`·`skipped` 등)를 싣는다.
+스캐너는 이전 응답의 `next_cursor`와 이번 `cursor`를 비교해 응답을 잃었는지, `stream`이 바뀌었는지로 터미널 교체를 안다.
+`skipped`는 커서가 읽지 않은 원문이 보존 한도로 잘린 양이다.
+
+응답의 `text_origins`는 `text`의 범위마다 그 원문이 일반 출력인지 OS 크기 적용 뒤 재그리기인지 알린다.
+claude plugin이 재그리기 출력을 정지 판단의 무출력 시계와 오류 기준에서 빼려고 쓴다.
+분류는 청크가 들어올 때 정해 보존 원문 옆에 둔다(`crates/tasty-terminal/src/output_origins.rs`).
+읽을 때의 재그리기 구간으로 다시 가르지 않는 이유는 구간이 다음 크기 통지로 새로 열리며 시작이 옮겨 가기 때문이다.
+그렇게 하면 앞 구간의 재그리기를 일반 출력으로 잘못 센다.
+청크가 들어온 시각이 새 구간을 연 시각과 같으면 그 청크는 일반 출력이다(통지 전에 들어온 청크).
+OS 크기 적용이 진행 중일 때 들어온 청크는 잠정으로 두고 적용이 성공하면 재그리기, 실패하면 일반 출력으로 같은 락 안에서 정한다.
+스캔 읽기와 OS 적용은 같은 이벤트 루프에서 돌아 잠정 상태가 읽기에 보이지 않는다. 보이면 그 범위는 `unknown`이다.
+`text` 대응은 원문 바이트를 `utf8_chunks`로 돌아 만들고 escape 제거는 `strip_ansi`와 같은 정규식의 매치 범위(`tasty_ansi::ansi_escape_ranges`)를 쓴다.
+그래서 `text`는 출처 정보가 생기기 전과 같다.
+값의 모양·생략 조건은 [API 레퍼런스](../../reference/api.md)에, 분류 판정의 정본은 `crates/tasty-terminal/src/scan_origins_tests.rs`에 있다.
+분류의 한계(구간 안에서 시작해 끝난 진짜 출력도 재그리기다)는 [적용이 일으킨 출력](../../design/policies/render-on-draw.md#적용이-일으킨-출력) 규칙과 같다.
 
 이 커서는 surface마다 하나다. 소비자가 여럿이면 서로의 데이터를 소비하므로 CLI 명령을 제공하지 않는다.
 다만 plugin_only 전용 dispatch는 아니며 일반 로컬 IPC 클라이언트도 메서드를 호출할 수 있다.
