@@ -58,6 +58,9 @@ pub struct TitlebarProps<'a> {
     // 이유: 참으로 넘기는 곳이 Linux 설정창뿐이고, 이 값을 읽는 Linux DE 버튼도 Linux 빌드에만 그려진다.
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     pub keyboard_focus: bool,
+    /// 빈 영역 드래그 가운데 주 버튼(왼쪽) 드래그만 창 이동으로 보고한다(Linux 설정창, 디자인 정본과 같다).
+    /// 거짓이면 어느 버튼의 드래그든 이동이다(메인 창).
+    pub primary_drag_only: bool,
 }
 
 /// titlebar view 가 보고하는 사용자 의도. wrapper 가 winit window 조작 / app 이벤트로 변환.
@@ -162,9 +165,14 @@ pub fn draw_titlebar_view(ctx: &egui::Context, props: &TitlebarProps) -> Titleba
                     egui::Id::new(DRAG_AREA_ID),
                     egui::Sense::click_and_drag(),
                 );
+                let drag_started = if props.primary_drag_only {
+                    resp.drag_started_by(egui::PointerButton::Primary)
+                } else {
+                    resp.drag_started()
+                };
                 if resp.double_clicked() {
                     actions.push(TitlebarAction::ToggleMaximize);
-                } else if resp.drag_started() {
+                } else if drag_started {
                     actions.push(TitlebarAction::StartDrag);
                 }
             }

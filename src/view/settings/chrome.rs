@@ -184,15 +184,7 @@ impl SettingsChrome {
             return false;
         }
         let th = crate::theme::theme();
-        let props = TitlebarProps {
-            theme: &th,
-            active: window.has_focus(),
-            height: th.titlebar_height.value(),
-            left_inset: 0.0,
-            controls: Some(titlebar::close_only_controls()),
-            maximized: window.is_maximized(),
-            keyboard_focus: true,
-        };
+        let props = settings_props(&th, window.has_focus(), window.is_maximized());
         let result = titlebar::draw_titlebar_view(ctx, &props);
         self.close = result.close_rect.map(|rect| {
             (
@@ -288,6 +280,20 @@ impl SettingsChrome {
             },
             _ => false,
         }
+    }
+}
+
+/// 설정창 제목 줄의 화면 입력: 닫기 버튼 하나, 키보드 포커스 표시, 주 버튼 드래그만 창 이동.
+fn settings_props(th: &crate::theme::Theme, active: bool, maximized: bool) -> TitlebarProps<'_> {
+    TitlebarProps {
+        theme: th,
+        active,
+        height: th.titlebar_height.value(),
+        left_inset: 0.0,
+        controls: Some(titlebar::close_only_controls()),
+        maximized,
+        keyboard_focus: true,
+        primary_drag_only: true,
     }
 }
 
@@ -539,6 +545,65 @@ mod tests {
         let c = chrome(false);
         let wide = c.close_rect(1300).expect("close rect");
         assert_eq!(wide.x, PhysicalPx(1270.0));
+    }
+
+    /// 제목 줄 하나를 egui 패스 여러 번에 걸쳐 그리고 보고된 동작을 모은다.
+    fn bar_actions(passes: Vec<Vec<egui::Event>>, primary_drag_only: bool) -> Vec<TitlebarAction> {
+        crate::i18n::init("en");
+        let th = crate::theme::theme();
+        let ctx = egui::Context::default();
+        let mut actions = Vec::new();
+        for events in passes {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1100.0, 736.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            drop(ctx.run(input, |ctx| {
+                let mut props = settings_props(&th, true, false);
+                props.primary_drag_only = primary_drag_only;
+                actions.extend(titlebar::draw_titlebar_view(ctx, &props).actions);
+            }));
+        }
+        actions
+    }
+
+    /// 빈 제목 줄을 `button`으로 눌러 오른쪽으로 끄는 패스들.
+    fn drag_with(button: egui::PointerButton) -> Vec<Vec<egui::Event>> {
+        let at = |x: f32| egui::pos2(x, 18.0);
+        let press = |x: f32, pressed: bool| egui::Event::PointerButton {
+            pos: at(x),
+            button,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        vec![
+            vec![egui::Event::PointerMoved(at(500.0))],
+            vec![press(500.0, true)],
+            vec![egui::Event::PointerMoved(at(540.0))],
+            vec![egui::Event::PointerMoved(at(580.0))],
+            vec![press(580.0, false)],
+        ]
+    }
+
+    /// Given 설정창 제목 줄의 빈 영역, When 왼쪽 버튼으로 끌면 Then 창 이동이고, When 오른쪽 버튼으로 끌면 Then
+    /// 아무것도 하지 않는다. 메인 창 설정(`primary_drag_only` 거짓)은 오른쪽 드래그도 이동으로 보고한다.
+    #[test]
+    fn only_a_primary_drag_moves_the_settings_window() {
+        use egui::PointerButton::{Primary, Secondary};
+        assert_eq!(
+            bar_actions(drag_with(Primary), true),
+            vec![TitlebarAction::StartDrag]
+        );
+        assert_eq!(bar_actions(drag_with(Secondary), true), Vec::new());
+        assert_eq!(
+            bar_actions(drag_with(Secondary), false),
+            vec![TitlebarAction::StartDrag],
+            "the main window keeps any button"
+        );
     }
 
     /// Given 저널이 멈췄을 때, When 닫기 버튼 안에서 눌렀다 그 안에서 떼면 Then 설정창을 닫는다. 밖으로 나가서 떼거나,
