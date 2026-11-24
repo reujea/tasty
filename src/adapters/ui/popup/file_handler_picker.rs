@@ -437,7 +437,7 @@ fn fallback_strip(ui: &mut egui::Ui, props: &FileHandlerPickerProps<'_>) {
                     egui::Label::new(
                         egui::RichText::new(props.fallback_notice)
                             .size(th.font_size_caption.value())
-                            .color(th.text_secondary_raised()),
+                            .color(th.text_secondary()),
                     )
                     .wrap(),
                 );
@@ -465,7 +465,7 @@ fn group_head(ui: &mut egui::Ui, th: &Theme, head: &GroupHead<'_>) {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = FH_GAP_SM.value();
                 let label_color = if head.attention {
-                    th.accent_attention()
+                    th.accent_attention_raised()
                 } else {
                     th.text_secondary()
                 };
