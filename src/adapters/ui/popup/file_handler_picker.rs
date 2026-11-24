@@ -1162,8 +1162,10 @@ mod tests {
         out
     }
 
-    /// 경로 글자 폭을 잴 수 없는 caption 크기(0.01 — 정수 픽셀 advance 라 "00" 과 "0" 의 폭 차가 0)의 테마.
-    /// 표지 폭과 상태 단어 폭도 0 이라 잰 값으로 쓰이지 않는다.
+    /// 경로 글자 폭을 잴 수 없는 caption 크기의 테마. 0.01 이면 정수 픽셀 advance 라 "00" 과 "0" 의 폭 차가 0 이어서
+    /// 경로 글자 폭이 유효하지 않은 갈래(`target_budget_chars_beside` 의 w <= 0)로 추정에 들어간다. 표지 폭은
+    /// 글리프 12·간격 4(재연결이면 간격 4 더)가 남아 0 이 아니지만 쓰이지 않는다. 상태 단어의 잰 폭은 0 이라
+    /// 유효한 측정이 아니므로 언어별 추정을 쓴다.
     fn unmeasurable_theme() -> Theme {
         let mut th = test_theme();
         th.font_size_caption = LogicalPx(0.01);
@@ -1171,32 +1173,22 @@ mod tests {
     }
 
     const LANGUAGE_PROBE: &str = "TASTY_FH_TARGET_BUDGET_LANGUAGE_PROBE";
+    const LANGUAGE_PROBE_TEST: &str = "adapters::ui::popup::file_handler_picker::tests::the_app_target_budget_takes_the_current_language_in_a_probe_process";
 
-    /// 경로 글자 폭을 잴 수 없으면 앱 `target_budget` 은 원격 표지를 뺀 추정을 쓴다(표지 없는 공통 상한이
-    /// 아니다): 'work-laptop-attach' 43, 빈 호스트 옆 재연결 en 21. 언어는 현재 언어(`current_language`)다 —
-    /// ja·zh-Hans 는 새 프로세스에서 그 언어로 초기화해 다시 실행한다(언어 표는 프로세스에 한 번 정해진다):
-    /// 빈 호스트 옆 재연결 ja 25 · zh-Hans 23.
-    #[test]
-    fn the_app_target_budget_takes_the_remote_mark_and_the_current_language_when_unmeasured() {
-        let reconnecting = |word| tasty_ui_widgets::RemoteMark {
+    fn reconnecting_no_host(word: &str) -> tasty_ui_widgets::RemoteMark<'_> {
+        tasty_ui_widgets::RemoteMark {
             host: "",
             empty_label: "Remote",
             reconnecting: Some(word),
-        };
-        if let Ok(language) = std::env::var(LANGUAGE_PROBE) {
-            crate::i18n::init(&language);
-            assert_eq!(crate::i18n::current_language(), language);
-            let (word, want) = match language.as_str() {
-                "ja" => ("再接続中", 25),
-                _ => ("重新连接中", 23),
-            };
-            assert_eq!(
-                app_budget(&unmeasurable_theme(), &reconnecting(word)),
-                want,
-                "{language}"
-            );
-            return;
         }
+    }
+
+    /// 경로 글자 폭을 잴 수 없으면 앱 `target_budget` 은 원격 표지를 뺀 추정을 쓴다(표지 없는 공통 상한이
+    /// 아니다): 'work-laptop-attach' 43, 빈 호스트 옆 재연결 en 21. 언어는 현재 언어(`current_language`)다 —
+    /// 언어 표는 프로세스에 한 번 정해지므로 ja·zh-Hans 는 새 프로세스에서 아래 탐침 시험만 다시 실행한다:
+    /// 빈 호스트 옆 재연결 ja 25 · zh-Hans 23. 이 시험은 환경과 관계없이 모든 사례를 돌고 언어를 초기화하지 않는다.
+    #[test]
+    fn the_app_target_budget_takes_the_remote_mark_and_the_current_language_when_unmeasured() {
         let th = unmeasurable_theme();
         assert_eq!(crate::i18n::current_language(), "en");
         let named = tasty_ui_widgets::RemoteMark {
@@ -1205,23 +1197,45 @@ mod tests {
             reconnecting: None,
         };
         assert_eq!(app_budget(&th, &named), 43, "work-laptop-attach");
-        assert_eq!(app_budget(&th, &reconnecting("reconnecting")), 21, "en");
+        assert_eq!(
+            app_budget(&th, &reconnecting_no_host("reconnecting")),
+            21,
+            "en"
+        );
         let exe = std::env::current_exe().expect("test binary path");
         for language in ["ja", "zh-Hans"] {
             let out = std::process::Command::new(&exe)
-                .args([
-                    "--exact",
-                    "adapters::ui::popup::file_handler_picker::tests::the_app_target_budget_takes_the_remote_mark_and_the_current_language_when_unmeasured",
-                ])
+                .args(["--ignored", "--exact", LANGUAGE_PROBE_TEST])
                 .env(LANGUAGE_PROBE, language)
                 .env("TASTY_LOCALE", language)
                 .output()
                 .expect("run the test binary again");
             let stdout = String::from_utf8_lossy(&out.stdout);
             assert!(out.status.success(), "{language}: {stdout}");
-            // 다시 실행한 프로세스가 이 시험 하나를 실제로 돌렸는지 본다(이름이 어긋나면 0개가 돌고 성공한다).
+            // 다시 실행한 프로세스가 탐침 시험 하나를 실제로 돌렸는지 본다(이름이 어긋나면 0개가 돌고 성공한다).
             assert!(stdout.contains("1 passed"), "{language}: {stdout}");
         }
+    }
+
+    /// 위 시험이 새 프로세스에서만 부르는 탐침. 환경의 언어로 i18n 을 초기화한 뒤 앱 `target_budget` 이 그 언어로
+    /// 추정하는지 본다. 같은 프로세스의 다른 시험 언어를 바꾸지 않도록 무시 시험으로 둔다.
+    #[test]
+    #[ignore = "the_app_target_budget_takes_the_remote_mark_and_the_current_language_when_unmeasured runs it in its own process"]
+    fn the_app_target_budget_takes_the_current_language_in_a_probe_process() {
+        let language =
+            std::env::var(LANGUAGE_PROBE).expect("the parent test sets the probe language");
+        crate::i18n::init(&language);
+        assert_eq!(crate::i18n::current_language(), language);
+        let (word, want) = match language.as_str() {
+            "ja" => ("再接続中", 25),
+            "zh-Hans" => ("重新连接中", 23),
+            other => panic!("no case for {other}"),
+        };
+        assert_eq!(
+            app_budget(&unmeasurable_theme(), &reconnecting_no_host(word)),
+            want,
+            "{language}"
+        );
     }
 
     /// 경로 글자 폭은 재지만 한 글자도 들어가지 않으면(표지가 상자를 넘음) 앱 `target_budget` 은 추정으로
