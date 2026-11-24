@@ -28,6 +28,16 @@ const ACTIONS: &[Entry] = &[
         "window_maximize",
         "window maximize glyph (title bar)",
     ),
+    (
+        CAPTION_MAXIMIZE,
+        "caption_maximize",
+        "Windows caption maximize glyph (title bar)",
+    ),
+    (
+        CAPTION_RESTORE,
+        "caption_restore",
+        "Windows caption restore glyph (title bar)",
+    ),
     (REFRESH, "refresh", "re-scan / reload"),
     (EDIT, "edit", "edit a row / value"),
     (TRASH, "trash", "delete / remove"),

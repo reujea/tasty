@@ -23,6 +23,8 @@ const PAIRS: &[(&str, &str)] = &[
     ("close", "close"),
     ("windowMinimize", "window_minimize"),
     ("windowMaximize", "window_maximize"),
+    ("captionMaximize", "caption_maximize"),
+    ("captionRestore", "caption_restore"),
     ("refresh", "refresh"),
     ("edit", "edit"),
     ("trash", "trash"),

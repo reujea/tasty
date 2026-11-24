@@ -76,6 +76,16 @@ stroke_icon!(
     "window_maximize",
     r#"<path d="M6.5 6.5h11v11h-11z"/>"#
 );
+stroke_icon!(
+    CAPTION_MAXIMIZE,
+    "caption_maximize",
+    r#"<rect x="6.5" y="6.5" width="11" height="11" rx="1"/>"#
+);
+stroke_icon!(
+    CAPTION_RESTORE,
+    "caption_restore",
+    r#"<rect x="6.6" y="9" width="8.4" height="8.4" stroke-linejoin="miter"/><path d="M9 6.6h8.4V9"/>"#
+);
 stroke_icon!(CHECK, "check", r#"<path d="m20 6-11 11-5-5"/>"#);
 stroke_icon!(
     REFRESH,
