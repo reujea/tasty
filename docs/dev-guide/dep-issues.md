@@ -112,7 +112,8 @@ vtparse = { path = "vendor/vtparse" }
 - **왜 사본인가**: 상류 0.6.2 는 파서 상태를 `is_ground()` 로만 알리고, CSI·DCS 머리·SOS/PM 을 ESC 나 C1 도입자로 떠날 때 콜백이 없다. attach 효과 소유자가 떠난 뒤 그가 시작한 시퀀스가 끝나는 바이트를 찾으려면 바이트마다 상태를 읽어야 한다(`effects_held_prefix`, `crates/tasty-terminal/src/attach_stream.rs`). 상태를 읽는 함수 하나를 더한 패치다. 사본 범위와 패치 내용은 [`vendor/vtparse/PATCHES.md`](../../vendor/vtparse/PATCHES.md).
 - **워크스페이스 멤버가 아니다**: 루트 `Cargo.toml` 의 `exclude` 에 있다 — 워크스페이스 lint·clippy·fmt·파일 SLOC 게이트가 상류 코드를 판정하지 않는다. 사본의 시험은 루트에서 `cargo test -p vtparse` 로 돌지 않는다(방법은 PATCHES.md).
 - **적용 범위**: 이 workspace 에서 vtparse 를 직접 의존하는 루트 `tasty`(gui 기능), `tasty-terminal`, termwiz 가 이 사본으로 빌드된다. 패치는 조회만 더하므로 파싱 동작은 상류와 같다. `tasty-official-plugins` 레포는 vtparse 를 쓰지 않는다.
-- **리스크**: `cargo update` 가 이 의존을 올리지 않고 상류 수정도 자동으로 포함되지 않는다. termwiz 를 올려 vtparse 판이 바뀔 때는 사본도 그 판으로 옮긴다. `Cargo.lock` 의 vtparse 판이 사본과 어긋나면 `[patch]` 가 쓰이지 않고 상태 조회가 없어 빌드가 깨진다.
+- **리스크**: `[patch]` 의 경로 사본은 0.6.2 후보를 하나 더할 뿐이다. 의존 쪽 요구 `"0.6.2"` 는 0.6.3 같은 호환 판도 허용하므로, 그런 판이 레지스트리에 나오면 `cargo update` 만으로 레지스트리 판이 골라지고 패치가 빠진다(cargo 는 `Patch ... was not used in the crate graph` 경고를 낸다). 레지스트리 판에는 상태 조회가 없어 빌드가 깨진다. 그때는 사본을 그 판으로 옮기거나 `cargo update -p vtparse --precise 0.6.2` 로 `Cargo.lock` 판을 고정한다. termwiz 를 올려 vtparse 판이 바뀔 때도 사본을 그 판으로 옮긴다. 상류 수정은 자동으로 들어오지 않는다.
+- **확인**: `cargo tree -i vtparse` 의 첫 줄이 `vendor/vtparse` 경로를 출처로 보여야 한다.
 
 ### 점검 / 전환 트리거
 
