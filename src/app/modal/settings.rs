@@ -67,8 +67,11 @@ impl App {
 
         // Wayland 컴포지터가 서버 장식을 골랐으면(첫 configure를 받은 뒤 정해진다) 제목 줄이 없으므로 700으로 줄인다.
         #[cfg(target_os = "linux")]
-        if window.is_decorated() {
-            view::settings::fit_window_height(&window, true);
+        if window.is_decorated()
+            && let Some(applied) = view::settings::fit_window_height(&window, true)
+        {
+            // 아래 GPU 생성이 창의 지금 inner 크기를 읽으므로 따로 넘기지 않는다.
+            tracing::debug!("settings window starts at {applied:?} with server decorations");
         }
 
         let init = self.resolve_settings_init_data();

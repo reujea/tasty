@@ -28,6 +28,9 @@ pub(crate) struct SettingsChrome {
     replayed_press: bool,
     /// 저널이 멈춘 동안 닫기 버튼 안에서 시작한 누름. 버튼 안에서 떼야 닫는다.
     halted_press: bool,
+    /// 장식 전환으로 요청한 크기를 창이 그 자리에서 적용했다(Wayland). `Resized`가 오지 않으므로 패스 뒤에
+    /// 호출자가 GPU 표면을 이 크기로 맞춘다.
+    applied_size: Option<PhysicalSize<u32>>,
 }
 
 /// 그린 닫기 버튼 영역(egui 논리 좌표)과 그때의 창 너비·점당 픽셀. 버튼은 오른쪽에 붙으므로 너비가 바뀌면 그만큼
@@ -62,6 +65,7 @@ impl SettingsChrome {
             drawn_server_decorated: window.is_decorated(),
             replayed_press: false,
             halted_press: false,
+            applied_size: None,
         }
     }
 
@@ -179,6 +183,19 @@ impl SettingsChrome {
         })
     }
 
+    /// 창 크기 요청이 그 자리에서 적용됐으면 적어 둔다. 그 크기에 맞춰 영역도 다시 적어야 한다.
+    fn note_applied_size(&mut self, applied: Option<PhysicalSize<u32>>) {
+        if let Some(size) = applied {
+            self.applied_size = Some(size);
+            self.areas_stale = true;
+        }
+    }
+
+    /// 장식 전환으로 그 자리에서 적용된 창 크기. 한 번만 돌려준다.
+    pub(crate) fn take_applied_size(&mut self) -> Option<PhysicalSize<u32>> {
+        self.applied_size.take()
+    }
+
     /// 저널이 멈춘 동안 창 배율이 바뀌었다. 다시 그리지 않으므로 직전 닫기 버튼 영역을 새 배율로 옮겨 계속 받는다.
     fn rescale_close(&mut self, new_scale: f64) {
         if let Some(area) = &mut self.close {
@@ -198,7 +215,7 @@ impl SettingsChrome {
     ) -> bool {
         let server_decorated = window.is_decorated();
         if server_decorated != self.drawn_server_decorated {
-            fit_window_height(window, server_decorated);
+            self.note_applied_size(fit_window_height(window, server_decorated));
         }
         self.drawn_server_decorated = server_decorated;
         if self.drawn_server_decorated {
@@ -364,8 +381,12 @@ fn edge_direction(
 }
 
 /// 장식 모드가 정해지거나 바뀌면 최소 크기를 그 모드의 값(`settings_window_size`)으로 바꾸고 현재 높이를
-/// 제목 줄만큼 늘이거나 줄인다. 서버 장식이면 앱 제목 줄이 없다.
-pub(crate) fn fit_window_height(window: &Window, server_decorated: bool) {
+/// 제목 줄만큼 늘이거나 줄인다. 서버 장식이면 앱 제목 줄이 없다. 창이 요청을 그 자리에서 적용하면(Wayland) 그
+/// 크기를 돌려준다. 이때는 `Resized`가 오지 않는다. X11은 서버 응답 뒤 `Resized`로 온다.
+pub(crate) fn fit_window_height(
+    window: &Window,
+    server_decorated: bool,
+) -> Option<PhysicalSize<u32>> {
     use crate::app::modal::settings::settings_window_size;
     let min = settings_window_size(!server_decorated);
     let height = min.height;
@@ -373,9 +394,11 @@ pub(crate) fn fit_window_height(window: &Window, server_decorated: bool) {
     let current: LogicalSize<f32> = window.inner_size().to_logical(window.scale_factor());
     let delta = height - settings_window_size(server_decorated).height;
     let target = LogicalSize::new(current.width, (current.height + delta).max(height));
-    if window.request_inner_size(target).is_none() {
+    let applied = window.request_inner_size(target);
+    if applied.is_none() {
         tracing::debug!("settings window height {height} is applied when the compositor answers");
     }
+    applied
 }
 
 /// 제목 줄 동작 가운데 설정창이 받는 것.
@@ -504,6 +527,7 @@ mod tests {
             drawn_server_decorated: server_decorated,
             replayed_press: false,
             halted_press: false,
+            applied_size: None,
         }
     }
 
@@ -689,6 +713,22 @@ mod tests {
             Vec::new(),
             "a popup owns the keys"
         );
+    }
+
+    /// Given 장식 전환으로 요청한 크기를 창이 그 자리에서 적용했을 때 Then 호출자는 그 크기를 한 번 받아 GPU 표면을
+    /// 맞추고, 새 패스가 영역을 다시 적기 전에는 리사이즈를 시작하지 않는다. When 적용되지 않았으면(X11) Then 받을
+    /// 크기가 없다(`Resized`가 온다).
+    #[test]
+    fn a_size_applied_on_the_spot_reaches_the_gpu_once() {
+        let mut c = chrome(false);
+        c.note_applied_size(None);
+        assert_eq!(c.take_applied_size(), None);
+        assert!(!c.areas_stale);
+        let applied = PhysicalSize::new(1100, 736);
+        c.note_applied_size(Some(applied));
+        assert!(c.areas_stale);
+        assert_eq!(c.take_applied_size(), Some(applied));
+        assert_eq!(c.take_applied_size(), None);
     }
 
     /// Given 저널이 멈춘 창, When 배율이 1에서 2로 바뀌고 창이 2200으로 넓어지면 Then 닫기 버튼 영역도 두 배 자리로

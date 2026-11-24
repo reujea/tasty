@@ -338,6 +338,14 @@ impl View for SettingsView {
             self.mark_dirty();
         }
 
+        // 장식 전환으로 창이 크기를 그 자리에서 바꾸면(Wayland) `Resized`가 오지 않는다. 이 프레임을 낸 뒤
+        // GPU 표면을 새 크기로 맞추고 다시 그린다.
+        #[cfg(target_os = "linux")]
+        if let Some(applied) = self.chrome.take_applied_size() {
+            self.base.gpu.resize(applied);
+            self.mark_dirty();
+        }
+
         self.reveal_after_first_render();
 
         if self.base.state.dirty {
