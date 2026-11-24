@@ -33,6 +33,12 @@ impl MainView {
         if let Some(edit) = self.edit_replay.take() {
             return EguiKey::Pass(edit);
         }
+        // 설정 열기 요청 래치 노드가 받은 누름은 편집 판정에 가지 않는다(단계 4 수신자를 같이 읽는다).
+        if matches!(event, WindowEvent::KeyboardInput { .. })
+            && crate::adapters::ui::input::key_nodes::settings_latch_receives(self.key_decision)
+        {
+            return EguiKey::Free;
+        }
         if let Some(judged) = self.judge_plugin_popup_edit_key(engine, event) {
             return judged;
         }

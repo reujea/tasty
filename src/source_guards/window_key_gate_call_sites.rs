@@ -122,6 +122,30 @@ fn the_terminal_goes_through_the_window_hold_gate() {
     assert!(mark < note, "뒤 경계 → 적재 결과 순서가 아니다");
 }
 
+/// M-N1-1 F: 설정 열기 요청 래치 노드가 받은 누름은 단계 11 맨 앞(`end_key_at_settings_latch`)에서 끝나 무대·더블탭·
+/// Esc·단축키·끝 목적지 단계보다 앞이다. 단계 11 은 GPU 가 있는 `MainView` 라 시험 대역이 없어 부르는 순서를 본다.
+/// 래치 끝 판정 자체(Esc 는 취소, 다른 키는 끝남)는 `key_nodes_tests` 의 상태 시험이 본다.
+#[test]
+fn a_double_tap_during_the_settings_latch_does_nothing() {
+    let src = read("src/view/main/keyboard.rs");
+    let body = squeeze(&fn_body(&src, "fn handle_keyboard_input(").expect("handle_keyboard_input"));
+    let latch = at(
+        &body,
+        "ifself.state.end_key_at_settings_latch(&value,self.key_decision,self.escape_fed,self.base.gpu.egui_input_events_mut(),escape_held,){self.mark_dirty();return;}",
+        "래치 노드에서 끝",
+    );
+    for then in [
+        "self.try_consume_fullscreen_stage_key(engine,event)",
+        "self.try_consume_double_tap_key(engine)",
+        "self.try_consume_escape_key(event)",
+        "self.try_consume_shortcut_key(",
+        "self.forward_key_to_terminal(",
+    ] {
+        let at_then = at(&body, then, "래치 뒤 단계");
+        assert!(latch < at_then, "래치 끝이 `{then}` 보다 뒤에 있다");
+    }
+}
+
 /// native WebView 가 넘긴 키: `pump_webview_key_events` 는 수집한 키를 `consume_forwarded_keys` 로만 소비하고, 그 루프는
 /// 키마다 처리 → 포커스 열기 적용 → 결과 알림 순서로 돈다. 제품 소비자(`App`)의 적용은 winit 키와 같은
 /// `apply_user_focus_opens` 다. 순서 자체는 `app::webview_keys` 의 소비 순서 시험이 잰다. 이 가드는 펌프가 루프를

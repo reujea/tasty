@@ -251,3 +251,23 @@ fn window_pass_keys_are_put_in_every_pass() {
     let run = body(host, "fn run(");
     assert_before(&run, "begin_run(", ".run(raw_input", host);
 }
+
+/// M-N1-2 F: 설정 열기 요청 래치 노드가 받은 키는 단계 6 편집 판정에 가지 않는다. 판정 입구(`judge_edit_key`)가 단계 4
+/// 수신자를 plugin·창 판정보다 먼저 읽는다. 단계 6 은 GPU 가 있는 `MainView` 라 시험 대역이 없어 순서를 본다.
+#[test]
+fn an_edit_key_during_the_settings_latch_is_not_judged() {
+    let judge = body("src/view/main/edit_keys.rs", "fn judge_edit_key(");
+    let latch = "settings_latch_receives(self.key_decision)";
+    assert!(
+        judge.contains("return EguiKey::Free;"),
+        "래치 노드가 받은 키를 판정하지 않고 넘기는 갈래가 없다."
+    );
+    for then in [
+        "judge_plugin_popup_edit_key(",
+        "judge_plugin_surface_edit_key(",
+        "judge_egui_key(",
+        "judge_unsettled_egui_key(",
+    ] {
+        assert_before(&judge, latch, then, "fn judge_edit_key(");
+    }
+}

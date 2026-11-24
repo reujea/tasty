@@ -289,9 +289,15 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 클립보드 조합은 그 창의 egui-winit 수식키로 본다(`KeyEventValue::egui_mods`). egui-winit 변환과 같은지는
 `key_class_tests.rs`가 잠금 버전 소스와 대조한다. 경로 키가 아닌 사건은 키 경로 이전의
 게이트(`window_feeds_egui`·`window_holds_terminal_keys`·`window_keys_to_overlay`)를 그대로 지난다. 수식키 없는 Esc 도
-경로 키다(래치 중 Esc 는 지금 경로). 그 판정은 `RouteKey::bare_escape` 하나이고(논리 키가 없으면 물리 키) 편집 바인딩보다
+경로 키다. 그 판정은 `RouteKey::bare_escape` 하나이고(논리 키가 없으면 물리 키) 편집 바인딩보다
 먼저 본다. 수신자는 `key_route::route_escape`가 정하고, 그 결과는 단계 11 `MainViewState::apply_escape_key`가 적용한다.
-App plugin 게이트와 WebView 전달 게이트도 같은 경로 결과를 읽는다. 넘김과 그리기는
+App plugin 게이트와 WebView 전달 게이트도 같은 경로 결과를 읽는다.
+
+설정 열기 요청 래치 중(출발 노드 `FocusNode::SettingsRequest`)에는 분류 전에 래치 노드가 모든 누름을 끝낸다
+(`key_nodes::window_key_decision`, 수신자 `KeyReceiver::SettingsRequest`). 뗌은 지금 경로다. App plugin 게이트는 닫히고,
+단계 6 편집 판정은 그 키를 판정하지 않으며(`key_nodes::settings_latch_receives`), egui 에도 싣지 않는다. 단계 11 은 맨 앞
+`MainViewState::end_key_at_settings_latch`에서 그 누름을 끝내 무대·더블탭·단축키·vi·끝 목적지로 보내지 않고, bare Esc 면
+적용 함수가 래치를 취소한다. 넘김과 그리기는
 [popup.md의 Esc 소유권](../design/systems/popup.md#plugin-popup--host-popup-부모-자식)을 따른다.
 
 ### 키 경로와 수신자

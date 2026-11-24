@@ -145,6 +145,9 @@ pub(crate) enum KeyReceiver {
     },
     Surface(u32),
     Drop,
+    /// 설정 열기 요청 래치(출발 노드 `FocusNode::SettingsRequest`). 모든 누름이 여기서 끝난다. bare Esc 는 단계 11
+    /// 적용 함수가 래치를 취소하고, 다른 키는 단축키·더블탭·편집 판정·끝 목적지 어디에도 가지 않는다.
+    SettingsRequest,
 }
 
 impl KeyReceiver {

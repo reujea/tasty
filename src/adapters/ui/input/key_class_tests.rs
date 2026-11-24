@@ -95,7 +95,7 @@ fn value(logical: &Key, code: KeyCode, mods: ModifiersState) -> KeyEventValue<'_
 }
 
 fn class(logical: Key, code: KeyCode, mods: ModifiersState) -> KeyClass {
-    classify_key(&value(&logical, code, mods), false, false)
+    classify_key(&value(&logical, code, mods), false)
 }
 
 /// 경로 키와 지금 경로로 남는 사건의 경계.
@@ -112,16 +112,8 @@ fn only_pressed_egui_keys_outside_the_current_path_are_path_keys() {
     let mut released = value(&down, KeyCode::ArrowDown, ModifiersState::empty());
     released.pressed = false;
     assert_eq!(
-        classify_key(&released, false, false),
+        classify_key(&released, false),
         KeyClass::Current(CurrentReason::Release)
-    );
-    assert_eq!(
-        classify_key(
-            &value(&down, KeyCode::ArrowDown, ModifiersState::empty()),
-            true,
-            false
-        ),
-        KeyClass::Current(CurrentReason::Latched)
     );
     assert_eq!(
         class(
@@ -176,7 +168,6 @@ fn only_pressed_egui_keys_outside_the_current_path_are_path_keys() {
                 KeyCode::KeyV,
                 ModifiersState::ALT
             ),
-            false,
             true
         ),
         KeyClass::Current(CurrentReason::EditBinding)
@@ -236,17 +227,14 @@ fn the_clipboard_combo_reads_the_egui_winit_modifiers() {
         ..value(&c, KeyCode::KeyC, ModifiersState::empty())
     };
     assert_eq!(
-        classify_key(&stale, false, false),
+        classify_key(&stale, false),
         KeyClass::Current(CurrentReason::Clipboard)
     );
     let cleared = KeyEventValue {
         egui_mods: egui::Modifiers::NONE,
         ..value(&c, KeyCode::KeyC, command)
     };
-    assert!(matches!(
-        classify_key(&cleared, false, false),
-        KeyClass::Path(_)
-    ));
+    assert!(matches!(classify_key(&cleared, false), KeyClass::Path(_)));
 }
 
 /// M-E0b-9 F: 수식키 없는 Esc 가 사용자 편집 바인딩과 겹쳐도 편집 바인딩 판정보다 앞에서 Esc 경로 키다. 물리 키로만
@@ -262,7 +250,6 @@ fn a_bare_escape_bound_as_an_edit_key_takes_the_escape_route() {
     assert_eq!(
         classify_key(
             &value(&escape, KeyCode::Escape, ModifiersState::empty()),
-            false,
             true
         ),
         bare
@@ -271,18 +258,8 @@ fn a_bare_escape_bound_as_an_edit_key_takes_the_escape_route() {
     assert_eq!(
         classify_key(
             &value(&unknown, KeyCode::Escape, ModifiersState::empty()),
-            false,
             false
         ),
         bare
-    );
-    // 래치는 bare Esc 보다 앞이다(설정 요청 취소, N1 까지).
-    assert_eq!(
-        classify_key(
-            &value(&escape, KeyCode::Escape, ModifiersState::empty()),
-            true,
-            true
-        ),
-        KeyClass::Current(CurrentReason::Latched)
     );
 }

@@ -37,6 +37,9 @@ pub(crate) fn window_key_decision(
     replay_edit: bool,
     egui_surface: bool,
 ) -> KeyDecision {
+    if settings_latch_ends(state, engine, value) {
+        return settings_latch_decision();
+    }
     let Some((key, path, lookup)) =
         window_path_key(state, engine, value, replay_edit, egui_surface)
     else {
@@ -45,15 +48,50 @@ pub(crate) fn window_key_decision(
     route_decision(state, engine, key, &path, &lookup, value.mods)
 }
 
-/// egui 사건으로 들어온 bare Esc 누름(debug 주입)의 단계 4. winit 키와 같은 분류 순서로 래치 중이면 지금 경로이고,
+/// 이 누름이 설정 열기 요청 래치 노드(출발 노드 `FocusNode::SettingsRequest`)에서 끝나는지. 단계 4 판정과 App
+/// plugin 게이트가 같은 조건을 쓴다. 뗌은 지금 경로다.
+fn settings_latch_ends(
+    state: &MainViewState,
+    engine: &EngineRead<'_>,
+    value: &KeyEventValue<'_>,
+) -> bool {
+    value.pressed
+        && crate::adapters::ui::input::key_path::key_start_node(state, engine)
+            == FocusNode::SettingsRequest
+}
+
+/// 단계 4 수신자가 설정 열기 요청 래치 노드인지. 단계 6(편집 판정)·단계 11(래치 끝, Esc 적용)이 같은 판정 값으로
+/// 읽는다.
+pub(crate) fn settings_latch_receives(decision: KeyDecision) -> bool {
+    matches!(
+        decision,
+        KeyDecision::Path(Routed {
+            receiver: KeyReceiver::SettingsRequest,
+            ..
+        })
+    )
+}
+
+/// 설정 열기 요청 래치 중 누름의 단계 4. 출발 노드(`FocusNode::SettingsRequest`)가 그 키를 끝낸다. 경로에 다른
+/// 노드가 없어 level 은 engine 뿐이지만 단축키 단계로 가지 않으므로 후보를 보지 않는다.
+fn settings_latch_decision() -> KeyDecision {
+    KeyDecision::Path(Routed {
+        receiver: KeyReceiver::SettingsRequest,
+        levels: super::key_level::PathLevels::engine_only(),
+    })
+}
+
+/// egui 사건으로 들어온 bare Esc 누름(debug 주입)의 단계 4. winit 키와 같은 순서로 래치 중이면 래치 노드가 받고,
 /// 아니면 포커스 노드에서 시작한 경로의 Esc 수신자다(`route_escape`).
 pub(crate) fn bare_escape_decision(
     state: &MainViewState,
     engine: &EngineRead<'_>,
     egui_surface: bool,
 ) -> KeyDecision {
-    if state.has_settings_open_request() {
-        return KeyDecision::Current;
+    if crate::adapters::ui::input::key_path::key_start_node(state, engine)
+        == FocusNode::SettingsRequest
+    {
+        return settings_latch_decision();
     }
     let key = RouteKey {
         key: egui::Key::Escape,
@@ -91,7 +129,7 @@ fn route_decision(
     ))
 }
 
-/// App plugin 판정 게이트(winit 키). 경로 키면 포커스 노드에서 시작한 경로가 출발 노드에서 그 키를 끝내지 않을
+/// App plugin 판정 게이트(winit 키). 설정 열기 요청 래치 중 누름이면 닫힌다(래치 노드가 끝낸다). 경로 키면 포커스 노드에서 시작한 경로가 출발 노드에서 그 키를 끝내지 않을
 /// 때 열고, 지금 경로로 남는 사건이면 지금 게이트(`window_keys_to_overlay`)다. bare Esc 는 그 경로의 수신자
 /// (`route_escape`)가 단축키 단계·받은 surface·버림이면 연다(출발 노드 안 수신자면 닫힌다). plugin 명령 level 은
 /// 매처가 거른다.
@@ -101,6 +139,9 @@ pub(crate) fn plugin_key_gate_open(
     value: &KeyEventValue<'_>,
 ) -> bool {
     let egui_surface = focused_surface_takes_egui(state, engine);
+    if settings_latch_ends(state, engine, value) {
+        return false;
+    }
     match window_path_key(state, engine, value, false, egui_surface) {
         Some((key, _, _)) if key.bare_escape() => matches!(
             window_key_decision(state, engine, value, false, egui_surface),
@@ -151,7 +192,7 @@ pub(crate) fn forwarded_key_class(
         mods,
         egui_mods: super::key_class::egui_modifiers(mods),
     };
-    match classify_key(&value, false, edit_binding(kb, key, mods).is_some()) {
+    match classify_key(&value, edit_binding(kb, key, mods).is_some()) {
         KeyClass::Path(_) => ForwardedKey::Path,
         KeyClass::Current(_) => ForwardedKey::Current,
     }
@@ -183,7 +224,7 @@ fn window_path_key(
     let kb = &engine.settings.keybindings;
     let lookup = tasty_key_match::shortcut_lookup_key(value.logical, &value.physical, value.mods);
     let edit = replay_edit || edit_binding(kb, &lookup, value.mods).is_some();
-    match classify_key(value, state.has_settings_open_request(), edit) {
+    match classify_key(value, edit) {
         KeyClass::Current(_) => None,
         KeyClass::Path(key) => {
             let path = window_key_path(state, engine, key, &lookup, value.mods, egui_surface);

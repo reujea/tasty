@@ -1,6 +1,6 @@
-//! Escape 적용(단계 11)에서 설정 열기 요청·알림 특례·사건 시점 수신자(단계 4) 분기의 순서를 확인한다.
+//! Escape 적용(단계 11)에서 설정 열기 요청 래치 수신자·알림 특례·사건 시점 수신자(단계 4) 분기의 순서를 확인한다.
 //! plugin 팝업 수신자의 Esc는 펼쳤든 아니든 그 렌더에 넘긴다(렌더가 선언과 표시 상태로 닫기·다시 접기를 정한다).
-//! 설정 열기 요청 분기는 포커스와 무관하게, 알림 분기는 포커스 노드가 다른 팝업이 아닐 때 처리하므로 수신자 분기
+//! 설정 열기 요청 래치 분기는 단계 4 수신자가 래치 노드일 때, 알림 분기는 포커스 노드가 다른 팝업이 아닐 때 처리하므로 수신자 분기
 //! 보다 먼저 있어야 한다.
 //! settings_open_requested는 열기 요청 상태다. 이미 열린 설정 모달을 Escape로 닫는 경로를 뜻하지 않는다.
 //! 팝업이 키 입력을 막기 전에 Escape를 처리하도록 오버레이 검사보다 앞에 있어야 한다.
@@ -56,8 +56,8 @@ fn the_three_escape_consumers_keep_their_order() {
     let body = &src[start..];
     let settings = only_at(
         body,
-        "if self.settings_open_requested {",
-        "Escape 의 settings 분기",
+        "if crate::adapters::ui::input::key_nodes::settings_latch_receives(decision) {",
+        "Escape 의 설정 열기 요청 래치 수신자 분기",
     );
     let notifications = only_at(
         body,

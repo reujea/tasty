@@ -82,6 +82,20 @@ impl MainView {
             return;
         }
 
+        // 설정 열기 요청 래치 노드가 받은 누름은 여기서 끝난다(bare Esc 는 래치 취소).
+        let value = self.key_value(event);
+        let escape_held = self.base.gpu.egui_escape_held();
+        if self.state.end_key_at_settings_latch(
+            &value,
+            self.key_decision,
+            self.escape_fed,
+            self.base.gpu.egui_input_events_mut(),
+            escape_held,
+        ) {
+            self.mark_dirty();
+            return;
+        }
+
         tracing::trace!(target: "tasty::explorer::perf", "key_received");
         // 전체화면 무대가 열려 있으면 배경으로 키를 보내지 않는다.
         if self.try_consume_fullscreen_stage_key(engine, event) {

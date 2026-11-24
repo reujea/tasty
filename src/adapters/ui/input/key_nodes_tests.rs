@@ -173,10 +173,12 @@ fn a_covering_popup_keeps_covered_shortcuts_off_the_path() {
     );
 }
 
-/// T-12b-1: 설정 열기 요청 래치 중 키는 지금 경로다(단계 4를 지나지 않는다).
+/// T-12b-1: 설정 열기 요청 래치 중 누름은 출발 노드(래치)가 끝낸다. 단축키 키·글자·bare Esc·편집 바인딩 키·egui 키가
+/// 없는 수식키 단독 누름이 모두 같고, egui 에 싣지 않는다. 뗌은 지금 경로다.
 #[test]
-fn a_key_under_the_settings_latch_stays_on_the_current_path() {
+fn a_key_under_the_settings_latch_ends_at_the_latch_node() {
     let (mut state, mut session) = scene();
+    bind(&mut session, "copy", "ctrl+f9");
     let engine = session.borrow_mut();
     let read = engine.read();
     assert!(matches!(
@@ -184,7 +186,105 @@ fn a_key_under_the_settings_latch_stays_on_the_current_path() {
         KeyDecision::Path(_)
     ));
     state.settings_open_requested = true;
-    assert_eq!(decide(&state, &read, f_key(5), CTRL), KeyDecision::Current);
+    let shift = (Key::Named(NamedKey::Shift), KeyCode::ShiftLeft);
+    for (key, mods) in [
+        (f_key(5), CTRL),
+        (letter("a", KeyCode::KeyA), NONE),
+        (escape(), NONE),
+        (f_key(9), CTRL),
+        (shift, ModifiersState::SHIFT),
+    ] {
+        let d = decide(&state, &read, key.clone(), mods);
+        assert_eq!(routed(d).receiver, KeyReceiver::SettingsRequest, "{key:?}");
+        assert!(settings_latch_receives(d));
+        assert_eq!(state.window_feeds_key(d, false, true), None, "{key:?}");
+    }
+    let (logical, code) = f_key(5);
+    let released = window_key_decision(
+        &state,
+        &read,
+        &KeyEventValue {
+            logical: &logical,
+            physical: PhysicalKey::Code(code),
+            pressed: false,
+            mods: CTRL,
+            egui_mods: crate::adapters::ui::input::key_class::egui_modifiers(CTRL),
+        },
+        false,
+        false,
+    );
+    assert_eq!(released, KeyDecision::Current, "뗌은 지금 경로다");
+}
+
+/// 누름 하나의 사건 값.
+fn press_value(logical: &Key, code: KeyCode, mods: ModifiersState) -> KeyEventValue<'_> {
+    KeyEventValue {
+        logical,
+        physical: PhysicalKey::Code(code),
+        pressed: true,
+        mods,
+        egui_mods: crate::adapters::ui::input::key_class::egui_modifiers(mods),
+    }
+}
+
+/// 단계 11 맨 앞 래치 끝(`end_key_at_settings_latch`)에 그 누름의 단계 4 판정으로 넣고 끝났는지 돌려준다.
+fn end_at_latch(
+    state: &mut RequestContext,
+    read: &EngineRead<'_>,
+    (logical, code): (Key, KeyCode),
+    mods: ModifiersState,
+) -> bool {
+    let d = decide(state, read, (logical.clone(), code), mods);
+    let mut pending = Vec::new();
+    let ended = state.end_key_at_settings_latch(
+        &press_value(&logical, code, mods),
+        d,
+        false,
+        &mut pending,
+        false,
+    );
+    assert!(pending.is_empty(), "egui 입력을 건드리지 않는다");
+    ended
+}
+
+/// M-N1-1 P: 래치 중 bare Esc 는 단계 11 맨 앞에서 끝나고 래치를 취소한다. 래치가 없으면 그 자리를 지난다.
+#[test]
+fn escape_during_the_settings_latch_cancels_it() {
+    let (mut state, mut session) = scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    assert!(
+        !end_at_latch(&mut state, &read, escape(), NONE),
+        "래치가 없으면 지난다"
+    );
+    state.settings_open_requested = true;
+    assert!(end_at_latch(&mut state, &read, escape(), NONE));
+    assert!(!state.has_settings_open_request(), "래치가 취소됐다");
+}
+
+/// 래치 중 Esc 가 아닌 누름(더블탭 키인 수식키 단독 누름, engine 단축키)은 단계 11 맨 앞에서 끝나고 래치는 남는다.
+/// 더블탭·단축키 단계보다 앞이라는 순서는 `source_guards::window_key_gate_call_sites` 가 본다.
+#[test]
+fn a_key_during_the_settings_latch_ends_there_and_keeps_the_latch() {
+    let (mut state, mut session) = scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let shift = (Key::Named(NamedKey::Shift), KeyCode::ShiftLeft);
+    assert!(!end_at_latch(
+        &mut state,
+        &read,
+        shift.clone(),
+        ModifiersState::SHIFT
+    ));
+    state.settings_open_requested = true;
+    assert!(end_at_latch(
+        &mut state,
+        &read,
+        shift,
+        ModifiersState::SHIFT
+    ));
+    assert!(end_at_latch(&mut state, &read, f_key(5), CTRL));
+    assert!(state.has_settings_open_request(), "래치가 남는다");
 }
 
 /// T-12b-2 K9: 단축키·끝 목적지 수신자로 끝난 경로 키는 egui 큐에 싣지 않고, egui 수신자로 끝난 키만 싣는다.

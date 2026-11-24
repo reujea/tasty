@@ -32,6 +32,23 @@ impl super::MainViewState {
             && self.window_escape(decision, fed, pending, escape_held)
     }
 
+    /// 단계 11 맨 앞: 단계 4 수신자가 설정 열기 요청 래치 노드면 그 누름을 여기서 끝낸다(참). 무대·더블탭·단축키·vi·끝
+    /// 목적지로 가지 않는다. bare Esc 면 적용 함수([`Self::apply_escape_key`])가 래치를 취소한다. 인자는 그 함수와 같다.
+    pub(crate) fn end_key_at_settings_latch(
+        &mut self,
+        value: &crate::adapters::ui::input::key_class::KeyEventValue<'_>,
+        decision: crate::adapters::ui::input::key_nodes::KeyDecision,
+        fed: bool,
+        pending: &mut Vec<egui::Event>,
+        escape_held: bool,
+    ) -> bool {
+        if !crate::adapters::ui::input::key_nodes::settings_latch_receives(decision) {
+            return false;
+        }
+        self.apply_escape_key(value, decision, fed, pending, escape_held);
+        true
+    }
+
     /// 단계 11: 창이 받은 bare Esc 누름 하나에 사건 시점 수신자(`decision`, 단계 4)의 결과를 적용한다. 처리했으면
     /// `pending`(egui 입력)에서 그 누름을 빼고, 키 주인이 읽을 몫이면 그 원래 사건을 원래 자리와 함께 넘겨 둔다. 뺄 누름은
     /// 이번 사건이 egui 에 실은 누름(큐의 마지막 Esc 누름)이고, 실렸는지(`fed`)는 단계 8 적재 결과다.
@@ -65,7 +82,7 @@ impl super::MainViewState {
         true
     }
 
-    /// Escape 결과. 래치 중이면 설정 요청을 취소하고(N1 까지), 알림 목록 특례(C12b-4 까지)를 본 뒤, 사건 시점 수신자가
+    /// Escape 결과. 사건 시점 수신자가 래치 노드면 설정 요청을 취소하고, 알림 목록 특례(C12b-4 까지)를 본 뒤, 사건 시점 수신자가
     /// host 팝업이면 선언 `escape` 대로 포커스를 풀어 넘긴다(펼친 팝업은 풀지 않고 넘긴다). Ignore 팝업은 수신자가 되지
     /// 않는다(`route_escape` 가 부모 경로로 올린다). plugin 팝업이면 그 렌더가 받도록 넘긴다. 그 밖의 수신자는 창이
     /// 처리하지 않는다. 닫기는 팝업 층 중앙 단계가 정한다.
@@ -75,8 +92,9 @@ impl super::MainViewState {
     ) -> EscapeGate {
         use crate::adapters::ui::input::key_nodes::KeyDecision;
         use crate::adapters::ui::input::key_route::KeyReceiver;
-        if self.settings_open_requested {
-            // 아직 처리하지 않은 설정 창 열기 요청을 취소한다.
+        // 래치 노드(단계 4 수신자)가 받은 Esc 는 아직 처리하지 않은 설정 창 열기 요청을 취소한다. 래치 중에는 다른
+        // 수신자가 없으므로 알림 특례보다 먼저다.
+        if crate::adapters::ui::input::key_nodes::settings_latch_receives(decision) {
             self.settings_open_requested = false;
             return EscapeGate::Consumed {
                 hand_to_owner: false,

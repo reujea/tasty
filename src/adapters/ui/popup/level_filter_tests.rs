@@ -112,8 +112,8 @@ fn without_the_latch_a_settings_double_tap_requests_settings() {
     );
 }
 
-/// [설정 열기 요청 래치 + toggle_settings 더블탭 → 요청을 냄](전후 같음)과 [래치 + 덮는 팝업 없음 + new_tab
-/// 더블탭 → 돎](전후 같음)
+/// 래치 중 경로 level 은 거르지 않는다(`focus_path_levels` 가 `None`): 필터만 보면 toggle_settings·new_tab 더블탭이
+/// 남는다. 제품에서 래치 중 누름은 단계 11 맨 앞(`end_key_at_settings_latch`)에서 끝나 더블탭 단계에 가지 않는다.
 #[test]
 fn under_the_latch_nothing_is_filtered() {
     let (mut state, mut session) = crate::state::tests::test_state();
@@ -126,7 +126,8 @@ fn under_the_latch_nothing_is_filtered() {
     );
 }
 
-/// [래치 + 덮는 팝업(command_palette) 포커스 + new_tab 더블탭 → 돎](전후 같음. 래치가 없으면 위 장면대로 안 돎)
+/// 래치 + 덮는 팝업(command_palette) 포커스에서도 필터는 new_tab 을 거르지 않는다(래치가 없으면 위 장면대로 거른다).
+/// 제품에서는 래치 노드가 그 누름을 끝낸다.
 #[test]
 fn under_the_latch_a_covered_double_tap_still_runs() {
     let (mut state, mut session) = crate::state::tests::test_state();
@@ -137,7 +138,7 @@ fn under_the_latch_a_covered_double_tap_still_runs() {
     assert!(actions(&state, &read).contains(&"new_tab"));
 }
 
-/// [래치 + 같은 덮음 + toggle_settings 더블탭 → 요청을 냄](전후 같음)
+/// 래치 + 같은 덮음에서 필터 결과의 첫 동작은 toggle_settings 다. 제품에서는 래치 노드가 그 누름을 끝낸다.
 #[test]
 fn under_the_latch_a_covering_popup_keeps_the_settings_double_tap() {
     let (mut state, mut session) = crate::state::tests::test_state();

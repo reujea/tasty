@@ -1,5 +1,5 @@
-//! 키 사건 하나의 경로 분류(계약 E0 단계 4의 입력). 경로 키(egui 키가 있는 누름이고 설정 열기 요청 래치 중·
-//! 클립보드 조합·편집 바인딩 키가 아닌 것. bare Esc 는 언제나 경로 키)만 포커스 노드에서 시작한 키 경로(`route_key`)로 수신자를
+//! 키 사건 하나의 경로 분류(계약 E0 단계 4의 입력). 경로 키(egui 키가 있는 누름이고 클립보드 조합·편집 바인딩 키가
+//! 아닌 것. bare Esc 는 언제나 경로 키. 설정 열기 요청 래치 중 누름은 분류 전에 래치 노드가 끝낸다)만 포커스 노드에서 시작한 키 경로(`route_key`)로 수신자를
 //! 정하고, 나머지 사건은 그 입구의 지금 경로를 그대로 지난다. egui 키와 클립보드 조합 판정은 egui-winit이 같은
 //! 사건을 egui 사건으로 바꾸는 규칙과 같다(시험이 잠금 파일의 egui-winit 소스와 갈래를 대조한다). 규칙:
 //! `docs/architecture/input-layer.md`의 "경로 키".
@@ -24,8 +24,6 @@ pub(crate) struct KeyEventValue<'a> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CurrentReason {
     Release,
-    /// 설정 열기 요청 래치 중.
-    Latched,
     /// egui 키가 없는 누름(수식키 단독, egui 키 없이 글자만 내는 키).
     NoEguiKey,
     /// egui-winit이 `Event::Cut`·`Copy`·`Paste`로 바꾸는 누름.
@@ -41,19 +39,12 @@ pub(crate) enum KeyClass {
     Current(CurrentReason),
 }
 
-/// 키 사건을 가른다. `latched`는 설정 열기 요청 래치, `edit_binding`은 그 누름이 편집 바인딩 키인지(재생하는
+/// 키 사건을 가른다. `edit_binding`은 그 누름이 편집 바인딩 키인지(재생하는
 /// 원래 키는 보류 때 붙은 편집 표시로 정한다)다.
-pub(crate) fn classify_key(
-    value: &KeyEventValue<'_>,
-    latched: bool,
-    edit_binding: bool,
-) -> KeyClass {
+pub(crate) fn classify_key(value: &KeyEventValue<'_>, edit_binding: bool) -> KeyClass {
     let current = KeyClass::Current;
     if !value.pressed {
         return current(CurrentReason::Release);
-    }
-    if latched {
-        return current(CurrentReason::Latched);
     }
     let Some(key) = egui_key(value.logical, value.physical) else {
         return current(CurrentReason::NoEguiKey);
