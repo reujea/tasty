@@ -820,6 +820,9 @@ mod tests {
                             host: mark.host,
                             reconnecting: None,
                             language: "en",
+                            glyph: theme.icon_glyph_size_xs,
+                            mark_gap: theme.fh_remote_gap(),
+                            host_cap: theme.fh_remote_max_width(),
                         },
                     );
                     cuts.push((budget, fh_model::elide_target_front(row.path, budget)));

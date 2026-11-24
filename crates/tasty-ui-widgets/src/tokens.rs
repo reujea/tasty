@@ -161,17 +161,6 @@ pub const FH_TARGET_ELIDE_FALLBACK: usize = 65;
 /// 남는 상자 206(390 − 12 − 4 − 160 − 8)을 6 으로 나눈 값이다.
 pub const FH_TARGET_ELIDE_FALLBACK_REMOTE: usize = 34;
 
-/// 원격 표지 옆 경로를 잴 수 없을 때 표지의 호스트 글자 앞까지를 뺀 상자. 경로 줄 390 − 글리프 12 −
-/// 글리프 뒤 간격 4 − 경로 앞 space-sm 8 (정본 Meta 'path cap, unmeasured'의 366).
-pub const FH_TARGET_REMOTE_BOX_UNMEASURED: LogicalPx = LogicalPx(366.0);
-
-/// 잴 수 없을 때 호스트 글자 폭의 상한(`fh-remote-max-width` 160). 호스트가 비었거나(낱말 Remote) 폭을 모르면
-/// 이 값을 쓴다.
-pub const FH_REMOTE_HOST_CAP_UNMEASURED: LogicalPx = LogicalPx(160.0);
-
-/// 잴 수 없을 때 호스트와 재연결 상태 단어 사이 간격(`fh-remote-gap` 4).
-pub const FH_REMOTE_WORD_GAP_UNMEASURED: LogicalPx = LogicalPx(4.0);
-
 /// 상태 단어 폭을 잴 수 없을 때 UI sans 로 그리는 언어(ja · zh-Hans)의 글자당 폭. 11px 한 em 을 올림한 값이다
 /// (정본 Meta 'path cap, unmeasured': 再接続中 48, 重新连接中 60).
 pub const FH_STATUS_WORD_EM_UNMEASURED: LogicalPx = LogicalPx(12.0);

@@ -1,9 +1,8 @@
 //! 본체와 갤러리가 공유하는 파일 핸들러 ID·경로의 말줄임 규칙.
 
 use crate::tokens::{
-    FH_ID_ELIDE_MAX, FH_ID_ELIDE_TAIL, FH_REMOTE_HOST_CAP_UNMEASURED,
-    FH_REMOTE_WORD_GAP_UNMEASURED, FH_STATUS_WORD_EM_UNMEASURED, FH_TARGET_ELIDE_FALLBACK,
-    FH_TARGET_LINE_BOX, FH_TARGET_MONO_ADVANCE, FH_TARGET_REMOTE_BOX_UNMEASURED,
+    FH_ID_ELIDE_MAX, FH_ID_ELIDE_TAIL, FH_STATUS_WORD_EM_UNMEASURED, FH_TARGET_ELIDE_FALLBACK,
+    FH_TARGET_LINE_BOX, FH_TARGET_MONO_ADVANCE,
 };
 use tasty_type_geometry::length::LogicalPx;
 
@@ -41,6 +40,12 @@ pub struct UnmeasuredMark<'a> {
     pub reconnecting: Option<&'a str>,
     /// 상태 단어의 언어. 그 언어의 label 글꼴이 고정폭이면 칸 수로, 아니면 글자 수로 폭을 추정한다.
     pub language: &'a str,
+    /// 표지 글리프 크기(icon-glyph-size-xs 12).
+    pub glyph: LogicalPx,
+    /// 글리프 ↔ 호스트, 호스트 ↔ 상태 단어 간격(`fh-remote-gap` 4).
+    pub mark_gap: LogicalPx,
+    /// 호스트 글자 폭 상한(`fh-remote-max-width` 160). 빈 호스트와 폭을 모르는 호스트에 쓴다.
+    pub host_cap: LogicalPx,
 }
 
 /// 원격 표지 옆 경로 상자(경로 줄 − 표지 − `gap`)에 들어갈 글자 수.
@@ -54,29 +59,29 @@ pub fn target_budget_chars_beside(
     let w = mono_advance.value();
     let room = (FH_TARGET_LINE_BOX - mark_w - gap).value();
     if !w.is_finite() || w <= 0.0 || !room.is_finite() {
-        return target_budget_chars_unmeasured(unmeasured);
+        return target_budget_chars_unmeasured(unmeasured, gap);
     }
     let fits = (room / w).floor();
     if fits < 1.0 {
-        return target_budget_chars_unmeasured(unmeasured);
+        return target_budget_chars_unmeasured(unmeasured, gap);
     }
     fits as usize
 }
 
 /// 잴 수 없을 때의 경로 글자 수(정본 Meta 'path cap, unmeasured'):
 /// floor((366 − min(6 × 호스트 글자 수, 160) − 재연결이면 (4 + 상태 단어 폭)) / 6).
-/// 빈 호스트는 상한 160 이다. 상태 단어 폭은 [`status_word_width_unmeasured`]로 추정한다.
-pub fn target_budget_chars_unmeasured(mark: &UnmeasuredMark<'_>) -> usize {
+/// 366 은 경로 줄 390 − 글리프 12 − 간격 4 − 경로 앞 `gap`(space-sm 8)이다. 빈 호스트는 상한 160 이다.
+/// 상태 단어 폭은 [`status_word_width_unmeasured`]로 추정한다.
+pub fn target_budget_chars_unmeasured(mark: &UnmeasuredMark<'_>, gap: LogicalPx) -> usize {
     let host = if mark.host.is_empty() {
-        FH_REMOTE_HOST_CAP_UNMEASURED
+        mark.host_cap
     } else {
-        (FH_TARGET_MONO_ADVANCE * mark.host.chars().count() as f32)
-            .min(FH_REMOTE_HOST_CAP_UNMEASURED)
+        (FH_TARGET_MONO_ADVANCE * mark.host.chars().count() as f32).min(mark.host_cap)
     };
     let word = mark.reconnecting.map_or(LogicalPx(0.0), |word| {
-        FH_REMOTE_WORD_GAP_UNMEASURED + status_word_width_unmeasured(word, mark.language)
+        mark.mark_gap + status_word_width_unmeasured(word, mark.language)
     });
-    let room = FH_TARGET_REMOTE_BOX_UNMEASURED - host - word;
+    let room = FH_TARGET_LINE_BOX - mark.glyph - mark.mark_gap - gap - host - word;
     (room.value() / FH_TARGET_MONO_ADVANCE.value())
         .floor()
         .max(1.0) as usize
@@ -132,7 +137,7 @@ fn elide_chars_front(s: &str, max: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tokens::FH_TARGET_MONO_ADVANCE;
+    use crate::tokens::FH_TARGET_ELIDE_FALLBACK_REMOTE;
 
     /// 디자인에서 받은 경로 표본. 실제 잘리는 위치는 현재 글자 수 상한으로 검사한다.
     const A_FITS: &str = "packages/design-system/src/components/navigation/federated/Bar.ts";
@@ -206,6 +211,9 @@ mod tests {
             host: "host",
             reconnecting: None,
             language: "en",
+            glyph: LogicalPx(12.0),
+            mark_gap: LogicalPx(4.0),
+            host_cap: LogicalPx(160.0),
         };
         let budget = |host_px| {
             target_budget_chars_beside(LogicalPx(6.0), mark(host_px), LogicalPx(8.0), &unmeasured)
@@ -239,6 +247,9 @@ mod tests {
                 host,
                 reconnecting,
                 language,
+                glyph: LogicalPx(12.0),
+                mark_gap: LogicalPx(4.0),
+                host_cap: LogicalPx(160.0),
             };
             // 글자 폭이 유효하지 않은 실제 경로로도 같은 값이 나온다.
             let beside = target_budget_chars_beside(
@@ -247,12 +258,19 @@ mod tests {
                 LogicalPx(8.0),
                 &mark,
             );
-            assert_eq!(beside, target_budget_chars_unmeasured(&mark));
+            assert_eq!(
+                beside,
+                target_budget_chars_unmeasured(&mark, LogicalPx(8.0))
+            );
             beside
         };
         assert_eq!(cap("host", None, "en"), 57);
         assert_eq!(cap("work-laptop-attach", None, "en"), 43);
-        assert_eq!(cap(&"x".repeat(40), None, "en"), 34, "at the cap");
+        assert_eq!(
+            cap("a-very-long-attach-profile-name-for-the-cap", None, "en"),
+            34,
+            "at the cap"
+        );
         assert_eq!(
             cap("", None, "en"),
             FH_TARGET_ELIDE_FALLBACK_REMOTE,
