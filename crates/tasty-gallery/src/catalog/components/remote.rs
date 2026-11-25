@@ -136,9 +136,8 @@ const LOCAL_HOSTS: &[LocalSshHost<'static>] = &[
 ];
 
 pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
-    let width = theme.remote_window_width();
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
-        kit::frame_card(ui, theme, width, kit::panel_fill(theme), |ui| {
+        remote_window(ui, theme, |ui| {
             header_region(ui, theme, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
@@ -315,10 +314,33 @@ fn add_bar_region(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::
     kit::region(ui, margin, add);
 }
 
-/// 본체 본문 구역의 목록 줄: 좌우 `remote_pad_x`.
+/// 정본 RemoteFrame 처럼 바깥(border-box) 크기가 `remote_window_width` × `remote_window_height` 인 원격
+/// 연결 창. 프레임 카드는 받은 폭을 안쪽에 쓰므로 테두리를 뺀 안쪽 크기를 잡고, 넘치는 내용은 창 안에서
+/// 자른다(목록은 [`list_region`] 이 스크롤한다).
+pub(super) fn remote_window(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
+    let width = kit::border_box_inner(theme, theme.remote_window_width());
+    let height = kit::border_box_inner(theme, theme.remote_window_height());
+    kit::frame_card(ui, theme, width, kit::panel_fill(theme), |ui| {
+        let (rect, _) = ui.allocate_exact_size(
+            egui::vec2(width.value(), height.value()),
+            egui::Sense::hover(),
+        );
+        let mut inner = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(rect)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+        );
+        inner.set_clip_rect(rect.intersect(ui.clip_rect()));
+        add(&mut inner);
+    });
+}
+
+/// 본체 본문 구역의 목록 줄: 좌우 `remote_pad_x`. 정본·본체처럼 창 아래까지 남은 높이 안에서 스크롤한다.
 fn list_region(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
     let x = theme.remote_pad_x().value() as i8;
-    kit::region(ui, egui::Margin::symmetric(x, 0), add);
+    egui::ScrollArea::vertical()
+        .auto_shrink([false, false])
+        .show(ui, |ui| kit::region(ui, egui::Margin::symmetric(x, 0), add));
 }
 
 /// 공용 탭 바에 라벨과 활성 항목을 전달한다. 배경은 카드 전체 폭을 채운다.
@@ -383,8 +405,7 @@ const ATTACHES: &[Attach] = &[
 
 /// Attach 탭이 열린 원격 연결 창.
 pub(super) fn attach_frame(ui: &mut egui::Ui, theme: &Theme) {
-    let width = theme.remote_window_width();
-    kit::frame_card(ui, theme, width, kit::panel_fill(theme), |ui| {
+    remote_window(ui, theme, |ui| {
         attach_header(ui, theme);
         tab_bar(ui, theme, 1);
 

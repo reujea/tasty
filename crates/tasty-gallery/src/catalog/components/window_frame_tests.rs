@@ -93,3 +93,20 @@ fn the_remote_attach_sample_window_is_the_remote_picker_size() {
     let want = outer(th.remote_picker_width(), Some(th.remote_picker_height()));
     assert_has_frame(&sizes, want, "remote attach");
 }
+
+/// 원격 연결 표본 셋(Remote profiles·Attach·Passkeys)은 정본 RemoteFrame처럼 바깥 크기가
+/// remote-window-width × remote-window-height다.
+#[test]
+fn the_remote_sample_windows_are_the_remote_window_size() {
+    let th = tasty_themes::mocha_fallback();
+    let want = outer(th.remote_window_width(), Some(th.remote_window_height()));
+    let samples: [(&str, fn(&mut egui::Ui, &Theme)); 3] = [
+        ("remote profiles", super::remote::draw),
+        ("remote attach tab", super::remote::draw_attach),
+        ("remote passkeys tab", super::remote::draw_passkeys),
+    ];
+    for (what, draw) in samples {
+        let sizes = frame_sizes(draw, th.bg_panel().to_egui(), th.border_strong().to_egui());
+        assert_has_frame(&sizes, want, what);
+    }
+}
