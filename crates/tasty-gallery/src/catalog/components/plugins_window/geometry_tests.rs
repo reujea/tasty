@@ -159,3 +159,56 @@ fn neighbouring_segment_tabs_are_plugins_tab_gap_apart() {
         "Installed {first:?} 와 Attention {second:?} 사이 {gap} 가 plugins_tab_gap {want} 가 아니다"
     );
 }
+
+/// 헤더 아래 목록에서 선택된 행(surface-active 채움) 사각형.
+fn selected_row(th: &Theme, painted: &Painted, frame: egui::Rect) -> egui::Rect {
+    let below = frame.top() + th.plugins_header_height().value();
+    let active = th.surface_active().to_egui();
+    painted
+        .shapes
+        .iter()
+        .find_map(|s| match s {
+            egui::Shape::Rect(r) if r.fill == active && r.rect.top() >= below => Some(r.rect),
+            _ => None,
+        })
+        .expect("목록 선택 행이 없다")
+}
+
+/// 목록 행 간격은 Installed·Attention 모두 행 높이 + `plugins_list_row_gap` 이다. 첫 행과 둘째 행을 선택해
+/// 그린 채움의 위치 차로 잰다.
+#[test]
+fn list_rows_step_by_the_row_height_plus_plugins_list_row_gap() {
+    let th = theme();
+    let want = tasty_ui_widgets::tokens::PLUGIN_LIST_ROW_HEIGHT.value()
+        + th.plugins_list_row_gap().value();
+    let pairs = [
+        (
+            Tab::Installed {
+                detail: installed::Detail::Selected(0),
+            },
+            Tab::Installed {
+                detail: installed::Detail::Selected(1),
+            },
+        ),
+        (
+            Tab::Attention {
+                empty: false,
+                selected: 0,
+            },
+            Tab::Attention {
+                empty: false,
+                selected: 1,
+            },
+        ),
+    ];
+    for (a, b) in pairs {
+        let (pa, fa) = painted_window(&th, a);
+        let (pb, fb) = painted_window(&th, b);
+        let step = (selected_row(&th, &pb, fb).top() - fb.top())
+            - (selected_row(&th, &pa, fa).top() - fa.top());
+        assert!(
+            (step - want).abs() < 0.5,
+            "목록 행 간격 {step} 가 행 높이 + plugins_list_row_gap = {want} 가 아니다"
+        );
+    }
+}

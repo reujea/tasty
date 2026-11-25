@@ -184,7 +184,8 @@ pub(super) fn list_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, deta
                 theme.accent_danger().to_egui(),
             );
         }
-        y += row_h + STRUCT_GAP_2.value();
+        // 본체 목록과 같은 행 사이 간격이다.
+        y += row_h + theme.plugins_list_row_gap().value();
     }
 }
 

@@ -9,7 +9,7 @@ use tasty_type_geometry::length::LogicalPx;
 const ATTN_PRIMITIVE_12: LogicalPx = LogicalPx(12.0);
 
 use super::{AttentionEntry, AttentionKind, PluginsAction, PluginsSnapshot, PluginsUiState};
-use tasty_ui_widgets::tokens::{PLUGIN_LIST_ROW_HEIGHT, STRUCT_GAP_2};
+use tasty_ui_widgets::tokens::PLUGIN_LIST_ROW_HEIGHT;
 use tasty_ui_widgets::{
     PluginAttentionBarAction, PluginAttentionBarView, PluginAttentionRowView,
     PluginFingerprintLineView, PluginIdentityView, PluginMetaView, PluginTrustKind,
@@ -119,7 +119,9 @@ pub(super) fn draw_attention_tab(
                             ui_state.cancel_remove_confirm();
                             ui_state.attention_selected = Some(entry.key());
                         }
-                        vspace(ui, STRUCT_GAP_2);
+                        // 행 사이는 정본 `plugins-list-row-gap` 이다. 세로 item_spacing 이 이미 들어가므로
+                        // 그 나머지만 더한다.
+                        vspace(ui, super::list::list_row_gap_rest(ui, &th));
                     }
                 });
         });

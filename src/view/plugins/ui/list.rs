@@ -1,8 +1,9 @@
 use crate::i18n::t;
 use crate::theme;
+use tasty_type_geometry::length::LogicalPx;
 
 use super::{PluginsAction, PluginsSnapshot, PluginsUiState};
-use tasty_ui_widgets::tokens::{PLUGIN_LIST_ROW_HEIGHT, STRUCT_GAP_2};
+use tasty_ui_widgets::tokens::PLUGIN_LIST_ROW_HEIGHT;
 use tasty_ui_widgets::{
     PluginAvatarSize, PluginDetailBarView, PluginIdentityView, PluginInstallPathsView,
     PluginKeycapStyle, PluginMetaView, PluginUninstallConfirmView, TagVariant, margin_sym,
@@ -18,6 +19,11 @@ pub(super) fn list_panel_frame(ctx: &egui::Context) -> egui::Frame {
     let mut frame = egui::Frame::side_top_panel(&ctx.style());
     frame.inner_margin.top = 0;
     frame
+}
+
+/// 목록 행 사이에 `vspace` 로 더할 길이: `plugins_list_row_gap` 에서 Ui 의 세로 item_spacing 을 뺀 나머지.
+pub(super) fn list_row_gap_rest(ui: &egui::Ui, th: &theme::Theme) -> LogicalPx {
+    th.plugins_list_row_gap() - LogicalPx(ui.spacing().item_spacing.y)
 }
 
 pub(super) fn draw_list_tab(
@@ -154,7 +160,9 @@ pub(super) fn draw_list_tab(
                         if resp.clicked() {
                             ui_state.selected_id = Some(entry.id.clone());
                         }
-                        vspace(ui, STRUCT_GAP_2);
+                        // 행 사이는 정본 `plugins-list-row-gap` 이다. 세로 item_spacing 이 이미 들어가므로
+                        // 그 나머지만 더한다.
+                        vspace(ui, list_row_gap_rest(ui, &th));
                     }
                 });
         });

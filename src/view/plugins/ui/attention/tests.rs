@@ -306,7 +306,7 @@ fn escape() -> egui::Event {
 fn click_row_events(ctx: &egui::Context, index: usize) -> Vec<egui::Event> {
     let th = theme::theme();
     let top = ctx.available_rect().top() + th.spacing_sm.value();
-    let row = PLUGIN_LIST_ROW_HEIGHT.value() + STRUCT_GAP_2.value();
+    let row = PLUGIN_LIST_ROW_HEIGHT.value() + th.plugins_list_row_gap().value();
     let at = egui::pos2(
         th.spacing_lg.value() * 2.0,
         top + row * index as f32 + th.spacing_lg.value(),

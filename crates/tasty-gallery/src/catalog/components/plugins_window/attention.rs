@@ -3,7 +3,7 @@
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
-use tasty_ui_widgets::tokens::{PLUGIN_LIST_ROW_HEIGHT, STRUCT_GAP_2};
+use tasty_ui_widgets::tokens::PLUGIN_LIST_ROW_HEIGHT;
 use tasty_ui_widgets::{
     PluginAttentionBarAction, PluginAttentionBarView, PluginAttentionRowView,
     PluginFingerprintLineView, PluginIdentityView, PluginMetaView, PluginTrustKind,
@@ -220,7 +220,8 @@ pub(super) fn list_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, sele
         let r =
             egui::Rect::from_min_size(egui::pos2(rect.min.x, y), egui::vec2(rect.width(), row_h));
         paint_plugin_attention_row(&p, theme, r, &row_view(theme, entry, i == selected));
-        y += row_h + STRUCT_GAP_2.value();
+        // 본체 목록과 같은 행 사이 간격이다.
+        y += row_h + theme.plugins_list_row_gap().value();
     }
 }
 
