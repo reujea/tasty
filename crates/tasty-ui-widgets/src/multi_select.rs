@@ -338,61 +338,6 @@ pub fn multi_select(
     }
 
     let (rect, resp) = alloc_trigger(ui, theme, width, enabled);
-    // disabled 글자·글리프는 opacity 없이 disabled ink를 쓴다.
-    let dim = |c: egui::Color32| {
-        if enabled {
-            c
-        } else {
-            theme.state_disabled_fg().to_egui()
-        }
-    };
-
-    // 열린 상태뿐 아니라 키보드 포커스가 있을 때도 포커스 테두리를 표시한다.
-    let border = if !enabled {
-        theme.select_border()
-    } else if open || resp.has_focus() {
-        theme.select_border_focus()
-    } else if resp.hovered() {
-        theme.border_strong()
-    } else {
-        theme.select_border()
-    };
-    paint_trigger_box(
-        ui.painter(),
-        theme,
-        crate::Ground::Panel,
-        rect,
-        border,
-        enabled,
-    );
-
-    // 요약이 테두리나 화살표를 넘지 않게 줄이며 선택이 없으면 placeholder 색을 쓴다.
-    let summary = multi_select_summary(labels, selected);
-    let none_selected = !selected.iter().any(|s| *s);
-    let fg = if none_selected {
-        theme.text_placeholder()
-    } else {
-        theme.select_fg()
-    };
-    let text_max_width = (rect.right() - chevron_room - (rect.left() + pad_x)).max(0.0);
-    let mut job = egui::text::LayoutJob::simple_singleline(
-        summary,
-        egui::FontId::proportional(body),
-        egui::Color32::PLACEHOLDER,
-    );
-    job.wrap = egui::text::TextWrapping::truncate_at_width(text_max_width);
-    let galley = ui.fonts(|f| f.layout_job(job));
-    let text_pos = egui::pos2(
-        rect.left() + pad_x,
-        rect.center().y - galley.rect.height() * 0.5,
-    );
-    ui.painter().galley(text_pos, galley, dim(fg.to_egui()));
-
-    // chevron — 열려 있으면 위를 향한다(단일 select 는 네이티브 미러라 항상 아래).
-    let cx = rect.right() - chevron_room * 0.5;
-    let ch = dim(theme.select_chevron_fg().to_egui());
-    paint_chevron(ui.painter(), egui::pos2(cx, rect.center().y), ch, open);
-
     // 닫힌 트리거에서 `↓` 는 "열기" 다. `Enter`/`Space` 는 egui 가 클릭으로 승격시켜
     // (fake primary click) 아래 `resp.clicked()` 로 들어오므로 따로 읽지 않는다.
     let open_by_key = enabled
@@ -516,6 +461,75 @@ pub fn multi_select(
     if open && pressed_inside_popup(ui, popup_id) {
         resp.request_focus();
     }
+
+    // 트리거 모양은 팝업 처리(바깥 클릭 닫기)와 포커스 복구가 끝난 뒤의 실제 열림·포커스로 그린다. 팝업은 자기
+    // Foreground 레이어에 그려지므로 트리거를 여기서 부모 painter에 그려도 겹침 순서는 같다.
+    let open = ui.memory(|m| m.is_popup_open(popup_id));
+    // disabled 글자·글리프는 opacity 없이 disabled ink를 쓴다.
+    let dim = |c: egui::Color32| {
+        if enabled {
+            c
+        } else {
+            theme.state_disabled_fg().to_egui()
+        }
+    };
+
+    // 열린 상태뿐 아니라 키보드 포커스가 있을 때도 포커스 테두리와 그 바로 바깥의 밀착 ring을 표시한다
+    // (정본 MultiSelect.jsx `:focus-visible`·open: border + box-shadow 0 0 0 border-width).
+    let focus_look = enabled && (open || resp.has_focus());
+    let border = if !enabled {
+        theme.select_border()
+    } else if focus_look {
+        theme.select_border_focus()
+    } else if resp.hovered() {
+        theme.border_strong()
+    } else {
+        theme.select_border()
+    };
+    paint_trigger_box(
+        ui.painter(),
+        theme,
+        crate::Ground::Panel,
+        rect,
+        border,
+        enabled,
+    );
+    if focus_look {
+        crate::focus_ring::paint_field_ring(
+            ui.painter(),
+            theme,
+            rect,
+            theme.select_radius().value(),
+            border.to_egui(),
+        );
+    }
+
+    // 요약이 테두리나 화살표를 넘지 않게 줄이며 선택이 없으면 placeholder 색을 쓴다.
+    let summary = multi_select_summary(labels, selected);
+    let none_selected = !selected.iter().any(|s| *s);
+    let fg = if none_selected {
+        theme.text_placeholder()
+    } else {
+        theme.select_fg()
+    };
+    let text_max_width = (rect.right() - chevron_room - (rect.left() + pad_x)).max(0.0);
+    let mut job = egui::text::LayoutJob::simple_singleline(
+        summary,
+        egui::FontId::proportional(body),
+        egui::Color32::PLACEHOLDER,
+    );
+    job.wrap = egui::text::TextWrapping::truncate_at_width(text_max_width);
+    let galley = ui.fonts(|f| f.layout_job(job));
+    let text_pos = egui::pos2(
+        rect.left() + pad_x,
+        rect.center().y - galley.rect.height() * 0.5,
+    );
+    ui.painter().galley(text_pos, galley, dim(fg.to_egui()));
+
+    // chevron — 열려 있으면 위를 향한다(단일 select 는 네이티브 미러라 항상 아래).
+    let cx = rect.right() - chevron_room * 0.5;
+    let ch = dim(theme.select_chevron_fg().to_egui());
+    paint_chevron(ui.painter(), egui::pos2(cx, rect.center().y), ch, open);
     ui.data_mut(|d| d.insert_temp(active_id, active));
     changed
 }

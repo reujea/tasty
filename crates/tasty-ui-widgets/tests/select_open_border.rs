@@ -1,5 +1,6 @@
 //! 목록이 열린 Select 트리거는 MultiSelect 처럼 select-border-focus 테두리를 쓰고, 시안 CSS의
-//! focus box-shadow처럼 바깥에 같은 색 ring을 그린다. 닫힌 트리거는 select-border이고 ring이 없다.
+//! focus box-shadow처럼 테두리 바로 바깥에 같은 색 ring을 붙인다. 키보드 포커스만 있는 닫힌 트리거도 같다.
+//! 포커스 없는 닫힌 트리거는 select-border이고 ring이 없다.
 //! 실제 egui 프레임에서 트리거를 클릭해 연다.
 
 // 이유: 테스트에서는 사용하지 않는 반환값을 버리는 것을 허용한다.
@@ -51,7 +52,11 @@ fn trigger(theme: &Theme, frames: &[Vec<Event>]) -> Trigger {
         .shapes
         .iter()
         .filter_map(|s| match &s.shape {
-            egui::Shape::Rect(r) if r.rect == trigger => Some(r.stroke.color),
+            egui::Shape::Rect(r)
+                if r.rect == trigger && r.stroke_kind == egui::StrokeKind::Inside =>
+            {
+                Some(r.stroke.color)
+            }
             _ => None,
         })
         .collect();
@@ -60,12 +65,11 @@ fn trigger(theme: &Theme, frames: &[Vec<Event>]) -> Trigger {
         1,
         "트리거 상자를 하나만 찾아야 한다: {strokes:?}"
     );
-    let ring = trigger.expand(theme.border_width.value());
     let rings = out
         .shapes
         .iter()
         .filter_map(|s| match &s.shape {
-            egui::Shape::Rect(r) if r.rect == ring => Some(r.stroke.color),
+            egui::Shape::Rect(r) => ring_color(r, trigger, theme),
             _ => None,
         })
         .collect();
@@ -73,6 +77,14 @@ fn trigger(theme: &Theme, frames: &[Vec<Event>]) -> Trigger {
         border: strokes[0],
         rings,
     }
+}
+
+/// 트리거 테두리 바로 바깥에 붙인 ring(같은 사각형의 border_width Outside 획)이면 그 색.
+fn ring_color(r: &egui::epaint::RectShape, trigger: Rect, theme: &Theme) -> Option<egui::Color32> {
+    (r.rect == trigger
+        && r.stroke_kind == egui::StrokeKind::Outside
+        && r.stroke.width == theme.border_width.value())
+    .then_some(r.stroke.color)
 }
 
 fn click_frames(at: Pos2) -> Vec<Vec<Event>> {
@@ -155,15 +167,14 @@ fn a_pinned_trigger_paints_the_same_borders_as_the_live_select() {
                 });
             },
         );
-        let ring = rect.expand(th.border_width.value());
         let mut border = Vec::new();
         let mut rings = Vec::new();
         for s in &out.shapes {
             if let egui::Shape::Rect(r) = &s.shape {
-                if r.rect == rect {
+                if let Some(c) = ring_color(r, rect, &th) {
+                    rings.push(c);
+                } else if r.rect == rect && r.stroke_kind == egui::StrokeKind::Inside {
                     border.push(r.stroke.color);
-                } else if r.rect == ring {
-                    rings.push(r.stroke.color);
                 }
             }
         }
@@ -184,4 +195,22 @@ fn a_pinned_trigger_paints_the_same_borders_as_the_live_select() {
         (vec![th.state_disabled_border().to_egui()], vec![]),
         "disabled는 상태 모양 없이 disabled 상자다"
     );
+}
+
+/// 닫힌 트리거라도 Tab으로 키보드 포커스를 받으면 열린 트리거와 같은 테두리와 밀착 ring을 그린다.
+#[test]
+fn a_closed_select_with_keyboard_focus_paints_the_focus_border_and_ring() {
+    let th = theme();
+    let tab = Event::Key {
+        key: egui::Key::Tab,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Default::default(),
+    };
+    let away = Event::PointerMoved(pos2(500.0, 380.0));
+    let focused = trigger(&th, &[vec![away.clone()], vec![tab], vec![away]]);
+    let focus = th.select_border_focus().to_egui();
+    assert_eq!(focused.border, focus);
+    assert_eq!(focused.rings, [focus]);
 }

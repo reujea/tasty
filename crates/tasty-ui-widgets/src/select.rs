@@ -166,10 +166,10 @@ fn select_impl(
     if enabled && resp.clicked() {
         ui.memory_mut(|m| m.toggle_popup(popup_id));
     }
-    // 목록이 열려 있으면 포커스 테두리와 ring을 그린다. 직접 키를 처리하지 않으므로
-    // 키보드 포커스만으로는 포커스 모양을 그리지 않는다.
+    // 목록이 열렸거나 키보드 포커스가 있으면 포커스 테두리와 밀착 ring을 그린다(정본 Select.jsx `select:focus`).
+    // 닫힌 트리거의 포커스는 Tab 이동으로만 생기고, Space·Enter는 egui가 클릭으로 바꿔 목록을 연다.
     let open = ui.memory(|m| m.is_popup_open(popup_id));
-    let look = if open {
+    let look = if open || (enabled && resp.has_focus()) {
         SelectLook::Open
     } else if resp.hovered() {
         SelectLook::Hover
@@ -297,13 +297,13 @@ fn paint_trigger(
     };
     paint_trigger_box(ui.painter(), theme, ground, rect, border, enabled);
     if enabled && look == SelectLook::Open {
-        let bw = theme.border_width.value();
-        ui.painter().rect_stroke(
-            rect.expand(bw),
+        // 시안 box-shadow 0 0 0 1px처럼 테두리 바로 바깥 한 줄에 붙인다.
+        crate::focus_ring::paint_field_ring(
+            ui.painter(),
+            theme,
+            rect,
             theme.select_radius().value(),
-            egui::Stroke::new(bw, theme.select_border_focus().to_egui()),
-            // 시안 box-shadow 0 0 0 1px처럼 테두리 바로 바깥 한 줄에 붙인다.
-            egui::StrokeKind::Inside,
+            theme.select_border_focus().to_egui(),
         );
     }
     let dim = |c: egui::Color32| {
