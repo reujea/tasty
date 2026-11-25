@@ -115,8 +115,8 @@ impl super::MainViewState {
             KeyReceiver::Popup(instance) => {
                 if self
                     .popups
-                    .instance(instance)
-                    .is_none_or(|p| p.escape_releases_focus())
+                    .instance_mut(instance)
+                    .is_none_or(|p| p.receive_escape())
                 {
                     self.popups.set_instance_focused(instance, false);
                 }

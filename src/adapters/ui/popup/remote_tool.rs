@@ -2675,6 +2675,57 @@ mod tests {
         assert!(tool_open(&state, iid));
     }
 
+    /// 양식의 패스키 ComboBox 를 연 키 주인 remote_tool. (인스턴스, ComboBox 버튼 id).
+    fn remote_tool_with_open_combo(
+        ctx: &egui::Context,
+        state: &mut MainViewState,
+        read: &crate::runtime::engine_read::EngineRead<'_>,
+    ) -> (super::super::PopupInstanceId, egui::Id) {
+        use crate::adapters::ui::popup::window_input_test_support::click_widget_at;
+        let iid = remote_tool_form(ctx, state, read);
+        let texts = layer_frame(ctx, state, read, Vec::new());
+        let combo = painted_at(&texts, t("remote_tool.passkey_none")).expect("패스키 ComboBox");
+        let button = click_widget_at(ctx, combo.center()).expect("패스키 ComboBox 버튼");
+        layer_click(ctx, state, read, combo.center());
+        assert!(egui::ComboBox::is_open(ctx, button), "패스키 목록이 열렸다");
+        assert!(state.popups.is_instance_focused(iid));
+        (iid, button)
+    }
+
+    /// Given 양식의 패스키 ComboBox 가 열린 키 주인 remote_tool, When 수식키 없는 Esc 가 오면(사건 입구 하네스), Then 그 Esc
+    /// 는 ComboBox 가 받으므로 사건 시점에 remote_tool 의 포커스를 풀지 않는다.
+    #[test]
+    fn an_escape_with_the_dropdown_open_keeps_the_popup_focused() {
+        use crate::adapters::ui::popup::window_input_test_support::WindowInput;
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let ctx = egui::Context::default();
+        let (iid, _) = remote_tool_with_open_combo(&ctx, &mut state, &read);
+        let mut input = WindowInput::default();
+        input.escape(&ctx, &mut state, &read, true);
+        assert!(state.popups.is_instance_focused(iid), "ComboBox 가 받는다");
+    }
+
+    /// Given 양식의 패스키 ComboBox 가 열린 키 주인 remote_tool, When 그리기 전에 수식키 없는 Esc 가 두 번 오면(사건 입구
+    /// 하네스), Then 첫 Esc 를 ComboBox 가 받았으므로 둘째 Esc 는 본문 Esc 라 사건 시점에 remote_tool 의 포커스를 푼다.
+    #[test]
+    fn the_second_escape_of_a_batch_after_the_dropdown_releases_the_popup() {
+        use crate::adapters::ui::popup::window_input_test_support::WindowInput;
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let ctx = egui::Context::default();
+        let (iid, _) = remote_tool_with_open_combo(&ctx, &mut state, &read);
+        let mut input = WindowInput::default();
+        input.escape(&ctx, &mut state, &read, true);
+        input.escape(&ctx, &mut state, &read, true);
+        assert!(
+            !state.popups.is_instance_focused(iid),
+            "둘째 Esc 는 본문 Esc 다"
+        );
+    }
+
     /// Given 양식의 패스키 ComboBox 가 열린 키 주인 remote_tool, When 그리기 전에 수식키 없는 Esc 가 두 번 한 묶음으로
     /// 오면(사건 입구 하네스), Then 패스가 Esc 마다 나뉘어 첫 패스는 ComboBox 만 닫고, 둘째 Esc 는 그 패스 뒤 팝업 노드에서
     /// 시작해 양식을 목록으로 돌린다. 팝업은 열린 채다.

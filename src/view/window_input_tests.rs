@@ -103,11 +103,16 @@ fn field(
 /// 팝업 A 의 등록 자식 메뉴 자리. 두 팝업(`two_popups`)의 상자 밖이다.
 const CHILD_MENU_POS: egui::Pos2 = egui::pos2(40.0, 420.0);
 
-/// `open` 이면 상자 밖으로 나오는 자식 메뉴(파일 선택기 숨은 경로 메뉴처럼)를 그리고 `instance` 의 자식 팝업 id 로
-/// 보고한다. 아니면 그 보고를 지운다.
+/// `open` 이면 상자 밖으로 나오는 자식 메뉴(파일 선택기 숨은 경로 메뉴처럼)를 egui 팝업으로 열어 그리고 `instance` 의
+/// 자식 팝업 id 로 보고한다. 아니면 그 보고를 지운다.
 fn child_menu(ui: &egui::Ui, instance: crate::adapters::ui::popup::PopupInstanceId, open: bool) {
     let id = egui::Id::new("window_input_child_menu");
     if open {
+        ui.ctx().memory_mut(|m| {
+            if !m.is_popup_open(id) {
+                m.open_popup(id);
+            }
+        });
         egui::Area::new(id)
             .order(egui::Order::Foreground)
             .fixed_pos(CHILD_MENU_POS)
@@ -584,6 +589,47 @@ fn a_press_on_a_child_menu_outside_the_popup_box_keeps_that_popup_the_node() {
         "only popup A sees the key: {seen:?}"
     );
     assert_eq!(w.text("w"), "", "the window widget gets no text");
+}
+
+/// 팝업 A 의 a1 이 키 주인이고 A 의 등록 자식 메뉴가 열린 창. A 인스턴스를 돌려준다.
+fn child_menu_open() -> (
+    Harness,
+    TestWindow,
+    crate::adapters::ui::popup::PopupInstanceId,
+) {
+    let (mut h, mut w) = two_popups();
+    focus_field(&mut h, &mut w, "a1");
+    w.child_menu = true;
+    h.drain(&mut w);
+    h.drain(&mut w);
+    let a = w.popups.instances_of(A).next().expect("A").instance;
+    assert!(w.popups.is_instance_focused(a));
+    (h, w, a)
+}
+
+/// Given 팝업 A 가 키 주인이고 A 의 등록 자식 메뉴가 열려 있다, When 수식키 없는 Esc 가 오면, Then 그 Esc 는 자식이
+/// 받으므로 사건 시점에 A 의 포커스를 풀지 않는다.
+#[test]
+fn an_escape_with_a_child_menu_open_keeps_the_popup_focused() {
+    let (mut h, mut w, a) = child_menu_open();
+    h.key(&mut w, egui::Key::Escape, None);
+    assert!(
+        w.popups.is_instance_focused(a),
+        "the child takes the Escape"
+    );
+}
+
+/// Given 팝업 A 가 키 주인이고 A 의 등록 자식 메뉴가 열려 있다, When 그리기 전에 수식키 없는 Esc 가 두 번 오면, Then
+/// 첫 Esc 를 자식이 받았으므로 둘째 Esc 는 본문 Esc 라 사건 시점에 A 의 포커스를 푼다.
+#[test]
+fn the_second_escape_of_a_batch_after_a_child_menu_releases_the_popup() {
+    let (mut h, mut w, a) = child_menu_open();
+    h.key(&mut w, egui::Key::Escape, None);
+    h.key(&mut w, egui::Key::Escape, None);
+    assert!(
+        !w.popups.is_instance_focused(a),
+        "the second Escape is the body's"
+    );
 }
 
 /// 덮는 팝업 C(설정 창 단축키 충돌 확인 선언)를 등록한 창. 창 위젯 w 에 egui 포커스를 준 뒤 C 를 포커스를 주며 연다.

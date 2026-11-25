@@ -343,6 +343,15 @@ impl PopupState {
         !self.expanded() && !self.child_open
     }
 
+    /// 이 인스턴스가 받은 bare Esc 하나를 사건 시점 상태에 적용하고 그 Esc 가 포커스를 푸는지(`escape_releases_focus`)
+    /// 돌려준다. 두 창의 Esc 적용이 부른다. 열린 자식이 그 Esc 를 받으면 자식은 닫히므로 사건 시점 자식 열림을 지운다.
+    /// 그래서 같은 묶음의 다음 Esc 는 그리기 전이어도 본문 Esc 다. 펼침은 이 Esc 로 바꾸지 않는다.
+    pub(crate) fn receive_escape(&mut self) -> bool {
+        let releases = self.escape_releases_focus();
+        self.child_open = false;
+        releases
+    }
+
     /// 접혀 있는지(버튼만 그리거나 부모 버튼이 대표한다).
     pub(crate) fn collapsed(&self) -> bool {
         matches!(self.display, PopupDisplay::Collapsed(_))

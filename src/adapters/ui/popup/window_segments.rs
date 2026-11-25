@@ -256,7 +256,7 @@ impl PopupManager {
             return;
         };
         self.bind_window_key_node(Some(PopupNode::Host(iid)));
-        if self.instance(iid).is_none_or(|p| p.escape_releases_focus()) {
+        if self.instance_mut(iid).is_none_or(|p| p.receive_escape()) {
             self.set_instance_focused(iid, false);
         }
         if let Some(at) = pending.iter().rposition(super::body_keys::is_escape_press) {
