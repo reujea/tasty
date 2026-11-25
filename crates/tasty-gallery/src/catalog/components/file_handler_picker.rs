@@ -643,18 +643,21 @@ pub fn draw_headless(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
+/// 바닥 줄만 담은 프레임 카드.
+fn footer_card(ui: &mut egui::Ui, theme: &Theme) {
+    kit::frame_card(
+        ui,
+        theme,
+        frame_body_width(theme),
+        kit::panel_fill(theme),
+        |ui| {
+            fh_footer(ui, theme, true);
+        },
+    );
+}
+
 pub fn draw_footer(ui: &mut egui::Ui, theme: &Theme) {
-    spec::stage(ui, theme, StageVariant::Wrap, |ui| {
-        kit::frame_card(
-            ui,
-            theme,
-            frame_body_width(theme),
-            kit::panel_fill(theme),
-            |ui| {
-                fh_footer(ui, theme, true);
-            },
-        );
-    });
+    spec::stage(ui, theme, StageVariant::Wrap, |ui| footer_card(ui, theme));
     spec::meta(
         ui,
         theme,
@@ -797,13 +800,14 @@ mod tests {
                 measure("remote local", &|ui| {
                     remote_spec_frame(ui, &theme, "docs/architecture.md", None, S::Default)
                 });
+                measure("footer", &|ui| footer_card(ui, &theme));
             });
         });
         let want = FH_FRAME_WIDTH.value();
         for (label, w) in &widths {
             assert_eq!(*w, want, "{label}");
         }
-        assert_eq!(widths.len(), 9);
+        assert_eq!(widths.len(), 10);
     }
 
     /// 예제 라벨에 적힌 원본·생략 결과의 문자 수를 실제 함수 결과와 비교한다.
