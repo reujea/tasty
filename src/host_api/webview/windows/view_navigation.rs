@@ -1,5 +1,6 @@
 //! 탐색 요청·이력 이동과 탐색 상태 조회. 이벤트 처리기는 `PlatformWebView::create`에 있다.
 use super::super::entry_response::windows as entry_adapter;
+use super::super::host_document::may_exceed_limit;
 use super::super::load_generation::end_rejected_load;
 use super::super::scan_resume::HistoryStep;
 use super::super::{NavState, PendingNavigation};
@@ -97,11 +98,33 @@ impl PlatformWebView {
             return;
         }
         let load = self.begin_load();
-        let html = HSTRING::from(html);
-        // SAFETY: HSTRING은 클로저가 갖고 있어 호출 끝까지 살아있고 NavigateToString은 main thread 호출.
-        self.send_navigation("NavigateToString", false, Some(load), move |wv| unsafe {
-            wv.NavigateToString(&html)
+        let fallback = (self.host_document_ready && may_exceed_limit(html)).then(|| {
+            super::host_document::Fallback {
+                documents: self.host_documents.clone(),
+                allowed: self.host_document_allowed.clone(),
+                latest: self.host_load.clone(),
+                load,
+                surface: self.surface_id,
+                view: self.host_document_view,
+                body: std::sync::Arc::from(html),
+            }
         });
+        let html = HSTRING::from(html);
+        self.send_navigation("NavigateToString", false, Some(load), move |wv| {
+            // SAFETY: HSTRING은 클로저가 갖고 있어 호출 끝까지 살아있고 NavigateToString은 main thread 호출.
+            let result = unsafe { wv.NavigateToString(&html) };
+            // 상한을 넘어 거절된 문서는 host 전용 주소로 한 번 다시 싣는다(`super::super::host_document`).
+            match (result, fallback) {
+                (Err(rejected), Some(fallback)) => fallback.retry(wv, rejected),
+                (result, _) => result,
+            }
+        });
+    }
+
+    /// 상한을 넘어 거절된 host HTML을 host 전용 주소로 다시 실을지 정한다. 주소 띠·스크립트 게이트가
+    /// 없는 plugin 문서 view에서만 켠다(호출자가 kind 선언으로 판정한다).
+    pub fn set_host_document_allowed(&self, allowed: bool) {
+        self.host_document_allowed.set(allowed);
     }
 
     /// 탐색을 바탕 포커스 문서 생성 스크립트 등록 뒤로 보낸다(`bed_focus`). 그래야 새 문서가 첫 렌더부터

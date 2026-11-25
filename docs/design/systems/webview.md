@@ -79,6 +79,17 @@ Linux는 이 모드마다 별도 ephemeral `WebContext`에 `tasty-html-entry` sc
 
 macOS 27 이상 GUI client는 원격 HTTP(S) 문서마다 비영속 `WKWebsiteDataStore`를 만들고 문서 endpoint를 HTTP CONNECT proxy로 지정한다. WebKit은 proxy를 지정해도 loopback 주소에 직접 연결하므로 원격 loopback 호스트는 `*.tasty.localhost` 별칭으로 열고, 직접 loopback 요청은 content rule로 막는다. 인증·별칭·인증서·Reload 계약과 실측은 [macOS HTTP context](../../dev-guide/macos-http-context.md)에 있다.
 
+## Windows 큰 HTML 본문 — host 전용 주소
+
+WebView2 `NavigateToString`은 본문이 UTF-16으로 2 MiB(2,097,152 B)를 넘으면 `E_INVALIDARG`(0x80070057)로 거절하고 탐색을 시작하지 않는다. mermaid 블록이 있는 markdown 문서는 플러그인이 mermaid 스크립트(약 3.5 MB)를 본문에 넣어 이 상한을 넘는다. 그래서 `load_html`은 거절된 본문을 host 전용 주소로 한 번 다시 싣는다(`host_document`, `windows/host_document.rs`).
+- 주소는 `http://v<surface>-<view>.tasty-host-document.invalid/<load>`다. `.invalid`는 이름 해석이 되지 않는 예약 최상위 도메인이다. 응답은 `WebResourceRequested`에서 메모리 스트림으로 보내고 네트워크로 나가지 않는다. 응답 헤더는 `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`다.
+- 다시 싣는 조건은 넷을 모두 만족할 때다. 거절 코드가 `E_INVALIDARG`, 본문이 UTF-16으로 상한 초과, 거절된 로드가 지금 로드, 그 view가 허용됨. 허용은 script gate와 주소 띠가 없는 원격 kind의 view만이고, entry 응답 view와 HTTP 직접 경로 view는 필터를 달지 않는다. 다시 싣기도 거절되면 [탐색 상태](#탐색-상태와-실행-소유)의 호출 실패처럼 chrome을 Failed로 끝낸다.
+- 필터는 http·https와 포트가 붙은 예약 호스트를 모든 요청 출처에서 받는다. 지금 main 탐색의 문서 요청만 본문을 받고, 나머지(하위 리소스·iframe·POST·표에 없는 주소)는 404다. 응답을 보내지 못하면 그 탐색은 무엇이 commit돼도 Failed로 끝난다.
+- 본문은 commit된 문서와 보낸 뒤 아직 끝나지 않은 문서만 남긴다. 다시 읽기와 같은 주소의 fragment 이동은 남긴 본문으로 다시 응답한다. 다른 문서가 commit되면 지운다. 오류 페이지 commit은 지우지 않는다. 렌더 process가 끝나면 commit된 본문만, browser process가 끝나면 모두 지운다.
+- 표에 없는 예약 주소로 가는 탐색(본문 안 상대 링크 등)은 `NavigationStarting`에서 chrome을 Loading으로 바꾸기 전에 취소하고, 그 완료는 chrome을 바꾸지 않는다. 예약 주소로 여는 새 창은 열지 않는다.
+- 다시 싣기의 `NavigationStarting`은 API `Navigate`라 WebView2가 사용자 시작으로 보고하지만 `user_gesture`는 거짓으로 둔다.
+- 출처가 about:blank에서 view마다 다른 예약 호스트로 바뀐다. 남은 한계: 문맥 메뉴의 뒤로·앞으로 가기로 지운 앞 문서에 가면 그 탐색은 취소된다. 본문 안 `//host` 형태 링크는 http로 풀린다. 스크롤 위치 복원은 WebView2 기본 동작에 맡긴다. 클립보드 복사는 보안 문맥이 아니라 페이지의 대체 경로(`execCommand`)를 탄다.
+
 ## 좌표 — 논리와 물리를 타입 이름에 남긴다
 
 `WebViewBounds`(논리) 와 `PhysicalWebViewBounds`(물리)는 `to_physical` / `from_physical`
@@ -171,7 +182,7 @@ macOS의 WKNavigationAction 공개 API에는 같은 값이 없다. `navigationTy
 
 Windows의 같은 문서 fragment 이동은 `NavigationStarting`으로 오지 않는다. Markdown 주소창·링크의 `location.hash` 신호가 여기에 해당한다(`same_document`).
 - 신호는 `HistoryChanged`다. `SourceChanged`는 fragment가 없던 문서의 첫 이동에만 왔고, 이어지는 이동(`#X`→`#Y`)에는 `HistoryChanged`만 왔다(Windows 11 측정).
-- 주소는 페이지에서 `ExecuteScript`로 읽는다. `load_html`(NavigateToString) 문서의 `Source`는 비어 있다. 문서 생성 스크립트가 문서의 첫 주소를 기억하고, 이동마다 `#` 앞이 같은 문서에서 바뀐 주소만 돌려준다. 그래서 새 문서의 기록 변경은 탐색으로 쌓이지 않는다. 페이지가 기억한 값을 바꿔도 돌려주는 주소는 `location` 값이다.
+- 주소는 페이지에서 `ExecuteScript`로 읽는다. `load_html`(NavigateToString) 문서의 `Source`는 비어 있다. host 전용 주소로 다시 실은 문서는 그 주소다. 문서 생성 스크립트가 문서의 첫 주소를 기억하고, 이동마다 `#` 앞이 같은 문서에서 바뀐 주소만 돌려준다. 그래서 새 문서의 기록 변경은 탐색으로 쌓이지 않는다. 페이지가 기억한 값을 바꿔도 돌려주는 주소는 `location` 값이다.
 - 문서 생성 스크립트 등록은 완료를 기다리지 않고 첫 문서를 싣는다. Windows 11(WebView2 157)에서 새 view 160개(html 64, markdown 96)의 첫 문서를 쟀다. 모수에는 바탕 포커스 장벽이 없는 빌드도 들어 있다. 첫 탐색 시작(`NavigationStarting`)이 등록 완료보다 최대 237ms(html) 먼저 온 경우에도 첫 문서는 모두 첫 주소를 기억하고 있었다. 지금 빌드의 markdown은 첫 탐색이 바탕 포커스 장벽 뒤에 시작했고, 측정에서는 늘 등록 완료 뒤였다(장벽은 바탕 포커스 스크립트 등록만 기다린다). 첫 fragment 이동은 두 경로로 확인했다. html은 페이지 스크립트가 로드 중에 `location.hash`를 바꿨고, 첫 `HistoryChanged`가 64회 모두 큐에 들어갔다. 한 tick 간격으로 이어 옮기면 첫 `HistoryChanged`가 이미 뒤 주소를 읽어 하나로 합쳐질 수 있다(지금 빌드 html 32회 중 31회). markdown은 주소창 Go를 OS 합성 클릭으로 누른 64회 중 버튼에 닿은 클릭마다 큐에 들어갔다. 나머지 markdown 32회는 이동 없이 첫 문서의 기억 여부만 쟀다. 다만 모든 경우에 문서 로드 완료가 등록 완료보다 뒤였다. 그래서 등록 완료 전에 문서가 만들어지는 경우는 관측하지 못했고, WebView2가 이 순서를 보장하는지도 확인하지 않았다. 등록 호출이 즉시 실패하면 view 생성이 실패한다. 완료 단계에서 실패하면 warn만 남고 그 view의 같은 문서 이동은 보고되지 않는다(`windows/same_document.rs`의 `install`, 코드 확인, 미측정).
 - `user_gesture`는 macOS와 같은 `ClickGesture` 규칙이다(1초, 한 입력에 한 탐색, 호스트 로드가 지움). Windows 키 증명은 첫 `HistoryChanged`보다 다음 누름이 먼저 와도 누름마다 자기 시각으로 하나씩 증명한다(최대 8개 기억). 칸이 하나면 뒤 탐색이 거짓이 되어 같은 프레임에서 앞 탐색의 증명 기록을 지우고, 피커가 다음 입력까지 passive로 남는다(Windows에서 재현). Space 자동 반복은 쌓지 않는다. 뗄 때 click이 하나만 나기 때문이다. 포인터 증명은 칸 하나 그대로라, 두 번째 클릭이 첫 `HistoryChanged`보다 먼저 오면 뒤 탐색이 거짓이 되는 같은 경합이 원리상 남는다. Windows 마우스 두 번 12회(간격 5·30·80ms) 측정에서는 관찰되지 않았다. 이벤트에 `IsUserInitiated`가 없어서다. host 입력 경로의 메시지 훅이 WebView로 가는 `WM_LBUTTONDOWN`·`WM_LBUTTONUP`과, 페이지로 통과시키는 Enter·Numpad Enter·Space를 기록한다. 페이지 스크립트가 만든 이벤트는 창 메시지가 아니라 증명을 만들지 못한다. host 입력 경로를 쓰지 못한 view는 입력을 볼 수 없어 거짓이다.
 - 키 증명에서 빠지는 것: 수식키(Ctrl·Shift·Alt·Win)가 눌린 키, 훅이 소비한 키, IME 조합 키(`VK_PROCESSKEY`). 자동 반복은 증명에 넣는다. Chromium은 Enter 반복마다 버튼을 누르므로, 반복을 빼면 반복이 낸 거짓 탐색이 첫 누름의 기록을 지운다. Space는 뗄 때 click이 생기므로 뗌이 시각을 옮긴다. 뗌은 같은 키의 누름에만 대응하고 한 번만 옮기며, 이미 소비된 증명을 되살리지 않는다.

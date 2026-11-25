@@ -9,6 +9,8 @@ pub(crate) mod entry_response;
 #[cfg(any(target_os = "macos", test))]
 mod file_read_scope;
 mod file_stamp;
+#[cfg(any(windows, test))]
+mod host_document;
 #[cfg(target_os = "linux")]
 pub(crate) mod http_context;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]

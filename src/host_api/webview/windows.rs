@@ -8,6 +8,7 @@
 mod bed_focus;
 #[cfg(debug_assertions)]
 mod debug_host_input;
+mod host_document;
 mod host_input;
 mod http;
 mod key_replay;
@@ -37,6 +38,7 @@ use self::navigation::{
     complete_requests, replay_navigation, set_js, stop_navigation, webview_source,
 };
 use super::entry_response::{EntryResponseSource, windows as entry_adapter};
+use super::host_document::{HostDocuments, StartDecision, is_reserved};
 use super::keys::WebViewKeySink;
 use super::load_generation::{is_current_load, nav_state_after_end};
 use super::scan_resume::{RequestAction, ScanResume, Start, StartKind};
@@ -44,6 +46,9 @@ use super::script_gate::ScriptGate;
 use super::window_region::{PointerGate, WindowRegion};
 use super::{NavState, PendingNavigation, WebViewBounds};
 use tasty_model::html_script::top_level::{SubframeNavigations, TopLevelAdmission};
+
+/// host 전용 주소의 view 인스턴스 번호(`PlatformWebView::host_document_view`).
+static NEXT_HOST_DOCUMENT_VIEW: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 pub(crate) use host_input::filter_message as filter_host_input;
 pub(crate) use key_replay::entering_nested_message_loop;
@@ -68,6 +73,14 @@ pub struct PlatformWebView {
     chrome_generation: Rc<Cell<Option<u64>>>,
     /// 마지막에 요청한 호스트 로드(`load_url`·`load_html`)의 번호. 거절된 호출이 새 로드를 덮지 않게 한다.
     host_load: Rc<Cell<u64>>,
+    /// 상한을 넘어 거절된 host HTML을 다시 싣는 host 전용 문서 표(`super::host_document`).
+    host_documents: Rc<RefCell<HostDocuments>>,
+    /// 예약 호스트 처리를 달았다. 없으면 host 전용 주소로 다시 싣지 않는다.
+    host_document_ready: bool,
+    /// 호출자가 이 view의 다시 싣기를 허용했다(`set_host_document_allowed`).
+    host_document_allowed: Rc<Cell<bool>>,
+    /// host 전용 주소의 호스트명에 넣는 view 인스턴스 번호. 같은 view의 문서는 출처가 같다.
+    host_document_view: u64,
     /// 원격 차단 여부와 별도로 기록한 탐색 시도 큐(NavigationStarting과 같은 문서 fragment 이동).
     pending_navigations: Rc<RefCell<Vec<PendingNavigation>>>,
     /// html surface의 문서 단위 스크립트 허용. 없으면 JS는 설정값을 그대로 따른다.
@@ -315,6 +328,7 @@ impl PlatformWebView {
             }
 
             let nav_state = Rc::new(Cell::new(NavState::Idle));
+            let host_documents: Rc<RefCell<HostDocuments>> = Rc::default();
             let content_process_ended = Rc::new(Cell::new(false));
             let script_gate: Rc<RefCell<Option<ScriptGate>>> = Rc::new(RefCell::new(None));
             let scan_resume = Rc::new(RefCell::new(ScanResume::new(surface_id)));
@@ -334,6 +348,23 @@ impl PlatformWebView {
                     .AddWebResourceRequestedFilter(w!("*"), COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL)
                     .map_err(|e| transient(format!("AddWebResourceRequestedFilter failed: {e}")))?;
             }
+            // 예약 호스트 요청은 이 view에서 모두 로컬로 끝낸다(entry·HTTP view는 자기 경로가 맡는다).
+            let host_responder = if http.is_none() && entry_source.is_none() {
+                match host_document::install(&webview, &env) {
+                    Ok(responder) => Some(Rc::new(responder)),
+                    Err(e) => {
+                        tracing::warn!(
+                            "WebView surface {surface_id}: host document address unavailable \
+                             ({e}); host HTML over the NavigateToString limit ends as failed"
+                        );
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+            let host_request = host_responder.clone();
+            let docs_request = host_documents.clone();
             let env_cb = env.clone();
             let entry_pending = Rc::new(RefCell::new(Vec::new()));
             let pending_request = Rc::clone(&entry_pending);
@@ -356,6 +387,19 @@ impl PlatformWebView {
                             &args,
                             &uri_str,
                             &pending_request,
+                        );
+                    }
+                    if let Some(responder) = &host_request
+                        && is_reserved(&uri_str)
+                    {
+                        let subframe = frames_request.borrow().claims(&uri_str);
+                        return responder.answer(
+                            &docs_request,
+                            &nav_request,
+                            subframe,
+                            surface_id,
+                            &uri_str,
+                            &args,
                         );
                     }
                     let is_remote =
@@ -445,8 +489,13 @@ impl PlatformWebView {
             // host 입력 경로는 아래에서 등록하므로 입력 증명은 등록 뒤에 채운다.
             let click_slot: remote_block::ClickSlot = Rc::default();
             let click_start = click_slot.clone();
+            let docs_start = host_documents.clone();
             let h_start = NavigationStartingEventHandler::create(Box::new(
                 move |sender, args| -> windows::core::Result<()> {
+                    // 표에 없는 host 전용 주소(본문 안 상대 링크 등)는 chrome을 바꾸기 전에 취소한다.
+                    if host_document::cancel_unknown(&docs_start, surface_id, args.as_ref())? {
+                        return Ok(());
+                    }
                     tracing::debug!("WebView surface {surface_id}: load started");
                     nav_start.set(NavState::Loading);
                     if let Some(args) = args {
@@ -467,6 +516,9 @@ impl PlatformWebView {
                         let uri_str = uri.to_string().unwrap_or_default();
                         // 반환 URI의 할당은 호출자가 해제한다.
                         CoTaskMemFree(Some(uri.0 as *const c_void));
+                        let host_load =
+                            docs_start.borrow_mut().navigation_started(&uri_str, nav_id)
+                                == StartDecision::HostLoad;
                         if entry_navigation
                             .as_ref()
                             .is_some_and(|source| source.main_resource(&uri_str))
@@ -477,8 +529,9 @@ impl PlatformWebView {
                         }
                         // 제스처 여부 조회 실패도 탐색 자체는 기록하되 false로 남긴다.
                         let mut user_initiated = BOOL(0);
+                        // host 전용 주소로의 다시 싣기는 API Navigate라 사용자 시작으로 보고되지만 사용자 탐색이 아니다.
                         let user_gesture = match args.IsUserInitiated(&mut user_initiated) {
-                            Ok(()) => user_initiated.as_bool(),
+                            Ok(()) => user_initiated.as_bool() && !host_load,
                             Err(e) => {
                                 tracing::warn!(
                                     "WebView surface {surface_id}: IsUserInitiated failed ({e}); \
@@ -600,6 +653,7 @@ impl PlatformWebView {
             let http_commit = http.as_ref().map(Rc::downgrade);
             let top_commit = top_level.clone();
             let frames_commit = frames.clone();
+            let docs_commit = host_documents.clone();
             let mut tok_content: i64 = 0;
             let h_content = ContentLoadingEventHandler::create(Box::new(
                 move |sender, args| -> windows::core::Result<()> {
@@ -610,6 +664,7 @@ impl PlatformWebView {
                         let mut id = 0u64;
                         a.NavigationId(&mut id).ok().map(|()| id)
                     });
+                    host_document::committed(&docs_commit, nav_id, args.as_ref());
                     // 앞 스캔 결과를 받은 탐색이 문서 요청 확인 없이 commit했으면 멈추고 다시 읽는다.
                     let (stop, release) = resume_content.borrow_mut().content_loading(nav_id);
                     complete_requests(surface_id, release);
@@ -653,6 +708,7 @@ impl PlatformWebView {
             let resume_done = scan_resume.clone();
             let http_done = http.as_ref().map(Rc::downgrade);
             let top_done = top_level.clone();
+            let docs_done = host_documents.clone();
             let mut tok_done: i64 = 0;
             let h_done = NavigationCompletedEventHandler::create(Box::new(
                 move |sender, args| -> windows::core::Result<()> {
@@ -676,6 +732,10 @@ impl PlatformWebView {
                             }
                         }
                     });
+                    // 표에 없는 host 전용 주소라 시작 전에 취소한 탐색의 완료는 보이던 문서의 chrome을 바꾸지 않는다.
+                    if docs_done.borrow_mut().take_cancelled(nav_id) {
+                        return Ok(());
+                    }
                     // 스캔을 기다리려고 취소한 탐색의 완료(OPERATION_CANCELED)와, 지문이 달라 멈춘
                     // 탐색의 완료는 로드 종료가 아니다. 게이트 대기와 chrome의 Loading을 그대로 둔다.
                     // 멈춘 탐색이 끝났으므로 붙잡은 요청을 놓아 주고 같은 종류로 다시 시작한다.
@@ -723,7 +783,13 @@ impl PlatformWebView {
                     let Some(args) = args else { return Ok(()) };
                     let mut is_success = BOOL(0);
                     args.IsSuccess(&mut is_success)?;
-                    if is_success.as_bool() {
+                    let success = host_document::completed(
+                        &docs_done,
+                        surface_id,
+                        nav_id,
+                        is_success.as_bool(),
+                    );
+                    if success {
                         tracing::debug!("WebView surface {surface_id}: load finished");
                         bed_done.document_loaded();
                     } else {
@@ -745,7 +811,7 @@ impl PlatformWebView {
                         }
                     }
                     // 앞 로드의 늦은 종료는 새 로드의 Loading을 Done이나 Failed로 덮지 않는다.
-                    match nav_state_after_end(chrome_done.get(), nav_id, is_success.as_bool()) {
+                    match nav_state_after_end(chrome_done.get(), nav_id, success) {
                         Some(state) => nav_done.set(state),
                         None => tracing::debug!(
                             "WebView surface {surface_id}: keeping the chrome state of the newer load"
@@ -762,6 +828,7 @@ impl PlatformWebView {
             // NavigationCompleted가 뒤따라 와도 finished()는 로드 중이 아닐 때 아무것도 하지 않는다.
             // iframe·GPU·utility process 종료는 main frame 로드를 끝내지 않으므로 건너뛴다.
             let nav_failed = nav_state.clone();
+            let docs_failed = host_documents.clone();
             let bed_failed = bed_focus.clone();
             let ended_failed = content_process_ended.clone();
             let gate_failed = script_gate.clone();
@@ -781,6 +848,8 @@ impl PlatformWebView {
                         return Ok(());
                     }
                     nav_failed.set(NavState::Failed);
+                    let renderer = kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED;
+                    host_document::process_ended(&docs_failed, renderer);
                     // 렌더 process만 끝났으면 같은 WebView에 다시 탐색해 복구할 수 있다.
                     // browser process가 끝난 WebView는 다시 만들어야 하므로 표시하지 않는다.
                     if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED {
@@ -861,6 +930,11 @@ impl PlatformWebView {
                 content_process_ended,
                 chrome_generation,
                 host_load: Rc::default(),
+                host_documents,
+                host_document_ready: host_responder.is_some(),
+                host_document_allowed: Rc::default(),
+                host_document_view: NEXT_HOST_DOCUMENT_VIEW
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
                 pending_navigations,
                 script_gate,
                 scan_resume,

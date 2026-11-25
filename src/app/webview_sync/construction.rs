@@ -37,6 +37,13 @@ pub(super) fn create_missing_webviews(
                         describe_webview_url(url.as_ref())
                     );
                     attach_script_gate(view, engine, sid, &wv, &settings);
+                    // 주소 띠·스크립트 게이트가 없는 plugin 문서만 상한을 넘는 HTML을 host 전용 주소로 싣는다.
+                    #[cfg(windows)]
+                    wv.set_host_document_allowed(
+                        find_remote_surface(view, engine, sid).is_some_and(|rs| {
+                            !rs.capabilities.script_gate && !rs.capabilities.address_band
+                        }),
+                    );
                     // 첫 문서를 싣기 전에 둬야 그 문서의 첫 렌더가 이 값이다.
                     super::bed_focus::apply_initial(view, engine, sid, &wv);
                     load_initial_url(view, engine, sid, &wv, url.as_ref());
