@@ -578,7 +578,14 @@ fn attach_form_card(ui: &mut egui::Ui, theme: &Theme, inline: bool) {
                     kit::field(ui, theme, None, "root", false, false);
                 });
                 form_row(ui, theme, "Port", |ui| {
-                    kit::field(ui, theme, Some(LogicalPx(96.0)), "22", false, true);
+                    kit::field(
+                        ui,
+                        theme,
+                        Some(theme.remote_port_field_width()),
+                        "22",
+                        false,
+                        true,
+                    );
                 });
                 form_row(ui, theme, "Shell", |ui| {
                     let mut sel = 0usize;

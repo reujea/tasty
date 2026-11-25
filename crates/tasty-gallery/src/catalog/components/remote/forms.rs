@@ -11,8 +11,6 @@ use crate::catalog::widgets::dialog as kit;
 
 /// Type 행의 형식 선택 칸 폭.
 const TYPE_SELECT_W: LogicalPx = LogicalPx(64.0);
-/// Port 입력 칸 폭.
-const PORT_FIELD_W: LogicalPx = LogicalPx(96.0);
 /// inline secret 입력은 세 줄 높이다.
 const SECRET_ROWS: u8 = 3;
 
@@ -216,7 +214,14 @@ fn form_card(ui: &mut egui::Ui, theme: &Theme, variant: Variant, width: LogicalP
                             kit::field(ui, theme, None, "deploy", false, false);
                         });
                         form_row(ui, theme, "Port", |ui| {
-                            kit::field(ui, theme, Some(PORT_FIELD_W), "22", false, false);
+                            kit::field(
+                                ui,
+                                theme,
+                                Some(theme.remote_port_field_width()),
+                                "22",
+                                false,
+                                false,
+                            );
                         });
                         form_row(ui, theme, "Label", |ui| {
                             kit::field(ui, theme, None, "optional", true, false);
