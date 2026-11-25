@@ -86,6 +86,42 @@ fn an_address_band_gives_key_focus_only_to_the_selected_surface() {
     );
 }
 
+/// 복원 안내가 열리기만 하면 선택 surface가 키 포커스다. 안쪽 컨트롤이 키를 가지면 키 포커스 surface가 없고,
+/// 칠하기·강조 해제·mesh focused가 함께 따른다.
+#[test]
+fn restore_notice_controls_with_keys_leave_no_surface_with_key_focus() {
+    use crate::adapters::ui::restore_notice::{RestoreNoticeEntry, open_for_test};
+    use crate::state::surface_focus::TerminalFocusPaint;
+    let entry = || RestoreNoticeEntry {
+        id: 1,
+        title: "title".into(),
+        cause: "cause".into(),
+        label: "label".into(),
+        path: "/a".into(),
+        body: "body".into(),
+    };
+    let (mut state, mut session, sid) = scene();
+    open_for_test(&mut state, entry(), false);
+    assert_eq!(key_focus(&state, &mut session), Some(sid), "shown, no keys");
+
+    let (mut state, mut session, sid) = scene();
+    session
+        .borrow_mut()
+        .raise_attention(sid, AttentionKind::Completion);
+    open_for_test(&mut state, entry(), true);
+    assert_eq!(key_focus(&state, &mut session), None, "keys inside");
+    assert!(!observe(&mut state, &mut session, true), "no observation");
+    assert_eq!(
+        attention(&mut session, sid),
+        Some(AttentionKind::Completion)
+    );
+    let occupancy = crate::core::attach::OccupancyRegistry::new();
+    let paint = TerminalFocusPaint::of(state.frame_key_focus(), sid, &occupancy, || false);
+    assert!(!paint.bed_focused);
+    assert!(!paint.show_cursor);
+    assert!(!super::told_focused(state.frame_key_focus(), sid));
+}
+
 /// 키 포커스를 주지 않고 연 팝업(agent가 연 passive 팝업)은 키 포커스를 바꾸지 않는다. surface에 있던 키도, 다른
 /// 팝업에 있던 키도 그대로다.
 #[test]

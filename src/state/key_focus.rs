@@ -27,11 +27,15 @@ pub(crate) struct KeyFocusFrames {
 
 impl super::MainViewState {
     /// host 키 포커스가 들어 있는 surface. 선택 surface의 본문이나 그 surface의 주소 띠에 키가 있을 때만 값이 있다.
-    /// 무대·키를 가진 팝업·튜토리얼 말풍선이 키를 가지면 없다. 순서는 [`Self::focus_node`]와 같고, 설정 창 열기
-    /// 요청은 다른 OS 창으로 가는 중이라 선택 surface를 그대로 둔다. 복원 안내 안쪽 컨트롤의 포커스는 노드가 아니라
-    /// 여기에 들지 않는다.
+    /// 무대·키를 가진 팝업·복원 안내 안쪽 컨트롤·튜토리얼 말풍선이 키를 가지면 없다. 순서는 [`Self::focus_node`]와
+    /// 같고, 설정 창 열기 요청은 다른 OS 창으로 가는 중이라 선택 surface를 그대로 둔다. 복원 안내는 키 경로가
+    /// 안내로 키를 보내는 판정(`restore_notice::has_keyboard_focus`)을 그대로 읽는다. 안내가 열리기만 하고 키를
+    /// 가져가지 않으면 선택 surface다.
     pub(crate) fn key_focus_surface(&self, core: &CoreState) -> Option<u32> {
-        if self.fullscreen_stage_active() || self.popup_focus().is_some() {
+        if self.fullscreen_stage_active()
+            || self.popup_focus().is_some()
+            || crate::adapters::ui::restore_notice::has_keyboard_focus(&self.popups)
+        {
             return None;
         }
         let selected = self.focused_surface_id(core);

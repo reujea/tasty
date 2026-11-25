@@ -370,7 +370,7 @@ markdown과 image는 kind 이름과 등록한 플러그인 id를 함께 본다. 
 
 워크스페이스 팝업의 DAG 그래프는 surface가 아니므로 캔버스가 `dag-canvas-bg` 그대로다.
 
-**포커스는 선택이 아니라 host 키 포커스다.** surface는 선택된 surface이면서 키가 그 본문이나 그 surface의 chrome(html 주소 띠)에 있을 때만 focused다. 키를 가진 팝업(범위·scrim과 무관), 무대, 튜토리얼 말풍선이 키를 가지면 focused surface가 없다. 키를 가져가지 않는 팝업(agent가 연 passive 팝업, 컨텍스트 메뉴, Select·autocomplete 목록, 툴팁)은 아무것도 바꾸지 않는다. 판정은 `MainViewState::key_focus_surface`(`src/state/key_focus.rs`) 하나이고, 프레임마다 첫머리에 한 번 정한 값을 바탕·띠·터미널 커서·검색 잉크, 완료·입력 대기 강조 해제와 고아 soft 점유 정리, egui-mesh·attach mesh에 알리는 focused 값이 함께 읽는다. 그리기 중 키 포커스가 옮겨 가면 다음 프레임에 함께 바뀐다. WebView 바탕과 plugin `surface.focused`는 화면에 낸 프레임의 값을 따른다. 입력 판단(`pass_key_node`, 팝업 키 주인)은 이 값을 읽지 않는다.
+**포커스는 선택이 아니라 host 키 포커스다.** surface는 선택된 surface이면서 키가 그 본문이나 그 surface의 chrome(html 주소 띠)에 있을 때만 focused다. 키를 가진 팝업(범위·scrim과 무관), 무대, 복원 안내 안쪽 컨트롤, 튜토리얼 말풍선이 키를 가지면 focused surface가 없다. 복원 안내는 열리기만 하고 키를 가져가지 않으면 아무것도 바꾸지 않는다. 키를 가져가지 않는 팝업(agent가 연 passive 팝업, 컨텍스트 메뉴, Select·autocomplete 목록, 툴팁)은 아무것도 바꾸지 않는다. 판정은 `MainViewState::key_focus_surface`(`src/state/key_focus.rs`) 하나이고, 프레임마다 첫머리에 한 번 정한 값을 바탕·띠·터미널 커서·검색 잉크, 완료·입력 대기 강조 해제와 고아 soft 점유 정리, egui-mesh·attach mesh에 알리는 focused 값이 함께 읽는다. 그리기 중 키 포커스가 옮겨 가면 다음 프레임에 함께 바뀐다. WebView 바탕과 plugin `surface.focused`는 화면에 낸 프레임의 값을 따른다. 입력 판단(`pass_key_node`, 팝업 키 주인)은 이 값을 읽지 않는다.
 
 **값은 키 포커스와 점유가 정한다.** 바탕 값은 키 포커스 surface이고 내용을 숨기는 점유가 아닐 때 focus 값이다(`surface_focus::bed_focused`). 터미널 PTY 커서도 같은 값을 따르고 출력 중 억제는 그대로다(`surface_focus::TerminalFocusPaint`). surface에 알리는 focused 값은 점유와 무관하게 키 포커스만 따른다.
 

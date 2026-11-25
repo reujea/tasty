@@ -108,6 +108,28 @@ pub(crate) fn has_keyboard_focus(popups: &crate::adapters::ui::PopupManager) -> 
     notices(popups).any(|(_, notice)| notice.focused_inside)
 }
 
+/// 시험용: 안내 하나를 열고 안쪽 컨트롤이 키보드 포커스를 가졌는지를 정한다.
+#[cfg(test)]
+pub(crate) fn open_for_test(
+    state: &mut MainViewState,
+    entry: RestoreNoticeEntry,
+    focused_inside: bool,
+) {
+    state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new(RESTORE_NOTICE_POPUP_ID, PopupScope::Window)
+                .with_payload(PopupPayload::RestoreNotice(Box::new(NoticePayload {
+                    entry,
+                    height: None,
+                    drawn: false,
+                    focused_inside,
+                }))),
+            false,
+        )
+        .expect("the notice opens");
+}
+
 /// 처음 그리기 전 안내 높이. 그린 프레임에 잰 높이로 바뀐다.
 pub(crate) const UNMEASURED_HEIGHT: LogicalPx = LogicalPx(1.0);
 
