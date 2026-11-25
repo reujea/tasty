@@ -365,9 +365,9 @@ pub fn draw_plugins_panel(
     crate::adapters::ui::popup::body_keys::with_body_keys(ctx, widget_keys, || {
         egui::TopBottomPanel::top("plugins_header")
             .exact_height(th.plugins_header_height().value())
+            .frame(header_frame(ctx, &th))
             .show(ctx, |ui| {
                 ui.horizontal_centered(|ui| {
-                    hspace(ui, th.spacing_md);
                     // 디자인 헤더: plug 아이콘 + 타이틀.
                     // 헤더 장식 accent — `plugins-header-glyph` → `accent-decorative`(peach).
                     ui.add(icons::PLUG.image(
@@ -424,7 +424,6 @@ pub fn draw_plugins_panel(
 
                     // 우측 클러스터 (오른쪽→왼쪽): X 닫기 → 검색 입력.
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        hspace(ui, th.spacing_sm);
                         if close_icon_button(ui, &th) {
                             actions.push(PluginsAction::Close);
                         }
@@ -452,6 +451,15 @@ pub fn draw_plugins_panel(
     });
     ui_state.folder_chooser.draw(ctx);
     add::apply_folder_result(ui_state, snapshot);
+}
+
+/// 헤더 밴드 틀. 정본 헤더 padding `plugins-header-pad-left`·`-right` 는 창 1px 보더 안쪽 값이라 보더가 없는
+/// 앱 창 기준으로는 `border_width` 를 더한다. 위아래는 패널 기본 틀 그대로다.
+fn header_frame(ctx: &egui::Context, th: &theme::Theme) -> egui::Frame {
+    let mut frame = egui::Frame::side_top_panel(&ctx.style());
+    frame.inner_margin.left = (th.plugins_header_pad_left() + th.border_width).value() as i8;
+    frame.inner_margin.right = (th.plugins_header_pad_right() + th.border_width).value() as i8;
+    frame
 }
 
 /// 헤더의 타이틀 ↔ 세그먼트 사이 세로 구분선 (1px × 20px).

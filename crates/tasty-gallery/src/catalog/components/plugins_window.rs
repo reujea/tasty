@@ -3,6 +3,8 @@
 
 mod add;
 mod attention;
+#[cfg(test)]
+mod geometry_tests;
 mod installed;
 mod reserved;
 
@@ -186,7 +188,10 @@ fn header(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, tab: Tab) {
     );
 
     let cy = rect.center().y;
-    let mut x = rect.min.x + theme.spacing_md.value();
+    // 본체 헤더 틀처럼 정본 헤더 padding(1px 보더 안쪽 값)에 보더 폭을 더한다.
+    let pad_left = (theme.plugins_header_pad_left() + theme.border_width).value();
+    let pad_right = (theme.plugins_header_pad_right() + theme.border_width).value();
+    let mut x = rect.min.x + pad_left;
 
     // 헤더 아이콘은 주의 환기가 아닌 장식용 색을 쓴다.
     let icon = theme.icon_glyph_size_md.value();
@@ -274,10 +279,7 @@ fn header(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, tab: Tab) {
 
     let close = theme.item_height_interactive.value();
     let close_rect = egui::Rect::from_min_size(
-        egui::pos2(
-            rect.max.x - theme.spacing_sm.value() - close,
-            cy - close * 0.5,
-        ),
+        egui::pos2(rect.max.x - pad_right - close, cy - close * 0.5),
         egui::vec2(close, close),
     );
     CLOSE
