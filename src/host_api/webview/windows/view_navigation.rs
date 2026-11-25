@@ -130,7 +130,7 @@ impl PlatformWebView {
     /// 탐색을 바탕 포커스 문서 생성 스크립트 등록 뒤로 보낸다(`bed_focus`). 그래야 새 문서가 첫 렌더부터
     /// 요청한 값이다. 실패하면 경고하고, `withdraw`면 세운 지목을 거둔다. 남으면 뒤의 페이지 이동이 그
     /// 지목을 소비한다. `load`는 `begin_load`가 준 호스트 로드 번호다. 거절된 로드는 시작·종료 신호가
-    /// 오지 않으므로 chrome을 Failed로 끝낸다(`end_rejected_load`).
+    /// 오지 않으므로 chrome을 Failed로 끝내고 자기 세대를 현재로 남긴다(`end_rejected_load`).
     fn send_navigation(
         &self,
         call: &'static str,
@@ -145,6 +145,7 @@ impl PlatformWebView {
         let top_level = self.top_level.clone();
         let nav_state = self.nav_state.clone();
         let host_load = self.host_load.clone();
+        let chrome_generation = self.chrome_generation.clone();
         let surface_id = self.surface_id;
         self.bed_focus.navigate(
             surface_id,
@@ -156,7 +157,7 @@ impl PlatformWebView {
                         top_level.borrow_mut().withdraw(&Designation::Next);
                     }
                     if let Some(load) = load {
-                        end_rejected_load(&nav_state, host_load.get(), load);
+                        end_rejected_load(&nav_state, &chrome_generation, host_load.get(), load);
                     }
                 }
             }),

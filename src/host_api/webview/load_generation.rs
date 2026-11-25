@@ -132,13 +132,20 @@ impl CancelledDecisions {
     }
 }
 
+/// 거절된 호스트 로드의 chrome 세대. WebView2 `NavigationId`는 view마다 1부터 하나씩 늘어 이 값에 닿지
+/// 않으므로, 어떤 탐색의 종료도 이 로드의 것이 되지 않는다.
+#[cfg(any(windows, test))]
+const REJECTED_LOAD: u64 = u64::MAX;
+
 /// 호스트가 보낸 로드 호출(WebView2 `Navigate`·`NavigateToString`)이 거절됐다. 탐색이 시작되지 않아
 /// 종료 신호가 오지 않으므로 chrome을 여기서 Failed로 끝낸다. `latest`는 마지막에 요청한 호스트 로드의
 /// 번호이고 `rejected`는 거절된 호출의 번호다. 붙잡혔다가 늦게 보낸 앞 요청의 거절은 그 뒤에 요청한
-/// 로드의 상태를 덮지 않는다. chrome을 바꿨으면 true다.
+/// 로드의 상태를 덮지 않는다. 거절된 로드는 자기 세대를 현재로 남겨(`chrome_generation`), 그보다 앞서
+/// 시작한 탐색의 늦은 종료가 오류 타일을 지우지 못하게 한다. chrome을 바꿨으면 true다.
 #[cfg(any(windows, test))]
 pub(super) fn end_rejected_load(
     nav_state: &std::cell::Cell<NavState>,
+    chrome_generation: &std::cell::Cell<Option<u64>>,
     latest: u64,
     rejected: u64,
 ) -> bool {
@@ -146,6 +153,7 @@ pub(super) fn end_rejected_load(
         return false;
     }
     nav_state.set(NavState::Failed);
+    chrome_generation.set(Some(REJECTED_LOAD));
     true
 }
 
@@ -309,14 +317,28 @@ mod tests {
     fn a_rejected_load_call_fails_the_chrome() {
         // 호출이 거절되면 시작·종료 신호가 오지 않아 Loading이 남는다(mermaid를 넣은 2MB 넘는 문서).
         let nav = std::cell::Cell::new(NavState::Loading);
-        assert!(end_rejected_load(&nav, 3, 3));
+        let generation = std::cell::Cell::new(None);
+        assert!(end_rejected_load(&nav, &generation, 3, 3));
         assert_eq!(nav.get(), NavState::Failed);
     }
 
     #[test]
     fn a_late_rejection_of_an_earlier_request_keeps_the_newer_load() {
         let nav = std::cell::Cell::new(NavState::Loading);
-        assert!(!end_rejected_load(&nav, 4, 3));
+        let generation = std::cell::Cell::new(None);
+        assert!(!end_rejected_load(&nav, &generation, 4, 3));
         assert_eq!(nav.get(), NavState::Loading);
+        assert_eq!(generation.get(), None, "새 로드의 세대를 건드리지 않는다");
+    }
+
+    #[test]
+    fn an_earlier_navigation_ending_after_a_rejection_keeps_the_failure() {
+        // begin_load가 세대를 비운(모름 = 현재) 뒤 호출이 거절되고, 앞서 시작한 탐색 7이 성공으로 끝난다.
+        let nav = std::cell::Cell::new(NavState::Loading);
+        let generation = std::cell::Cell::new(None);
+        assert!(end_rejected_load(&nav, &generation, 3, 3));
+        assert_eq!(nav_state_after_end(generation.get(), Some(7), true), None);
+        assert_eq!(nav_state_after_end(generation.get(), Some(7), false), None);
+        assert_eq!(nav.get(), NavState::Failed);
     }
 }
