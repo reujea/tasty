@@ -366,7 +366,10 @@ pub fn all_defs() -> &'static [PopupDef] {
                     content_margin: PopupContentMargin::None,
                     // 검색 입력칸이 글자를 편집한다.
                     keyboard: PopupKeyboard::Text,
-                    ..host_decl(popup_size(egui::vec2(660.0, 520.0)))
+                    ..host_decl(popup_size(egui::vec2(
+                        tasty_design_tokens::generated::component::ports::WINDOW_WIDTH.value(),
+                        tasty_design_tokens::generated::component::ports::WINDOW_HEIGHT.value(),
+                    )))
                 },
                 title_key: "port_scanner.heading",
                 fullscreen_stage: None,
@@ -476,7 +479,10 @@ pub fn all_defs() -> &'static [PopupDef] {
                     min_size: None,
                     shell: PopupShell::Panel,
                     content_margin: PopupContentMargin::None,
-                    ..host_decl(popup_size(egui::vec2(680.0, 460.0)))
+                    ..host_decl(popup_size(egui::vec2(
+                        tasty_design_tokens::generated::component::remote::PICKER_WIDTH.value(),
+                        tasty_design_tokens::generated::component::remote::PICKER_HEIGHT.value(),
+                    )))
                 },
                 title_key: "remote_attach.heading",
                 fullscreen_stage: None,

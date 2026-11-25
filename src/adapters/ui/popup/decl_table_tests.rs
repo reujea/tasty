@@ -513,3 +513,22 @@ fn non_covering_popups_are_the_known_seven() {
         "연결 팝업의 선언은 덮지 않는 모양이다"
     );
 }
+
+/// 포트 창과 원격 연결 창의 처음 크기는 토큰(ports-window, remote-picker)을 읽고 값은 660 × 520, 680 × 460 그대로다.
+#[test]
+fn window_sized_popups_keep_their_token_sizes() {
+    use super::super::popup_size;
+    for (id, size) in [
+        (
+            super::super::port_scanner::PORT_SCANNER_POPUP_ID,
+            egui::vec2(660.0, 520.0),
+        ),
+        (
+            super::super::remote_attach::REMOTE_ATTACH_POPUP_ID,
+            egui::vec2(680.0, 460.0),
+        ),
+    ] {
+        let def = super::find(id).expect("정의가 있다");
+        assert_eq!(def.decl.size, popup_size(size), "{id} 처음 크기");
+    }
+}

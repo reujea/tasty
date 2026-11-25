@@ -7,6 +7,13 @@ use winit::window::WindowId;
 use crate::app::App;
 use crate::view;
 
+/// PresetView 창의 처음 inner 크기(논리). preset-window-width × preset-window-height다.
+/// 창 생성 시점의 크기라 UI 배율을 곱하지 않는다. 최소 크기는 토큰이 아니라 아래 리터럴이다.
+fn preset_window_size() -> winit::dpi::LogicalSize<f32> {
+    use tasty_design_tokens::generated::component::preset::{WINDOW_HEIGHT, WINDOW_WIDTH};
+    winit::dpi::LogicalSize::new(WINDOW_WIDTH.value(), WINDOW_HEIGHT.value())
+}
+
 impl App {
     /// 이미 열려 있으면 새 창 대신 기존 창에 포커스를 준다.
     pub(crate) fn open_preset_window(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
@@ -61,7 +68,7 @@ impl App {
         use winit::window::WindowAttributes;
         let mut attrs = WindowAttributes::default()
             .with_title(crate::i18n::t("preset.window.title"))
-            .with_inner_size(winit::dpi::LogicalSize::new(960, 640))
+            .with_inner_size(preset_window_size())
             .with_min_inner_size(winit::dpi::LogicalSize::new(760, 480))
             .with_visible(false);
         if let Some(icon) = crate::app_icon::winit_window_icon() {
@@ -134,5 +141,17 @@ impl App {
         {
             pw.select(kind, name);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// 토큰으로 바꾼 뒤에도 PresetView 창의 처음 크기가 960 × 640 그대로다.
+    #[test]
+    fn preset_window_opens_at_the_token_size() {
+        assert_eq!(
+            super::preset_window_size(),
+            winit::dpi::LogicalSize::new(960.0, 640.0)
+        );
     }
 }

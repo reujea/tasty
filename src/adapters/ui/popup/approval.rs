@@ -16,7 +16,7 @@ use tasty_ui_widgets::vspace;
 
 pub const APPROVAL_POPUP_ID: &str = "approval";
 
-const DEFAULT_WIDTH: LogicalPx = LogicalPx(480.0);
+const DEFAULT_WIDTH: LogicalPx = tasty_design_tokens::generated::component::approval::WIDTH;
 const MIN_HEIGHT: LogicalPx = LogicalPx(180.0);
 const MAX_HEIGHT: LogicalPx = LogicalPx(480.0);
 
@@ -572,6 +572,12 @@ mod props_tests {
             state: ApprovalState::Pending,
             history: vec![],
         }
+    }
+
+    /// 승인 팝업의 폭은 approval-width 토큰을 읽고 값은 480 그대로다.
+    #[test]
+    fn default_width_is_the_token_value() {
+        assert_eq!(DEFAULT_WIDTH, LogicalPx(480.0));
     }
 
     #[test]
