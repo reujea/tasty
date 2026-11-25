@@ -1573,3 +1573,73 @@ fn escape_on_a_focused_notification_closes_it() {
         "알림 목록이 닫힌다"
     );
 }
+
+/// Given 덮는 명령 팔레트가 포커스인 창, When 그리기 전에 Esc 와 글자 a 가 한 묶음으로 오면(사건 입구 하네스), Then 그리기
+/// 전의 a 는 아직 팔레트 노드에서 시작하지만(창은 a 를 넘긴 Esc 뒤에 세운다), Esc 몫을 그린 뒤 다시 지나는 a 는 그 패스가
+/// 팔레트를 닫은 뒤의 노드(터미널 surface)에서 시작해 그 surface 가 받는다.
+#[test]
+fn a_held_key_after_a_focus_moving_segment_reaches_the_new_node() {
+    use crate::adapters::ui::input::key_nodes::path_receiver;
+    use crate::adapters::ui::input::key_route::KeyReceiver;
+    use crate::adapters::ui::popup::window_input_test_support::{WindowInput, typed_decision};
+    crate::i18n::init("en");
+    let (mut state, mut session) = crate::state::tests::test_state();
+    for def in super::defs::all_defs() {
+        state.popups.register_def(def, 1.0);
+    }
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let ctx = egui::Context::default();
+    let palette = state
+        .popups
+        .open_centered_focused(
+            super::command_palette::COMMAND_PALETTE_POPUP_ID,
+            PopupScope::Window,
+        )
+        .expect("팔레트가 열린다");
+    state.normalize_focus(&read);
+    let sid = state.focused_surface_id(&read).expect("포커스 surface");
+    let mut input = WindowInput::default();
+    assert!(
+        input.escape(&ctx, &mut state, &read, true),
+        "팔레트가 Esc 를 받는다"
+    );
+    state.normalize_focus(&read);
+    assert_eq!(
+        path_receiver(typed_decision(&state, &read, "a")),
+        Some(KeyReceiver::Popup(palette)),
+        "그리기 전의 a 는 팔레트 노드에서 시작한다"
+    );
+    let screen = crate::model::PhysicalRect {
+        x: crate::model::PhysicalPx(0.0),
+        y: crate::model::PhysicalPx(0.0),
+        width: crate::model::PhysicalPx(1600.0),
+        height: crate::model::PhysicalPx(900.0),
+    };
+    loop {
+        let events = input.take_pass(&mut state, &ctx);
+        let raw = egui::RawInput {
+            screen_rect: Some(rect(0.0, 0.0, 1600.0, 900.0)),
+            events,
+            ..Default::default()
+        };
+        drop(ctx.run(raw, |ctx| {
+            crate::adapters::ui::draw_popups(ctx, &mut state, &read, &[], screen, 1.0);
+        }));
+        state.close_input_pass(&ctx);
+        if input.is_empty() {
+            break;
+        }
+    }
+    assert!(
+        !state.popups.instance(palette).is_some_and(|p| p.open),
+        "Esc 몫의 패스가 팔레트를 닫는다"
+    );
+    state.normalize_focus(&read);
+    input.key(&mut state, &read, false, egui::Event::Text("a".into()));
+    assert_eq!(
+        path_receiver(input.last_decision()),
+        Some(KeyReceiver::Surface(sid)),
+        "그 패스 뒤의 a 는 터미널 surface 가 받는다"
+    );
+}
