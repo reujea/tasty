@@ -417,13 +417,18 @@ footer에는 “Always open …” 체크박스를 두지 않는다. 파일 피�
 
 ## Overlays — plugins window
 
-디자인 `ui_kits/terminal/overlays/plugins_window.jsx` (820×540 모달) ↔ 본체 `src/view/plugins/`
-↔ 갤러리 `Plugins manager window` (Overlays). 본체 binary 의존 0 — 로컬 mock 데이터로 시각 복제.
+디자인 `ui_kits/terminal/overlays/plugins_window.jsx` (창 `--tasty-plugins-window-width` ×
+`--tasty-plugins-window-height` = 880×560) ↔ 본체 `src/view/plugins/` ↔ 갤러리 `Plugins manager
+window` (Overlays). 본체 binary 의존 0 — 로컬 mock 데이터로 시각 복제.
 
 본체는 `TopBottomPanel`/`SidePanel` 을 `Context` 에 직접 붙여 창 전체를 채우므로 갤러리가 그
-함수를 호출할 수 없다 — 같은 구조를 rect 기준으로 전사한다. 전사할 고정 창 크기가 본체에
-없어서 무대 크기는 토큰으로 조립한다(`list_w() + measure_md` × `measure_sm`). 디자인의 820×540
-은 여기 들어오지 않는다. (Layouts 의 `1-depth (general shell)` specimen
+함수를 호출할 수 없다 — 같은 구조를 rect 기준으로 전사한다. 정본과 본체는 창 크기를 같은 토큰에서
+읽는다(본체 `src/app/modal/plugins.rs` 가 배율 1 Theme 의 `plugins_window_width()`·
+`plugins_window_height()` 로 OS 창을 880×560 으로 연다). 갤러리 무대는 이 창 크기를 쓰지 않고
+목록 폭 + `measure_md`(배율 1에서 640) × 상태별 높이(`measure_sm`·`measure_xl`)로 조립한다 —
+Installed 세 갈래·Attention·Add 를 한 페이지에 늘어놓고 상태별 상세를 한눈에 비교하는 전시
+크기라서다. 목록 폭은 본체처럼 탭별로 Installed `plugins_list_width`, Attention
+`plugins_attention_list_width`(둘 다 240)를 읽는다(`ListWidths`). (Layouts 의 `1-depth (general shell)` specimen
 `crates/tasty-gallery/src/catalog/widgets/layout_1depth.rs` 은 이 창이 아니라 **리스트→상세
 배치 관용구 자체**를 보이는 별개 specimen 이다.)
 
@@ -550,7 +555,8 @@ thread-local mock. `crates/tasty-gallery/src/catalog/widgets/<name>.rs`.
 함수가 없다** — 특정 창이 아니라 좌측 고정 리스트(200) → 우측 detail 배치 관용구 자체를
 보이는 데모다. Plugins 창의 미러는 이것이 아니라
 `crates/tasty-gallery/src/catalog/components/plugins_window.rs` 이고, 그쪽은 목록 폭을 본체와
-같은 접근자 `Theme::plugins_list_width`(240)에서 읽고 행 높이도 40 이다(위
+같은 접근자에서 읽고 — Installed `Theme::plugins_list_width`, Attention
+`Theme::plugins_attention_list_width`(둘 다 240) — 행 높이도 40 이다(위
 [Overlays — plugins window](#overlays--plugins-window) 절). 필터가 놓이는 자리도 다르다 —
 본체 Plugins 창의 필터는 헤더 밴드 우측이고 이 idiom 데모는 목록 안이다.
 
