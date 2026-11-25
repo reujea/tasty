@@ -289,8 +289,9 @@ pub(super) struct Fallback {
 }
 
 impl Fallback {
-    /// 거절 `rejected`가 다시 싣기 대상이면 host 전용 주소로 `Navigate`한다. 대상이 아니면 그 거절을,
-    /// 다시 싣기도 거절되면 그 오류를 돌려준다(호출자가 chrome을 Failed로 끝낸다).
+    /// 거절 `rejected`가 다시 싣기 대상이면 host 전용 주소로 `Navigate`한다. 대상이 아니거나 다시 싣기도
+    /// 거절되면 `rejected`를 돌려준다(호출자가 `NavigateToString` 거절 줄을 남기고 chrome을 Failed로 끝낸다).
+    /// 다시 싣기의 거절은 두 호출이 로그에서 구별되도록 `host document Navigate` 줄로 따로 남긴다.
     pub(super) fn retry(self, webview: &ICoreWebView2, rejected: Error) -> Result<()> {
         if !retry_via_host_document(
             rejected.code().0,
@@ -305,15 +306,19 @@ impl Fallback {
         let target = HSTRING::from(url.as_str());
         self.documents.borrow_mut().sent(self.load, url, self.body);
         // SAFETY: live WebView on its apartment thread; the HSTRING lives for the call.
-        let result = unsafe { webview.Navigate(&target) };
-        match &result {
-            Ok(()) => tracing::info!(
-                "WebView surface {}: NavigateToString refused the document ({rejected}); \
-                 loading it from the host document address",
+        if let Err(e) = unsafe { webview.Navigate(&target) } {
+            tracing::warn!(
+                "WebView surface {}: WebView2 host document Navigate failed: {e}",
                 self.surface
-            ),
-            Err(_) => self.documents.borrow_mut().rejected(self.load),
+            );
+            self.documents.borrow_mut().rejected(self.load);
+            return Err(rejected);
         }
-        result
+        tracing::info!(
+            "WebView surface {}: NavigateToString refused the document ({rejected}); \
+             loading it from the host document address",
+            self.surface
+        );
+        Ok(())
     }
 }
