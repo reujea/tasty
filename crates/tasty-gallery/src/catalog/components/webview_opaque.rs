@@ -33,6 +33,9 @@ const SCENE_B_PALETTE_TOP: LogicalPx = LogicalPx(36.0);
 /// C 장면 사이드바 너비와 메뉴 왼쪽 거리.
 const SCENE_C_SIDEBAR_W: LogicalPx = LogicalPx(150.0);
 const SCENE_C_MENU_LEFT: LogicalPx = LogicalPx(12.0);
+/// C 장면 메뉴 아래 변과 틀 아래 변의 거리 — 디자인 `opaque-over-page.jsx` SceneC 의 Host
+/// `bottom: 52`. 메뉴 둘레 점선이 Tools 버튼(surface-active) 위를 지나지 않는다.
+const SCENE_C_MENU_BOTTOM: LogicalPx = LogicalPx(52.0);
 /// D 장면 피커 위치와 크기.
 const SCENE_D_CARD_X: LogicalPx = LogicalPx(60.0);
 const SCENE_D_CARD_Y: LogicalPx = LogicalPx(24.0);
@@ -369,7 +372,7 @@ fn scene_c(ui: &mut egui::Ui, th: &Theme, mode: Mode) {
         let prev_h: f32 = ui.data(|d| d.get_temp(id)).unwrap_or(0.0);
         let pos = egui::pos2(
             rect.left() + z(SCENE_C_MENU_LEFT).value(),
-            btn.top() - th.spacing_xs.value() - prev_h,
+            rect.bottom() - z(SCENE_C_MENU_BOTTOM).value() - prev_h,
         );
         let boxed = place(ui, pos, |ui| tools_menu::tools_card(ui, th, mode.edge()));
         ui.data_mut(|d| d.insert_temp(id, boxed.height()));
@@ -606,6 +609,43 @@ mod tests {
                         0,
                         "{name} {scene_name} {}: no host rect mark",
                         mode.label()
+                    );
+                }
+            }
+        }
+    }
+
+    /// C 장면 surface-active 버튼의 글자는 text-on-active 로 그리고, 메뉴 둘레 점선은 그 버튼 위를
+    /// 지나지 않는다. Mocha 는 두 글자 토큰 값이 같아 text-primary 와 가르는 것은 Latte 줄이다.
+    #[test]
+    fn tools_button_reads_text_on_active_and_keeps_the_mark_off_it() {
+        let latte = crate::host_shell::latte_theme();
+        assert_ne!(latte.text_on_active(), latte.text_primary());
+        for (name, th) in themes() {
+            let p = paint(|ui| scene_c(ui, &th, Mode::Opaque));
+            let label = p
+                .texts
+                .iter()
+                .find(|t| t.text == crate::i18n::t("sidebar.tools_button"))
+                .expect("Tools button label");
+            assert_eq!(
+                p.fill_under(label.rect),
+                th.surface_active().to_egui(),
+                "{name}: the label sits on surface-active"
+            );
+            assert_eq!(label.color, th.text_on_active().to_egui(), "{name}");
+            let button = p.rect_filled_around(th.surface_active().to_egui(), label.rect);
+            let ink = th.specimen_annotation_border().to_egui();
+            for s in &p.shapes {
+                if let egui::Shape::LineSegment { points, stroke } = s
+                    && stroke.color == ink
+                {
+                    let half = stroke.width * 0.5;
+                    let seg = egui::Rect::from_two_pos(points[0], points[1]).expand(half);
+                    assert!(
+                        !seg.intersects(button),
+                        "{name}: the host rect mark {seg:?} runs over the surface-active button \
+                         {button:?}"
                     );
                 }
             }
