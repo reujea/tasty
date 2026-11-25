@@ -882,3 +882,43 @@ fn a_non_escape_event_in_a_managed_window_takes_the_edit_judgement() {
         assert!(window_edit_target(incoming, true));
     }
 }
+
+/// Given 덮지 않는 팝업 A 위에 창을 덮는 팝업 C 가 열렸는데 관리자 포커스는 A 에 남은 창, When x 를 치면, Then 사건 시점
+/// 노드는 C 이고 관리자 포커스 표시도 그 노드를 읽어 C 로 옮긴다(덮음 적용은 `window_uncovered` 한 자리다).
+#[test]
+fn the_manager_focus_follows_a_covering_popup_key_node() {
+    let mut h = Harness::new();
+    let mut w = TestWindow::new();
+    w.popups
+        .register_def(&crate::view::settings::ui::keybinding_conflict_def(), 1.0);
+    w.open(A, egui::pos2(300.0, 60.0));
+    h.drain(&mut w);
+    let a = w.popups.host_key_owner().expect("A focused").instance;
+    let request = OpenRequest::new(
+        crate::view::settings::ui::KEYBINDING_CONFLICT_POPUP_ID,
+        PopupScope::Window,
+    )
+    .at(egui::pos2(500.0, 400.0))
+    .focused();
+    let c = w.popups.open_request(&request, true).expect("opened");
+    assert!(w.popups.instance(c).expect("open").covers());
+    w.popups.set_instance_focused(a, true);
+    assert_eq!(w.popups.host_key_owner().map(|p| p.instance), Some(a));
+    drop(h.key_with(&mut w, egui::Key::X, egui::Modifiers::NONE, None));
+    assert_eq!(w.popups.host_key_owner().map(|p| p.instance), Some(c));
+}
+
+/// Given 덮지 않는 팝업 A 위에 덮지 않는 팝업 B 가 열렸는데 관리자 포커스는 A 인 창, When x 를 치면, Then 사건 시점
+/// 노드는 A 라 관리자 포커스는 A 에 남는다.
+#[test]
+fn the_manager_focus_stays_on_an_uncovered_key_node() {
+    let mut h = Harness::new();
+    let mut w = TestWindow::new();
+    w.open(A, egui::pos2(300.0, 60.0));
+    h.drain(&mut w);
+    let a = w.popups.host_key_owner().expect("A focused").instance;
+    w.open(B, egui::pos2(300.0, 300.0));
+    w.popups.set_instance_focused(a, true);
+    drop(h.key_with(&mut w, egui::Key::X, egui::Modifiers::NONE, None));
+    assert_eq!(w.popups.host_key_owner().map(|p| p.instance), Some(a));
+}

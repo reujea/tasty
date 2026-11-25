@@ -91,26 +91,30 @@ impl WindowSegments {
 }
 
 impl PopupManager {
-    /// 지금 사건 시점의 별도 창 노드. 아직 그리지 않은 누름이 있으면 그 누름이 정한 노드이고, 없으면 W1 키 주인
-    /// (`window_key_owner`)이다. 어느 쪽이든 덮인 노드는 노드가 될 수 없다(`window_cover_above`).
+    /// 지금 사건 시점의 별도 창 노드. 출발 값은 아직 그리지 않은 누름이 있으면 그 누름이 정한 노드이고, 없으면 기록으로
+    /// 정한 W1 값(`window_recorded_owner`)이다. 덮인 노드는 노드가 될 수 없다(`window_uncovered`). 끊기·결속·단계 4 와
+    /// 관리자 포커스 표시(`show_window_focus`)가 이 한 값을 읽는다.
     pub(crate) fn window_key_node(&self, ctx: &egui::Context) -> WindowNode {
-        match self.window.press {
-            Some((node, _)) => self
-                .window_cover_above(node.popup())
-                .map_or(node, WindowNode::Popup),
-            None => self
-                .window_key_owner(ctx, self.window.record)
-                .map_or(WindowNode::Widget, WindowNode::Popup),
-        }
+        let start = match self.window.press {
+            Some((node, _)) => node.popup(),
+            None => self.window_recorded_owner(ctx, self.window.record),
+        };
+        self.window_uncovered(start)
+            .map_or(WindowNode::Widget, WindowNode::Popup)
+    }
+
+    /// 덮음 규칙을 적용하는 한 자리: 출발 값 `start`(None 이면 창 위젯)보다 위에 창을 덮는 팝업이 있으면 그 가운데
+    /// 맨 위, 없으면 `start` 다. 사건 시점 노드(`window_key_node`)와 W1(`window_key_owner`)이 이 함수로 덮음을 적용한다.
+    pub(crate) fn window_uncovered(
+        &self,
+        start: Option<PopupInstanceId>,
+    ) -> Option<PopupInstanceId> {
+        self.window_cover_above(start).or(start)
     }
 
     /// 노드 `node`(None 이면 창 위젯)보다 위(z)에서 창을 덮는 보이는 팝업 가운데 맨 위. 별도 창의 팝업은 모두 Window
-    /// 범위라 덮는 팝업은 창 전체를 덮는다. 사건 시점 노드(`window_key_node`), W1(`window_key_owner`), 포커스 정규화
-    /// (`normalize_window_focus`)가 이 한 규칙을 읽는다.
-    pub(crate) fn window_cover_above(
-        &self,
-        node: Option<PopupInstanceId>,
-    ) -> Option<PopupInstanceId> {
+    /// 범위라 덮는 팝업은 창 전체를 덮는다. 덮음 적용(`window_uncovered`)만 이 규칙을 읽는다.
+    fn window_cover_above(&self, node: Option<PopupInstanceId>) -> Option<PopupInstanceId> {
         let above = node.and_then(|iid| self.instance(iid)).map(|p| p.z_seq);
         self.covering_nodes()
             .filter(|(_, _, z)| above.is_none_or(|a| *z > a))
@@ -127,8 +131,8 @@ impl PopupManager {
         events: &[egui::Event],
         incoming: Incoming,
     ) -> usize {
-        self.normalize_window_focus();
         let focus = self.window_key_node(ctx);
+        self.show_window_focus(focus);
         let mut cuts = 0;
         loop {
             let node = *self.window.open_node();
@@ -151,13 +155,13 @@ impl PopupManager {
         cuts
     }
 
-    /// 별도 창의 포커스 위치를 지금 상태에 맞춘다(메인 창 `MainViewState::normalize_focus` 와 같은 규칙). 덮인 노드는
-    /// 포커스 노드가 될 수 없다: 포커스 위치보다 위(z)에 창을 덮는 보이는 팝업이 있으면(포커스 위치가 없거나 창
-    /// 위젯이어도) 그 가운데 맨 위가 포커스 위치다. 별도 창의 팝업은 모두 Window 범위다. 키·IME·누름의 끊기 앞과
-    /// `run` 앞에 부른다.
-    fn normalize_window_focus(&mut self) {
-        let focus = self.host_key_owner().map(|p| p.instance);
-        if let Some(iid) = self.window_cover_above(focus) {
+    /// 관리자 포커스 표시를 사건 시점 노드(`window_key_node`)에 맞춘다. 노드가 팝업이면 그 팝업이 포커스 위치다(덮는
+    /// 팝업이 덮인 포커스를 대신한 경우가 여기서 바뀐다). 노드가 창 위젯이면 관리자 포커스를 그대로 둔다(기록이 팝업 밖인
+    /// W1). 키·IME·누름의 끊기 앞과 `run` 앞에 부른다.
+    fn show_window_focus(&mut self, node: WindowNode) {
+        if let WindowNode::Popup(iid) = node
+            && self.host_key_owner().map(|p| p.instance) != Some(iid)
+        {
             self.set_instance_focused(iid, true);
         }
     }
@@ -339,8 +343,9 @@ impl PopupManager {
     /// 별도 창 `run` 전에 결속 없는 몫의 키 주인을 지금 노드로 정한다. egui 가 같은 `run` 안에서 패스를 다시 돌려도 같은
     /// 값을 쓴다(`GpuState::run_window_pass`).
     pub(crate) fn begin_window_run(&mut self, ctx: &egui::Context) {
-        self.normalize_window_focus();
-        self.window.run_owner = self.window_key_node(ctx).popup();
+        let node = self.window_key_node(ctx);
+        self.show_window_focus(node);
+        self.window.run_owner = node.popup();
     }
 
     /// 이번 `run` 의 결속 없는 몫 키 주인.

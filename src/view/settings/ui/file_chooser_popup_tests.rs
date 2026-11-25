@@ -269,7 +269,7 @@ fn keyed_run(
 }
 
 /// W1 장면의 팝업: 설정 창 관리자에 더한 덮지 않는 팝업. 덮는 팝업(충돌 질문)은 기록과 관계없이 키 주인이라
-/// (`window_cover_above`) 포커스 기록이 정하는 W1 은 덮지 않는 팝업에서만 갈린다.
+/// (`window_uncovered`) 포커스 기록이 정하는 W1 은 덮지 않는 팝업에서만 갈린다.
 const W1_POPUP: PopupId = "settings_w1_plain";
 
 /// 창 위젯(`outside`)을 그린 뒤 설정 창 관리자의 팝업을 그린다. W1 팝업 본문은 `inside`가 그린다. 이 패스에
@@ -654,7 +654,7 @@ fn panel_pass(
 }
 
 /// 충돌 확인을 열고 L2 사이드바 필터 입력칸에 egui 포커스를 준다. 충돌 질문은 창을 덮으므로 포커스 기록이 밖이어도
-/// 패스 시작 키 주인은 충돌 질문이다(`window_cover_above`).
+/// 패스 시작 키 주인은 충돌 질문이다(`window_uncovered`).
 fn conflict_with_outside_focus(
     ctx: &egui::Context,
     p: &mut Panel,

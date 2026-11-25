@@ -308,7 +308,7 @@ debug egui 주입(키·포인터·글자·클립보드, 메인 창과 별도 창
 설정·plugins·preset 창의 키 사건은 메인 창과 같은 키 사건 순서(`run_key_event`)를 창 입구(`judged_window_event`)에서
 지난다. 사건 시점 노드는 팝업 인스턴스 하나이거나 창 위젯이고, 노드를 정하는 함수는
 `PopupManager::window_key_node`(`src/adapters/ui/popup/window_segments.rs`) 하나다. 덮인 노드는 포커스 노드가 될 수 없다는
-메인 창 규칙도 같다(창을 덮는 팝업이 있으면 누름 여부와 관계없이 그 팝업이 노드다, `PopupManager::window_cover_above`). 단계 3~5 에서 누름·키 사건은 egui 입력에 들어가기 전에 그
+메인 창 규칙도 같다(창을 덮는 팝업이 있으면 누름 여부와 관계없이 그 팝업이 노드다). 덮음은 `PopupManager::window_uncovered` 한 자리가 적용하고, 관리자 포커스 표시도 그 노드를 읽는다(`show_window_focus`). 단계 3~5 에서 누름·키 사건은 egui 입력에 들어가기 전에 그
 노드로 입력을 끊고(끊는 조건은 메인 창과 같은 `PopupManager::cut_key_frame`), 누름은 그 자리에서 포커스를 옮긴다. 덮는
 팝업의 덮음 막이를 누르면 그 팝업을 누른 것이고, 그 누름을 그리는 패스는 포커스를 다시 정하지 않는다. 단계 4 수신자는 메인
 창과 같은 `key_route::route_key`가 그 노드에서 정한다(`PopupManager::settle_window_key`,

@@ -29,13 +29,25 @@ impl WindowFocusRecord {
 
 impl PopupManager {
     /// 이 별도 창 관리자의 키 주인(W1). `record`는 직전 `run_egui` 뒤의 포커스 기록이다. 기록으로 정한 값보다 위에
-    /// 창을 덮는 팝업이 있으면 그 팝업이다(덮인 창 위젯은 키 주인이 될 수 없다, `window_cover_above`).
+    /// 창을 덮는 팝업이 있으면 그 팝업이다(덮인 창 위젯은 키 주인이 될 수 없다). 제품 경로는 누름이 없을 때의 사건 시점
+    /// 노드(`window_key_node`)로 같은 값을 읽는다.
+    #[cfg(test)]
     pub(crate) fn window_key_owner(
         &self,
         ctx: &egui::Context,
         record: WindowFocusRecord,
     ) -> Option<PopupInstanceId> {
-        let recorded = self.host_key_owner().and_then(|owner| {
+        self.window_uncovered(self.window_recorded_owner(ctx, record))
+    }
+
+    /// 덮음을 적용하기 전 W1 값: 관리자 포커스 인스턴스. 단, `record`(직전 `run_egui` 뒤의 포커스 기록)가 그 인스턴스
+    /// 레이어(등록 자식 포함) 안이거나 기록이 없을 때만이다. 덮음은 `window_uncovered` 한 자리가 적용한다.
+    pub(crate) fn window_recorded_owner(
+        &self,
+        ctx: &egui::Context,
+        record: WindowFocusRecord,
+    ) -> Option<PopupInstanceId> {
+        self.host_key_owner().and_then(|owner| {
             let Some(layer) = record.0 else {
                 return Some(owner.instance);
             };
@@ -43,8 +55,7 @@ impl PopupManager {
                 .chain(super::child_popup_ids::child_layer_ids(ctx, owner.instance))
                 .any(|id| egui::LayerId::new(egui::Order::Foreground, id) == layer);
             inside.then_some(owner.instance)
-        });
-        self.window_cover_above(recorded).or(recorded)
+        })
     }
 }
 
