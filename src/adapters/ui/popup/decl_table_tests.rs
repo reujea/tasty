@@ -532,3 +532,30 @@ fn window_sized_popups_keep_their_token_sizes() {
         assert_eq!(def.decl.size, popup_size(size), "{id} 처음 크기");
     }
 }
+
+/// 승인 팝업의 선언 폭은 배율 1의 approval-width다. sizer가 있어 등록은 배율을 곱하지 않고, 배율은 sizer 폭이 따른다.
+#[test]
+fn approval_popup_width_reads_approval_width_at_every_zoom() {
+    let unzoomed = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
+    let def = super::find(super::super::approval::APPROVAL_POPUP_ID).expect("승인 정의가 있다");
+    assert!(def.sizer.is_some(), "승인 팝업은 sizer로 크기를 정한다");
+    for zoom in [1.0_f32, 2.0] {
+        let mut mgr = PopupManager::new();
+        mgr.register_def(def, zoom);
+        let popup = mgr
+            .get_mut(super::super::approval::APPROVAL_POPUP_ID)
+            .expect("등록된 승인 팝업");
+        assert_eq!(
+            popup.needed_size.x,
+            unzoomed.approval_width().value(),
+            "배율 {zoom}의 등록 폭"
+        );
+        let zoomed =
+            Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, zoom);
+        assert_eq!(
+            super::super::approval::popup_width(&zoomed).value(),
+            unzoomed.approval_width().value() * zoom,
+            "배율 {zoom}의 sizer 폭"
+        );
+    }
+}

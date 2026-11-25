@@ -185,7 +185,7 @@ pub fn approval_popup_sizer(
 }
 
 /// 승인 팝업 폭은 approval-width 토큰이다. sizer가 배율을 직접 적용하므로 Theme 접근자로 읽는다.
-fn popup_width(th: &Theme) -> LogicalPx {
+pub(super) fn popup_width(th: &Theme) -> LogicalPx {
     th.approval_width()
 }
 

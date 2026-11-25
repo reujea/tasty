@@ -294,7 +294,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     instances: PopupInstances::Queue,
                     // 범위를 덮지 않으니(scrim 없음) 떠 있는 표면의 popover 그림자를 쓴다.
                     shadow: PopupShadow::Popover,
-                    ..host_decl(popup_size(egui::vec2(480.0, 240.0)))
+                    // 폭은 sizer와 같은 approval-width다. sizer가 있어 register_def는 배율을 곱하지 않고 sizer가 곱한다.
+                    ..host_decl(popup_size(egui::vec2(unzoomed.approval_width().value(), 240.0)))
                 },
                 title_key: "approval.popup.title",
                 fullscreen_stage: None,
