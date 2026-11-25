@@ -430,7 +430,7 @@ pub(super) fn empty_detail_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Re
         );
         ui.label(
             egui::RichText::new(crate::i18n::t("plugins.attn_empty_body"))
-                .size(ATTN_PRIMITIVE_12.value())
+                .size(theme.font_size_term_sm.value())
                 .color(theme.text_muted().to_egui()),
         );
     });

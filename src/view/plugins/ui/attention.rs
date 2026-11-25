@@ -221,7 +221,7 @@ fn draw_empty_state(ui: &mut egui::Ui, th: &theme::Theme) {
         vspace(ui, th.spacing_xs);
         ui.label(
             egui::RichText::new(t("plugins.attn_empty_body"))
-                .size(ATTN_PRIMITIVE_12.value())
+                .size(th.font_size_term_sm.value())
                 .color(egui::Color32::from(th.text_muted())),
         );
     });
