@@ -12,6 +12,15 @@ use super::focus_node::FocusNode;
 use crate::core::CoreState;
 use crate::runtime::engine_read::EngineRead;
 
+/// 다시 그리기 첫머리에 꺼낸 모달 열기 요청.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ModalOpenRequests {
+    /// 설정 창 열기 요청이 있었다.
+    pub(crate) settings: bool,
+    /// plugin 창 열기 요청이 있었다.
+    pub(crate) plugins: bool,
+}
+
 /// 프레임마다 정한 키 포커스 값들.
 #[derive(Debug, Default)]
 pub(crate) struct KeyFocusFrames {
@@ -37,6 +46,17 @@ impl super::MainViewState {
             crate::adapters::ui::restore_notice::has_keyboard_focus(&self.popups),
             self.focused_surface_id(core),
         )
+    }
+
+    /// 그리기가 남긴 설정·plugin 모달 열기 요청을 꺼내고 지운다. 다시 그리기 첫머리(`prepare_redraw`의
+    /// `dispatch_pending_modal_opens`)가 프레임 키 포커스를 채우기 전에 부른다. 그래서 그리는 중 생긴 설정 요청은
+    /// 프레임 사이의 입력만 보고, 다음 프레임 첫머리 키 포커스 값에는 설정 요청 갈래([`key_focus_of`])가 나타나지
+    /// 않는다.
+    pub(crate) fn take_modal_open_requests(&mut self) -> ModalOpenRequests {
+        ModalOpenRequests {
+            settings: std::mem::take(&mut self.settings_open_requested),
+            plugins: std::mem::take(&mut self.plugins_open),
+        }
     }
 
     /// 이번 프레임의 키 포커스 값을 지금 상태로 채운다. 프레임의 첫 소비자보다 먼저 부른다.

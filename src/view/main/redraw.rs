@@ -212,14 +212,12 @@ impl MainView {
     /// settings/plugins 모달 오픈 요청 dispatch. `ui.rs`가 `state.settings_open_requested`/
     /// `state.plugins_open`을 true로 세팅하면 여기서 소비해 `AppEvent`로 변환한다.
     fn dispatch_pending_modal_opens(&mut self) {
-        // Check if settings button was clicked (ui.rs sets state.settings_open_requested = true)
-        if self.state.settings_open_requested {
-            self.state.settings_open_requested = false;
+        // 그리기(ui.rs)가 남긴 요청을 프레임 키 포커스를 채우기 전에 꺼낸다(`take_modal_open_requests`).
+        let requests = self.state.take_modal_open_requests();
+        if requests.settings {
             crate::shortcuts::send_app_event(&self.proxy, crate::AppEvent::OpenSettings);
         }
-        // Same flow for plugins modal.
-        if self.state.plugins_open {
-            self.state.plugins_open = false;
+        if requests.plugins {
             crate::shortcuts::send_app_event(&self.proxy, crate::AppEvent::OpenPlugins);
         }
     }

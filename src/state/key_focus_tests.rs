@@ -708,3 +708,37 @@ fn key_focus_of_a_surface_focus_node_is_that_surface() {
     );
     assert_eq!(key_focus(&state, &mut session), Some(sid));
 }
+
+/// 그리기 중 생긴 설정 요청을 다음 다시 그리기 첫머리에 꺼낸 뒤 채우는 프레임 키 포커스는 지금 포커스 노드(키를 가진
+/// 팝업)의 값이다. 요청 갈래(선택 surface)가 프레임 값에 나타나지 않는다.
+#[test]
+fn a_settings_request_raised_while_drawing_is_taken_before_the_next_frame_key_focus() {
+    let (mut state, mut session, _) = scene();
+    open_window_popup(&mut state);
+    state.normalize_focus(&session.borrow_mut().read());
+    state.refresh_frame_key_focus(&session.borrow_mut().read());
+    assert_eq!(state.frame_key_focus(), None, "frame N under the popup");
+    // 그리기가 사이드바 설정 버튼 누름을 요청으로 남긴다(`adapters::ui::draw`).
+    state.settings_open_requested = true;
+    state.finish_frame_key_focus(&session.borrow_mut().read(), true);
+
+    let requests = state.take_modal_open_requests();
+    assert!(requests.settings, "the next redraw takes the request");
+    state.refresh_frame_key_focus(&session.borrow_mut().read());
+    assert!(!state.has_settings_open_request());
+    assert_eq!(state.frame_key_focus(), None, "frame N+1 under the popup");
+}
+
+/// 팝업이 키를 갖지 않으면 그리기 중 생긴 설정 요청 뒤의 프레임 키 포커스는 선택 surface다.
+#[test]
+fn a_settings_request_raised_while_drawing_keeps_the_selected_frame_key_focus() {
+    let (mut state, mut session, sid) = scene();
+    state.refresh_frame_key_focus(&session.borrow_mut().read());
+    assert_eq!(state.frame_key_focus(), Some(sid));
+    state.settings_open_requested = true;
+    state.finish_frame_key_focus(&session.borrow_mut().read(), true);
+
+    assert!(state.take_modal_open_requests().settings);
+    state.refresh_frame_key_focus(&session.borrow_mut().read());
+    assert_eq!(state.frame_key_focus(), Some(sid));
+}
