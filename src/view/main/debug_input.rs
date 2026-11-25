@@ -90,6 +90,16 @@ impl crate::gfx::gpu::edit_keys::HeldEvent for DebugInput {
     fn is_key(&self) -> bool {
         !self.is_pointer()
     }
+
+    fn interrupts_await(&self) -> bool {
+        matches!(
+            self,
+            Self::Pointer {
+                action: InjectPointer::Button { pressed: true, .. },
+                ..
+            }
+        )
+    }
 }
 
 /// 휠 단위. 장치별 변환 경로를 각각 확인할 수 있도록 줄·포인트·페이지를 구분한다.
@@ -299,7 +309,7 @@ impl MainView {
 }
 
 /// 창 전체에 대한 정규화 좌표(fx, fy)를 그 창의 egui 논리 좌표로 바꾼다.
-fn window_egui_pos(gpu: &crate::gpu::GpuState, fx: f32, fy: f32) -> egui::Pos2 {
+pub(crate) fn window_egui_pos(gpu: &crate::gpu::GpuState, fx: f32, fy: f32) -> egui::Pos2 {
     let ppp = gpu.egui_pixels_per_point().max(f32::EPSILON);
     let (w, h) = gpu.surface_config_size();
     let logical_w = PhysicalPx(w as f32).to_logical(ppp).value();
@@ -330,8 +340,16 @@ fn push_egui_pointer_at(
     if let Some(m) = modifiers {
         gpu.debug_set_egui_modifiers(m);
     }
-    let modifiers = modifiers.unwrap_or_default();
-    let events = match action {
+    gpu.debug_push_egui_events(pointer_events(pos, action, modifiers.unwrap_or_default()));
+}
+
+/// 포인터 동작 하나가 egui 입력 큐에 실을 사건. 이벤트 자체의 수식 키는 `modifiers` 다.
+pub(crate) fn pointer_events(
+    pos: egui::Pos2,
+    action: InjectPointer,
+    modifiers: egui::Modifiers,
+) -> Vec<egui::Event> {
+    match action {
         // 클릭 전 hover 를 같은 pos 로 세팅해야 plugin egui 가 위젯 hit-test 를 맞춘다.
         InjectPointer::Move => vec![egui::Event::PointerMoved(pos)],
         InjectPointer::Button { button, pressed } => vec![
@@ -348,8 +366,7 @@ fn push_egui_pointer_at(
             delta: egui::vec2(dx, dy),
             modifiers,
         }],
-    };
-    gpu.debug_push_egui_events(events);
+    }
 }
 
 /// 키 주입이 쓰는 창 하나의 egui 입력 상태. 실제로는 그 창의 `GpuState`이고 시험은 가짜를 쓴다.
@@ -585,7 +602,7 @@ pub(crate) fn push_egui_text(gpu: &mut crate::gpu::GpuState, text: &str) -> bool
 
 /// egui-winit의 문자 판정을 따르고 TextEdit이 무시하는 빈 값은 제외한다.
 /// 상류 함수가 비공개여서 같은 조건을 여기서 검사한다.
-fn text_reaches_egui_as_typed(text: &str) -> bool {
+pub(crate) fn text_reaches_egui_as_typed(text: &str) -> bool {
     !text.is_empty() && text.chars().all(is_printable_char)
 }
 

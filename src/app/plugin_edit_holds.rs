@@ -12,7 +12,6 @@ use winit::window::WindowId;
 use super::App;
 use super::edit_key_replay::{ReplayStep, replay_steps};
 use crate::adapters::ui::input::edit_key::{EditKey, EditKeyHold, Outcome};
-use crate::gfx::gpu::edit_keys::HeldEvent;
 use crate::plugin::PluginManager;
 use crate::plugin::manager::{
     PluginCopyTarget, PluginEditOutcome, PluginEditRequest, PluginEditResult,
@@ -122,7 +121,12 @@ impl PluginEditHolds {
 
     /// 보류 중인 창의 키·IME·modifier·포인터 입력을 줄 세운다. 줄을 섰으면 true 이고 호출자는 처리하지 않는다.
     /// `at` 은 그 입력이 창에 처음 도착한 시각이고 재생 때 그대로 쓴다.
-    pub(crate) fn queue(&mut self, window: WindowId, event: &WindowEvent, at: Instant) -> bool {
+    pub(crate) fn queue(
+        &mut self,
+        window: WindowId,
+        event: &impl crate::gfx::gpu::edit_keys::LineEntry<WindowEvent>,
+        at: Instant,
+    ) -> bool {
         if let Some(queued) = self.queue_behind_await(window, event, at) {
             return queued;
         }
@@ -132,27 +136,8 @@ impl PluginEditHolds {
         if !(event.queues_behind_hold() || event.is_pointer()) {
             return false;
         }
-        held.hold.queue(event.clone(), at);
+        held.hold.queue_item(event.line_item(at));
         true
-    }
-
-    /// [`Self::queue`] 의 debug 주입. 기다림 줄이나 보류 줄에 서면 `None`, 아니면 그 주입을 돌려준다.
-    #[cfg(debug_assertions)]
-    pub(crate) fn queue_debug(
-        &mut self,
-        window: WindowId,
-        input: crate::view::main::debug_input::DebugInput,
-    ) -> Option<crate::view::main::debug_input::DebugInput> {
-        let input = match self.debug_behind_await(window, input) {
-            Ok(left) => return left,
-            Err(input) => input,
-        };
-        let Some(held) = self.holds.get_mut(&window) else {
-            return Some(input);
-        };
-        held.hold
-            .queue_item(crate::adapters::ui::input::edit_key::LineItem::Debug(input));
-        None
     }
 
     /// 회신으로 보류를 푼다. 보류가 없는 회신(창이 닫혔거나 이미 시간이 지났다)은 버린다.
@@ -369,7 +354,7 @@ impl App {
     pub(super) fn queue_behind_plugin_edit(
         &mut self,
         id: WindowId,
-        event: &WindowEvent,
+        event: &impl crate::gfx::gpu::edit_keys::LineEntry<WindowEvent>,
         at: Instant,
     ) -> bool {
         paste_await::interrupt_awaits(self, id, event);

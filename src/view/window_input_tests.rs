@@ -969,3 +969,240 @@ fn the_manager_focus_stays_on_an_uncovered_key_node() {
     assert!(!h.key_with(&mut w, egui::Key::X, egui::Modifiers::NONE, None));
     assert_eq!(w.popups.host_key_owner().map(|p| p.instance), Some(a));
 }
+
+#[cfg(debug_assertions)]
+impl WindowEguiPos for Injection<'_> {
+    fn egui_pos(&self, fx: f32, fy: f32) -> egui::Pos2 {
+        egui::pos2(800.0 * fx, 600.0 * fy)
+    }
+}
+
+/// debug 주입 하나를 보류 검사 뒤 관리자를 가진 창 입구(`enter_managed_window_debug`)로 넣는다.
+#[cfg(debug_assertions)]
+fn inject_debug(
+    h: &mut Harness,
+    w: &mut TestWindow,
+    input: crate::view::main::debug_input::DebugInput,
+) -> crate::view::main::debug_input::DebugEntered {
+    let ctx = h.ctx.clone();
+    let mut sink = Injection {
+        harness: h,
+        held: egui::Modifiers::NONE,
+    };
+    enter_managed_window_debug(&ctx, &mut w.popups, &mut sink, input)
+}
+
+/// 창 egui 좌표 `pos` 의 debug 버튼 누름(`pressed`) 또는 뗌.
+#[cfg(debug_assertions)]
+fn debug_button(pos: egui::Pos2, pressed: bool) -> crate::view::main::debug_input::DebugInput {
+    crate::view::main::debug_input::DebugInput::Pointer {
+        fx: pos.x / 800.0,
+        fy: pos.y / 600.0,
+        surface_id: None,
+        action: crate::view::main::debug_input::InjectPointer::Button {
+            button: winit::event::MouseButton::Left,
+            pressed,
+        },
+        modifiers: None,
+    }
+}
+
+#[cfg(debug_assertions)]
+fn debug_x() -> crate::view::main::debug_input::DebugInput {
+    crate::view::main::debug_input::DebugInput::Key {
+        key: egui::Key::X,
+        pressed: true,
+        modifiers: None,
+    }
+}
+
+/// Given 팝업 A 의 a1 이 키 주인인 창, When 그리기 전 한 묶음에 팝업 B 의 b 를 debug 로 누르고 떼고 debug X 를 넣으면,
+/// Then 누름이 winit 누름과 같은 입구(`settle_window_input` → `press_window_at`)를 지나 노드를 B 로 옮기고 X 는 B 가
+/// 본다.
+#[cfg(debug_assertions)]
+#[test]
+fn a_debug_press_on_a_popup_moves_the_node_for_the_next_debug_key() {
+    let (mut h, mut w) = two_popups();
+    focus_field(&mut h, &mut w, "a1");
+    let b = w.center("b");
+    assert_eq!(
+        inject_debug(&mut h, &mut w, debug_button(b, true)),
+        crate::view::main::debug_input::DebugEntered::Done(true)
+    );
+    inject_debug(&mut h, &mut w, debug_button(b, false));
+    inject_debug(&mut h, &mut w, debug_x());
+    assert_eq!(h.drain(&mut w).concat(), vec!["B"]);
+}
+
+/// Given 같은 창, When 같은 묶음을 winit 누름·뗌과 debug X 로 넣으면, Then X 는 B 가 본다.
+#[cfg(debug_assertions)]
+#[test]
+fn a_window_press_on_a_popup_moves_the_node_for_the_next_debug_key() {
+    let (mut h, mut w) = two_popups();
+    focus_field(&mut h, &mut w, "a1");
+    let b = w.center("b");
+    h.click(&mut w, b);
+    inject_debug(&mut h, &mut w, debug_x());
+    assert_eq!(h.drain(&mut w).concat(), vec!["B"]);
+}
+
+/// Given 팝업 A 의 a1 이 키 주인인 창, When 그리기 전 한 묶음에 b 를 debug 로 누르고 떼고 debug 글자 t 를 넣으면, Then
+/// 글자도 winit IME 처럼 사건 시점 노드(B)로 끊고 묶여 b 에 들어간다.
+#[cfg(debug_assertions)]
+#[test]
+fn a_debug_text_after_a_debug_press_on_a_popup_reaches_its_field() {
+    let (mut h, mut w) = two_popups();
+    focus_field(&mut h, &mut w, "a1");
+    let b = w.center("b");
+    inject_debug(&mut h, &mut w, debug_button(b, true));
+    inject_debug(&mut h, &mut w, debug_button(b, false));
+    let text = crate::view::main::debug_input::DebugInput::Text("t".into());
+    assert_eq!(
+        inject_debug(&mut h, &mut w, text),
+        crate::view::main::debug_input::DebugEntered::Done(true)
+    );
+    h.drain(&mut w);
+    assert_eq!((w.text("a1"), w.text("b")), ("", "t"));
+}
+
+/// Given 같은 창, When b 를 winit 으로 누르고 떼고 글자 t 를 실은 winit 키를 넣으면, Then t 는 b 에 들어간다.
+#[cfg(debug_assertions)]
+#[test]
+fn a_window_text_after_a_window_press_on_a_popup_reaches_its_field() {
+    let (mut h, mut w) = two_popups();
+    focus_field(&mut h, &mut w, "a1");
+    let b = w.center("b");
+    h.click(&mut w, b);
+    h.key(&mut w, egui::Key::T, Some("t"));
+    h.drain(&mut w);
+    assert_eq!((w.text("a1"), w.text("b")), ("", "t"));
+}
+
+/// 창 입구 줄에 서는 winit 사건의 대역: 누름·뗌(`Click`)과 글자를 실은 키(`Key`).
+#[cfg(debug_assertions)]
+#[derive(Clone, Debug, PartialEq)]
+enum LineEv {
+    Click(egui::Pos2),
+    Key(egui::Key, &'static str),
+}
+
+#[cfg(debug_assertions)]
+impl crate::gfx::gpu::edit_keys::HeldEvent for LineEv {
+    fn press(&self) -> Option<(&winit::keyboard::Key, winit::keyboard::PhysicalKey)> {
+        None
+    }
+    fn queues_behind_hold(&self) -> bool {
+        matches!(self, Self::Key(..))
+    }
+    fn is_pointer(&self) -> bool {
+        matches!(self, Self::Click(_))
+    }
+    fn is_key(&self) -> bool {
+        matches!(self, Self::Key(..))
+    }
+    fn interrupts_await(&self) -> bool {
+        matches!(self, Self::Click(_))
+    }
+}
+
+#[cfg(debug_assertions)]
+impl crate::gfx::gpu::edit_keys::LineEntry<LineEv> for LineEv {
+    fn line_item(
+        &self,
+        at: std::time::Instant,
+    ) -> crate::adapters::ui::input::edit_key::LineItem<LineEv> {
+        crate::adapters::ui::input::edit_key::LineItem::Event(self.clone(), at)
+    }
+}
+
+/// 창 입구 하나: 맨 앞 보류 검사(`EditKeyState::hold_front`)를 지나면 winit 대역은 하네스의 사건 입구로, debug 주입은
+/// 관리자를 가진 창 입구로 넣는다.
+#[cfg(debug_assertions)]
+fn enter_line(
+    h: &mut Harness,
+    w: &mut TestWindow,
+    line: &mut crate::gfx::gpu::edit_keys::EditKeyState<LineEv>,
+    item: crate::adapters::ui::input::edit_key::LineItem<LineEv>,
+) {
+    use crate::adapters::ui::input::edit_key::LineItem;
+    use crate::gfx::gpu::edit_keys::EditKeyOwner;
+    let handed = w.popups.has_undrawn_handed_escape();
+    let now = std::time::Instant::now();
+    let held = match &item {
+        LineItem::Event(event, _) => {
+            line.hold_front(event, EditKeyOwner::Window, &h.queue, handed, now)
+        }
+        LineItem::Debug(input) => {
+            line.hold_front(input, EditKeyOwner::Window, &h.queue, handed, now)
+        }
+    };
+    if held {
+        return;
+    }
+    match item {
+        LineItem::Event(LineEv::Click(pos), _) => h.click(w, pos),
+        LineItem::Event(LineEv::Key(key, text), _) => h.key(w, key, Some(text)),
+        LineItem::Debug(input) => {
+            inject_debug(h, w, input);
+        }
+    }
+}
+
+/// 패스 하나를 그리고 풀린 줄을 받은 순서대로 창 입구로 다시 보낸다(제품 `replay_edit_keys`). 이번 패스에 키 X 를 본
+/// 노드를 돌려준다.
+#[cfg(debug_assertions)]
+fn line_pass(
+    h: &mut Harness,
+    w: &mut TestWindow,
+    line: &mut crate::gfx::gpu::edit_keys::EditKeyState<LineEv>,
+) -> Vec<&'static str> {
+    line.input_taken(&[]);
+    let seen = h.pass(w);
+    line.after_pass(egui::PlatformOutput::default(), &h.ctx);
+    if let Some(release) = line.take_release(crate::gfx::gpu::edit_keys::EditKeyOwner::Window) {
+        for item in release.split().1 {
+            enter_line(h, w, line, item);
+        }
+    }
+    seen
+}
+
+/// Given 팝업 A 의 a1 이 키 주인이고 a1 에 친 글자 k 를 아직 그리지 않은 창, When 그 뒤 [winit 키 q, b 누름 A, debug X
+/// B, winit 키 y C]가 오면, Then 줄이 풀린 뒤 재생한 누름 A 가 노드를 B 로 옮기고, 그 패스를 기다린 debug X(B)는 팝업
+/// B 가 보고 winit 키 y(C)는 b 에 들어간다. q 는 노드를 옮기기 전이라 a1 에 들어간다.
+#[cfg(debug_assertions)]
+#[test]
+fn a_replayed_press_moves_the_node_and_the_keys_behind_it_reach_its_popup() {
+    use crate::adapters::ui::input::edit_key::LineItem;
+    let (mut h, mut w) = two_popups();
+    let b_popup = w.popups.host_key_owner().expect("B focused").instance;
+    focus_field(&mut h, &mut w, "a1");
+    let b = w.center("b");
+    let mut line = crate::gfx::gpu::edit_keys::EditKeyState::<LineEv>::default();
+    let now = std::time::Instant::now();
+    for item in [
+        LineItem::Event(LineEv::Key(egui::Key::K, "k"), now),
+        LineItem::Event(LineEv::Key(egui::Key::Q, "q"), now),
+        LineItem::Event(LineEv::Click(b), now),
+        LineItem::Debug(debug_x()),
+        LineItem::Event(LineEv::Key(egui::Key::Y, "y"), now),
+    ] {
+        enter_line(&mut h, &mut w, &mut line, item);
+    }
+    assert!(line.busy(), "q 뒤가 줄에 섰다");
+    let mut seen = Vec::new();
+    for _ in 0..8 {
+        if !h.has_input() && !line.busy() {
+            break;
+        }
+        seen.extend(line_pass(&mut h, &mut w, &mut line));
+    }
+    assert!(!line.busy() && !h.has_input(), "줄이 끝나지 않았다");
+    assert_eq!(
+        w.popups.host_key_owner().map(|p| p.instance),
+        Some(b_popup),
+        "재생한 누름이 노드를 B 로 옮긴다"
+    );
+    assert_eq!(seen, vec!["B"], "debug X 는 B 가 본다");
+    assert_eq!((w.text("a1"), w.text("b")), ("kq", "y"));
+}

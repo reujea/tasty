@@ -425,7 +425,7 @@ fn window_input_interrupts_awaits_and_the_app_applies_them_in_order() {
     let squash = |s: &str| s.split_whitespace().collect::<String>();
     let src = squash(include_str!("plugin_edit_holds.rs"));
     let interrupt = squash(
-        "pub(super) fn queue_behind_plugin_edit( &mut self, id: WindowId, event: &WindowEvent, at: Instant, ) -> bool {
+        "pub(super) fn queue_behind_plugin_edit( &mut self, id: WindowId, event: &impl crate::gfx::gpu::edit_keys::LineEntry<WindowEvent>, at: Instant, ) -> bool {
          paste_await::interrupt_awaits(self, id, event);
          self.plugin_edit_holds.queue(id, event, at) }",
     );

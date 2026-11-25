@@ -492,3 +492,43 @@ fn an_arrival_of_another_read_is_dropped() {
         "기다림이 끝났다"
     );
 }
+
+/// debug 포인터 주입 하나(`action`).
+#[cfg(debug_assertions)]
+fn debug_pointer(
+    action: crate::view::main::debug_input::InjectPointer,
+) -> crate::view::main::debug_input::DebugInput {
+    crate::view::main::debug_input::DebugInput::Pointer {
+        fx: 0.5,
+        fy: 0.5,
+        surface_id: None,
+        action,
+        modifiers: None,
+    }
+}
+
+/// Given 글자를 기다리는 플러그인 붙여넣기, When debug 버튼 누름이 창 입구에 오면, Then 실제 누름처럼
+/// `interrupt_awaits`(`HeldEvent::interrupts_await`)가 기다림을 끝낸다.
+#[cfg(debug_assertions)]
+#[test]
+fn a_debug_button_press_ends_a_paste_await() {
+    let (mut mgr, mut holds, now) = (mgr(), PluginEditHolds::default(), Instant::now());
+    await_paste(&mut holds, &mut mgr, true, false, now);
+    let press = debug_pointer(crate::view::main::debug_input::InjectPointer::Button {
+        button: winit::event::MouseButton::Left,
+        pressed: true,
+    });
+    assert!(holds.interrupt_await(window(), &press).is_some());
+    assert!(holds.await_deadline().is_none(), "기다림이 남았다");
+}
+
+/// Given 같은 기다림, When debug 포인터 이동이 오면, Then 기다림은 남는다(실제 포인터 이동과 같다).
+#[cfg(debug_assertions)]
+#[test]
+fn a_debug_pointer_move_keeps_a_paste_await() {
+    let (mut mgr, mut holds, now) = (mgr(), PluginEditHolds::default(), Instant::now());
+    await_paste(&mut holds, &mut mgr, true, false, now);
+    let moved = debug_pointer(crate::view::main::debug_input::InjectPointer::Move);
+    assert!(holds.interrupt_await(window(), &moved).is_none());
+    assert!(holds.await_deadline().is_some());
+}

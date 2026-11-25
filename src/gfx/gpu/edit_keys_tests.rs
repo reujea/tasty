@@ -29,6 +29,15 @@ impl HeldEvent for Ev {
     fn is_key(&self) -> bool {
         !matches!(self, Ev::Pointer(_))
     }
+    fn interrupts_await(&self) -> bool {
+        false
+    }
+}
+
+impl LineEntry<Ev> for Ev {
+    fn line_item(&self, at: Instant) -> LineItem<Ev> {
+        LineItem::Event(self.clone(), at)
+    }
 }
 
 /// The key position under a letter, as the US layout puts it. Shortcuts with Alt match by position.

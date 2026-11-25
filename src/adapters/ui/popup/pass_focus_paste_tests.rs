@@ -64,6 +64,18 @@ impl HeldEvent for Ev {
     fn is_key(&self) -> bool {
         true
     }
+    fn interrupts_await(&self) -> bool {
+        false
+    }
+}
+
+impl crate::gfx::gpu::edit_keys::LineEntry<Ev> for Ev {
+    fn line_item(
+        &self,
+        at: std::time::Instant,
+    ) -> crate::adapters::ui::input::edit_key::LineItem<Ev> {
+        crate::adapters::ui::input::edit_key::LineItem::Event(self.clone(), at)
+    }
 }
 
 fn ev(c: &str) -> Ev {

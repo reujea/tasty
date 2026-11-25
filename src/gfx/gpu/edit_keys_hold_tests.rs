@@ -463,7 +463,12 @@ fn a_paste_into_a_field_gone_from_its_pass_replays_the_key() {
 }
 
 /// The front hold check for one event with `pending` egui input not yet drawn.
-fn front(state: &mut EditKeyState<Ev>, event: &Ev, pending: &[egui::Event], handed: bool) -> bool {
+fn front(
+    state: &mut EditKeyState<Ev>,
+    event: &impl LineEntry<Ev>,
+    pending: &[egui::Event],
+    handed: bool,
+) -> bool {
     state.hold_front(event, EditKeyOwner::Window, pending, handed, Instant::now())
 }
 
@@ -611,7 +616,7 @@ fn a_debug_input_takes_its_place_in_the_hold_line() {
     let pending = vec![egui::Event::Text("z".into())];
     assert!(front(&mut state, &press("a"), &pending, false));
     assert!(
-        state.hold_debug(DebugInput::Text("b".into())).is_none(),
+        front(&mut state, &DebugInput::Text("b".into()), &pending, false),
         "the debug input waits in the open line"
     );
     assert!(front(&mut state, &press("c"), &pending, false));
@@ -635,9 +640,101 @@ fn a_debug_input_takes_its_place_in_the_hold_line() {
 fn a_debug_input_without_a_line_runs_now() {
     use crate::view::main::debug_input::DebugInput;
     let mut state = EditKeyState::<Ev>::default();
-    assert!(matches!(
-        state.hold_debug(DebugInput::Text("b".into())),
-        Some(DebugInput::Text(text)) if text == "b"
+    assert!(!front(
+        &mut state,
+        &DebugInput::Text("b".into()),
+        &[],
+        false
     ));
     assert!(!state.busy(), "nothing waits");
+}
+
+/// A debug pointer press, as the window entry hands it over.
+#[cfg(debug_assertions)]
+fn debug_press() -> crate::view::main::debug_input::DebugInput {
+    crate::view::main::debug_input::DebugInput::Pointer {
+        fx: 0.5,
+        fy: 0.5,
+        surface_id: None,
+        action: crate::view::main::debug_input::InjectPointer::Button {
+            button: winit::event::MouseButton::Left,
+            pressed: true,
+        },
+        modifiers: None,
+    }
+}
+
+/// A debug key press, as the window entry hands it over.
+#[cfg(debug_assertions)]
+fn debug_key() -> crate::view::main::debug_input::DebugInput {
+    crate::view::main::debug_input::DebugInput::Key {
+        key: egui::Key::A,
+        pressed: true,
+        modifiers: None,
+    }
+}
+
+/// Given a paste waiting for a Wayland read with nothing queued behind it, When a debug pointer
+/// press comes, Then it runs now like a real click (the user leaving the field), as the one front
+/// judgment (`queues`) reads it.
+#[cfg(debug_assertions)]
+#[test]
+fn a_debug_press_while_a_paste_reads_with_nothing_queued_runs_now() {
+    let mut ui = Ui::new();
+    ui.focus("field");
+    ui.clipboard = ClipText::Pending;
+    let mut state = bound();
+    let mut pending = Vec::new();
+    ui.judge(&mut state, &press("v"), &mut pending, Instant::now());
+    assert!(state.awaits_text());
+    assert!(!front(&mut state, &debug_press(), &pending, false));
+}
+
+/// Given the same read with a key queued behind it, When a debug pointer press comes, Then it waits
+/// behind that key, as a real click does.
+#[cfg(debug_assertions)]
+#[test]
+fn a_debug_press_behind_a_queued_key_while_a_paste_reads_waits() {
+    let mut ui = Ui::new();
+    ui.focus("field");
+    ui.clipboard = ClipText::Pending;
+    let mut state = bound();
+    let mut pending = Vec::new();
+    ui.judge(&mut state, &press("v"), &mut pending, Instant::now());
+    assert!(front(&mut state, &press("q"), &pending, false));
+    assert!(front(&mut state, &debug_press(), &pending, false));
+}
+
+/// Given egui input a replayed item left that a pass has not taken (it may move focus or close a
+/// popup), When a debug key comes with no line open, Then it starts a settle line like a window key
+/// and comes back once that pass ran.
+#[cfg(debug_assertions)]
+#[test]
+fn a_debug_key_after_unsettled_input_waits_for_its_pass() {
+    let mut ui = Ui::new();
+    let mut state = EditKeyState::<Ev>::default();
+    let pending = vec![egui::Event::Text("z".into())];
+    assert!(front(&mut state, &debug_key(), &pending, false));
+    ui.pass(&mut state, pending);
+    let release = state
+        .take_release(EditKeyOwner::Window)
+        .expect("the line is released after the pass");
+    assert!(matches!(
+        release.split().1[..],
+        [LineItem::Debug(
+            crate::view::main::debug_input::DebugInput::Key {
+                key: egui::Key::A,
+                ..
+            }
+        )]
+    ));
+}
+
+/// Given no egui input waiting for a pass, When a debug key comes, Then it runs now.
+#[cfg(debug_assertions)]
+#[test]
+fn a_debug_key_with_no_pending_input_runs_now() {
+    let mut state = EditKeyState::<Ev>::default();
+    assert!(!front(&mut state, &debug_key(), &[], false));
+    assert!(!state.busy());
 }

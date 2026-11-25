@@ -7,16 +7,14 @@
 use std::time::Instant;
 
 use tasty_plugin_protocol::{EditRequestWire, RawInputEventWire};
-use winit::event::{ElementState, WindowEvent};
+use winit::event::WindowEvent;
 use winit::window::WindowId;
 
 use super::{PluginEditHold, PluginEditHolds, ResolvedPluginEdit, plugin_replay};
 use crate::adapters::ui::input::edit_key::{EditKey, EditKeyHold, LineItem, Release};
-use crate::gfx::gpu::edit_keys::{AWAIT_TEXT_LIMIT, HeldEvent};
+use crate::gfx::gpu::edit_keys::{AWAIT_TEXT_LIMIT, HeldEvent, LineEntry};
 use crate::gfx::gpu::plugin_paste_read::PluginPasteEnd;
 use crate::plugin::manager::{PluginCopyTarget, PluginEditOutcome, PluginEditRequest};
-#[cfg(debug_assertions)]
-use crate::view::main::debug_input::DebugInput;
 
 /// 글자를 기다리는 붙여넣기. 요청 id 는 키 시점에 받아 둔다. 그 실행이 끝나면 회신 대기처럼 `Gone`이 와서, 다시
 /// 시작한 같은 id 의 플러그인에 이전 붙여넣기를 보내지 않는다.
@@ -96,51 +94,26 @@ impl PluginEditHolds {
     pub(super) fn queue_behind_await(
         &mut self,
         window: WindowId,
-        event: &WindowEvent,
+        event: &impl LineEntry<WindowEvent>,
         at: Instant,
     ) -> Option<bool> {
         let waiting = self.awaits.get_mut(&window)?;
         let queues = waiting.takes(event);
         if queues {
-            waiting.queued.push(LineItem::Event(event.clone(), at));
+            waiting.queued.push(event.line_item(at));
         }
         Some(queues)
     }
 
-    /// [`Self::queue_behind_await`] 의 debug 주입. 줄을 섰으면 `Ok(None)`, 서지 않았으면 `Ok(Some)` 으로 그 주입을
-    /// 돌려준다. 기다림이 없으면 `Err` 로 그대로 돌려준다.
-    #[cfg(debug_assertions)]
-    pub(super) fn debug_behind_await(
-        &mut self,
-        window: WindowId,
-        input: DebugInput,
-    ) -> Result<Option<DebugInput>, DebugInput> {
-        let Some(waiting) = self.awaits.get_mut(&window) else {
-            return Err(input);
-        };
-        if !waiting.takes(&input) {
-            return Ok(Some(input));
-        }
-        waiting.queued.push(LineItem::Debug(input));
-        Ok(None)
-    }
-
-    /// 기다리는 창의 포인터 누름과 창 포커스 상실은 기다림을 끝낸다. 호스트는 대상 안의 입력칸 포커스를 볼 수 없어
+    /// 기다리는 창의 포인터 누름과 창 포커스 상실(`HeldEvent::interrupts_await`, debug 포인터 누름도 같다)은 기다림을 끝낸다. 호스트는 대상 안의 입력칸 포커스를 볼 수 없어
     /// 누름이 포커스를 옮겼는지 모르고, 포커스를 잃은 창에 늦게 붙여넣지 않는다. 원래 키는 재생하지 않고 줄 선
     /// 입력만 재생한다. 호출자는 그 뒤 `event`를 처리한다.
     pub(crate) fn interrupt_await(
         &mut self,
         window: WindowId,
-        event: &WindowEvent,
+        event: &impl HeldEvent,
     ) -> Option<AwaitSettled> {
-        let ends = matches!(
-            event,
-            WindowEvent::MouseInput {
-                state: ElementState::Pressed,
-                ..
-            } | WindowEvent::Focused(false)
-        );
-        if !ends {
+        if !event.interrupts_await() {
             return None;
         }
         let waiting = self.awaits.remove(&window)?;
@@ -313,7 +286,11 @@ pub(crate) trait AwaitSink {
 /// 그 창의 포인터 누름·포커스 상실로 기다림을 끝내고 정리를 실행한다. 정리가 재생한 줄 선 붙여넣기 키는 새 읽기와
 /// 새 기다림을 만들 수 있으므로, 기다림이 남지 않을 때까지 같은 이벤트로 다시 끝낸다. 그래서 이 이벤트 뒤에는 어떤
 /// 기다림도 남지 않고 늦게 온 글자가 포커스를 잃은 창에 가지 않는다. 다시 끝낼 때마다 재생할 입력이 줄어 반복이 끝난다.
-pub(crate) fn interrupt_awaits(sink: &mut impl AwaitSink, window: WindowId, event: &WindowEvent) {
+pub(crate) fn interrupt_awaits(
+    sink: &mut impl AwaitSink,
+    window: WindowId,
+    event: &impl HeldEvent,
+) {
     while let Some(ended) = sink.awaits().interrupt_await(window, event) {
         sink.apply_awaited(ended);
     }

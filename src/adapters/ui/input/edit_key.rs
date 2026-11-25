@@ -282,11 +282,6 @@ impl<E> EditKeyHold<E> {
         self.edit
     }
 
-    /// 보류 중에 온 키 이벤트(누름·떼기·IME·modifier)를 받은 순서대로 붙잡는다.
-    pub(crate) fn queue(&mut self, event: E, at: Instant) {
-        self.queued.push(LineItem::Event(event, at));
-    }
-
     /// 보류 중에 온 입력 하나를 받은 순서대로 붙잡는다.
     pub(crate) fn queue_item(&mut self, item: LineItem<E>) {
         self.queued.push(item);

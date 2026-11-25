@@ -129,7 +129,11 @@ impl App {
     }
 
     /// 메인 창 보류 줄(`GpuState::hold_window_input`). 별도 창은 자기 입구에서 같은 검사를 한다.
-    fn hold_window_input(&mut self, id: WindowId, event: &WindowEvent) -> bool {
+    pub(super) fn hold_window_input(
+        &mut self,
+        id: WindowId,
+        event: &impl crate::gfx::gpu::edit_keys::LineEntry<WindowEvent>,
+    ) -> bool {
         let Some(main) = self.view.views.get_mut(&id).and_then(|v| v.as_main_mut()) else {
             return false;
         };

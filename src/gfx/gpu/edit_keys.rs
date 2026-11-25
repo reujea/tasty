@@ -82,6 +82,29 @@ pub(crate) trait HeldEvent: Clone {
     /// A key or IME event: it waits for the pass of unprocessed earlier input
     /// ([`EditKeyState::hold_front`]).
     fn is_key(&self) -> bool;
+    /// A pointer press or a window focus loss: it ends a plugin paste waiting for its text
+    /// (`plugin_paste_await::interrupt_awaits`).
+    fn interrupts_await(&self) -> bool;
+}
+
+/// An input that takes a place in a window's line: a window event with the time it reached the
+/// window, or a debug injection. Every check at the front of a window's input (the hold line, the
+/// settle line, the plugin lines) reads it through [`HeldEvent`] and queues what this gives.
+pub(crate) trait LineEntry<E>: HeldEvent {
+    fn line_item(&self, at: Instant) -> LineItem<E>;
+}
+
+impl LineEntry<WindowEvent> for WindowEvent {
+    fn line_item(&self, at: Instant) -> LineItem<WindowEvent> {
+        LineItem::Event(self.clone(), at)
+    }
+}
+
+#[cfg(debug_assertions)]
+impl<E> LineEntry<E> for crate::view::main::debug_input::DebugInput {
+    fn line_item(&self, _at: Instant) -> LineItem<E> {
+        LineItem::Debug(self.clone())
+    }
 }
 
 impl HeldEvent for WindowEvent {
@@ -106,6 +129,16 @@ impl HeldEvent for WindowEvent {
         matches!(
             self,
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
+        )
+    }
+
+    fn interrupts_await(&self) -> bool {
+        matches!(
+            self,
+            WindowEvent::MouseInput {
+                state: ElementState::Pressed,
+                ..
+            } | WindowEvent::Focused(false)
         )
     }
 }
@@ -305,14 +338,13 @@ impl<E: HeldEvent> EditKeyState<E> {
     /// the pass that takes that input. True when the event waits.
     pub(crate) fn hold_front(
         &mut self,
-        event: &E,
+        event: &impl LineEntry<E>,
         owner: EditKeyOwner,
         events: &[egui::Event],
         handed: bool,
         now: Instant,
     ) -> bool {
-        if self.queues(event) {
-            self.queue(event.clone());
+        if self.queue_behind(event) {
             return true;
         }
         if !event.is_key() || !(handed || self.unsettled(events)) {
@@ -322,7 +354,7 @@ impl<E: HeldEvent> EditKeyState<E> {
             replay: None,
             queued: Vec::new(),
         };
-        line.push(event.clone(), self.arrival());
+        line.push_item(event.line_item(self.arrival()));
         self.settle = Some(SettleLine {
             line,
             owner,
@@ -403,7 +435,7 @@ impl<E: HeldEvent> EditKeyState<E> {
     /// does too, except while a Wayland read is under way with nothing queued yet: there a click
     /// that moves focus is the user leaving the field, and the paste is dropped when the text
     /// arrives. Once anything is queued, pointer input queues as well so it cannot overtake it.
-    fn queues(&self, event: &E) -> bool {
+    fn queues(&self, event: &impl HeldEvent) -> bool {
         if !self.busy() {
             return false;
         }
@@ -505,19 +537,16 @@ impl<E: HeldEvent> EditKeyState<E> {
         }
     }
 
-    /// A debug input injection at the front of the window's input, like a window event: while the
-    /// line is open it takes its place at the end of that line and `None` is returned; otherwise it
-    /// comes back to run now. Its replay runs it through the window's injection entry again.
-    #[cfg(debug_assertions)]
-    pub(crate) fn hold_debug(
-        &mut self,
-        input: crate::view::main::debug_input::DebugInput,
-    ) -> Option<crate::view::main::debug_input::DebugInput> {
-        if !self.busy() {
-            return Some(input);
+    /// The first half of [`Self::hold_front`], and the whole front check of a window with no settle
+    /// line (the quit window): an input that waits behind an open line ([`Self::queues`]) takes its
+    /// place at the end of it. True when it waits.
+    pub(crate) fn queue_behind(&mut self, event: &impl LineEntry<E>) -> bool {
+        if !self.queues(event) {
+            return false;
         }
-        self.queue_item(LineItem::Debug(input));
-        None
+        let at = self.arrival();
+        self.queue_item(event.line_item(at));
+        true
     }
 
     fn queue(&mut self, event: E) {
@@ -945,10 +974,10 @@ impl super::GpuState {
     /// The hold check at the front of this window's input ([`EditKeyState::hold_front`]). `handed`
     /// is whether an Escape taken out of egui's input for a popup has not been drawn yet. True when
     /// the event waits; the window draws to take the input it waits for.
-    pub fn hold_window_input(
+    pub(crate) fn hold_window_input(
         &mut self,
         window: &winit::window::Window,
-        event: &WindowEvent,
+        event: &impl LineEntry<WindowEvent>,
         handed: bool,
     ) -> bool {
         self.expire_edit_hold(frames_stopped(window));
@@ -960,6 +989,22 @@ impl super::GpuState {
             window.request_redraw();
         }
         held
+    }
+
+    /// The front check of a window with no settle line (the quit window): an input behind an open
+    /// line waits at its end ([`EditKeyState::queue_behind`]), as its window events do in the edit
+    /// judgment. True when it waits; the window draws to take the input the line waits for.
+    #[cfg(debug_assertions)]
+    pub(crate) fn queue_window_input(
+        &mut self,
+        window: &winit::window::Window,
+        event: &impl LineEntry<WindowEvent>,
+    ) -> bool {
+        let queued = self.edit_keys.queue_behind(event);
+        if queued {
+            window.request_redraw();
+        }
+        queued
     }
 
     pub fn edit_keys_busy(&self) -> bool {

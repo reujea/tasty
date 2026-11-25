@@ -240,22 +240,141 @@ where
     };
     let (events, pushed) =
         crate::view::main::debug_input::egui_key_load(sink, key, pressed, modifiers);
-    if events.is_empty() {
-        return pushed;
+    if !events.is_empty() {
+        load_window_debug(ctx, popups, sink, incoming, Some(window_key), events);
     }
-    let receiver = settle_window_input(sink, ctx, popups, incoming, Some(window_key));
+    pushed
+}
+
+/// 별도 창 debug 주입 하나가 egui 큐에 실을 사건(`events`)을 winit 사건과 같은 입구로 싣는다: 끊기와 누름 적용
+/// (`settle_window_input`) → egui 수신자가 있으면 적재 → 결속과 bare Esc 적용(`bind_window_input`). 실었으면 참.
+#[cfg(debug_assertions)]
+fn load_window_debug<S>(
+    ctx: &egui::Context,
+    popups: &mut PopupManager,
+    sink: &mut S,
+    incoming: Incoming,
+    key: Option<WindowKey>,
+    events: Vec<egui::Event>,
+) -> bool
+where
+    S: EguiPressSink + crate::view::main::debug_input::EguiKeySink,
+{
+    let receiver = settle_window_input(sink, ctx, popups, incoming, key);
     if receiver.is_some_and(|r| r.egui_node().is_none()) {
-        return pushed;
+        return false;
     }
     sink.push_events(events);
     let held = sink.escape_held();
     bind_window_input(ctx, popups, incoming, sink.queued_events(), held);
-    pushed
+    true
 }
 
-/// 별도 창 debug 주입 하나의 입구. 맨 앞은 winit 사건과 같은 보류 줄 검사다(`GpuState::hold_debug_input`). 줄이 열려
-/// 있으면 그 줄 끝에 서고, 줄이 풀리면 `replay_edit_keys` 가 이 입구로 다시 보낸다. 지나면 키는 팝업 관리자를 가진
-/// 창이면 [`inject_window_key`], 아니면 egui 큐에 바로 넣는다. 포인터·글자·붙여넣기는 egui 큐에 바로 넣는다.
+/// 별도 창 debug 포인터 주입 하나(`pos` 는 그 창의 egui 좌표). winit 포인터와 같이 누름은 그 앞 이동을 먼저 싣고 누름
+/// 입구(`settle_window_input` → `press_window_at`)를 지나며, 그 밖의 이동·뗌·휠은 끊지 않고 싣는다. `modifiers` 를 주면
+/// 그 창의 유지 수식 키를 먼저 바꾼다.
+#[cfg(debug_assertions)]
+pub(crate) fn inject_window_pointer<S>(
+    ctx: &egui::Context,
+    popups: &mut PopupManager,
+    sink: &mut S,
+    pos: egui::Pos2,
+    action: crate::view::main::debug_input::InjectPointer,
+    modifiers: Option<egui::Modifiers>,
+) where
+    S: EguiPressSink + crate::view::main::debug_input::EguiKeySink,
+{
+    if let Some(m) = modifiers {
+        sink.hold_modifiers(m);
+    }
+    let mut events =
+        crate::view::main::debug_input::pointer_events(pos, action, modifiers.unwrap_or_default());
+    let press = events
+        .iter()
+        .position(|e| matches!(e, egui::Event::PointerButton { pressed: true, .. }));
+    let Some(press) = press else {
+        sink.push_events(events);
+        return;
+    };
+    let pressed = events.split_off(press);
+    sink.push_events(events);
+    load_window_debug(ctx, popups, sink, Incoming::Press, None, pressed);
+}
+
+/// 팝업 관리자를 가진 별도 창에 보류 검사를 지난 debug 주입 하나를 넣는다. 키는 [`inject_window_key`], 포인터는
+/// [`inject_window_pointer`], 글자와 붙여넣기·복사·잘라내기는 winit IME 처럼 지금 경로 키(`WindowKey::Current`)로
+/// [`load_window_debug`] 를 지난다.
+#[cfg(debug_assertions)]
+pub(crate) fn enter_managed_window_debug<S>(
+    ctx: &egui::Context,
+    popups: &mut PopupManager,
+    sink: &mut S,
+    input: crate::view::main::debug_input::DebugInput,
+) -> crate::view::main::debug_input::DebugEntered
+where
+    S: EguiPressSink + crate::view::main::debug_input::EguiKeySink + WindowEguiPos,
+{
+    use crate::view::main::debug_input::{DebugEntered, DebugInput, text_reaches_egui_as_typed};
+    let current = Some(WindowKey::Current);
+    match input {
+        DebugInput::Key {
+            key,
+            pressed,
+            modifiers,
+        } => DebugEntered::Key(inject_window_key(
+            ctx, popups, sink, key, pressed, modifiers,
+        )),
+        DebugInput::Pointer {
+            fx,
+            fy,
+            action,
+            modifiers,
+            ..
+        } => {
+            let pos = sink.egui_pos(fx, fy);
+            inject_window_pointer(ctx, popups, sink, pos, action, modifiers);
+            DebugEntered::Done(true)
+        }
+        DebugInput::Text(text) => DebugEntered::Done(
+            text_reaches_egui_as_typed(&text)
+                && load_window_debug(
+                    ctx,
+                    popups,
+                    sink,
+                    Incoming::Key,
+                    current,
+                    vec![egui::Event::Text(text)],
+                ),
+        ),
+        DebugInput::Clipboard(event) => DebugEntered::Done(load_window_debug(
+            ctx,
+            popups,
+            sink,
+            Incoming::Key,
+            current,
+            vec![event],
+        )),
+    }
+}
+
+/// 창 전체에 대한 정규화 좌표를 그 창의 egui 좌표로 바꾸는 창(실제로는 `GpuState`, 시험은 하네스).
+#[cfg(debug_assertions)]
+pub(crate) trait WindowEguiPos {
+    fn egui_pos(&self, fx: f32, fy: f32) -> egui::Pos2;
+}
+
+#[cfg(debug_assertions)]
+impl WindowEguiPos for crate::gpu::GpuState {
+    fn egui_pos(&self, fx: f32, fy: f32) -> egui::Pos2 {
+        crate::view::main::debug_input::window_egui_pos(self, fx, fy)
+    }
+}
+
+/// 별도 창 debug 주입 하나의 입구. 맨 앞은 winit 사건과 같은 앞 검사다: 팝업 관리자를 가진 창은 보류·정착 줄
+/// (`GpuState::hold_window_input`, judged_event 의 창 입구와 같은 값), 없는 창(종료 확인)은 열린 줄 뒤에 서기
+/// (`GpuState::queue_window_input`, 그 창의 winit 사건이 편집 판정에서 서는 것과 같다). 줄에 서면 `Held` 이고 줄이
+/// 풀리면 `replay_edit_keys` 가 이 입구로 다시 보낸다. 지나면 관리자를 가진 창은 [`enter_managed_window_debug`], 없는
+/// 창은 egui 큐에 바로 넣는다.
 #[cfg(debug_assertions)]
 pub(crate) fn enter_window_debug<V: crate::view::ui::View + ?Sized>(
     view: &mut V,
@@ -264,39 +383,47 @@ pub(crate) fn enter_window_debug<V: crate::view::ui::View + ?Sized>(
     use crate::view::main::debug_input::{
         DebugEntered, DebugInput, push_egui_key, push_egui_pointer, push_egui_text,
     };
+    let handed = view
+        .window_input()
+        .map(|(_, popups)| popups.has_undrawn_handed_escape());
     let base = view.base_mut();
-    let Some(input) = base.gpu.hold_debug_input(&base.winit, input) else {
+    let held = match handed {
+        Some(handed) => base.gpu.hold_window_input(&base.winit, &input, handed),
+        None => base.gpu.queue_window_input(&base.winit, &input),
+    };
+    if held {
         view.mark_dirty();
         return DebugEntered::Held;
-    };
-    let entered = match input {
-        DebugInput::Key {
-            key,
-            pressed,
-            modifiers,
-        } => DebugEntered::Key(match view.window_input() {
-            Some((gpu, popups)) => {
-                let ctx = gpu.egui_ctx.clone();
-                inject_window_key(&ctx, popups, gpu, key, pressed, modifiers)
+    }
+    let entered = match view.window_input() {
+        Some((gpu, popups)) => {
+            let ctx = gpu.egui_ctx.clone();
+            enter_managed_window_debug(&ctx, popups, gpu, input)
+        }
+        None => {
+            let gpu = &mut view.base_mut().gpu;
+            match input {
+                DebugInput::Key {
+                    key,
+                    pressed,
+                    modifiers,
+                } => DebugEntered::Key(push_egui_key(gpu, key, pressed, modifiers)),
+                DebugInput::Pointer {
+                    fx,
+                    fy,
+                    action,
+                    modifiers,
+                    ..
+                } => {
+                    push_egui_pointer(gpu, fx, fy, action, modifiers);
+                    DebugEntered::Done(true)
+                }
+                DebugInput::Text(text) => DebugEntered::Done(push_egui_text(gpu, &text)),
+                DebugInput::Clipboard(event) => {
+                    gpu.debug_push_egui_events(vec![event]);
+                    DebugEntered::Done(true)
+                }
             }
-            None => push_egui_key(&mut view.base_mut().gpu, key, pressed, modifiers),
-        }),
-        DebugInput::Pointer {
-            fx,
-            fy,
-            action,
-            modifiers,
-            ..
-        } => {
-            push_egui_pointer(&mut view.base_mut().gpu, fx, fy, action, modifiers);
-            DebugEntered::Done(true)
-        }
-        DebugInput::Text(text) => {
-            DebugEntered::Done(push_egui_text(&mut view.base_mut().gpu, &text))
-        }
-        DebugInput::Clipboard(event) => {
-            view.base_mut().gpu.debug_push_egui_events(vec![event]);
-            DebugEntered::Done(true)
         }
     };
     if entered.changed() {
