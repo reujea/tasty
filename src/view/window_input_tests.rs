@@ -544,6 +544,14 @@ fn a_press_on_a_child_menu_outside_the_popup_box_keeps_that_popup_the_node() {
     focus_field(&mut h, &mut w, "a1");
     w.child_menu = true;
     h.drain(&mut w);
+    h.drain(&mut w);
+    assert_eq!(
+        h.ctx
+            .layer_id_at(CHILD_MENU_POS + egui::vec2(20.0, 20.0))
+            .map(|l| l.order),
+        Some(egui::Order::Foreground),
+        "the child menu is drawn"
+    );
     let menu = CHILD_MENU_POS + egui::vec2(20.0, 20.0);
     h.click(&mut w, menu);
     h.drain(&mut w);
