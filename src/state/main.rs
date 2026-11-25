@@ -277,7 +277,7 @@ pub struct MainViewState {
     )]
     pub(crate) preset_store: super::preset_catalog::PresetCatalog,
     /// Core와 공유하는 메모리 저장소. 화면 처리와 종료 정리에서도 사용한다.
-    /// surface 포커스 변경을 감지할 이전 값.
+    /// 선택 surface 변경(OSC 제목 갱신)을 감지할 이전 값.
     #[cfg(feature = "gui")]
     pub(crate) last_focused_surface_id: Option<u32>,
     /// 워크스페이스 전환을 감지할 이전 ID.

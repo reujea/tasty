@@ -36,8 +36,11 @@ pub(crate) fn take_current_host_events(engine: &mut EngineMut<'_>) -> Vec<Pendin
 impl App {
     pub(crate) fn dispatch_pending_host_events(&mut self) {
         let mut drained = std::mem::take(&mut self.state.pending_host_events);
-        for (state, engine) in engines_mut!(self).sessions() {
-            let mut observed = state.detect_focus_change(engine.core);
+        for (state, mut engine) in engines_mut!(self).sessions() {
+            if let Some(selected) = state.detect_selection_change(engine.core) {
+                engine.refresh_tab_osc_title(selected);
+            }
+            let mut observed = state.detect_focus_change();
             observed.extend(state.detect_workspace_activation(engine.core));
             observed.extend(state.detect_tab_focus_change(engine.core));
             engine.runtime.pending_host_events.extend(observed);

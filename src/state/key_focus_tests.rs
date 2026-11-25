@@ -206,6 +206,82 @@ fn the_shown_bed_follows_only_frames_that_were_shown() {
     assert_eq!(state.shown_bed_focus(), None, "hard occupied");
 }
 
+/// plugin `surface.focused`는 화면에 낸 프레임에서 키 포커스가 surface로 들어갈 때마다 하나다. 팝업으로 가는 전이는
+/// 이벤트가 없고, 돌아오면 앞 값 없이 다시 온다. 두 전이 사이에 감지가 없어도 놓치지 않는다.
+#[test]
+fn surface_focused_follows_shown_key_focus_entries() {
+    let (mut state, mut session, sid) = scene();
+    let focused = |state: &mut RequestContext| -> Vec<(u32, Option<u32>)> {
+        state
+            .detect_focus_change()
+            .into_iter()
+            .filter_map(|e| match e {
+                crate::state::PendingHostEvent::SurfaceFocused {
+                    surface_id,
+                    prev_surface_id,
+                } => Some((surface_id, prev_surface_id)),
+                _ => None,
+            })
+            .collect()
+    };
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    assert_eq!(focused(&mut state), vec![(sid, None)]);
+
+    open_window_popup(&mut state);
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    assert!(focused(&mut state).is_empty(), "no event for the popup");
+    state.popups.close("notifications");
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    assert_eq!(
+        focused(&mut state),
+        vec![(sid, None)],
+        "back from the popup"
+    );
+
+    open_window_popup(&mut state);
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    state.popups.close("notifications");
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    assert_eq!(
+        focused(&mut state),
+        vec![(sid, None)],
+        "two transitions between polls"
+    );
+}
+
+/// 키 포커스가 다른 surface로 옮겨 가면 그 진입의 앞 값은 마지막으로 낸 프레임의 surface다.
+#[test]
+fn a_key_focus_entry_carries_the_surface_keys_left() {
+    crate::i18n::init("en");
+    let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    assert_eq!(state.take_key_focus_entries(), vec![(201, None)]);
+
+    assert!(state.focus_surface_by_id(&session.borrow_mut().read(), 101));
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    assert_eq!(state.take_key_focus_entries(), vec![(101, Some(201))]);
+}
+
+/// 탭 제목의 OSC 제목 갱신은 선택 변경을 따른다. 키를 가진 팝업 아래에서도 선택이 바뀌면 대상이 나온다.
+#[test]
+fn the_osc_title_refresh_follows_the_selection_not_key_focus() {
+    let (mut state, mut session, sid) = scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    assert_eq!(
+        state.detect_selection_change(&read),
+        Some(sid),
+        "first poll"
+    );
+    assert_eq!(state.detect_selection_change(&read), None, "unchanged");
+    open_window_popup(&mut state);
+    assert_eq!(
+        state.detect_selection_change(&read),
+        None,
+        "a popup is not a selection change"
+    );
+}
+
 /// 이 프레임의 FocusObserved를 만들어 창의 Inputs 단계처럼 적용한다.
 fn observe(state: &mut RequestContext, session: &mut EngineSession, window_focused: bool) -> bool {
     state.refresh_frame_key_focus(&session.borrow_mut().read());

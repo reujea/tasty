@@ -5,7 +5,7 @@
 //!
 //! 한 프레임의 소비자는 그 프레임 첫머리에 채운 값(`frame_key_focus`)을 읽는다. 그리기 중 포커스가 바뀌면
 //! 프레임 끝에 다음 프레임을 요청해 모든 소비자가 함께 바뀐다. GPU 제출이 성공한 프레임의 값은 따로 남겨
-//! (`shown_*`) 그 프레임을 따라야 하는 바깥 소비자(WebView 바탕)가 읽는다.
+//! (`shown_*`) 그 프레임을 따라야 하는 바깥 소비자(WebView 바탕, plugin 이벤트)가 읽는다.
 
 use crate::core::CoreState;
 use crate::runtime::engine_read::EngineRead;
@@ -21,6 +21,8 @@ pub(crate) struct KeyFocusFrames {
     shown: Option<u32>,
     /// 마지막으로 제출에 성공한 프레임에서 focused 바탕을 칠한 surface(키 포커스이고 내용을 숨기는 점유가 아님).
     shown_bed: Option<u32>,
+    /// 제출에 성공한 프레임에서 키 포커스가 들어간 surface와 그 앞 값. plugin 이벤트 감지가 꺼낸다.
+    entered: Vec<(u32, Option<u32>)>,
 }
 
 impl super::MainViewState {
@@ -60,11 +62,17 @@ impl super::MainViewState {
         self.key_focus.frame
     }
 
-    /// 그리기를 마친다. `shown`이면 이 프레임을 화면에 냈으므로 그 값을 표시한 값으로 남긴다.
+    /// 그리기를 마친다. `shown`이면 이 프레임을 화면에 냈으므로 그 값을 표시한 값으로 남기고, 키 포커스가 새로 들어간
+    /// surface를 감지 큐에 넣는다.
     pub(crate) fn finish_frame_key_focus(&mut self, engine: &EngineRead<'_>, shown: bool) {
         let frames = &mut self.key_focus;
         if shown {
             let frame = frames.frame;
+            if frame != frames.shown
+                && let Some(sid) = frame
+            {
+                frames.entered.push((sid, frames.shown));
+            }
             frames.shown = frame;
             frames.shown_bed = frame.filter(|sid| !engine.live.occupancy.is_content_hidden(*sid));
         }
@@ -79,6 +87,11 @@ impl super::MainViewState {
     /// 마지막으로 낸 프레임에서 focused 바탕을 칠한 surface.
     pub(crate) fn shown_bed_focus(&self) -> Option<u32> {
         self.key_focus.shown_bed
+    }
+
+    /// 낸 프레임들에서 키 포커스가 들어간 surface와 그 앞 값을 순서대로 꺼낸다.
+    pub(crate) fn take_key_focus_entries(&mut self) -> Vec<(u32, Option<u32>)> {
+        std::mem::take(&mut self.key_focus.entered)
     }
 
     /// 시험이 프레임 하나를 낸 것처럼 값을 채우고 마친다.
