@@ -257,9 +257,10 @@ fn header(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, tab: Tab) {
                 egui::vec2(w, tab_h),
             ));
         }
-        x += w + STRUCT_GAP_2.value();
+        // 앱 탭 막대(src/view/plugins/ui.rs)처럼 테마 egui 스타일의 가로 항목 간격에 STRUCT_GAP_2를 더한다.
+        x += w + ui.ctx().style().spacing.item_spacing.x + STRUCT_GAP_2.value();
     }
-    // 이 예제의 탭 사이는 2라 링이 이웃 탭에 걸치므로 세 탭을 모두 그린 뒤 얹는다.
+    // 탭 사이가 링 폭보다 넓어 링은 mantle 위에만 놓인다. 세 탭을 모두 그린 뒤 얹는다.
     if let Some(rect) = ring {
         tasty_ui_widgets::paint_control_ring(
             &p,
