@@ -1321,8 +1321,8 @@ pub mod notification {
     /// `component.notification-badge-group-gap` → `{semantic.space-xs}` = 4px
     pub const BADGE_GROUP_GAP: LogicalPx = crate::generated::semantic::SPACE_XS;
 
-    /// `component.notification-badge-max` = 99
-    pub const BADGE_MAX: f32 = 99.0;
+    /// `component.notification-badge-max` → `{semantic.count-display-max}` = 99
+    pub const BADGE_MAX: f32 = crate::generated::semantic::COUNT_DISPLAY_MAX;
 
     /// `component.notification-badge-stack-gap` → `{primitive.size-2}` = 2px
     pub const BADGE_STACK_GAP: LogicalPx = crate::generated::primitive::SIZE_2;
@@ -2160,8 +2160,8 @@ pub mod workspace {
     /// `component.workspace-running-count-gap` → `{primitive.size-2}` = 2px
     pub const RUNNING_COUNT_GAP: LogicalPx = crate::generated::primitive::SIZE_2;
 
-    /// `component.workspace-running-count-max` = 99
-    pub const RUNNING_COUNT_MAX: f32 = 99.0;
+    /// `component.workspace-running-count-max` → `{semantic.count-display-max}` = 99
+    pub const RUNNING_COUNT_MAX: f32 = crate::generated::semantic::COUNT_DISPLAY_MAX;
 
     /// `component.workspace-running-count-min-width` → `{primitive.size-10}` = 10px
     pub const RUNNING_COUNT_MIN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_10;

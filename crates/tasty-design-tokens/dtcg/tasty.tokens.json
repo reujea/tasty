@@ -1111,6 +1111,10 @@
       "$type": "number",
       "$value": "10"
     },
+    "count-display-max": {
+      "$type": "number",
+      "$value": "99"
+    },
     "accent-macos-close": {
       "$type": "color",
       "$value": "{primitive.color-os-macos-close}"
@@ -1504,6 +1508,10 @@
     "font-weight-bold": {
       "$type": "fontWeight",
       "$value": "{primitive.font-weight-700}"
+    },
+    "font-style-absent": {
+      "$type": "number",
+      "$value": "italic"
     },
     "line-height-tight": {
       "$type": "number",
@@ -3796,7 +3804,7 @@
     },
     "workspace-running-count-max": {
       "$type": "number",
-      "$value": "99"
+      "$value": "{semantic.count-display-max}"
     },
     "move-source-ring": {
       "$type": "color",
@@ -3942,7 +3950,7 @@
     },
     "notification-badge-max": {
       "$type": "number",
-      "$value": 99
+      "$value": "{semantic.count-display-max}"
     },
     "notification-summary-pad": {
       "$type": "dimension",

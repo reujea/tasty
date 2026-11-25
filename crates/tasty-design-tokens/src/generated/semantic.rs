@@ -40,6 +40,9 @@ pub const CONTROL_HEIGHT_TAB: LogicalPx = super::primitive::SIZE_24;
 /// `semantic.control-height-tree` → `{primitive.size-22}` = 22px
 pub const CONTROL_HEIGHT_TREE: LogicalPx = super::primitive::SIZE_22;
 
+/// `semantic.count-display-max` = 99
+pub const COUNT_DISPLAY_MAX: f32 = 99.0;
+
 /// `semantic.dropdown-max-height` → `{primitive.size-220}` = 220px
 pub const DROPDOWN_MAX_HEIGHT: LogicalPx = super::primitive::SIZE_220;
 
