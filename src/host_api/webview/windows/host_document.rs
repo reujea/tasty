@@ -252,7 +252,9 @@ pub(super) fn start(
     // 본문·세대 판정은 조회 실패를 리다이렉트로 본다(닫힌 쪽).
     let redirected = redirect.unwrap_or(true);
     let header = host_load(args);
-    let kind = start_kind(args);
+    let read_kind = start_kind(args);
+    // 본문·세대 판정은 종류 조회 실패를 `Other`로 본다(Reload로 보지 않는다).
+    let kind = read_kind.unwrap_or(StartKind::Other);
     let decision = documents
         .borrow_mut()
         .navigation_started(&text, nav, kind, redirected, header);
@@ -269,11 +271,11 @@ pub(super) fn start(
     unsafe { args.SetCancel(true)? };
     let awaiting = documents.borrow().awaiting_start(latest, &text);
     let host_sent = sent_for_current_load(header, latest, awaiting);
-    // 호스트 `reload()`가 보낸 Reload를 취소하면 그 지목을 지운다(`end_cancelled_navigation`). 리다이렉트
-    // 조회 실패는 여기서 리다이렉트가 아니다(`take_cancelled_host_reload`).
+    // 호스트 `reload()`가 보낸 Reload일 수 있는 취소는 그 지목을 지운다(`end_cancelled_navigation`). 종류나
+    // 리다이렉트 조회 실패는 여기서 가릴 수 없는 취소다(`take_cancelled_host_reload`).
     let host_reload = documents
         .borrow_mut()
-        .take_cancelled_host_reload(kind, redirect);
+        .take_cancelled_host_reload(read_kind, redirect);
     if end_cancelled_navigation(
         chrome.0,
         chrome.1,
@@ -316,8 +318,8 @@ fn host_load(args: &ICoreWebView2NavigationStartingEventArgs) -> HostLoadHeader 
     parse_host_load(&text).map_or(HostLoadHeader::Unreadable, HostLoadHeader::Load)
 }
 
-/// WebView2가 보고한 탐색 종류. 조회하지 못하면 `Other`다(Reload로 보지 않는다).
-fn start_kind(args: &ICoreWebView2NavigationStartingEventArgs) -> StartKind {
+/// WebView2가 보고한 탐색 종류. 조회하지 못하면 None이다.
+fn start_kind(args: &ICoreWebView2NavigationStartingEventArgs) -> Option<StartKind> {
     let kind = args
         .cast::<ICoreWebView2NavigationStartingEventArgs3>()
         .and_then(|a| {
@@ -326,9 +328,10 @@ fn start_kind(args: &ICoreWebView2NavigationStartingEventArgs) -> StartKind {
             unsafe { a.NavigationKind(&mut k) }.map(|()| k)
         });
     match kind {
-        Ok(k) if k == COREWEBVIEW2_NAVIGATION_KIND_RELOAD => StartKind::Reload,
-        Ok(k) if k == COREWEBVIEW2_NAVIGATION_KIND_BACK_OR_FORWARD => StartKind::History,
-        _ => StartKind::Other,
+        Ok(k) if k == COREWEBVIEW2_NAVIGATION_KIND_RELOAD => Some(StartKind::Reload),
+        Ok(k) if k == COREWEBVIEW2_NAVIGATION_KIND_BACK_OR_FORWARD => Some(StartKind::History),
+        Ok(_) => Some(StartKind::Other),
+        Err(_) => None,
     }
 }
 

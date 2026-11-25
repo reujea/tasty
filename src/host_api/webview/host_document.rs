@@ -268,16 +268,23 @@ impl HostDocuments {
         std::mem::take(&mut self.host_reload)
     }
 
-    /// 시작 전에 취소한 탐색이 호스트 `reload()`의 Reload인지(지목 판정용). `redirect`는 `IsRedirected`
-    /// 조회 결과이고 조회 실패는 None이다. 지목 판정은 조회 실패를 리다이렉트가 아닌 것으로 보아 기록을
-    /// 꺼낸다. 가릴 수 없는 취소가 지목을 남기지 않게 하는 쪽이다. 본문·세대 판정은 조회 실패를
-    /// 리다이렉트로 본다(`navigation_started`의 `redirected`).
+    /// 시작 전에 취소한 탐색이 호스트 `reload()`의 Reload일 수 있는지(지목 판정용). 참이면 기록을 꺼낸다.
+    /// `kind`는 `NavigationKind` 조회 결과, `redirect`는 `IsRedirected` 조회 결과이고 둘 다 조회 실패는
+    /// None이다. 가릴 수 없는 취소가 지목을 남기지 않게 하는 쪽으로 읽는다. 종류를 읽지 못한 취소는
+    /// 리다이렉트 여부와 관계없이 그 Reload일 수 있다. Reload는 리다이렉트가 아니거나 리다이렉트 조회가
+    /// 실패했을 때 그렇다. 종류를 읽은 Reload 아닌 취소는 아니다. 본문·세대 판정은 종류 조회 실패를
+    /// `Other`로, 리다이렉트 조회 실패를 리다이렉트로 본다(`navigation_started`).
     pub(super) fn take_cancelled_host_reload(
         &mut self,
-        kind: StartKind,
+        kind: Option<StartKind>,
         redirect: Option<bool>,
     ) -> bool {
-        kind == StartKind::Reload && redirect != Some(true) && self.take_host_reload()
+        let maybe_host_reload = match kind {
+            None => true,
+            Some(StartKind::Reload) => redirect != Some(true),
+            Some(_) => false,
+        };
+        maybe_host_reload && self.take_host_reload()
     }
 
     /// 다시 싣기 `Navigate`가 바로 거절됐다. 시작 신호가 오지 않으므로 여기서 지운다.

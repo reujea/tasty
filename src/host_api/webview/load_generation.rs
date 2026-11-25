@@ -801,7 +801,7 @@ mod tests {
         let absent = HostLoadHeader::Absent;
         let start = docs.navigation_started(&a, Some(16), StartKind::Reload, redirected, absent);
         assert_eq!(start, StartDecision::Cancel);
-        let host_reload = docs.take_cancelled_host_reload(StartKind::Reload, None);
+        let host_reload = docs.take_cancelled_host_reload(Some(StartKind::Reload), None);
         assert!(host_reload);
         assert!(end_cancelled_navigation(
             &nav,
@@ -820,9 +820,9 @@ mod tests {
         );
         // 실제 리다이렉트와 Reload가 아닌 취소는 기록을 꺼내지 않는다.
         docs.host_reload(true);
-        assert!(!docs.take_cancelled_host_reload(StartKind::Reload, Some(true)));
-        assert!(!docs.take_cancelled_host_reload(StartKind::History, None));
-        assert!(docs.take_cancelled_host_reload(StartKind::Reload, Some(false)));
+        assert!(!docs.take_cancelled_host_reload(Some(StartKind::Reload), Some(true)));
+        assert!(!docs.take_cancelled_host_reload(Some(StartKind::History), None));
+        assert!(docs.take_cancelled_host_reload(Some(StartKind::Reload), Some(false)));
     }
 
     /// 리다이렉트 조회가 실패한 호스트 Reload의 ID가 지금 세대와 같으면 지금 로드로 끝나고, 그때도 지목을
@@ -853,7 +853,7 @@ mod tests {
         let absent = HostLoadHeader::Absent;
         let start = docs.navigation_started(&a, Some(15), StartKind::Reload, redirected, absent);
         assert_eq!(start, StartDecision::Cancel);
-        let host_reload = docs.take_cancelled_host_reload(StartKind::Reload, None);
+        let host_reload = docs.take_cancelled_host_reload(Some(StartKind::Reload), None);
         assert!(host_reload);
         assert!(!end_cancelled_navigation(
             &nav,
@@ -885,6 +885,58 @@ mod tests {
         ));
         assert_eq!(nav.get(), NavState::Failed);
         assert!(next_start_admitted(&top));
+    }
+
+    /// 종류와 리다이렉트 여부를 모두 읽지 못한 예약 주소 탐색의 취소는 어느 호출의 것인지 가릴 수 없다.
+    /// 호스트 Reload 기록이 있으면 꺼내 지목을 지운다. 종류를 읽은 `Other` 취소는 기록을 꺼내지 않는다.
+    #[test]
+    fn a_cancelled_start_of_unknown_kind_drops_a_pending_host_reload_designation() {
+        use super::super::host_document::{
+            HostDocuments, HostLoadHeader, StartDecision, host_document_url,
+        };
+        use tasty_model::html_script::top_level::StartKind;
+        let mut docs = HostDocuments::default();
+        let a = host_document_url(1, 1, 1);
+        docs.sent(1, a.clone(), std::sync::Arc::from("a"));
+        let a_load = HostLoadHeader::Load(1);
+        let started = docs.navigation_started(&a, Some(15), StartKind::Other, false, a_load);
+        assert_eq!(started, StartDecision::HostLoad);
+        assert!(docs.respond(&a, true, true, false).is_some());
+        docs.served();
+        docs.committed(Some(15), false);
+        assert!(!docs.navigation_completed(Some(15), true));
+        let nav = Cell::new(NavState::Done);
+        let generation = Cell::new(Some(15));
+        let top = RefCell::new(TopLevelAdmission::default());
+        docs.host_reload(true);
+        top.borrow_mut().designate(Designation::Next);
+        // 종류 조회 실패는 본문 판정에서 `Other`, 리다이렉트 조회 실패는 리다이렉트(true)다.
+        let redirected = true;
+        let absent = HostLoadHeader::Absent;
+        let start = docs.navigation_started(&a, Some(16), StartKind::Other, redirected, absent);
+        assert_eq!(start, StartDecision::Cancel);
+        let host_reload = docs.take_cancelled_host_reload(None, None);
+        assert!(host_reload);
+        assert!(!docs.take_host_reload(), "기록은 남지 않는다");
+        assert!(end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(16),
+            redirected,
+            false,
+            host_reload
+        ));
+        assert_eq!(nav.get(), NavState::Done);
+        assert_eq!(generation.get(), Some(15));
+        assert!(
+            !next_start_admitted(&top),
+            "다음 main 탐색은 예외를 받지 않는다"
+        );
+        // 종류를 읽은 `Other` 취소는 지금대로 기록을 꺼내지 않는다.
+        docs.host_reload(true);
+        assert!(!docs.take_cancelled_host_reload(Some(StartKind::Other), None));
+        assert!(docs.take_cancelled_host_reload(None, Some(true)));
     }
 
     #[test]
