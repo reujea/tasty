@@ -382,13 +382,17 @@ pub(crate) fn body_column_width_id() -> egui::Id {
     egui::Id::new("g_body_column_width")
 }
 
-/// 예제가 가용 폭을 늘려도 설명이 창 밖으로 잘리지 않도록 본문 컬럼 폭에 맞춘다.
+/// 갤러리가 정한 본문 컬럼 폭. 앞선 넓은 예제가 늘린 `Ui` 가용 폭과 달리 창에서 실제로 보이는 열 폭이다.
 /// 저장된 컬럼 폭이 없으면 현재 가용 폭을 사용한다.
-pub(crate) fn body_column<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
-    let wrap_w = ui
-        .data(|d| d.get_temp::<f32>(body_column_width_id()))
+pub(crate) fn body_column_width(ui: &egui::Ui) -> f32 {
+    ui.data(|d| d.get_temp::<f32>(body_column_width_id()))
         .filter(|w| *w > 0.0)
-        .unwrap_or_else(|| ui.available_width());
+        .unwrap_or_else(|| ui.available_width())
+}
+
+/// 예제가 가용 폭을 늘려도 설명이 창 밖으로 잘리지 않도록 본문 컬럼 폭에 맞춘다.
+pub(crate) fn body_column<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let wrap_w = body_column_width(ui);
     ui.allocate_ui_with_layout(
         egui::vec2(wrap_w, 0.0),
         egui::Layout::top_down(egui::Align::Min),

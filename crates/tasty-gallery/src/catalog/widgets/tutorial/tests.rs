@@ -219,43 +219,105 @@ fn composite_draws_the_first_basics_step_callout() {
     assert!(texts.iter().any(|t| t == title), "{title} 없음: {texts:?}");
 }
 
-/// 열 폭 `width`인 화면에서 합성 표본을 한 프레임 그려 (무대, 꼬리까지 덮는 말풍선) 사각형을 돌려준다.
-fn composite_rects(width: f32) -> (egui::Rect, egui::Rect) {
-    let theme = tasty_themes::mocha_fallback();
-    let ctx = egui::Context::default();
+/// 갤러리 본문 열과 같은 꼴로 합성 표본을 한 프레임 그린다. host_shell의 main_ui처럼 열 폭 `col_w`를
+/// 정하고 본문 열 폭으로 저장한 뒤, `widen`이면 그 앞에 주제 팝업 표본(고정 폭 무대)을 그려 열의 Ui를
+/// 넓힌다. (표본 결과, 보이는 열의 오른쪽 끝 x)를 돌려준다.
+fn composite_frame(
+    ctx: &egui::Context,
+    theme: &tasty_type_appearance::theme::Theme,
+    col_w: f32,
+    widen: bool,
+) -> (super::CompositeLayout, f32) {
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
             egui::Pos2::ZERO,
-            egui::vec2(width, 800.0),
+            egui::vec2(col_w + 400.0, 3000.0),
         )),
         ..Default::default()
     };
-    let mut rects = None;
+    let mut got = None;
     let _frame = ctx.run(input, |ctx| {
         egui::CentralPanel::default().show(ctx, |ui| {
-            rects = Some(super::composite_scroll(ui, &theme));
+            ui.vertical(|ui| {
+                ui.set_max_width(col_w);
+                ui.data_mut(|d| d.insert_temp(crate::catalog::spec::body_column_width_id(), col_w));
+                let right = ui.max_rect().left() + col_w;
+                if widen {
+                    super::draw_topics(ui, theme);
+                }
+                got = Some((super::composite_specimen(ui, theme), right));
+            });
         });
     });
-    rects.expect("합성 표본을 그렸다")
+    got.expect("합성 표본을 그렸다")
+}
+
+/// `composite_frame`을 그리고, `to_end`면 가로 스크롤을 끝으로 옮겨 한 번 더 그린다.
+fn composite_in_column(col_w: f32, widen: bool, to_end: bool) -> (super::CompositeLayout, f32) {
+    let theme = tasty_themes::mocha_fallback();
+    let ctx = egui::Context::default();
+    let first = composite_frame(&ctx, &theme, col_w, widen);
+    if !to_end {
+        return first;
+    }
+    let layout = &first.0;
+    let mut state =
+        egui::scroll_area::State::load(&ctx, layout.scroll_id).expect("가로 스크롤 상태");
+    state.offset.x = (layout.content.x - layout.viewport.width()).max(0.0);
+    state.store(&ctx, layout.scroll_id);
+    composite_frame(&ctx, &theme, col_w, widen)
+}
+
+fn floor() -> f32 {
+    tasty_themes::mocha_fallback()
+        .tutorial_step_specimen_min_width()
+        .value()
 }
 
 #[test]
 fn composite_stage_keeps_its_floor_and_holds_the_callout() {
-    let floor = tasty_themes::mocha_fallback()
-        .tutorial_step_specimen_min_width()
-        .value();
-    // 바닥보다 좁은 열: 무대는 바닥 폭이고(나머지는 가로 스크롤) 말풍선과 꼬리가 무대 안에 든다.
-    let (stage, bubble) = composite_rects(floor / 2.0);
-    assert_eq!(stage.width(), floor, "{stage:?}");
-    assert!(stage.contains_rect(bubble), "{stage:?} ⊅ {bubble:?}");
-    // 넓은 열: 무대는 최대 폭에서 멈춘다.
-    let (stage, bubble) = composite_rects(2000.0);
-    assert_eq!(
-        stage.width(),
-        super::COMPOSITE_STAGE_MAX_W.value(),
-        "{stage:?}"
+    // 바닥보다 좁은 열: 무대는 바닥 폭이고 말풍선과 꼬리가 무대 안에 든다.
+    let (l, _) = composite_in_column(floor() / 2.0, false, false);
+    assert_eq!(l.stage.width(), floor(), "{:?}", l.stage);
+    assert!(
+        l.stage.contains_rect(l.bubble),
+        "{:?} ⊅ {:?}",
+        l.stage,
+        l.bubble
     );
-    assert!(stage.contains_rect(bubble), "{stage:?} ⊅ {bubble:?}");
+    // 넓은 열: 무대는 최대 폭에서 멈춘다.
+    let (l, _) = composite_in_column(2000.0, false, false);
+    assert_eq!(
+        l.stage.width(),
+        super::COMPOSITE_STAGE_MAX_W.value(),
+        "{:?}",
+        l.stage
+    );
+    assert!(
+        l.stage.contains_rect(l.bubble),
+        "{:?} ⊅ {:?}",
+        l.stage,
+        l.bubble
+    );
+}
+
+#[test]
+fn composite_tail_is_visible_after_scrolling_to_the_end_under_a_widening_specimen() {
+    // 주제 팝업 표본이 열의 Ui를 넓힌 뒤에도 보이는 영역은 열 안에 있고, 끝까지 스크롤하면 꼬리 끝이 보인다.
+    let col_w = 300.0;
+    assert!(col_w < floor());
+    let (l, right) = composite_in_column(col_w, true, true);
+    assert!(
+        l.viewport.right() <= right + 0.5,
+        "보이는 영역 {:?}가 열 끝 {right}을 넘는다",
+        l.viewport
+    );
+    assert!(
+        l.bubble.right() <= l.viewport.right() + 0.5,
+        "끝까지 스크롤한 말풍선 {:?}의 꼬리가 보이는 영역 {:?} 밖이다",
+        l.bubble,
+        l.viewport
+    );
 }
 
 /// 진단 메시지의 `catalog.rs:<줄>:`을 꺼내 줄 번호를 돌려준다.

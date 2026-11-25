@@ -824,10 +824,38 @@ pub fn draw_topics(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 pub fn draw_composite(ui: &mut egui::Ui, theme: &Theme) {
-    spec::stage(ui, theme, StageVariant::Solo, |ui| {
-        composite_scroll(ui, theme);
-    });
+    composite_specimen(ui, theme);
     spec::note(ui, theme, COMPOSITE_NOTE);
+}
+
+/// 합성 표본을 그린 결과의 사각형과 스크롤 상태. 그리기는 쓰지 않고 시험만 배치와 스크롤을 읽는다.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(super) struct CompositeLayout {
+    /// 무대(앱 모형) 사각형.
+    pub(super) stage: egui::Rect,
+    /// 꼬리까지 덮는 말풍선 사각형.
+    pub(super) bubble: egui::Rect,
+    /// 가로 스크롤이 실제로 보이는 영역.
+    pub(super) viewport: egui::Rect,
+    /// 스크롤되는 내용 크기.
+    pub(super) content: egui::Vec2,
+    /// 가로 스크롤 영역의 상태 ID.
+    pub(super) scroll_id: egui::Id,
+}
+
+pub(super) fn composite_specimen(ui: &mut egui::Ui, theme: &Theme) -> CompositeLayout {
+    // 앞선 고정 폭 예제(주제 팝업 무대 등)가 열의 Ui를 넓혀 놓으면 가용 폭이 창에 보이는 열보다 커진다.
+    // 그래서 보이는 폭은 갤러리가 정한 본문 열 폭에서 무대 틀의 안쪽 여백·테두리(바깥과 안쪽 가용 폭의
+    // 차)를 뺀 값으로 정한다.
+    let column = spec::body_column_width(ui);
+    let outer = ui.available_width();
+    let mut layout = None;
+    spec::stage(ui, theme, StageVariant::Solo, |ui| {
+        let frame = outer - ui.available_width();
+        let viewport = LogicalPx(column - frame).max(LogicalPx(0.0));
+        layout = Some(composite_scroll(ui, theme, viewport));
+    });
+    layout.expect("stage는 내용을 한 번 그린다")
 }
 
 /// 합성 표본 무대 폭. 열 폭을 따르되 최대 폭을 넘지 않고, 말풍선과 꼬리가 들어가는 토큰 바닥 아래로
@@ -838,13 +866,13 @@ fn composite_stage_w(available: LogicalPx, theme: &Theme) -> LogicalPx {
         .max(theme.tutorial_step_specimen_min_width())
 }
 
-/// 열이 무대 바닥보다 좁으면 무대를 가로로 스크롤한다. 스크롤바는 숨기고 더 스크롤할 수 있는 가장자리에
-/// 페이드를 그린다(테마 가이드의 스크롤 표시 규칙). (무대, 꼬리까지 덮는 말풍선) 사각형을 돌려준다.
-fn composite_scroll(ui: &mut egui::Ui, theme: &Theme) -> (egui::Rect, egui::Rect) {
-    // 가로 스크롤 안에서는 가용 폭이 무한이므로 열 폭을 스크롤 밖에서 읽는다.
-    let w = composite_stage_w(LogicalPx(ui.available_width()), theme);
+/// 보이는 폭 `viewport_w`가 무대 바닥보다 좁으면 무대를 가로로 스크롤한다. 스크롤바는 숨기고 더 스크롤할
+/// 수 있는 가장자리에 페이드를 그린다(테마 가이드의 스크롤 표시 규칙).
+fn composite_scroll(ui: &mut egui::Ui, theme: &Theme, viewport_w: LogicalPx) -> CompositeLayout {
+    let w = composite_stage_w(viewport_w, theme);
     let out = egui::ScrollArea::horizontal()
         .id_salt("tutorial-composite")
+        .max_width(viewport_w.value())
         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
         .drag_to_scroll(false)
         .show(ui, |ui| composite_stage(ui, theme, w));
@@ -859,7 +887,14 @@ fn composite_scroll(ui: &mut egui::Ui, theme: &Theme) -> (egui::Rect, egui::Rect
     if right {
         paint_edge_fade(ui, theme, out.inner_rect, FadeEdge::Right);
     }
-    out.inner
+    let (stage, bubble) = out.inner;
+    CompositeLayout {
+        stage,
+        bubble,
+        viewport: out.inner_rect,
+        content: out.content_size,
+        scroll_id: out.id,
+    }
 }
 
 /// `(왼쪽 페이드, 오른쪽 페이드)` 판정. 본체 원격 도구의 세로 목록 페이드(`scroll_list_with_fade`)와 같은
