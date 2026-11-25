@@ -12,56 +12,78 @@ fn app_source(rel: &str) -> String {
 
 const APP_CATALOG: &str = "src/adapters/ui/tutorial/catalog.rs";
 
-/// `src[start..]`의 원소를 최상위 쉼표로 나눠 `(시작 바이트, 원소 글)`로 돌려준다. 여는 괄호 없이 시작해
-/// 짝 없는 닫는 `]`에서 멈춘다. 문자열 리터럴과 줄 주석 안의 괄호·쉼표는 세지 않는다.
+/// `src[start..]`의 원소를 최상위 쉼표로 나눠 `(첫 글자 바이트, 주석을 뺀 원소 글)`로 돌려준다. 여는 괄호
+/// 없이 시작해 짝 없는 닫는 `]`에서 멈춘다. 문자열 리터럴 안의 괄호·쉼표는 세지 않고, 줄 주석과
+/// (중첩 포함) 블록 주석은 원소 글과 위치에서 뺀다. 위치는 주석 밖 첫 글자가 원문에 놓인 바이트다.
 fn top_level_elements(src: &str, start: usize) -> Vec<(usize, String)> {
     let b = src.as_bytes();
-    let (mut i, mut depth, mut from) = (start, 0usize, start);
+    let (mut i, mut depth) = (start, 0usize);
     let mut out = Vec::new();
-    let push = |from: usize, to: usize, out: &mut Vec<(usize, String)>| {
-        // 원소의 위치는 주석을 뺀 첫 글자가 원문에서 놓인 바이트다(주석 줄을 원소 줄로 세지 않는다).
-        let (mut at, mut first) = (from, None);
-        let mut code = Vec::new();
-        for line in src[from..to].split_inclusive('\n') {
-            let kept = line.split("//").next().unwrap_or("");
-            if first.is_none() && !kept.trim().is_empty() {
-                first = Some(at + (kept.len() - kept.trim_start().len()));
-            }
-            code.push(kept.trim_end_matches('\n'));
-            at += line.len();
+    let mut cur = String::new();
+    let mut first: Option<usize> = None;
+    let flush = |cur: &mut String, first: &mut Option<usize>, out: &mut Vec<(usize, String)>| {
+        if let Some(at) = first.take() {
+            out.push((at, cur.trim().to_owned()));
         }
-        let text = code.join("\n");
-        if let Some(first) = first {
-            out.push((first, text.trim().to_owned()));
-        }
+        cur.clear();
     };
     while i < b.len() {
-        match b[i] {
-            b'"' => {
+        let c = b[i];
+        if c == b'/' && b.get(i + 1) == Some(&b'/') {
+            while i < b.len() && b[i] != b'\n' {
                 i += 1;
-                while i < b.len() && b[i] != b'"' {
-                    i += if b[i] == b'\\' { 2 } else { 1 };
-                }
             }
-            b'/' if b.get(i + 1) == Some(&b'/') => {
-                while i < b.len() && b[i] != b'\n' {
+            continue;
+        }
+        if c == b'/' && b.get(i + 1) == Some(&b'*') {
+            let mut nest = 1;
+            i += 2;
+            while i < b.len() && nest > 0 {
+                if b[i] == b'/' && b.get(i + 1) == Some(&b'*') {
+                    nest += 1;
+                    i += 2;
+                } else if b[i] == b'*' && b.get(i + 1) == Some(&b'/') {
+                    nest -= 1;
+                    i += 2;
+                } else {
                     i += 1;
                 }
-                continue;
             }
-            b'(' | b'[' | b'{' => depth += 1,
-            b']' if depth == 0 => {
-                push(from, i, &mut out);
-                return out;
-            }
-            b')' | b']' | b'}' => depth -= 1,
-            b',' if depth == 0 => {
-                push(from, i, &mut out);
-                from = i + 1;
-            }
-            _ => {}
+            cur.push(' ');
+            continue;
         }
-        i += 1;
+        if c == b']' && depth == 0 {
+            flush(&mut cur, &mut first, &mut out);
+            return out;
+        }
+        if c == b',' && depth == 0 {
+            flush(&mut cur, &mut first, &mut out);
+            i += 1;
+            continue;
+        }
+        let from = i;
+        if c == b'"' {
+            i += 1;
+            while i < b.len() && b[i] != b'"' {
+                i += if b[i] == b'\\' { 2 } else { 1 };
+            }
+            i += 1;
+        } else {
+            match c {
+                b'(' | b'[' | b'{' => depth += 1,
+                b')' | b']' | b'}' => depth -= 1,
+                _ => {}
+            }
+            i += 1;
+        }
+        while i < b.len() && !src.is_char_boundary(i) {
+            i += 1;
+        }
+        let i_end = i.min(b.len());
+        if first.is_none() && !c.is_ascii_whitespace() {
+            first = Some(from);
+        }
+        cur.push_str(&src[from..i_end]);
     }
     panic!("{APP_CATALOG}: basics steps 목록이 닫히지 않았다");
 }
@@ -69,14 +91,18 @@ fn top_level_elements(src: &str, start: usize) -> Vec<(usize, String)> {
 /// 본체 catalog의 basics 주제에서 `step!("<id>", <Target>, …)` 원소를 순서대로 꺼낸다. 이 꼴이 아닌
 /// 원소(구조체 리터럴, 다른 괄호의 매크로 등)가 하나라도 있으면 원소와 위치를 담아 실패한다.
 fn app_basics_steps() -> Vec<(String, String)> {
-    let src = app_source(APP_CATALOG);
+    parse_basics_steps(&app_source(APP_CATALOG))
+}
+
+/// `src`(본체 catalog 꼴의 소스)에서 basics 단계를 꺼낸다. 규칙은 `app_basics_steps`와 같다.
+fn parse_basics_steps(src: &str) -> Vec<(String, String)> {
     let topic = src
         .find("id: \"basics\"")
         .expect("본체 catalog에 basics 주제가 있다");
     let open =
         src[topic..].find("steps: &[").expect("basics steps 시작") + topic + "steps: &[".len();
     let mut steps = Vec::new();
-    for (at, element) in top_level_elements(&src, open) {
+    for (at, element) in top_level_elements(src, open) {
         let line = src[..at].matches('\n').count() + 1;
         let args = element
             .strip_prefix("step!(")
@@ -230,4 +256,41 @@ fn composite_stage_keeps_its_floor_and_holds_the_callout() {
         "{stage:?}"
     );
     assert!(stage.contains_rect(bubble), "{stage:?} ⊅ {bubble:?}");
+}
+
+/// 진단 메시지의 `catalog.rs:<줄>:`을 꺼내 줄 번호를 돌려준다.
+fn rejected_line(src: &str) -> usize {
+    let err = std::panic::catch_unwind(|| parse_basics_steps(src)).expect_err("거부해야 한다");
+    let msg = err.downcast_ref::<String>().cloned().unwrap_or_default();
+    let rest = msg
+        .strip_prefix(&format!("{APP_CATALOG}:"))
+        .unwrap_or_else(|| panic!("진단에 파일·줄이 없다: {msg}"));
+    rest.split(':').next().unwrap().parse().unwrap()
+}
+
+const FIXTURE_HEAD: &str = "    Topic {\n        id: \"basics\",\n        steps: &[\n            step!(\"workspace\", ContentArea, Read, None),\n";
+
+#[test]
+fn block_comments_before_a_step_are_skipped() {
+    let src = format!(
+        "{FIXTURE_HEAD}            /* summary는 말풍선만, ( [ , 를 담아도 */\n            step!(\"summary\", Summary, Read, None),\n        ],\n"
+    );
+    let ids: Vec<String> = parse_basics_steps(&src)
+        .into_iter()
+        .map(|(id, _)| id)
+        .collect();
+    assert_eq!(ids, ["workspace", "summary"]);
+}
+
+#[test]
+fn a_rejected_step_under_a_block_comment_reports_its_own_line() {
+    // 5행: 블록 주석, 6행: 거부할 원소.
+    let src = format!(
+        "{FIXTURE_HEAD}            /* 여러 줄\n            블록 주석 */ step![\"extra\", Summary, Read, None],\n        ],\n"
+    );
+    assert_eq!(rejected_line(&src), 6);
+    let src = format!(
+        "{FIXTURE_HEAD}            /* 한 줄 블록 주석 */\n            step![\"extra\", Summary, Read, None],\n        ],\n"
+    );
+    assert_eq!(rejected_line(&src), 6);
 }
