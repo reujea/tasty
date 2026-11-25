@@ -6,8 +6,9 @@ use tasty_ui_widgets::ButtonVariant;
 use crate::catalog::icons;
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 
-use super::notices::{notice_block, notice_line};
-use super::paint::{caption, intro_secondary};
+use super::entry::action_row;
+use super::notices::{NoticeInk, export_failure_block, failure_body, notice_block, notice_line};
+use super::paint::caption;
 use super::{IE_FILE, SPECIMEN_W};
 
 /// 분류하지 못한 오류에 쓸 고정 문구. OS 메시지는 별도 줄에 표시한다.
@@ -80,33 +81,43 @@ pub fn draw_remaining_values(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
-/// jsx `IeExportFailG reason="other"` — 같은 블록, catch-all 구절 + OS 줄 하나.
+/// jsx `IeExportFailG reason="other"` — 같은 Export 행과 블록, catch-all 구절 + OS 줄 하나.
 fn unknown_export_failure(ui: &mut egui::Ui, theme: &Theme) {
-    notice_block(
+    let mut notice = |ui: &mut egui::Ui| {
+        export_failure_block(
+            ui,
+            theme,
+            |ui| {
+                failure_body(
+                    ui,
+                    theme,
+                    &format!(
+                        "~/tasty/{IE_FILE} — {} Nothing was written.",
+                        unknown_clause()
+                    ),
+                );
+                os_reason_line(ui, theme, OS_MESSAGE);
+            },
+            &[
+                ("Try again", ButtonVariant::Secondary),
+                (
+                    crate::i18n::t("settings.keybindings.ie_export_choose_another"),
+                    ButtonVariant::Ghost,
+                ),
+            ],
+        );
+    };
+    action_row(
         ui,
         theme,
-        theme.accent_danger().to_egui(),
-        icons::ALERT_CIRCLE,
-        crate::i18n::t("settings.keybindings.ie_export_failure_title"),
+        icons::DOWNLOAD,
+        "Export",
+        crate::i18n::t("settings.keybindings.ie_export_desc"),
+        "Export…",
+        ButtonVariant::Secondary,
+        false,
         None,
-        |ui| {
-            intro_secondary(
-                ui,
-                theme,
-                &format!(
-                    "~/tasty/{IE_FILE} — {} Nothing was written.",
-                    unknown_clause()
-                ),
-            );
-            os_reason_line(ui, theme, OS_MESSAGE);
-        },
-        &[
-            ("Try again", ButtonVariant::Secondary),
-            (
-                crate::i18n::t("settings.keybindings.ie_export_choose_another"),
-                ButtonVariant::Ghost,
-            ),
-        ],
+        Some(&mut notice as &mut dyn FnMut(&mut egui::Ui)),
     );
 }
 
@@ -116,7 +127,7 @@ fn one_notice(ui: &mut egui::Ui, theme: &Theme) {
     notice_block(
         ui,
         theme,
-        theme.accent_warning().to_egui(),
+        NoticeInk::same(theme.accent_warning().to_egui()),
         icons::ALERT_TRIANGLE,
         "Read with warnings",
         Some(&crate::i18n::t_count(
@@ -129,7 +140,7 @@ fn one_notice(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
-/// OS 가 낸 문장 한 줄 — 본문 아래 `space-xs`, mono caption, muted, 한 줄 말줄임.
+/// OS 가 낸 문장 한 줄 — 본문 아래 `space-xs`, mono caption, text-on-active, 한 줄 말줄임.
 pub(super) fn os_reason_line(ui: &mut egui::Ui, theme: &Theme, message: &str) {
     ui.add_space(theme.spacing_xs.value());
     ui.add(
@@ -137,7 +148,7 @@ pub(super) fn os_reason_line(ui: &mut egui::Ui, theme: &Theme, message: &str) {
             egui::RichText::new(message)
                 .size(theme.font_size_caption.value())
                 .family(egui::FontFamily::Monospace)
-                .color(theme.text_muted().to_egui()),
+                .color(super::notices::notice_body_ink(theme)),
         )
         .truncate(),
     )

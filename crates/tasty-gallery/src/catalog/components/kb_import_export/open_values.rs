@@ -8,8 +8,11 @@ use crate::catalog::icons;
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 
 use super::entry::action_row;
-use super::notices::{dropped_notice, notice_block, notice_line, parse_failure};
-use super::paint::{caption, intro_secondary};
+use super::notices::{
+    NoticeInk, dropped_notice, export_failure_block, failure_body, notice_block, notice_line,
+    parse_failure,
+};
+use super::paint::caption;
 use super::{IE_FILE, NOTICE_FOLD_AT, SPECIMEN_W, STATE, State};
 
 /// 경고 블록 데모 줄 — 고정 순서(스키마 → 모르는 액션 → 빈 그룹). 넷째 줄은 접힌다.
@@ -52,7 +55,11 @@ pub fn draw_open_values(ui: &mut egui::Ui, theme: &Theme) {
         &[
             ("export success", "toast with the resolved path"),
             ("export failure", "inline danger block in the Export row"),
-            ("failure actions", "Try again · Choose another location…"),
+            (
+                "failure actions",
+                "Try again (secondary) · Choose another location… (ghost) · under the tint, on \
+                 the raised card, ground=raised",
+            ),
             ("info line", "dropped overrides — muted, unchanged"),
             (
                 "warning block",
@@ -116,15 +123,11 @@ fn export_failure_row(ui: &mut egui::Ui, theme: &Theme, st: &mut State) {
     let failed = st.export_failed;
     let mut dismissed = false;
     let mut notice = |ui: &mut egui::Ui| {
-        let clicked = notice_block(
+        let clicked = export_failure_block(
             ui,
             theme,
-            theme.accent_danger().to_egui(),
-            icons::ALERT_CIRCLE,
-            crate::i18n::t("settings.keybindings.ie_export_failure_title"),
-            None,
             |ui| {
-                intro_secondary(
+                failure_body(
                     ui,
                     theme,
                     &format!("~/tasty/{IE_FILE} — the folder is read-only. Nothing was written."),
@@ -184,7 +187,7 @@ fn bundle_notices(ui: &mut egui::Ui, theme: &Theme, st: &mut State) {
     let clicked = notice_block(
         ui,
         theme,
-        theme.accent_warning().to_egui(),
+        NoticeInk::same(theme.accent_warning().to_egui()),
         icons::ALERT_TRIANGLE,
         "Read with warnings",
         Some(&crate::i18n::t_count(
