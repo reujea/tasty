@@ -595,6 +595,9 @@ pub struct Step {
     pub body: String,
 }
 
+/// `name`·`uses`가 모두 없는 스텝의 표시 이름. 가드 실패 메시지에만 나오고 앱 화면에는 나오지 않는다.
+const UNNAMED_STEP: &str = "(이름 없음)";
+
 /// 표시용 이름. 좁은 한 줄 값으로 읽히면 그 값, 아니면 주석을 지운 같은 줄 글자다.
 fn display_value(file: &str, step: &crate::workflow_yaml::Step, key: &str) -> Option<String> {
     let f = step.fields.iter().find(|f| f.key == key)?;
@@ -641,7 +644,7 @@ pub fn job_steps(file: &str, yaml: &str) -> Result<Vec<Step>, Vec<String>> {
                 job: job.name.clone(),
                 name: display_value(file, s, "name")
                     .or_else(|| display_value(file, s, "uses"))
-                    .unwrap_or_else(|| "(이름 없음)".to_string()),
+                    .unwrap_or_else(|| UNNAMED_STEP.to_string()),
                 line: s.line,
                 ordinal: k + 1,
                 has_if: cond.if_expr.is_some(),
