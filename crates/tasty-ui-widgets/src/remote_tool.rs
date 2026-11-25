@@ -350,8 +350,19 @@ pub struct TabStripData<'a> {
     pub x_range: egui::Rangef,
 }
 
-/// 클릭한 다른 탭의 인덱스를 반환한다. 현재 탭을 다시 누르면 None이다.
+/// 클릭한 다른 탭의 인덱스를 반환한다. 현재 탭을 다시 누르면 None이다. 키보드 포커스를 가진 탭에 링을 그린다.
 pub fn draw_tab_strip(ui: &mut egui::Ui, th: &Theme, data: &TabStripData<'_>) -> Option<usize> {
+    draw_tab_strip_with_focus_look(ui, th, data, None)
+}
+
+/// [`draw_tab_strip`]과 같고, 고정 표본이 `focus_look`으로 링을 줄 탭을 고른다. Some이면 그 탭만 링을 그리고
+/// 실제 포커스는 보지 않는다.
+pub fn draw_tab_strip_with_focus_look(
+    ui: &mut egui::Ui,
+    th: &Theme,
+    data: &TabStripData<'_>,
+    focus_look: Option<usize>,
+) -> Option<usize> {
     // 디자인 remote_tool.jsx TabBtn: 전체폭 bg-sidebar(mantle), height 35,
     // padding L8 / TabBtn padding 0 13 / gap 2.
     let tab_h = 36.0; // 디자인 TabBtn 35 + borderBottom 1 = 탭바 컨테이너 36
@@ -374,6 +385,7 @@ pub fn draw_tab_strip(ui: &mut egui::Ui, th: &Theme, data: &TabStripData<'_>) ->
     );
 
     let mut clicked = None;
+    let mut ring = None;
     let mut x = data.x_range.min + pad_l;
     for (i, label) in data.labels.iter().enumerate() {
         let on = i == data.active;
@@ -411,7 +423,25 @@ pub fn draw_tab_strip(ui: &mut egui::Ui, th: &Theme, data: &TabStripData<'_>) ->
         if resp.clicked() && !on {
             clicked = Some(i);
         }
+        let focused = match focus_look {
+            Some(f) => f == i,
+            None => resp.has_focus(),
+        };
+        if focused {
+            ring = Some(rect);
+        }
         x += w + gap;
+    }
+    // 링(offset + 폭)은 탭 간격보다 넓어 이웃 탭에 걸치므로, 모든 탭의 채움과 밑줄을 그린 뒤에 얹는다.
+    if let Some(rect) = ring {
+        crate::focus_ring::paint_control_ring(
+            ui.painter(),
+            th,
+            rect,
+            0.0,
+            crate::focus_ring::control_ring_gap(th),
+            th.border_focus().to_egui(),
+        );
     }
     ui.allocate_rect(bar, egui::Sense::hover());
     clicked

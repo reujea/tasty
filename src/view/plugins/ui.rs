@@ -594,6 +594,17 @@ fn segment_tab(
         ui.painter()
             .galley(gp, g, egui::Color32::from(th.text_on_accent()));
     }
+    // 탭 사이(item_spacing + STRUCT_GAP_2)가 링 폭보다 넓어 탭 안에서 그려도 이웃 탭에 덮이지 않는다.
+    if resp.has_focus() {
+        tasty_ui_widgets::paint_control_ring(
+            ui.painter(),
+            th,
+            rect,
+            radius,
+            tasty_ui_widgets::control_ring_gap(th),
+            th.border_focus().to_egui(),
+        );
+    }
     resp.clicked()
 }
 

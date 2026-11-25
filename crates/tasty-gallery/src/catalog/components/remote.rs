@@ -713,6 +713,7 @@ fn seg_pair(ui: &mut egui::Ui, theme: &Theme, labels: [&str; 2], second: bool) {
         &labels,
         usize::from(second),
         egui::Sense::hover(),
+        None,
     );
 }
 

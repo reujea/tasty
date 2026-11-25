@@ -352,8 +352,9 @@ pub use remote_tool::{
     FILTER_DROPDOWN_MAX_HEIGHT, LocalSshHost, LocalSshSectionData, ProtocolFilterItem,
     ProtocolFilterLabels, RemoteRowChip, TabStripData, draw_local_ssh_section,
     draw_protocol_filter_body, draw_protocol_filter_button, draw_tab_strip,
-    filter_dropdown_content_width, ghost_button, primary_button, remote_list_row,
-    remote_row_actions_width, remote_row_title, secondary_button, warn_badge, warn_badge_width,
+    draw_tab_strip_with_focus_look, filter_dropdown_content_width, ghost_button, primary_button,
+    remote_list_row, remote_row_actions_width, remote_row_title, secondary_button, warn_badge,
+    warn_badge_width,
 };
 pub use rename_popup::{
     RenamePopupAction, RenamePopupLayout, RenamePopupView, rename_pad_x, rename_popup,

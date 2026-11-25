@@ -18,16 +18,18 @@ pub fn segmented(
     labels: &[&str],
     selected: usize,
 ) -> Option<usize> {
-    segment_row(ui, theme, labels, selected, egui::Sense::click())
+    segment_row(ui, theme, labels, selected, egui::Sense::click(), None)
 }
 
-/// [`segmented`]와 같은 묶음을 `sense`로 그린다. 고정 표본은 `Sense::hover()`를 넘겨 포커스 정지점을 만들지 않는다.
+/// [`segmented`]와 같은 묶음을 `sense`로 그린다. 고정 표본은 `Sense::hover()`를 넘겨 포커스 정지점을 만들지 않고,
+/// `focus_look`으로 키보드 포커스 모양을 줄 칸을 고른다. `focus_look`이 Some이면 실제 포커스는 보지 않는다.
 pub fn segment_row(
     ui: &mut egui::Ui,
     theme: &Theme,
     labels: &[&str],
     selected: usize,
     sense: egui::Sense,
+    focus_look: Option<usize>,
 ) -> Option<usize> {
     let mut clicked = None;
     ui.horizontal(|ui| {
@@ -35,6 +37,20 @@ pub fn segment_row(
         for (i, label) in labels.iter().enumerate() {
             let active = i == selected;
             let resp = segment_chip(ui, theme, label, active, sense);
+            let focused = match focus_look {
+                Some(f) => f == i,
+                None => resp.has_focus(),
+            };
+            if focused {
+                crate::focus_ring::paint_control_ring(
+                    ui.painter(),
+                    theme,
+                    resp.rect,
+                    theme.corner_radius.value(),
+                    crate::focus_ring::control_ring_gap(theme),
+                    theme.border_focus().to_egui(),
+                );
+            }
             if resp.clicked() && !active {
                 clicked = Some(i);
             }

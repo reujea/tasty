@@ -5,6 +5,7 @@ mod file_handler_tab;
 mod keybindings_tab;
 #[cfg(test)]
 mod select_probe;
+mod tab_focus;
 mod tabs;
 
 pub(crate) use crate::view::file_chooser;
@@ -1473,7 +1474,7 @@ fn l1_tab_button(ui: &mut egui::Ui, th: &Theme, label: &str, active: bool) -> bo
             egui::Stroke::new(thickness, th.accent_primary().to_egui()),
         );
     }
-    resp.clicked()
+    tab_focus::l1_ring_then_clicked(ui, th, &resp, SETTINGS_TAB_UNDERLINE.value())
 }
 
 // ── L2 사이드바 뷰 ────────────────────────────────────────────────────────
@@ -1609,7 +1610,7 @@ fn sidebar_row(
     let galley = ui.painter().layout_no_wrap(label.to_owned(), font, color);
     let gy = rect.center().y - galley.size().y * 0.5;
     ui.painter().galley(egui::pos2(x, gy), galley, color);
-    resp.clicked()
+    tab_focus::l2_ring_then_clicked(ui, th, &resp, radius)
 }
 
 // ── 푸터 ──────────────────────────────────────────────────────────────────

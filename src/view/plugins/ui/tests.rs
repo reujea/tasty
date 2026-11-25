@@ -247,3 +247,69 @@ fn uninstall_confirm_takes_escape_when_focus_is_outside_the_chooser() {
     assert!(state.folder_chooser.is_open());
     assert!(actions.is_empty());
 }
+
+/// 플러그인 창 탭 막대의 탭은 Tab으로 포커스를 받고 탭에서 focus-ring-offset 띄운 border-focus 링을 그린다
+/// (정본 window-tab-focus.jsx 플러그인 탭).
+#[test]
+fn tab_rings_the_plugin_segment_tab_one_offset_off_its_box() {
+    let th = theme::Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
+    let ctx = egui::Context::default();
+    let tab = egui::Event::Key {
+        key: egui::Key::Tab,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::default(),
+    };
+    let mut frame = |events: Vec<egui::Event>| {
+        let mut cells = Vec::new();
+        let out = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(500.0, 120.0),
+                )),
+                focused: true,
+                events,
+                ..Default::default()
+            },
+            |c| {
+                egui::CentralPanel::default().show(c, |ui| {
+                    ui.horizontal(|ui| {
+                        for (i, l) in ["Installed", "Attention", "Add plugin"].iter().enumerate() {
+                            let left = ui.cursor().min.x;
+                            segment_tab(ui, &th, l, None, false, i == 0);
+                            cells.push(egui::Rect::from_x_y_ranges(
+                                left..=ui.min_rect().right(),
+                                ui.min_rect().y_range(),
+                            ));
+                        }
+                    });
+                });
+            },
+        );
+        let rings: Vec<_> = out
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Rect(r)
+                    if r.stroke.width == th.focus_ring_width.value()
+                        && r.stroke_kind == egui::StrokeKind::Outside =>
+                {
+                    Some((r.rect, r.stroke.color))
+                }
+                _ => None,
+            })
+            .collect();
+        (cells, rings)
+    };
+    let (_, rest) = frame(vec![]);
+    assert!(rest.is_empty(), "{rest:?}");
+    frame(vec![tab.clone()]);
+    frame(vec![tab]);
+    let (cells, rings) = frame(vec![]);
+    let gap = th.focus_ring_offset.value();
+    assert_eq!(rings.len(), 1, "{rings:?}");
+    assert_eq!(rings[0].1, th.border_focus().to_egui());
+    assert_eq!(rings[0].0.left(), cells[1].left() - gap);
+}
