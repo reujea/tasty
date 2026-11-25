@@ -12,10 +12,11 @@ use windows::core::{BOOL, Error, HSTRING, Interface, PWSTR, Result, w};
 
 use super::super::NavState;
 use super::super::host_document::{
-    HostDocuments, RESERVED_FILTERS, host_document_url, is_reserved, retry_via_host_document,
+    HostDocuments, RESERVED_FILTERS, StartDecision, host_document_url, is_reserved,
+    retry_via_host_document,
 };
 use super::super::load_generation::end_cancelled_navigation;
-use tasty_model::html_script::top_level::TopLevelAdmission;
+use tasty_model::html_script::top_level::{StartKind, TopLevelAdmission};
 
 /// view 하나의 예약 호스트 응답 준비물. 404 응답은 미리 만들어 요청 때 실패할 호출을 줄인다.
 pub(super) struct Responder {
@@ -207,18 +208,21 @@ pub(super) fn process_ended(documents: &RefCell<HostDocuments>, renderer: bool) 
     }
 }
 
-/// `NavigationStarting`에서 표에 없는 예약 주소면 시작 전에 취소한다(본문 안 상대 링크, 그 주소로의
-/// 리다이렉트 등). chrome을 Loading으로 바꾸기 전에 불러 보이던 문서를 그대로 둔다. 취소한 탐색이 chrome의
-/// 지금 로드면 Failed로 끝내고, 아니면 그 ID를 표에 적어 완료가 chrome을 바꾸지 않게 한다
-/// (`end_cancelled_navigation`). 취소했으면 true다.
-pub(super) fn cancel_unknown(
+/// main frame `NavigationStarting`을 표에 알린다(`HostDocuments::navigation_started`). 예약 주소인데
+/// 호스트가 보낸 다시 싣기도 commit된 문서의 Reload도 아니면(본문 안 상대 링크, 페이지가 스스로 연 주소,
+/// 그 주소로의 리다이렉트 등) 시작 전에 취소하고 `Cancel`을 돌려준다. chrome을 Loading으로 바꾸기 전이라
+/// 보이던 문서를 그대로 둔다. 취소한 탐색이 chrome의 지금 로드면 Failed로 끝내고, 아니면 그 ID를 표에
+/// 적어 완료가 chrome을 바꾸지 않게 한다(`end_cancelled_navigation`).
+pub(super) fn start(
     documents: &RefCell<HostDocuments>,
     chrome: (&Cell<NavState>, &Cell<Option<u64>>),
     top_level: &RefCell<TopLevelAdmission>,
     surface: u32,
     args: Option<&ICoreWebView2NavigationStartingEventArgs>,
-) -> Result<bool> {
-    let Some(args) = args else { return Ok(false) };
+) -> Result<StartDecision> {
+    let Some(args) = args else {
+        return Ok(StartDecision::NotReserved);
+    };
     let mut uri = PWSTR::null();
     // SAFETY: live args on the apartment thread; the URI is freed below.
     unsafe { args.Uri(&mut uri)? };
@@ -226,24 +230,45 @@ pub(super) fn cancel_unknown(
     let text = unsafe { uri.to_string() }.unwrap_or_default();
     // SAFETY: the caller owns the returned allocation.
     unsafe { CoTaskMemFree(Some(uri.0 as *const std::ffi::c_void)) };
-    if !is_reserved(&text) || documents.borrow().knows(&text) {
-        return Ok(false);
-    }
-    // SAFETY: live args on the apartment thread.
-    unsafe { args.SetCancel(true)? };
     let mut id = 0u64;
     // SAFETY: live args on the apartment thread.
     let nav = unsafe { args.NavigationId(&mut id) }.ok().map(|()| id);
     let mut redirected = BOOL(0);
     // SAFETY: live args on the apartment thread. A failed query counts as a new navigation.
     let redirected = unsafe { args.IsRedirected(&mut redirected) }.is_ok() && redirected.as_bool();
+    let decision =
+        documents
+            .borrow_mut()
+            .navigation_started(&text, nav, start_kind(args), redirected);
+    if decision != StartDecision::Cancel {
+        return Ok(decision);
+    }
+    // SAFETY: live args on the apartment thread.
+    unsafe { args.SetCancel(true)? };
     if end_cancelled_navigation(chrome.0, chrome.1, top_level, nav, redirected) {
         documents.borrow_mut().cancelled(nav);
     }
     tracing::debug!(
-        "WebView surface {surface}: cancelled a navigation to an unknown host document address"
+        "WebView surface {surface}: cancelled a navigation to a host document address the host did \
+         not send"
     );
-    Ok(true)
+    Ok(StartDecision::Cancel)
+}
+
+/// WebView2가 보고한 탐색 종류. 조회하지 못하면 `Other`다(Reload로 보지 않는다).
+fn start_kind(args: &ICoreWebView2NavigationStartingEventArgs) -> StartKind {
+    let kind = args
+        .cast::<ICoreWebView2NavigationStartingEventArgs3>()
+        .and_then(|a| {
+            let mut k = COREWEBVIEW2_NAVIGATION_KIND::default();
+            // SAFETY: live args on the apartment thread.
+            unsafe { a.NavigationKind(&mut k) }.map(|()| k)
+        });
+    match kind {
+        Ok(k) if k == COREWEBVIEW2_NAVIGATION_KIND_RELOAD => StartKind::Reload,
+        Ok(k) if k == COREWEBVIEW2_NAVIGATION_KIND_BACK_OR_FORWARD => StartKind::History,
+        _ => StartKind::Other,
+    }
 }
 
 /// `NavigateToString`이 거절한 문서를 host 전용 주소로 한 번 다시 싣는 준비물. 클로저가 본문을 소유해

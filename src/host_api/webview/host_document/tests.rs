@@ -1,5 +1,15 @@
 use super::*;
 
+/// 리다이렉트가 아닌 새 탐색의 시작(호스트의 `Navigate`, 페이지의 이동).
+fn start(docs: &mut HostDocuments, uri: &str, nav: u64) -> StartDecision {
+    docs.navigation_started(uri, Some(nav), StartKind::Other, false)
+}
+
+/// WebView2가 Reload로 보고한 시작.
+fn reload(docs: &mut HostDocuments, uri: &str, nav: u64) -> StartDecision {
+    docs.navigation_started(uri, Some(nav), StartKind::Reload, false)
+}
+
 const E_FAIL: i32 = 0x8000_4005_u32 as i32;
 
 fn big() -> String {
@@ -82,10 +92,7 @@ fn a_sent_document_answers_its_main_navigation_and_becomes_shown() {
     let mut docs = HostDocuments::default();
     let url = host_document_url(1, 1, 1);
     docs.sent(1, url.clone(), body("<p>one</p>"));
-    assert_eq!(
-        docs.navigation_started(&url, Some(10)),
-        StartDecision::HostLoad
-    );
+    assert_eq!(start(&mut docs, &url, 10), StartDecision::HostLoad);
     assert_eq!(
         docs.respond(&url, true, true, false).as_deref(),
         Some("<p>one</p>")
@@ -99,7 +106,7 @@ fn requests_other_than_the_main_document_get_no_body() {
     let mut docs = HostDocuments::default();
     let url = host_document_url(1, 1, 1);
     docs.sent(1, url.clone(), body("x"));
-    docs.navigation_started(&url, Some(10));
+    start(&mut docs, &url, 10);
     assert!(docs.respond(&url, false, true, false).is_none(), "POST");
     assert!(
         docs.respond(&url, true, false, false).is_none(),
@@ -125,7 +132,7 @@ fn a_document_in_the_table_is_not_served_outside_its_main_navigation() {
     let url = host_document_url(1, 1, 1);
     docs.sent(1, url.clone(), body("x"));
     assert!(docs.respond(&url, true, true, false).is_none(), "시작 전");
-    docs.navigation_started(&url, Some(10));
+    start(&mut docs, &url, 10);
     docs.respond(&url, true, true, false);
     docs.navigation_completed(Some(10), true);
     assert!(
@@ -138,15 +145,17 @@ fn a_document_in_the_table_is_not_served_outside_its_main_navigation() {
 fn an_unknown_reserved_navigation_is_cancelled() {
     let mut docs = HostDocuments::default();
     let known = host_document_url(1, 1, 1);
-    docs.sent(1, known.clone(), body("x"));
-    assert!(docs.knows(&format!("{known}#top")));
-    assert!(!docs.knows("http://v1-1.tasty-host-document.invalid/notes.md"));
+    docs.sent(1, known, body("x"));
     assert_eq!(
-        docs.navigation_started("http://v1-1.tasty-host-document.invalid/notes.md", Some(1)),
+        start(
+            &mut docs,
+            "http://v1-1.tasty-host-document.invalid/notes.md",
+            1
+        ),
         StartDecision::Cancel
     );
     assert_eq!(
-        docs.navigation_started("https://example.com/", Some(2)),
+        start(&mut docs, "https://example.com/", 2),
         StartDecision::NotReserved
     );
 }
@@ -158,9 +167,9 @@ fn two_queued_loads_keep_their_own_bodies() {
     let (a, b) = (host_document_url(1, 1, 1), host_document_url(1, 1, 2));
     docs.sent(1, a.clone(), body("a"));
     docs.sent(2, b.clone(), body("b"));
-    docs.navigation_started(&a, Some(10));
+    start(&mut docs, &a, 10);
     assert_eq!(docs.respond(&a, true, true, false).as_deref(), Some("a"));
-    docs.navigation_started(&b, Some(11));
+    start(&mut docs, &b, 11);
     assert_eq!(docs.respond(&b, true, true, false).as_deref(), Some("b"));
     // 대신된 앞 탐색의 늦은 실패는 그 문서만 지운다.
     docs.navigation_completed(Some(10), false);
@@ -183,15 +192,15 @@ fn a_failed_new_load_keeps_the_shown_document_for_reload() {
     let mut docs = HostDocuments::default();
     let (a, b) = (host_document_url(1, 1, 1), host_document_url(1, 1, 2));
     docs.sent(1, a.clone(), body("a"));
-    docs.navigation_started(&a, Some(10));
+    start(&mut docs, &a, 10);
     docs.respond(&a, true, true, false);
     docs.navigation_completed(Some(10), true);
     docs.sent(2, b.clone(), body("b"));
-    docs.navigation_started(&b, Some(11));
+    start(&mut docs, &b, 11);
     docs.navigation_completed(Some(11), false);
     assert_eq!(docs.loads(), vec![(1, true)]);
     assert_eq!(
-        docs.navigation_started(&format!("{a}#top"), Some(12)),
+        reload(&mut docs, &format!("{a}#top"), 12),
         StartDecision::Reload,
         "commit된 문서의 다시 읽기(fragment가 붙어도 같은 문서)"
     );
@@ -206,11 +215,11 @@ fn a_success_without_a_served_body_does_not_replace_the_shown_document() {
     let mut docs = HostDocuments::default();
     let (a, b) = (host_document_url(1, 1, 1), host_document_url(1, 1, 2));
     docs.sent(1, a.clone(), body("a"));
-    docs.navigation_started(&a, Some(10));
+    start(&mut docs, &a, 10);
     docs.respond(&a, true, true, false);
     docs.navigation_completed(Some(10), true);
     docs.sent(2, b.clone(), body("b"));
-    docs.navigation_started(&b, Some(11));
+    start(&mut docs, &b, 11);
     docs.navigation_completed(Some(11), true);
     assert_eq!(docs.loads(), vec![(1, true)]);
 }
@@ -220,10 +229,10 @@ fn a_shown_ordinary_document_retires_the_host_document() {
     let mut docs = HostDocuments::default();
     let a = host_document_url(1, 1, 1);
     docs.sent(1, a.clone(), body("a"));
-    docs.navigation_started(&a, Some(10));
+    start(&mut docs, &a, 10);
     docs.respond(&a, true, true, false);
     docs.navigation_completed(Some(10), true);
-    docs.navigation_started("about:blank", Some(11));
+    start(&mut docs, "about:blank", 11);
     docs.navigation_completed(Some(11), true);
     assert!(docs.loads().is_empty());
 }
@@ -233,11 +242,11 @@ fn an_ended_renderer_drops_documents_in_flight() {
     let mut docs = HostDocuments::default();
     let (a, b) = (host_document_url(1, 1, 1), host_document_url(1, 1, 2));
     docs.sent(1, a.clone(), body("a"));
-    docs.navigation_started(&a, Some(10));
+    start(&mut docs, &a, 10);
     docs.respond(&a, true, true, false);
     docs.navigation_completed(Some(10), true);
     docs.sent(2, b.clone(), body("b"));
-    docs.navigation_started(&b, Some(11));
+    start(&mut docs, &b, 11);
     docs.renderer_ended();
     assert_eq!(docs.loads(), vec![(1, true)]);
     assert!(docs.respond(&b, true, true, false).is_none());
@@ -266,11 +275,11 @@ fn a_committed_document_survives_a_superseded_completion_and_a_failed_successor(
     let mut docs = HostDocuments::default();
     let (a, b) = (host_document_url(1, 1, 1), host_document_url(1, 1, 2));
     docs.sent(1, a.clone(), body("a"));
-    docs.navigation_started(&a, Some(10));
+    start(&mut docs, &a, 10);
     docs.respond(&a, true, true, false);
     docs.committed(Some(10), false);
     docs.sent(2, b.clone(), body("b"));
-    docs.navigation_started(&b, Some(11));
+    start(&mut docs, &b, 11);
     docs.navigation_completed(Some(10), false);
     docs.navigation_completed(Some(11), false);
     assert_eq!(docs.loads(), vec![(1, true)]);
@@ -281,11 +290,11 @@ fn an_error_page_commit_keeps_the_previous_document() {
     let mut docs = HostDocuments::default();
     let (a, b) = (host_document_url(1, 1, 1), host_document_url(1, 1, 2));
     docs.sent(1, a.clone(), body("a"));
-    docs.navigation_started(&a, Some(10));
+    start(&mut docs, &a, 10);
     docs.respond(&a, true, true, false);
     docs.committed(Some(10), false);
     docs.sent(2, b.clone(), body("b"));
-    docs.navigation_started(&b, Some(11));
+    start(&mut docs, &b, 11);
     docs.respond(&b, true, true, false);
     docs.committed(Some(11), true);
     assert_eq!(docs.loads(), vec![(1, true), (2, false)]);
@@ -296,10 +305,10 @@ fn an_ordinary_commit_retires_the_host_document() {
     let mut docs = HostDocuments::default();
     let a = host_document_url(1, 1, 1);
     docs.sent(1, a.clone(), body("a"));
-    docs.navigation_started(&a, Some(10));
+    start(&mut docs, &a, 10);
     docs.respond(&a, true, true, false);
     docs.committed(Some(10), false);
-    docs.navigation_started("about:blank", Some(11));
+    start(&mut docs, "about:blank", 11);
     docs.committed(Some(11), false);
     assert!(docs.loads().is_empty());
 }
@@ -310,17 +319,17 @@ fn a_reserved_navigation_without_a_local_answer_reports_failure() {
     let mut docs = HostDocuments::default();
     let a = host_document_url(1, 1, 1);
     docs.sent(1, a.clone(), body("a"));
-    docs.navigation_started(&a, Some(10));
+    start(&mut docs, &a, 10);
     docs.respond(&a, true, true, false);
     docs.response_failed();
     assert!(docs.navigation_completed(Some(10), true));
     assert!(docs.loads().is_empty());
     let b = host_document_url(1, 1, 2);
     docs.sent(2, b.clone(), body("b"));
-    docs.navigation_started(&b, Some(11));
+    start(&mut docs, &b, 11);
     docs.respond(&b, true, true, false);
     assert!(!docs.navigation_completed(Some(11), true));
-    docs.navigation_started("https://example.com/", Some(12));
+    start(&mut docs, "https://example.com/", 12);
     assert!(!docs.navigation_completed(Some(12), true));
 }
 
@@ -343,7 +352,7 @@ fn an_ended_browser_empties_the_table() {
     let mut docs = HostDocuments::default();
     let a = host_document_url(1, 1, 1);
     docs.sent(1, a.clone(), body("a"));
-    docs.navigation_started(&a, Some(10));
+    start(&mut docs, &a, 10);
     docs.respond(&a, true, true, false);
     docs.committed(Some(10), false);
     docs.browser_ended();
@@ -366,4 +375,51 @@ fn the_filters_cover_every_reserved_address() {
             "{url}"
         );
     }
+}
+
+/// 표에 있는 주소라도 호스트가 보낸 다시 싣기와 commit된 문서의 Reload가 아니면 본문을 받지 못한다.
+#[test]
+fn only_the_host_retry_and_a_reload_reach_a_reserved_address() {
+    let mut docs = HostDocuments::default();
+    let (a, b) = (host_document_url(1, 1, 1), host_document_url(1, 1, 2));
+    docs.sent(1, a.clone(), body("a"));
+    assert_eq!(
+        docs.navigation_started(&a, Some(9), StartKind::Other, true),
+        StartDecision::Cancel,
+        "보낸 주소로의 리다이렉트"
+    );
+    assert_eq!(
+        reload(&mut docs, &a, 9),
+        StartDecision::Cancel,
+        "아직 보이지 않은 문서의 Reload"
+    );
+    assert_eq!(start(&mut docs, &a, 10), StartDecision::HostLoad);
+    docs.respond(&a, true, true, false);
+    docs.navigation_completed(Some(10), true);
+    assert_eq!(
+        start(&mut docs, &a, 11),
+        StartDecision::Cancel,
+        "보이는 문서로 페이지가 스스로 가는 새 탐색"
+    );
+    assert!(docs.respond(&a, true, true, false).is_none());
+    assert_eq!(
+        docs.navigation_started(&a, Some(12), StartKind::History, false),
+        StartDecision::Cancel,
+        "이력 이동"
+    );
+    assert_eq!(
+        docs.navigation_started(&a, Some(13), StartKind::Reload, true),
+        StartDecision::Cancel,
+        "Reload의 리다이렉트"
+    );
+    assert_eq!(reload(&mut docs, &a, 14), StartDecision::Reload);
+    assert_eq!(docs.respond(&a, true, true, false).as_deref(), Some("a"));
+    docs.sent(2, b.clone(), body("b"));
+    assert_eq!(start(&mut docs, &b, 15), StartDecision::HostLoad);
+    assert_eq!(
+        start(&mut docs, &b, 16),
+        StartDecision::Cancel,
+        "보낸 문서가 이미 묶인 뒤 같은 주소의 두 번째 새 탐색"
+    );
+    assert!(docs.respond(&b, true, true, false).is_none());
 }

@@ -492,15 +492,16 @@ impl PlatformWebView {
             let docs_start = host_documents.clone();
             let h_start = NavigationStartingEventHandler::create(Box::new(
                 move |sender, args| -> windows::core::Result<()> {
-                    // 표에 없는 host 전용 주소(본문 안 상대 링크 등)는 chrome을 바꾸기 전에 취소한다.
+                    // 호스트가 보내지 않은 host 전용 주소 탐색(본문 안 상대 링크 등)은 chrome을 바꾸기 전에 취소한다.
                     let chrome = (&*nav_start, &*chrome_start);
-                    if host_document::cancel_unknown(
+                    let host_start = host_document::start(
                         &docs_start,
                         chrome,
                         &top_start,
                         surface_id,
                         args.as_ref(),
-                    )? {
+                    )?;
+                    if host_start == StartDecision::Cancel {
                         return Ok(());
                     }
                     tracing::debug!("WebView surface {surface_id}: load started");
@@ -523,9 +524,7 @@ impl PlatformWebView {
                         let uri_str = uri.to_string().unwrap_or_default();
                         // 반환 URI의 할당은 호출자가 해제한다.
                         CoTaskMemFree(Some(uri.0 as *const c_void));
-                        let host_load =
-                            docs_start.borrow_mut().navigation_started(&uri_str, nav_id)
-                                == StartDecision::HostLoad;
+                        let host_load = host_start == StartDecision::HostLoad;
                         if entry_navigation
                             .as_ref()
                             .is_some_and(|source| source.main_resource(&uri_str))

@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use tasty_model::html_script::top_level::same_target;
+use tasty_model::html_script::top_level::{StartKind, same_target};
 
 /// host 전용 주소의 호스트 접미사. `.invalid`는 이름 해석이 실패하도록 예약된 최상위 이름이다.
 pub(super) const RESERVED_HOST_SUFFIX: &str = ".tasty-host-document.invalid";
@@ -70,6 +70,7 @@ struct Entry {
     url: String,
     body: Arc<str>,
     /// 이 문서를 연 main 탐색의 `NavigationId`. 시작 전에는 None, ID를 모르면 Some(None).
+    /// 보낸 문서는 시작한 탐색 하나에만 묶인다. 같은 주소의 다른 탐색은 호스트가 보낸 것이 아니다.
     nav: Option<Option<u64>>,
     shown: bool,
 }
@@ -97,11 +98,12 @@ pub(super) struct HostDocuments {
 pub(super) enum StartDecision {
     /// 예약 주소가 아니다. 표는 관여하지 않는다.
     NotReserved,
-    /// host가 보낸 다시 싣기다. 사용자 탐색이 아니다(WebView2는 API `Navigate`도 사용자 시작으로 본다).
+    /// 호스트가 보낸 다시 싣기다. 사용자 탐색이 아니다(WebView2는 API `Navigate`도 사용자 시작으로 본다).
     HostLoad,
-    /// commit된 문서의 다시 읽기(이력·메뉴의 다시 읽기).
+    /// commit된 문서의 다시 읽기(WebView2가 Reload로 보고한 탐색).
     Reload,
-    /// 표에 없는 예약 주소다. 시작 전에 취소한다.
+    /// 위 둘이 아닌 예약 주소 탐색이다(표에 없는 주소, 페이지가 스스로 연 주소, 리다이렉트, 이력 이동).
+    /// 시작 전에 취소한다.
     Cancel,
 }
 
@@ -123,11 +125,6 @@ impl HostDocuments {
         self.entries.retain(|e| e.load != load || e.shown);
     }
 
-    /// 표에 있는 문서의 주소인지. 표에 없는 예약 주소의 탐색은 시작 전에 취소한다.
-    pub(super) fn knows(&self, uri: &str) -> bool {
-        self.entries.iter().any(|e| same_target(&e.url, uri))
-    }
-
     /// 시작 전에 취소한 탐색을 기록한다. ID를 모르면 기록하지 않는다.
     pub(super) fn cancelled(&mut self, nav: Option<u64>) {
         if nav.is_some() {
@@ -144,8 +141,20 @@ impl HostDocuments {
         false
     }
 
-    /// main frame `NavigationStarting`. 새 탐색은 앞 탐색을 대신한다.
-    pub(super) fn navigation_started(&mut self, uri: &str, nav: Option<u64>) -> StartDecision {
+    /// main frame `NavigationStarting`. 새 탐색은 앞 탐색을 대신한다. `kind`는 WebView2가 보고한 탐색
+    /// 종류(모르면 `Other`), `redirected`는 리다이렉트 hop인지다.
+    ///
+    /// 예약 주소는 둘만 받는다. 호스트가 보낸 다시 싣기(보낸 문서의 주소로, 그 문서가 아직 어느 탐색에도
+    /// 묶이지 않았을 때 처음 시작한 리다이렉트가 아닌 새 탐색)와 commit된 문서의 Reload다. WebView2
+    /// `Navigate`는 탐색 ID를 돌려주지 않아, 보낸 문서를 처음 시작한 탐색 ID에 묶고 그 뒤 같은 주소의
+    /// 다른 탐색은 막는다.
+    pub(super) fn navigation_started(
+        &mut self,
+        uri: &str,
+        nav: Option<u64>,
+        kind: StartKind,
+        redirected: bool,
+    ) -> StartDecision {
         if !is_reserved(uri) {
             self.main = Some(Main {
                 nav,
@@ -154,25 +163,29 @@ impl HostDocuments {
             });
             return StartDecision::NotReserved;
         }
-        // 아직 시작하지 않은 보낸 문서가 먼저다. 없으면 commit된 문서의 다시 읽기다.
-        let found = self
-            .entries
-            .iter_mut()
-            .filter(|e| same_target(&e.url, uri))
-            .min_by_key(|e| (e.shown, e.nav.is_some()));
-        let Some(entry) = found else {
+        let found = match (redirected, kind) {
+            (false, StartKind::Other) => self
+                .entries
+                .iter_mut()
+                .find(|e| !e.shown && e.nav.is_none() && same_target(&e.url, uri))
+                .map(|entry| {
+                    entry.nav = Some(nav);
+                    (entry.url.clone(), StartDecision::HostLoad)
+                }),
+            (false, StartKind::Reload) => self
+                .entries
+                .iter()
+                .find(|e| e.shown && same_target(&e.url, uri))
+                .map(|entry| (entry.url.clone(), StartDecision::Reload)),
+            _ => None,
+        };
+        let Some((url, decision)) = found else {
             self.main = None;
             return StartDecision::Cancel;
         };
-        let decision = if entry.shown {
-            StartDecision::Reload
-        } else {
-            entry.nav = Some(nav);
-            StartDecision::HostLoad
-        };
         self.main = Some(Main {
             nav,
-            url: Some(entry.url.clone()),
+            url: Some(url),
             served: false,
         });
         decision
