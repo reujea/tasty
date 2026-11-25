@@ -23,7 +23,8 @@ const DANGER_CHOICES: [(&str, bool); 3] = [
 
 pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
-        kit::frame_card(ui, theme, WIDTH, kit::panel_fill(theme), |ui| {
+        // 범위를 덮지 않아(scrim 없음) 떠 있는 표면의 popover 그림자를 쓴다.
+        kit::frame_card_popover(ui, theme, WIDTH, kit::panel_fill(theme), |ui| {
             kit::region_sym(ui, theme.spacing_md, theme.spacing_md, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
@@ -91,6 +92,8 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ("header", "agent dot · title · agent Tag"),
             ("body", "prose · pre on bg-app · permission Tags"),
             ("footer", "Deny · Allow once · Always"),
+            ("scrim", "none · the window under it keeps taking input"),
+            ("shadow", "shadow-popover"),
         ],
         &[
             TokenChip::new(
@@ -104,6 +107,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "risky grant",
                 theme.accent_warning().to_egui(),
             ),
+            TokenChip::without_color("shadow-popover", "lift with no scrim"),
         ],
     );
 
