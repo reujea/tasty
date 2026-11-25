@@ -5,7 +5,7 @@ use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, Ground};
 
 use crate::catalog::icons::{self, MockGlyph};
 
-use super::paint::{glyph_at, intro_secondary};
+use super::paint::glyph_at;
 use super::{GROUP_CHEVRON_GAP, IE_DISCARDED};
 
 pub(super) fn dropped_notice(ui: &mut egui::Ui, theme: &Theme) {
@@ -129,14 +129,19 @@ pub(super) fn export_failure_block(
     action_buttons(ui, theme, actions, Ground::Raised)
 }
 
-/// 실패 블록 본문 한 문단 — 12, max-width measure-md, text-on-active.
-pub(super) fn failure_body(ui: &mut egui::Ui, theme: &Theme, text: &str) {
+/// 가져오기 파싱 실패 블록의 본문 잉크 — text-secondary(본체 parse_failure_body_ink와 같은 값).
+pub(super) fn parse_failure_body_ink(theme: &Theme) -> egui::Color32 {
+    theme.text_secondary().to_egui()
+}
+
+/// 실패 블록 본문 한 문단 — 12, max-width measure-md. 잉크는 블록마다 다르다.
+pub(super) fn failure_body(ui: &mut egui::Ui, theme: &Theme, text: &str, ink: egui::Color32) {
     ui.scope(|ui| {
         ui.set_max_width(theme.measure_md.value());
         ui.label(
             egui::RichText::new(text)
                 .size(theme.font_size_term_sm.value())
-                .color(notice_body_ink(theme)),
+                .color(ink),
         );
     });
 }
@@ -211,13 +216,14 @@ pub(super) fn parse_failure(ui: &mut egui::Ui, theme: &Theme, with_line: bool) {
         crate::i18n::t("settings.keybindings.ie_failure_title"),
         None,
         |ui| {
-            intro_secondary(
+            failure_body(
                 ui,
                 theme,
                 &format!(
                     "~/Downloads/settings.json — expected a keybinding export (TOML, a \
                      [keybindings] table); {why} Nothing was changed."
                 ),
+                parse_failure_body_ink(theme),
             );
         },
         &[("Choose another file", ButtonVariant::Secondary)],

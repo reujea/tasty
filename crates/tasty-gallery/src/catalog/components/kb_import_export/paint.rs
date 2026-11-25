@@ -17,18 +17,6 @@ pub(super) fn intro(ui: &mut egui::Ui, theme: &Theme, measure: LogicalPx, text: 
     });
 }
 
-/// 카드 설명문 — 12 text-secondary, max-width measure-lg.
-pub(super) fn intro_secondary(ui: &mut egui::Ui, theme: &Theme, text: &str) {
-    ui.scope(|ui| {
-        ui.set_max_width(theme.measure_lg.value());
-        ui.label(
-            egui::RichText::new(text)
-                .size(theme.font_size_term_sm.value())
-                .color(theme.text_secondary().to_egui()),
-        );
-    });
-}
-
 pub(super) fn caption(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.label(
         egui::RichText::new(text)

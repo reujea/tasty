@@ -10,7 +10,7 @@ use crate::catalog::spec::{self, StageVariant, TokenChip};
 use super::entry::action_row;
 use super::notices::{
     bundle_notices_ink, dropped_notice, export_failure_block, failure_body, notice_block,
-    notice_line, parse_failure,
+    notice_body_ink, notice_line, parse_failure,
 };
 use super::paint::caption;
 use super::{IE_FILE, NOTICE_FOLD_AT, SPECIMEN_W, STATE, State};
@@ -131,6 +131,7 @@ fn export_failure_row(ui: &mut egui::Ui, theme: &Theme, st: &mut State) {
                     ui,
                     theme,
                     &format!("~/tasty/{IE_FILE} — the folder is read-only. Nothing was written."),
+                    notice_body_ink(theme),
                 );
             },
             &[

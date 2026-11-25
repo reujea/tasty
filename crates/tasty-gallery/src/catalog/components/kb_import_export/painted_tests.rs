@@ -112,7 +112,8 @@ fn assert_bundle_warning_block(p: &Painted, th: &Theme, total: u64, lines: &[&st
     }
 }
 
-/// open values 표본: 두 파싱 실패 블록의 제목과 tint 안 글리프는 accent-danger-strong, 번들 경고 블록은
+/// open values 표본: 두 파싱 실패 블록의 제목과 tint 안 글리프는 accent-danger-strong, 본문은 text-secondary로
+/// measure-md에서 줄바꿈하고, 번들 경고 블록은
 /// accent-warning-raised 머리와 text-on-active 줄, 내보내기 실패 본문은 measure-md에서 줄바꿈한다.
 /// Mocha는 accent-warning과 그 raised 값이 같아 경고 머리의 옛 잉크는 Latte가 가른다.
 #[test]
@@ -137,6 +138,21 @@ fn open_values_sample_paints_parse_failure_and_bundle_warning_inks() {
             let tint =
                 p.rect_filled_around(tint_fill(&th, th.accent_danger().to_egui()), title.rect);
             assert_eq!(p.glyphs_in(tint), vec![strong], "parse failure glyph");
+        }
+
+        let bodies = p.texts_with("expected a keybinding export");
+        assert_eq!(bodies.len(), 2, "with and without a line number");
+        for body in bodies {
+            assert_eq!(
+                body.wrap_width,
+                th.measure_md.value(),
+                "parse failure body measure"
+            );
+            assert_eq!(
+                body.color,
+                th.text_secondary().to_egui(),
+                "parse failure body ink"
+            );
         }
 
         assert_bundle_warning_block(

@@ -8,7 +8,8 @@ use crate::catalog::spec::{self, StageVariant, TokenChip};
 
 use super::entry::action_row;
 use super::notices::{
-    bundle_notices_ink, export_failure_block, failure_body, notice_block, notice_line,
+    bundle_notices_ink, export_failure_block, failure_body, notice_block, notice_body_ink,
+    notice_line,
 };
 use super::paint::caption;
 use super::{IE_FILE, SPECIMEN_W};
@@ -102,6 +103,7 @@ pub(super) fn unknown_export_failure(ui: &mut egui::Ui, theme: &Theme) {
                         "~/tasty/{IE_FILE} — {} Nothing was written.",
                         unknown_clause()
                     ),
+                    notice_body_ink(theme),
                 );
                 os_reason_line(ui, theme, OS_MESSAGE);
             },
