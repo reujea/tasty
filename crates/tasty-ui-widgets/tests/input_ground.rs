@@ -69,9 +69,12 @@ fn raised_input_paints_fill_edge_and_focus_ring_in_both_themes() {
                         && r.stroke.width == theme.border_width.value()),
                     "invalid={invalid}, focused={focused}, hover={hover}"
                 );
-                let ring = rects
-                    .iter()
-                    .find(|r| r.rect == bounds.expand(theme.border_width.value()));
+                // 링은 테두리 바로 바깥에 붙는다: 같은 사각형에 Outside 획이다.
+                let ring = rects.iter().find(|r| {
+                    r.rect == bounds
+                        && r.stroke.width > 0.0
+                        && r.stroke_kind == egui::StrokeKind::Outside
+                });
                 assert_eq!(ring.is_some(), focused);
                 if let Some(ring) = ring {
                     assert_eq!(ring.stroke.color, edge);

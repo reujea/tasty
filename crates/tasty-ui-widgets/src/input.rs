@@ -378,7 +378,7 @@ impl<'a> Input<'a> {
         resp
     }
 
-    /// 상자 테두리와 포커스 링. 읽기 전용은 링 없이 포커스 테두리만 바꾼다.
+    /// 상자 테두리와 포커스 링(테두리 바로 바깥에 틈 없이 붙인 1px). 읽기 전용은 링 없이 포커스 테두리만 바꾼다.
     fn paint_edge(
         &self,
         ui: &egui::Ui,
@@ -415,12 +415,7 @@ impl<'a> Input<'a> {
             } else {
                 theme.input_border_focus().to_egui()
             };
-            ui.painter().rect_stroke(
-                outer.expand(bw),
-                radius,
-                egui::Stroke::new(bw, ring),
-                egui::StrokeKind::Outside,
-            );
+            crate::focus_ring::paint_field_ring(ui.painter(), theme, outer, radius, ring);
         }
     }
 }
@@ -731,6 +726,72 @@ mod tests {
         let (focused, _) = at_rest_frame(&ctx, &theme, &mut buf, Vec::new(), 2.0);
         assert!(!focused.contains(&red), "포커스 중에 빨강을 그렸다");
         assert!(focused.contains(&theme.input_border_focus().to_egui()));
+    }
+
+    /// 포커스 링은 필드 테두리 바로 바깥에 틈 없이 붙은 border_width 한 줄이다(정본 Input.jsx `box-shadow 0 0 0
+    /// border-width`). invalid는 같은 자리에 위험 색이다.
+    #[test]
+    fn the_focus_ring_sits_flush_outside_the_field_edge() {
+        let theme = tasty_themes::mocha_fallback();
+        let bw = theme.border_width.value();
+        for invalid in [false, true] {
+            let ctx = egui::Context::default();
+            let mut buf = "x".to_owned();
+            let id = egui::Id::new("flush");
+            let mut outer = egui::Rect::NOTHING;
+            let mut run = |ctx: &egui::Context, buf: &mut String| {
+                let raw = egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(400.0, 200.0),
+                    )),
+                    ..Default::default()
+                };
+                ctx.run(raw, |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        outer = Input::new()
+                            .id(id)
+                            .width(120.0)
+                            .invalid(invalid)
+                            .show(ui, &theme, buf)
+                            .rect;
+                    });
+                })
+            };
+            let rest = run(&ctx, &mut buf);
+            let outside = |o: &egui::FullOutput| -> Vec<(egui::Rect, egui::Color32)> {
+                o.shapes
+                    .iter()
+                    .filter_map(|c| match &c.shape {
+                        egui::Shape::Rect(r)
+                            if r.stroke.width > 0.0
+                                && r.stroke_kind == egui::StrokeKind::Outside =>
+                        {
+                            Some((r.rect, r.stroke.color))
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            };
+            assert!(outside(&rest).is_empty(), "no ring at rest");
+            ctx.memory_mut(|m| m.request_focus(id));
+            let focused = run(&ctx, &mut buf);
+            let want = if invalid {
+                theme.input_border_invalid().to_egui()
+            } else {
+                theme.input_border_focus().to_egui()
+            };
+            assert_eq!(outside(&focused), vec![(outer, want)], "invalid={invalid}");
+            let width = focused.shapes.iter().find_map(|c| match &c.shape {
+                egui::Shape::Rect(r)
+                    if r.stroke.width > 0.0 && r.stroke_kind == egui::StrokeKind::Outside =>
+                {
+                    Some(r.stroke.width)
+                }
+                _ => None,
+            });
+            assert_eq!(width, Some(bw));
+        }
     }
 
     /// 칸보다 긴 값만, 그리고 hover 지연 뒤에만 전체 값을 보인다.
