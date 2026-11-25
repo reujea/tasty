@@ -47,7 +47,7 @@ fn the_bar_is_the_search_bar_height() {
 #[test]
 fn a_tree_row_paints_the_matching_part_of_its_label() {
     let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
-    let match_fg = theme.accent_primary_raised().to_egui();
+    let match_fg = theme.explorer_match_fg().to_egui();
     let ctx = egui::Context::default();
     let painted = |query: &'static str| {
         let out = ctx.run(egui::RawInput::default(), |ctx| {
@@ -90,7 +90,7 @@ fn a_tree_row_paints_the_matching_part_of_its_label() {
 fn nfd_display_maps_raw_highlights_without_splitting_utf8_or_composed_letters() {
     let theme = tasty_themes::mocha_fallback();
     let ink = theme.text_primary().to_egui();
-    let marked = theme.accent_primary_raised().to_egui();
+    let marked = theme.explorer_match_fg().to_egui();
     for (raw, query, display, highlighted) in [
         ("cafe\u{301}.txt", "e", "café.txt", "é"),
         ("cafe\u{301}.txt", "\u{301}", "café.txt", "é"),
@@ -161,7 +161,7 @@ fn composing_display_does_not_normalize_name_matching() {
     assert!(
         job.sections
             .iter()
-            .all(|s| s.format.color != theme.accent_primary_raised().to_egui())
+            .all(|s| s.format.color != theme.explorer_match_fg().to_egui())
     );
     assert_eq!(raw.as_bytes(), b"cafe\xcc\x81.rs");
 }
@@ -206,4 +206,24 @@ fn the_match_underline_reaches_the_text_mesh() {
             .len()
     };
     assert!(vertices(true) > vertices(false));
+}
+
+/// explorer-match-fg 는 지금 모든 테마에서 accent-primary-raised 와 같은 값이라 색 대조로는 위젯이 어느
+/// 토큰을 읽는지 가릴 수 없다. 쉬는 일치 구간 색이 역할 토큰 접근자를 부르는지 소스에서 본다.
+#[test]
+fn the_resting_match_run_reads_the_explorer_match_token() {
+    let src = include_str!("../explorer_find_bar.rs");
+    let start = src
+        .find("pub fn explorer_match_job(")
+        .expect("explorer_match_job not found");
+    let body = &src[start..];
+    let body = &body[..body.find("\n}\n").expect("explorer_match_job has no end")];
+    assert!(
+        body.contains("theme.explorer_match_fg()"),
+        "the resting match run must read explorer_match_fg():\n{body}"
+    );
+    assert!(
+        !body.contains("accent_primary_raised"),
+        "the match run must not read accent_primary_raised directly:\n{body}"
+    );
 }
