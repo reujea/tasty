@@ -183,6 +183,7 @@ impl<E> LineItem<E> {
         }
     }
 
+    #[cfg(any(target_os = "linux", test))]
     fn arrived_at(&self) -> Option<Instant> {
         match self {
             Self::Event(_, at) => Some(*at),
@@ -202,7 +203,8 @@ pub(crate) struct Release<E> {
 }
 
 impl<E> Release<E> {
-    /// 줄 선 창 사건 가운데 가장 먼저 창에 도착한 시각.
+    /// 줄 선 창 사건 가운데 가장 먼저 창에 도착한 시각(X11 관찰 정리, `explorer_ime`).
+    #[cfg(target_os = "linux")]
     pub(crate) fn first_queued_at(&self) -> Option<Instant> {
         self.queued.iter().find_map(LineItem::arrived_at)
     }
@@ -291,7 +293,8 @@ impl<E> EditKeyHold<E> {
         self.queued.push(item);
     }
 
-    /// 줄 선 창 사건 가운데 가장 먼저 창에 도착한 시각.
+    /// 줄 선 창 사건 가운데 가장 먼저 창에 도착한 시각(X11 관찰 정리, `explorer_ime`).
+    #[cfg(target_os = "linux")]
     pub(crate) fn first_queued_at(&self) -> Option<Instant> {
         self.queued.iter().find_map(LineItem::arrived_at)
     }

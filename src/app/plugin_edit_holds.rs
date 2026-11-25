@@ -102,7 +102,9 @@ impl PluginEditHolds {
         );
     }
 
-    /// 이 창의 플러그인 편집 보류 줄과 붙여넣기 기다림 줄에 선 입력 가운데 가장 먼저 창에 도착한 시각.
+    /// 이 창의 플러그인 편집 보류 줄과 붙여넣기 기다림 줄에 선 입력 가운데 가장 먼저 창에 도착한 시각(X11 관찰 정리,
+    /// `explorer_ime`).
+    #[cfg(target_os = "linux")]
     pub(crate) fn oldest_waiting(&self, window: WindowId) -> Option<Instant> {
         let hold = self
             .holds

@@ -422,8 +422,10 @@ fn draw_plugin_popups_with_keys(
             pointer_pos,
             ownership == Some(PointOwnership::OccludedByHigher),
             has_key_focus,
-            &mut route,
-            &mut keys,
+            MeshRoutes {
+                pointer: &mut route,
+                keys: &mut keys,
+            },
             skip,
         );
         // 보류한 편집 키의 요청은 이 프레임 입력 뒤에 붙인다. 그 뒤의 입력은 보류 뒤에 줄을 서 있다.
@@ -838,20 +840,29 @@ fn apply_escape(state: &mut RequestContext, instance: u64, escape: EscapeAction)
     }
 }
 
+/// mesh 팝업 하나의 포인터 기록과 키 기록(`MeshForwardCommon` 의 `pointer`·`keys`). 입력을 모으는 동안 함께 갱신한다.
+struct MeshRoutes<'a> {
+    pointer: &'a mut crate::plugin_bridge::MeshPointerRoute,
+    keys: &'a mut crate::plugin_bridge::MeshKeyRoute,
+}
+
 /// 포인터는 가리지 않은 콘텐츠 영역의 입력만 전달하며 좌표는 콘텐츠 기준 논리 포인트다. 뗌은 이 팝업에서
 /// 누른 버튼만 보낸다(`route`). PointerGone은 영역과 관계없이 전달하고, 포인터가 콘텐츠를 떠나거나 가려지면
 /// 보낸다. 키 누름·텍스트·IME·편집(붙여넣기·복사·잘라내기)은 최상단 팝업에만 보낸다. 키 뗌은 egui 입력 순서 그대로 그
-/// 키의 누름을 받은 팝업에만 보낸다(`keys`). 빈 붙여넣기는 보내지 않는다.
+/// 키의 누름을 받은 팝업에만 보낸다(`routes.keys`). 빈 붙여넣기는 보내지 않는다.
 fn collect_mesh_popup_input(
     ctx: &Context,
     content_rect: Rect,
     pointer_pos: Option<Pos2>,
     pointer_occluded: bool,
     has_key_focus: bool,
-    route: &mut crate::plugin_bridge::MeshPointerRoute,
-    keys: &mut crate::plugin_bridge::MeshKeyRoute,
+    routes: MeshRoutes<'_>,
     skip: &[(usize, Event)],
 ) -> RawInputWire {
+    let MeshRoutes {
+        pointer: route,
+        keys,
+    } = routes;
     let origin = content_rect.min;
     let pointer_inside = !pointer_occluded && pointer_pos.is_some_and(|p| content_rect.contains(p));
     let accepts_pointer = |p: Pos2| !pointer_occluded && content_rect.contains(p);
@@ -1540,8 +1551,10 @@ mod tests {
                 Some(pointer),
                 false,
                 true,
-                &mut Default::default(),
-                &mut Default::default(),
+                MeshRoutes {
+                    pointer: &mut Default::default(),
+                    keys: &mut Default::default(),
+                },
                 &[],
             ));
         });
@@ -1583,8 +1596,10 @@ mod tests {
                         None,
                         false,
                         p.focused,
-                        &mut Default::default(),
-                        &mut p.keys,
+                        MeshRoutes {
+                            pointer: &mut Default::default(),
+                            keys: &mut p.keys,
+                        },
                         &[],
                     )
                     .events
@@ -1814,8 +1829,10 @@ mod tests {
                 None,
                 false,
                 has_key_focus,
-                &mut Default::default(),
-                &mut Default::default(),
+                MeshRoutes {
+                    pointer: &mut Default::default(),
+                    keys: &mut Default::default(),
+                },
                 skip,
             ));
         });
