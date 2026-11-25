@@ -1,6 +1,10 @@
 //! 가져오기·내보내기의 정보, 경고, 오류 안내. 공통 블록에 색과 동작을 지정한다.
 
 use tasty_type_appearance::theme::Theme;
+pub(super) use tasty_ui_widgets::kb_ie_notice::{
+    NoticeInk, bundle_notice_line_ink, bundle_notices_ink, export_failure_ink, notice_body_ink,
+    parse_failure_body_ink, parse_failure_ink,
+};
 use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, Ground};
 
 use crate::catalog::icons::{self, MockGlyph};
@@ -26,61 +30,6 @@ pub(super) fn dropped_notice(ui: &mut egui::Ui, theme: &Theme) {
             .color(theme.text_muted().to_egui()),
         );
     });
-}
-
-/// 알림 블록의 색 — jsx `IeBlockG`의 tint(채움·테두리), `glyphTone`(글리프), `tone`(제목·개수).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct NoticeInk {
-    pub(super) tint: egui::Color32,
-    pub(super) glyph: egui::Color32,
-    pub(super) title: egui::Color32,
-}
-
-impl NoticeInk {
-    /// 글리프와 제목이 같은 잉크인 블록.
-    fn same(tint: egui::Color32, ink: egui::Color32) -> Self {
-        Self {
-            tint,
-            glyph: ink,
-            title: ink,
-        }
-    }
-}
-
-/// jsx `IeParseFailG` — 제목과 글리프 모두 accent-danger-strong(본체 parse_failure_ink와 같은 값).
-pub(super) fn parse_failure_ink(theme: &Theme) -> NoticeInk {
-    NoticeInk::same(
-        theme.accent_danger().to_egui(),
-        theme.accent_danger_strong().to_egui(),
-    )
-}
-
-/// jsx `IeBundleNoticesG` — 제목·개수·글리프 모두 accent-warning-raised(본체 bundle_notices_ink와 같은 값).
-pub(super) fn bundle_notices_ink(theme: &Theme) -> NoticeInk {
-    NoticeInk::same(
-        theme.accent_warning().to_egui(),
-        theme.accent_warning_raised().to_egui(),
-    )
-}
-
-/// 번들 경고 한 줄의 잉크 — jsx `IeBlockG` 본문 칸의 text-on-active(본체 bundle_notice_line_ink와 같은 값).
-pub(super) fn bundle_notice_line_ink(theme: &Theme) -> egui::Color32 {
-    theme.text_on_active().to_egui()
-}
-
-/// jsx `IeExportFailG` — raised 카드 위 danger tint. 제목은 accent-danger-strong, 글리프는
-/// accent-danger-raised다.
-pub(super) fn export_failure_ink(theme: &Theme) -> NoticeInk {
-    NoticeInk {
-        tint: theme.accent_danger().to_egui(),
-        glyph: theme.accent_danger_raised().to_egui(),
-        title: theme.accent_danger_strong().to_egui(),
-    }
-}
-
-/// jsx `IeBlockG` 본문 잉크 — text-on-active.
-pub(super) fn notice_body_ink(theme: &Theme) -> egui::Color32 {
-    theme.text_on_active().to_egui()
 }
 
 /// 액션 버튼 행. 눌린 액션의 인덱스를 돌려준다.
@@ -127,11 +76,6 @@ pub(super) fn export_failure_block(
         &[],
     );
     action_buttons(ui, theme, actions, Ground::Raised)
-}
-
-/// 가져오기 파싱 실패 블록의 본문 잉크 — text-secondary(본체 parse_failure_body_ink와 같은 값).
-pub(super) fn parse_failure_body_ink(theme: &Theme) -> egui::Color32 {
-    theme.text_secondary().to_egui()
 }
 
 /// 실패 블록 본문 한 문단 — 12, max-width measure-md. 잉크는 블록마다 다르다.

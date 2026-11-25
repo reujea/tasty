@@ -59,6 +59,7 @@ mod html_size_banner;
 mod icon_button;
 mod info_modal;
 mod input;
+pub mod kb_ie_notice;
 mod kb_plugins;
 mod kb_record;
 mod keyboard_cursor;
