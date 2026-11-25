@@ -660,6 +660,8 @@ src/catalog/components/transfer.rs	Retry	explorer.properties.retry,explorer.stat
 src/catalog/components/transfer.rs	Transfer failed	transfer.error.title
 src/catalog/components/transfer.rs	close	command_palette.hint_close
 src/catalog/components/transfer.rs	{} / {}	explorer.op.bytes
+src/catalog/components/window_tab_focus.rs	Add attach	remote_tool.attach_add
+src/catalog/components/window_tab_focus.rs	Add passkey	remote_tool.passkey_add
 src/catalog/foundations_disabled_ink.rs	Close	dag_list.close,explorer.find.close,explorer.properties.close,notice.close,port_scanner.close,remote_attach.close,remote_tool.close,titlebar.close
 src/catalog/foundations_disabled_ink.rs	Copy address	port_scanner.copy_address
 src/catalog/foundations_disabled_ink.rs	disabled	settings.file_handler.common.disabled
