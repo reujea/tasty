@@ -285,7 +285,6 @@ impl<E: HeldEvent> EditKeyState<E> {
     /// When the earliest window event still waiting in this window's lines (behind a hold, a release
     /// or a settle line) reached the window. `None` when no event waits. Read by the X11 observation
     /// cleanup (`explorer_ime`).
-    #[cfg(target_os = "linux")]
     pub(crate) fn oldest_waiting(&self) -> Option<Instant> {
         let hold = self.hold.as_ref().and_then(|h| h.hold.first_queued_at());
         let release = self.release.as_ref().and_then(|(_, r)| r.first_queued_at());
@@ -764,7 +763,10 @@ impl super::GpuState {
 
     /// When the earliest window event still waiting in this window's lines reached the window
     /// (`EditKeyState::oldest_waiting`).
-    #[cfg(target_os = "linux")]
+    #[allow(
+        dead_code,
+        reason = "the only reader, the X11 observation cleanup (`explorer_ime`), is built on Linux only"
+    )]
     pub fn oldest_waiting_input(&self) -> Option<Instant> {
         self.edit_keys.oldest_waiting()
     }
