@@ -551,7 +551,7 @@ fn segment_tab(
 
     let pad_x = 12.0;
     let gap = 7.0;
-    let height = 26.0;
+    let height = th.plugins_tab_height().value();
     let badge_h = 15.0;
     let badge_pad = 4.0;
     let mut width = label_galley.size().x + pad_x * 2.0;

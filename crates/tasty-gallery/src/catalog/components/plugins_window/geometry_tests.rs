@@ -90,3 +90,30 @@ fn the_header_band_is_plugins_header_height_tall() {
         frame.top()
     );
 }
+
+/// 선택된 세그먼트 탭(surface-active 채움)의 높이는 `plugins_tab_height` 이고 헤더 밴드 가운데에 있다.
+#[test]
+fn the_segment_tab_is_plugins_tab_height_tall() {
+    let th = theme();
+    let (painted, frame) = installed_window(&th);
+    let header = egui::Rect::from_min_size(
+        frame.min,
+        egui::vec2(frame.width(), th.plugins_header_height().value()),
+    );
+    let active = th.surface_active().to_egui();
+    let tab = painted
+        .shapes
+        .iter()
+        .find_map(|s| match s {
+            egui::Shape::Rect(r) if r.fill == active && header.contains_rect(r.rect) => {
+                Some(r.rect)
+            }
+            _ => None,
+        })
+        .expect("헤더 안 선택 세그먼트가 없다");
+    let want = th.plugins_tab_height().value();
+    assert!(
+        (tab.height() - want).abs() < 0.5 && (tab.center().y - header.center().y).abs() < 0.5,
+        "선택 세그먼트 {tab:?} 가 헤더 {header:?} 가운데의 높이 {want} 가 아니다"
+    );
+}

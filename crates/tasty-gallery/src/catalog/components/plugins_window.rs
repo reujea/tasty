@@ -109,7 +109,7 @@ fn segment_tab(
 
     let pad_x = theme.spacing_md.value();
     let gap = theme.spacing_sm.value();
-    let height = theme.item_height_tab.value() + STRUCT_GAP_2.value();
+    let height = theme.plugins_tab_height().value();
     let badge_h = theme.spacing_lg.value();
     let badge_pad = theme.spacing_xs.value();
 
@@ -226,8 +226,8 @@ fn header(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, tab: Tab) {
     );
     x += theme.border_width.value() + theme.spacing_sm.value();
 
-    let tab_y = cy - (theme.item_height_tab.value() + STRUCT_GAP_2.value()) * 0.5;
-    let tab_h = theme.item_height_tab.value() + STRUCT_GAP_2.value();
+    let tab_h = theme.plugins_tab_height().value();
+    let tab_y = cy - tab_h * 0.5;
     let segments = [
         Segment {
             label: "Installed",
