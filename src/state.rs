@@ -365,8 +365,6 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             egui_held_keys: Vec::new(),
             #[cfg(feature = "gui")]
-            plugin_popup_key_releases: Vec::new(),
-            #[cfg(feature = "gui")]
             explorer_clipboard: Default::default(),
             #[cfg(feature = "gui")]
             file_clipboard: Default::default(),

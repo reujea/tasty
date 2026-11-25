@@ -540,7 +540,7 @@ impl MainView {
     }
 
     /// egui 게이트 결과를 짝 누름 기준으로 고친다(`MainViewState::pair_key_release`). 키 사건의 egui 키는 egui-winit 과
-    /// 같은 판정(`key_class::egui_key`)이고, 받는 plugin 팝업은 편집 대상과 같은 값이다.
+    /// 같은 판정(`key_class::egui_key`)이다.
     fn pair_key_release(&mut self, event: &WindowEvent, fed: Option<bool>) -> Option<bool> {
         let WindowEvent::KeyboardInput { event: key, .. } = event else {
             return fed;
@@ -548,8 +548,7 @@ impl MainView {
         let egui_key =
             crate::adapters::ui::input::key_class::egui_key(&key.logical_key, key.physical_key)
                 .map(|k| (k, key.state == winit::event::ElementState::Pressed));
-        let plugin = self.plugin_popup_edit_target();
-        self.state.pair_key_release(egui_key, plugin, fed)
+        self.state.pair_key_release(egui_key, fed)
     }
 
     /// 모달이 열릴 때 남은 눌림을 그 자리에서 푼다(`MainViewState::release_on_modal_entry`).

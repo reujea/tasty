@@ -85,6 +85,37 @@ pub(crate) struct MeshForwardCommon {
     blank_warned: bool,
     /// 포인터 hover·누름 기록. popup·banner 채널이 입력을 모을 때 쓴다.
     pub(crate) pointer: MeshPointerRoute,
+    /// 키 누름 기록. popup 채널이 입력을 모을 때 쓴다.
+    pub(crate) keys: MeshKeyRoute,
+}
+
+/// mesh 팝업 하나가 받은 키 누름 기록. 누름은 이 팝업이 키 주인일 때만 보내고 기록한다. 뗌은 egui 입력 순서 그대로
+/// 이 팝업에서 누른 키일 때만 보낸다(지금 키 주인과 무관하게). 그래서 누름을 받은 팝업이 뗌을 한 번 받고 지금 키 주인은
+/// 남의 누름의 뗌을 받지 않는다. Escape 는 Esc 몫의 기록(`PopupManager::note_unfed_escape_release`)이 맡으므로 키
+/// 주인 여부만 본다.
+#[cfg(feature = "gui")]
+#[derive(Clone, Debug, Default)]
+pub(crate) struct MeshKeyRoute {
+    pressed: Vec<egui::Key>,
+}
+
+#[cfg(feature = "gui")]
+impl MeshKeyRoute {
+    /// 키 사건이 이 팝업에 가는지. `has_key_focus` 는 이 팝업이 지금 키 주인인지다.
+    pub(crate) fn takes(&mut self, key: egui::Key, pressed: bool, has_key_focus: bool) -> bool {
+        if key == egui::Key::Escape {
+            return has_key_focus;
+        }
+        if pressed {
+            if has_key_focus && !self.pressed.contains(&key) {
+                self.pressed.push(key);
+            }
+            return has_key_focus;
+        }
+        let before = self.pressed.len();
+        self.pressed.retain(|k| *k != key);
+        self.pressed.len() != before
+    }
 }
 
 /// mesh 콘텐츠 하나의 포인터 경로 기록. 이동·누름은 포인터 대상이 이 콘텐츠일 때만 보내고, 뗌은 누름이 간

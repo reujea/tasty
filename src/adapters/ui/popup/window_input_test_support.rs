@@ -336,11 +336,7 @@ impl WindowInput {
             Some(egui::Event::Key { key, pressed, .. }) => Some((*key, *pressed)),
             _ => None,
         };
-        let plugin = crate::adapters::ui::input::edit_target::plugin_popup_edit_target(
-            decision,
-            state.plugin_popup_key_target(),
-        );
-        let fed = state.pair_key_release(key, plugin, fed);
+        let fed = state.pair_key_release(key, fed);
         state.mark_escape_segment(
             fed.is_some(),
             events

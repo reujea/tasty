@@ -413,11 +413,9 @@ fn draw_plugin_popups_with_keys(
             &[]
         };
         // 아래 팝업에 키가 전달되면 Escape 하나로 여러 팝업이 닫힐 수 있다.
-        let mut route = state
-            .plugin_mesh_popup_forward
-            .get(&snap.instance_id)
-            .map(|f| f.pointer.clone())
-            .unwrap_or_default();
+        let forward = state.plugin_mesh_popup_forward.get(&snap.instance_id);
+        let mut route = forward.map(|f| f.pointer.clone()).unwrap_or_default();
+        let mut keys = forward.map(|f| f.keys.clone()).unwrap_or_default();
         let mut raw_input = collect_mesh_popup_input(
             ctx,
             content_rect,
@@ -425,6 +423,7 @@ fn draw_plugin_popups_with_keys(
             ownership == Some(PointOwnership::OccludedByHigher),
             has_key_focus,
             &mut route,
+            &mut keys,
             skip,
         );
         // 보류한 편집 키의 요청은 이 프레임 입력 뒤에 붙인다. 그 뒤의 입력은 보류 뒤에 줄을 서 있다.
@@ -432,9 +431,6 @@ fn draw_plugin_popups_with_keys(
             &mut state.plugin_popup_edit_requests,
             snap.instance_id,
         ));
-        // 이 팝업이 받은 누름의 뗌(남는 눌림, `state::held_keys`)은 이 프레임 입력 앞에 둔다.
-        let releases = take_key_releases(&mut state.plugin_popup_key_releases, snap.instance_id);
-        raw_input.events.splice(0..0, releases);
 
         // 첫 프레임을 받기 전 context를 반복 요청하면 폰트 atlas가 포함된
         // 프레임이 후속 프레임에 대체될 수 있어 초기 요청은 한 번만 보낸다.
@@ -459,6 +455,7 @@ fn draw_plugin_popups_with_keys(
             .entry(snap.instance_id)
             .or_default();
         fwd.pointer = route;
+        fwd.keys = keys;
         let need_bootstrap = fwd.need_bootstrap(has_frame);
         fwd.watch_blank(
             has_frame,
@@ -530,8 +527,6 @@ fn draw_plugin_popups_with_keys(
         );
         apply_escape(state, snap.instance_id, escape);
     }
-    // 그리지 않은(접힘·닫힘) 팝업 몫의 뗌은 버린다. 그 팝업은 다음에 다시 키를 받을 때 새 누름부터 받는다.
-    state.plugin_popup_key_releases.clear();
 
     // egui는 누른 영역(덮는 범위를 막는 레이어)을 맨 위로 올린다. 모든 레이어를 함께 올려 막는 레이어가 팝업
     // 아래에 남게 한다. 함께 올린 레이어끼리는 egui가 기존 순서를 유지한다.
@@ -758,25 +753,6 @@ fn sends_edit(raw: &RawInputWire) -> bool {
 }
 
 /// App 이 `instance`에 보내려고 줄 세운 편집 요청을 넣은 순서대로 꺼낸다. 다른 팝업의 요청은 남긴다.
-/// `instance` 몫의 뗌을 꺼내 wire 키 뗌으로 바꾼다. 다른 팝업 몫은 남긴다.
-fn take_key_releases(queued: &mut Vec<(u64, egui::Key)>, instance: u64) -> Vec<RawInputEventWire> {
-    let mut taken = Vec::new();
-    queued.retain(|(id, key)| {
-        if *id == instance {
-            taken.push(RawInputEventWire::Key {
-                key: key.name().to_string(),
-                pressed: false,
-                repeat: false,
-                modifiers: Default::default(),
-            });
-            false
-        } else {
-            true
-        }
-    });
-    taken
-}
-
 fn take_edit_requests(
     queued: &mut Vec<(u64, RawInputEventWire)>,
     instance: u64,
@@ -864,8 +840,8 @@ fn apply_escape(state: &mut RequestContext, instance: u64, escape: EscapeAction)
 
 /// 포인터는 가리지 않은 콘텐츠 영역의 입력만 전달하며 좌표는 콘텐츠 기준 논리 포인트다. 뗌은 이 팝업에서
 /// 누른 버튼만 보낸다(`route`). PointerGone은 영역과 관계없이 전달하고, 포인터가 콘텐츠를 떠나거나 가려지면
-/// 보낸다. 키·텍스트·IME·편집(붙여넣기·복사·잘라내기)은 최상단
-/// 팝업에만 보낸다. 빈 붙여넣기는 보내지 않는다.
+/// 보낸다. 키 누름·텍스트·IME·편집(붙여넣기·복사·잘라내기)은 최상단 팝업에만 보낸다. 키 뗌은 egui 입력 순서 그대로 그
+/// 키의 누름을 받은 팝업에만 보낸다(`keys`). 빈 붙여넣기는 보내지 않는다.
 fn collect_mesh_popup_input(
     ctx: &Context,
     content_rect: Rect,
@@ -873,6 +849,7 @@ fn collect_mesh_popup_input(
     pointer_occluded: bool,
     has_key_focus: bool,
     route: &mut crate::plugin_bridge::MeshPointerRoute,
+    keys: &mut crate::plugin_bridge::MeshKeyRoute,
     skip: &[(usize, Event)],
 ) -> RawInputWire {
     let origin = content_rect.min;
@@ -940,7 +917,7 @@ fn collect_mesh_popup_input(
                     repeat,
                     modifiers: m,
                     ..
-                } if has_key_focus => {
+                } if keys.takes(*key, *pressed, has_key_focus) => {
                     events.push(RawInputEventWire::Key {
                         key: key.name().to_string(),
                         pressed: *pressed,
@@ -1564,6 +1541,7 @@ mod tests {
                 false,
                 true,
                 &mut Default::default(),
+                &mut Default::default(),
                 &[],
             ));
         });
@@ -1575,6 +1553,203 @@ mod tests {
 
     // Page 단위를 환산할 화면 높이.
     const PAGE_HEIGHT: f32 = 800.0;
+
+    /// plugin 팝업 하나의 키 기록과 이번 패스 키 주인 여부.
+    struct KeyPopup {
+        keys: crate::plugin_bridge::MeshKeyRoute,
+        focused: bool,
+    }
+
+    /// egui 패스 하나에 `events` 를 싣고 팝업마다 wire 키 사건(키 이름, 눌림, 반복)을 모은다.
+    fn key_pass(
+        ctx: &Context,
+        events: Vec<Event>,
+        popups: &mut [&mut KeyPopup],
+    ) -> Vec<Vec<(String, bool, bool)>> {
+        let content_rect = Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(300.0, 200.0));
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1280.0, 800.0))),
+            events,
+            ..Default::default()
+        };
+        let mut wires = Vec::new();
+        let _full_output = ctx.run(input, |ctx| {
+            wires = popups
+                .iter_mut()
+                .map(|p| {
+                    collect_mesh_popup_input(
+                        ctx,
+                        content_rect,
+                        None,
+                        false,
+                        p.focused,
+                        &mut Default::default(),
+                        &mut p.keys,
+                        &[],
+                    )
+                    .events
+                    .into_iter()
+                    .filter_map(|e| match e {
+                        RawInputEventWire::Key {
+                            key,
+                            pressed,
+                            repeat,
+                            ..
+                        } => Some((key, pressed, repeat)),
+                        _ => None,
+                    })
+                    .collect()
+                })
+                .collect();
+        });
+        wires
+    }
+
+    fn key_event(key: egui::Key, pressed: bool) -> Event {
+        Event::Key {
+            key,
+            physical_key: Some(key),
+            pressed,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        }
+    }
+
+    fn wire_key(key: &str, pressed: bool, repeat: bool) -> (String, bool, bool) {
+        (key.to_string(), pressed, repeat)
+    }
+
+    /// Given plugin 팝업 42 가 A 누름을 받았고 키 주인이 43 으로 옮겼다, When 한 패스 [B 누름, A 뗌] 이 오면, Then A 뗌은
+    /// egui 입력 순서대로 누름을 받은 42 에만 가고 43 은 B 누름만 받는다.
+    #[test]
+    fn a_key_release_goes_to_the_popup_that_took_its_press_in_order() {
+        let ctx = Context::default();
+        let mut a = KeyPopup {
+            keys: Default::default(),
+            focused: true,
+        };
+        let mut b = KeyPopup {
+            keys: Default::default(),
+            focused: false,
+        };
+        let first = key_pass(
+            &ctx,
+            vec![key_event(egui::Key::A, true)],
+            &mut [&mut a, &mut b],
+        );
+        assert_eq!(first, vec![vec![wire_key("A", true, false)], vec![]]);
+        a.focused = false;
+        b.focused = true;
+        let second = key_pass(
+            &ctx,
+            vec![
+                key_event(egui::Key::B, true),
+                key_event(egui::Key::A, false),
+            ],
+            &mut [&mut a, &mut b],
+        );
+        assert_eq!(
+            second,
+            vec![
+                vec![wire_key("A", false, false)],
+                vec![wire_key("B", true, false)]
+            ]
+        );
+    }
+
+    /// Given plugin 팝업 42 가 받은 A 누름이 창 상태에 남아 있고 키 주인이 43 으로 옮겼다, When A 를 떼고 다시 누르면, Then
+    /// 뗌은 egui 입력에 실려(`MainViewState::pair_key_release`) 42 에 한 번 가고 egui 가 A 를 놓으므로, 43 이 받는 새 누름은
+    /// 반복이 아니다. 42 가 다시 키 주인이 되어 A 를 누르면 그 누름도 반복이 아니고 뗌은 42 에 한 번 간다.
+    #[test]
+    fn a_new_press_after_a_release_on_another_popup_is_not_a_repeat() {
+        let (mut state, _session) = crate::state::tests::test_state();
+        let ctx = Context::default();
+        let mut a = KeyPopup {
+            keys: Default::default(),
+            focused: true,
+        };
+        let mut b = KeyPopup {
+            keys: Default::default(),
+            focused: false,
+        };
+        let feed = |state: &mut crate::state::MainViewState, key, pressed, fed| {
+            state
+                .pair_key_release(Some((key, pressed)), fed)
+                .map(|_| key_event(key, pressed))
+        };
+        let press = feed(&mut state, egui::Key::A, true, Some(true));
+        drop(key_pass(
+            &ctx,
+            press.into_iter().collect(),
+            &mut [&mut a, &mut b],
+        ));
+        a.focused = false;
+        b.focused = true;
+        // 키 주인이 바뀐 뒤의 뗌은 지금 게이트가 egui 로 보내지 않는 자리다.
+        let release = feed(&mut state, egui::Key::A, false, None);
+        let moved = key_pass(&ctx, release.into_iter().collect(), &mut [&mut a, &mut b]);
+        assert_eq!(moved, vec![vec![wire_key("A", false, false)], vec![]]);
+        let again = feed(&mut state, egui::Key::A, true, Some(true));
+        let pressed = key_pass(&ctx, again.into_iter().collect(), &mut [&mut a, &mut b]);
+        assert_eq!(pressed, vec![vec![], vec![wire_key("A", true, false)]]);
+        let up = feed(&mut state, egui::Key::A, false, Some(true));
+        drop(key_pass(
+            &ctx,
+            up.into_iter().collect(),
+            &mut [&mut a, &mut b],
+        ));
+        a.focused = true;
+        b.focused = false;
+        let mut seen = Vec::new();
+        for pressed in [true, false] {
+            let event = feed(&mut state, egui::Key::A, pressed, Some(true));
+            seen.extend(key_pass(
+                &ctx,
+                event.into_iter().collect(),
+                &mut [&mut a, &mut b],
+            ));
+        }
+        assert_eq!(
+            seen,
+            vec![
+                vec![wire_key("A", true, false)],
+                vec![],
+                vec![wire_key("A", false, false)],
+                vec![]
+            ],
+            "the press again is not a repeat and its release reaches 42 once"
+        );
+    }
+
+    /// Given plugin 팝업 42 가 받은 A 누름이 남아 있다, When 창이 OS 포커스를 잃으면, Then 합성 뗌은 egui 입력 순서대로
+    /// 실려 42 에 한 번만 가고 키 주인이 아닌 다른 팝업에는 가지 않는다.
+    #[test]
+    fn a_focus_loss_release_reaches_the_popup_that_took_the_press_once() {
+        let (mut state, _session) = crate::state::tests::test_state();
+        let ctx = Context::default();
+        let mut a = KeyPopup {
+            keys: Default::default(),
+            focused: true,
+        };
+        let mut b = KeyPopup {
+            keys: Default::default(),
+            focused: false,
+        };
+        assert_eq!(
+            state.pair_key_release(Some((egui::Key::A, true)), Some(true)),
+            Some(true)
+        );
+        drop(key_pass(
+            &ctx,
+            vec![key_event(egui::Key::A, true)],
+            &mut [&mut a, &mut b],
+        ));
+        a.focused = false;
+        b.focused = true;
+        let releases = state.release_on_window_focus(false);
+        let wires = key_pass(&ctx, releases, &mut [&mut a, &mut b]);
+        assert_eq!(wires, vec![vec![wire_key("A", false, false)], vec![]]);
+    }
 
     #[test]
     fn a_wheel_notch_reaches_the_wire_as_the_shared_line_scroll_distance() {
@@ -1639,6 +1814,7 @@ mod tests {
                 None,
                 false,
                 has_key_focus,
+                &mut Default::default(),
                 &mut Default::default(),
                 skip,
             ));
