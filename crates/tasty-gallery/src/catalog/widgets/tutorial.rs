@@ -876,15 +876,10 @@ fn composite_scroll(ui: &mut egui::Ui, theme: &Theme, viewport_w: LogicalPx) -> 
         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
         .drag_to_scroll(false)
         .show(ui, |ui| composite_stage(ui, theme, w));
-    // 가로로만 스크롤하는 영역의 inner_rect는 세로로 남은 가용 높이까지 잡히므로, 보이는 영역은 내용 높이로
-    // 자른다. 자르지 않으면 페이드가 무대 아래 설명까지 덮는다.
-    let view = egui::Rect::from_min_size(
-        out.inner_rect.min,
-        egui::vec2(
-            out.inner_rect.width(),
-            out.content_size.y.min(out.inner_rect.height()),
-        ),
-    );
+    // 가로로만 스크롤하는 영역의 inner_rect는 세로로 남은 가용 높이까지 잡히고, 갤러리 본문 안에서는
+    // content_size.y가 0으로 온다. 그래서 보이는 영역의 세로 범위는 그려진 무대에서 가져온다.
+    let (stage, bubble) = out.inner;
+    let view = egui::Rect::from_x_y_ranges(out.inner_rect.x_range(), stage.y_range());
     let (left, right) = fade_edges(
         LogicalPx(out.state.offset.x),
         LogicalPx(out.content_size.x),
@@ -896,7 +891,6 @@ fn composite_scroll(ui: &mut egui::Ui, theme: &Theme, viewport_w: LogicalPx) -> 
     if right {
         paint_edge_fade(ui, theme, view, FadeEdge::Right);
     }
-    let (stage, bubble) = out.inner;
     CompositeLayout {
         stage,
         bubble,

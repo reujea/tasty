@@ -372,7 +372,7 @@ fn a_rejected_step_under_a_block_comment_reports_its_own_line() {
 #[test]
 fn composite_edge_fades_stay_on_the_stage() {
     // 바닥보다 좁은 열의 첫 프레임: 오른쪽으로 더 스크롤할 수 있어 오른쪽 페이드가 있다. 페이드(메시)는
-    // 무대 높이 안에만 그린다.
+    // 무대의 세로 범위를 그대로 덮는다(무대 아래로 넘지도, 높이 0으로 줄지도 않는다).
     let theme = tasty_themes::mocha_fallback();
     let ctx = egui::Context::default();
     let col_w = floor() / 2.0;
@@ -405,8 +405,8 @@ fn composite_edge_fades_stay_on_the_stage() {
     assert!(!meshes.is_empty(), "오른쪽 페이드가 없다");
     for m in meshes {
         assert!(
-            m.top() >= stage.top() - 0.5 && m.bottom() <= stage.bottom() + 0.5,
-            "페이드 {m:?}가 무대 {stage:?} 높이 밖으로 나간다"
+            (m.top() - stage.top()).abs() <= 0.5 && (m.bottom() - stage.bottom()).abs() <= 0.5,
+            "페이드 {m:?}의 세로 범위가 무대 {stage:?}와 같아야 한다"
         );
     }
 }
