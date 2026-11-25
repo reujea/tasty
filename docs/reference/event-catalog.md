@@ -99,14 +99,14 @@ agent
 |----|------|---------|------|
 | `surface.created` | 생성 직후 | `surface_id, kind, tab_id, pane_id, workspace_id, created_by` | Stable |
 | `surface.closed` | 종료 직전 | `surface_id, kind, reason` | Stable |
-| `surface.focused` | 화면에 낸(제출에 성공한) 프레임에서 host 키 포커스가 surface로 들어옴 | `surface_id, prev_surface_id?` | Stable |
+| `surface.focused` | 화면에 낸(제출에 성공한) 프레임에서 host 키 포커스가 surface로 들어옴 | `surface_id, prev_surface_id`(null일 수 있음) | Stable |
 | `surface.resized` | 크기 변경(쓰로틀) | `surface_id, width_px, height_px` | Stable |
 | `surface.title_changed` | 표시 이름 변경 | `surface_id, title` | Stable |
 | `surface.refresh_requested` | 사용자가 공통 새로고침 실행 | `surface_id, kind, trigger(shortcut/palette)` | Experimental |
 
 `created_by`: `{kind:user}` 또는 `{kind:agent, source_plugin}`.
 
-`surface.focused` 는 선택이 아니라 host 키 포커스를 따른다([포커스 정책](../design/policies/focus.md#surface-포커스-표현)). 키를 가진 팝업이 열려 surface가 키를 잃는 전이는 발행하지 않는다. 키를 가진 팝업 아래에서 선택만 바뀌면 발행하지 않는다. 발행 조건은 GPU 제출에 성공한 프레임의 키 포커스 값(프레임 첫머리에 정한 값)이 직전에 낸 프레임의 값과 달라 어느 surface로 들어간 것이다. 그래서 같은 surface로 키가 돌아올 때 `prev_surface_id` 없이 다시 발행하는 것은, 팝업이 키를 가진 값(키 포커스 surface 없음)이 제출에 성공한 프레임에 한 번 기록된 뒤 키가 그 surface로 돌아올 때다. 그 값이 기록되지 않았으면 다시 발행하지 않는다. 팝업이 열린 동안 제출이 한 번도 성공하지 않은 경우가 그렇고, 프레임을 시작할 때 A가 키를 가졌고 그리기 중 팝업이 키를 얻은 뒤 다음 프레임 전에 닫혀 키가 A로 돌아온 경우도 그렇다. 그 프레임은 제출에 성공해도 기록되는 값이 A다.
+`surface.focused` 는 선택이 아니라 host 키 포커스를 따른다([포커스 정책](../design/policies/focus.md#surface-포커스-표현)). 키를 가진 팝업이 열려 surface가 키를 잃는 전이는 발행하지 않는다. 키를 가진 팝업 아래에서 선택만 바뀌면 발행하지 않는다. 발행 조건은 GPU 제출에 성공한 프레임의 키 포커스 값(프레임 첫머리에 정한 값)이 직전에 낸 프레임의 값과 달라 어느 surface로 들어간 것이다. 그래서 같은 surface로 키가 돌아올 때 다시 발행하는 것은, 팝업이 키를 가진 값(키 포커스 surface 없음)이 제출에 성공한 프레임에 한 번 기록된 뒤 키가 그 surface로 돌아올 때다. 그 값이 기록되지 않았으면 다시 발행하지 않는다. 팝업이 열린 동안 제출이 한 번도 성공하지 않은 경우가 그렇고, 프레임을 시작할 때 A가 키를 가졌고 그리기 중 팝업이 키를 얻은 뒤 다음 프레임 전에 닫혀 키가 A로 돌아온 경우도 그렇다. 그 프레임은 제출에 성공해도 기록되는 값이 A다. 다시 발행할 때 payload의 `prev_surface_id`는 직전에 낸 값(키 포커스 surface 없음)이라 `null`로 실린다. 필드를 빼지 않는다.
 
 `surface.refresh_requested` 는 사용자가 [공통 새로고침](../features/keybindings/index.md#공통-새로고침--refresh)을 실행했을 때 키를 누른 시점의 대상 surface 로 한 번 발행한다. 에이전트·IPC 경로는 만들지 않으므로 항상 사용자 요청이다. `kind` 는 키를 누른 시점의 kind 이고 host 는 전달 직전에 같은 세대·kind 인지 확인해 닫기·변환·재생성된 대상에는 보내지 않는다. scope=surface 라도 소유 plugin 에만 가는 것이 아니라 `event_subscribe` 가 덮는 모든 구독자에게 가므로 수신자는 `surface_id`(필요하면 `kind`)가 자기 문서인지 확인한다. 발행은 요청 접수이며 갱신 성공을 뜻하지 않는다.
 
