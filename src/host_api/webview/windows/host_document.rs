@@ -77,13 +77,15 @@ pub(super) fn install(
 
 /// 예약 호스트 요청에 보낸 응답.
 struct Reply {
-    served: bool,
+    /// 본문을 실은 200 응답이다(아니면 404).
+    body: bool,
     sent: Result<()>,
 }
 
 impl Responder {
-    /// `WebResourceRequested`의 예약 호스트 요청을 끝낸다. 본문을 실은 응답을 보내지 못하면 그 탐색은
-    /// 무엇이 commit돼도 실패로 끝난다(`HostDocuments::navigation_completed`).
+    /// `WebResourceRequested`의 예약 호스트 요청을 끝낸다. 본문을 실은 응답을 넘긴 뒤에만 표에 알린다
+    /// (`HostDocuments::served`). 200 응답을 만들지 못해 404를 보냈거나 넘기지 못한 탐색은 무엇이 commit돼도
+    /// 실패로 끝난다(`HostDocuments::navigation_completed`).
     pub(super) fn answer(
         &self,
         documents: &RefCell<HostDocuments>,
@@ -94,21 +96,24 @@ impl Responder {
         args: &ICoreWebView2WebResourceRequestedEventArgs,
     ) -> Result<()> {
         let reply = self.reply(documents, subframe_pending, uri, args)?;
-        if let Err(e) = reply.sent {
-            tracing::error!(
-                "WebView surface {surface}: answering a host document request failed ({e}); \
-                 the request may reach name resolution"
-            );
-            if reply.served {
-                documents.borrow_mut().response_failed();
-                nav_state.set(NavState::Failed);
+        match reply.sent {
+            Ok(()) if reply.body => documents.borrow_mut().served(),
+            Ok(()) => {}
+            Err(e) => {
+                tracing::error!(
+                    "WebView surface {surface}: answering a host document request failed ({e}); \
+                     the request may reach name resolution"
+                );
+                if reply.body {
+                    nav_state.set(NavState::Failed);
+                }
             }
         }
         Ok(())
     }
 
     /// 예약 호스트 요청 하나를 끝낸다. 지금 main 탐색의 문서 요청이면 본문을, 아니면 404를 보낸다.
-    /// `served`는 본문을 실었는지, `sent`는 `SetResponse` 결과다. 실패하면 요청이 이름 해석으로 넘어갈 수 있다.
+    /// `body`는 본문을 실은 200 응답인지, `sent`는 `SetResponse` 결과다. 실패하면 요청이 이름 해석으로 넘어갈 수 있다.
     fn reply(
         &self,
         documents: &RefCell<HostDocuments>,
@@ -141,11 +146,11 @@ impl Responder {
             }
             None => None,
         };
-        let served = response.is_some();
+        let body = response.is_some();
         let response = response.unwrap_or_else(|| self.not_found.clone());
         // SAFETY: live args and response on the apartment thread.
         let sent = unsafe { args.SetResponse(&response) };
-        Ok(Reply { served, sent })
+        Ok(Reply { body, sent })
     }
 
     fn document(&self, body: &Arc<str>) -> Result<ICoreWebView2WebResourceResponse> {

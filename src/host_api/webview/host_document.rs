@@ -80,7 +80,7 @@ struct Main {
     nav: Option<u64>,
     /// 예약 주소 탐색이면 표의 그 문서 주소, 아니면 None.
     url: Option<String>,
-    /// 이 탐색의 문서 요청에 본문을 실어 보냈다(`SetResponse` 성공까지).
+    /// 이 탐색의 문서 요청에 본문을 실은 응답을 넘겼다(`served`, `SetResponse` 성공 뒤).
     served: bool,
 }
 
@@ -192,7 +192,8 @@ impl HostDocuments {
     }
 
     /// 예약 호스트 리소스 요청에 보낼 본문. None이면 404다. 지금 main 탐색의 문서 요청이고
-    /// 같은 주소의 subframe 탐색이 없을 때만 본문을 준다.
+    /// 같은 주소의 subframe 탐색이 없을 때만 본문을 준다. 본문을 꺼낸 것만으로는 보냈다고 보지 않는다.
+    /// 호출자는 그 본문을 실은 응답을 실제로 넘긴 뒤에 `served`를 부른다.
     pub(super) fn respond(
         &mut self,
         uri: &str,
@@ -208,15 +209,14 @@ impl HostDocuments {
         if !same_target(url, uri) {
             return None;
         }
-        let body = self.entries.iter().find(|e| e.url == url)?.body.clone();
-        main.served = true;
-        Some(body)
+        Some(self.entries.iter().find(|e| e.url == url)?.body.clone())
     }
 
-    /// 본문 응답을 보내지 못했다(`SetResponse` 실패). 그 탐색은 성공으로 끝나도 실패로 본다.
-    pub(super) fn response_failed(&mut self) {
+    /// `respond`가 준 본문을 실은 응답을 넘겼다(`SetResponse` 성공). 응답을 만들지 못해 404를 보냈거나
+    /// 넘기지 못한 탐색은 성공으로 끝나도 실패로 보고, 보이던 문서를 지우지 않는다.
+    pub(super) fn served(&mut self) {
         if let Some(main) = self.main.as_mut() {
-            main.served = false;
+            main.served = true;
         }
     }
 
