@@ -292,27 +292,64 @@ fn the_product_decoder_fills_the_target_shapes() {
     );
 }
 
+/// `file` 에서 `let name` / `let mut name` 으로 시작하는 문장의 줄 번호와 공백을 뺀 문장 전체(괄호 짝을 따라
+/// 문장 끝 `;` 까지). 주석은 뺀다. 타입 명시(`let name: T =`) 같은 꼴도 그대로 문장으로 돌려준다.
+fn bindings_of(file: &str, name: &str) -> Vec<(usize, String)> {
+    let raw = std::fs::read_to_string(repo_root().join(file))
+        .unwrap_or_else(|e| panic!("{file} 을 읽지 못했다: {e}"))
+        .replace("\r\n", "\n");
+    let src = tasty_doc_guards::source_text::mask_comments(&raw);
+    let is_word = |c: char| c.is_alphanumeric() || c == '_';
+    let mut out = Vec::new();
+    let mut from = 0;
+    while let Some(k) = src[from..].find("let ") {
+        let start = from + k;
+        from = start + 4;
+        if src[..start].ends_with(is_word) {
+            continue;
+        }
+        let rest = src[from..].trim_start();
+        let rest = rest.strip_prefix("mut ").map_or(rest, str::trim_start);
+        if !rest.starts_with(name) || rest[name.len()..].starts_with(is_word) {
+            continue;
+        }
+        let mut depth = 0i32;
+        let mut end = src.len();
+        for (i, c) in src[start..].char_indices() {
+            match c {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => depth -= 1,
+                ';' if depth == 0 => {
+                    end = start + i + 1;
+                    break;
+                }
+                _ => {}
+            }
+        }
+        let line = src[..start].matches('\n').count() + 1;
+        let stmt = src[start..end]
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect();
+        out.push((line, stmt));
+    }
+    out
+}
+
 /// egui 패스 전 디코드 대상은 `bodies_to_decode` 가 고른 것이고, 그 결과가 그대로 `prepare_mesh_popups` 인자로
-/// 간다. 인자가 다른 표기(열린 팝업 전체 등)면 file:line 과 '지원하지 않는 표기'로 실패한다.
+/// 간다. `bodies` 초기화는 문장 끝(닫는 괄호·세미콜론)까지 대조한다. 대조에 맞지 않는 초기화(덧붙인 원소, 타입
+/// 명시 바인딩 등)와 다른 인자 표기는 file:line 과 '지원하지 않는 표기'로 실패한다.
 #[test]
 fn the_chosen_bodies_are_what_the_frame_decodes() {
-    let squeezed: String = frame_body()
-        .chars()
-        .filter(|c| !c.is_whitespace())
-        .collect();
+    const BODIES: &str = "letbodies=plugin_manager.map_or_else(Vec::new,|mgr|{crate::plugin_bridge::popup_scope::bodies_to_decode(&state.plugin_mesh_popup_regions,mgr.popup_instances().map(|(id,_)|id),)});";
+    let bindings = bindings_of(HOME, "bodies");
+    for (line, stmt) in &bindings {
+        assert!(stmt == BODIES, "{HOME}:{line}: 지원하지 않는 표기: {stmt}");
+    }
     assert_eq!(
-        squeezed.matches("letbodies").count(),
+        bindings.len(),
         1,
-        "bodies 를 한 번만 묶는다"
-    );
-    assert_eq!(
-        squeezed
-            .matches(
-                "letbodies=plugin_manager.map_or_else(Vec::new,|mgr|{crate::plugin_bridge::popup_scope::bodies_to_decode("
-            )
-            .count(),
-        1,
-        "bodies 는 bodies_to_decode 결과다"
+        "{HOME} 에서 bodies 를 한 번 묶는다: {bindings:?}"
     );
     let calls = sites_in("prepare_mesh_popups", |f| f == HOME);
     assert_eq!(calls.len(), 1, "{HOME} 의 prepare_mesh_popups 호출 하나");
