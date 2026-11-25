@@ -7,12 +7,19 @@ fn start(docs: &mut HostDocuments, uri: &str, nav: u64) -> StartDecision {
         .next()
         .and_then(|last| last.split('#').next())
         .and_then(parse_host_load);
-    docs.navigation_started(uri, Some(nav), StartKind::Other, false, load)
+    let header = load.map_or(HostLoadHeader::Absent, HostLoadHeader::Load);
+    docs.navigation_started(uri, Some(nav), StartKind::Other, false, header)
 }
 
 /// 페이지가 스스로 시작한 새 탐색(머리글 없음).
 fn page(docs: &mut HostDocuments, uri: &str, nav: u64) -> StartDecision {
-    docs.navigation_started(uri, Some(nav), StartKind::Other, false, None)
+    docs.navigation_started(
+        uri,
+        Some(nav),
+        StartKind::Other,
+        false,
+        HostLoadHeader::Absent,
+    )
 }
 
 /// 지금 main 문서 요청에 본문을 실은 응답을 넘긴다(Windows 배선은 `SetResponse` 성공 뒤 `served`를 부른다).
@@ -26,7 +33,13 @@ fn serve(docs: &mut HostDocuments, uri: &str) -> Option<Arc<str>> {
 
 /// WebView2가 Reload로 보고한 시작.
 fn reload(docs: &mut HostDocuments, uri: &str, nav: u64) -> StartDecision {
-    docs.navigation_started(uri, Some(nav), StartKind::Reload, false, None)
+    docs.navigation_started(
+        uri,
+        Some(nav),
+        StartKind::Reload,
+        false,
+        HostLoadHeader::Absent,
+    )
 }
 
 const E_FAIL: i32 = 0x8000_4005_u32 as i32;
@@ -417,7 +430,7 @@ fn only_the_host_retry_and_a_reload_reach_a_reserved_address() {
     let (a, b) = (host_document_url(1, 1, 1), host_document_url(1, 1, 2));
     docs.sent(1, a.clone(), body("a"));
     assert_eq!(
-        docs.navigation_started(&a, Some(9), StartKind::Other, true, Some(1)),
+        docs.navigation_started(&a, Some(9), StartKind::Other, true, HostLoadHeader::Load(1)),
         StartDecision::Cancel,
         "보낸 주소로의 리다이렉트"
     );
@@ -436,12 +449,24 @@ fn only_the_host_retry_and_a_reload_reach_a_reserved_address() {
     );
     assert!(serve(&mut docs, &a).is_none());
     assert_eq!(
-        docs.navigation_started(&a, Some(12), StartKind::History, false, Some(1)),
+        docs.navigation_started(
+            &a,
+            Some(12),
+            StartKind::History,
+            false,
+            HostLoadHeader::Load(1)
+        ),
         StartDecision::Cancel,
         "이력 이동"
     );
     assert_eq!(
-        docs.navigation_started(&a, Some(13), StartKind::Reload, true, Some(1)),
+        docs.navigation_started(
+            &a,
+            Some(13),
+            StartKind::Reload,
+            true,
+            HostLoadHeader::Load(1)
+        ),
         StartDecision::Cancel,
         "Reload의 리다이렉트"
     );
@@ -495,12 +520,18 @@ fn a_page_navigation_ahead_of_the_host_retry_gets_no_body() {
     assert_eq!(page(&mut docs, &a, 9), StartDecision::Cancel);
     assert!(serve(&mut docs, &a).is_none());
     assert_eq!(
-        docs.navigation_started(&a, None, StartKind::Other, false, Some(1)),
+        docs.navigation_started(&a, None, StartKind::Other, false, HostLoadHeader::Load(1)),
         StartDecision::Cancel,
         "탐색 ID를 읽지 못한 시작은 묶지 않는다"
     );
     assert_eq!(
-        docs.navigation_started(&a, Some(10), StartKind::Other, false, Some(2)),
+        docs.navigation_started(
+            &a,
+            Some(10),
+            StartKind::Other,
+            false,
+            HostLoadHeader::Load(2)
+        ),
         StartDecision::Cancel,
         "다른 로드의 머리글"
     );
@@ -542,7 +573,7 @@ fn an_unreadable_header_counts_only_while_the_retry_awaits_its_start() {
     assert!(!docs.awaiting_start(3));
     let unreadable = HostLoadHeader::Unreadable;
     assert_eq!(
-        docs.navigation_started(&b, Some(15), StartKind::Other, false, unreadable.load()),
+        docs.navigation_started(&b, Some(15), StartKind::Other, false, unreadable),
         StartDecision::Cancel
     );
     assert!(serve(&mut docs, &b).is_none());
@@ -578,7 +609,7 @@ fn a_reload_without_a_navigation_id_gets_no_body() {
     docs.committed(Some(15), false);
     assert!(!docs.navigation_completed(Some(15), true));
     assert_eq!(
-        docs.navigation_started(&b, None, StartKind::Reload, false, None),
+        docs.navigation_started(&b, None, StartKind::Reload, false, HostLoadHeader::Absent),
         StartDecision::Cancel
     );
     assert!(serve(&mut docs, &b).is_none());
@@ -605,4 +636,38 @@ fn an_end_without_an_id_leaves_the_admitted_retry_alone() {
     assert!(!docs.navigation_completed(Some(15), true));
     assert_eq!(docs.loads(), vec![(2, true)]);
     assert!(docs.take_cancelled(Some(16)), "취소 기록도 남는다");
+}
+
+/// 보이는 문서의 ID 있는 Reload는 머리글이 정상적으로 없으면 받고, 머리글 조회가 실패하면 받지 않는다.
+#[test]
+fn a_reload_whose_header_cannot_be_read_gets_no_body() {
+    let mut docs = HostDocuments::default();
+    let b = host_document_url(1, 1, 2);
+    docs.sent(2, b.clone(), body("b"));
+    assert_eq!(start(&mut docs, &b, 15), StartDecision::HostLoad);
+    assert_eq!(serve(&mut docs, &b).as_deref(), Some("b"));
+    docs.committed(Some(15), false);
+    assert!(!docs.navigation_completed(Some(15), true));
+    assert_eq!(
+        docs.navigation_started(
+            &b,
+            Some(16),
+            StartKind::Reload,
+            false,
+            HostLoadHeader::Unreadable
+        ),
+        StartDecision::Cancel
+    );
+    assert!(serve(&mut docs, &b).is_none());
+    assert_eq!(
+        docs.navigation_started(
+            &b,
+            Some(17),
+            StartKind::Reload,
+            false,
+            HostLoadHeader::Absent
+        ),
+        StartDecision::Reload
+    );
+    assert_eq!(serve(&mut docs, &b).as_deref(), Some("b"));
 }

@@ -246,10 +246,9 @@ pub(super) fn start(
     let redirected = unsafe { args.IsRedirected(&mut redirected) }.is_err() || redirected.as_bool();
     let header = host_load(args);
     let kind = start_kind(args);
-    let decision =
-        documents
-            .borrow_mut()
-            .navigation_started(&text, nav, kind, redirected, header.load());
+    let decision = documents
+        .borrow_mut()
+        .navigation_started(&text, nav, kind, redirected, header);
     if decision != StartDecision::NotReserved {
         tracing::debug!(
             "WebView surface {surface}: host document address start {decision:?} (kind {kind:?}, \

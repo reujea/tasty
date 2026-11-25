@@ -42,16 +42,6 @@ pub(super) enum HostLoadHeader {
     Unreadable,
 }
 
-impl HostLoadHeader {
-    /// 읽은 로드 번호. 없거나 읽지 못했으면 None이다(본문을 받지 않는다).
-    pub(super) fn load(self) -> Option<u64> {
-        match self {
-            Self::Load(load) => Some(load),
-            Self::Absent | Self::Unreadable => None,
-        }
-    }
-}
-
 /// `HOST_LOAD_HEADER` 값을 로드 번호로 읽는다. 읽지 못하면 None이다(시작 처리기는 `Unreadable`로 본다).
 pub(super) fn parse_host_load(value: &str) -> Option<u64> {
     value.trim().parse().ok()
@@ -277,8 +267,8 @@ impl HostDocuments {
     }
 
     /// main frame `NavigationStarting`. 새 탐색은 앞 탐색을 대신한다. `kind`는 WebView2가 보고한 탐색
-    /// 종류(모르면 `Other`), `redirected`는 리다이렉트 hop인지(조회 실패는 리다이렉트), `host_load`는 시작
-    /// 요청의 `HOST_LOAD_HEADER` 값이다.
+    /// 종류(모르면 `Other`), `redirected`는 리다이렉트 hop인지(조회 실패는 리다이렉트), `header`는 시작
+    /// 요청의 `HOST_LOAD_HEADER` 조회 결과다(없음과 조회 실패를 가른다).
     ///
     /// 예약 주소는 둘만 받는다. 호스트가 보낸 다시 싣기(보낸 문서의 주소와 로드 번호 머리글이 맞고, 그 문서가
     /// 아직 어느 탐색에도 묶이지 않은 리다이렉트가 아닌 새 탐색. 그 탐색 ID에 묶는다)와 commit된 문서의
@@ -291,7 +281,7 @@ impl HostDocuments {
         nav: Option<u64>,
         kind: StartKind,
         redirected: bool,
-        host_load: Option<u64>,
+        header: HostLoadHeader,
     ) -> StartDecision {
         if !is_reserved(uri) {
             self.main = Some(Main {
@@ -306,7 +296,7 @@ impl HostDocuments {
                 .entries
                 .iter_mut()
                 .find(|e| {
-                    host_load == Some(e.load)
+                    header == HostLoadHeader::Load(e.load)
                         && !e.shown
                         && e.nav.is_none()
                         && same_target(&e.url, uri)
@@ -315,11 +305,13 @@ impl HostDocuments {
                     entry.nav = Some(nav);
                     (entry.url.clone(), StartDecision::HostLoad)
                 }),
-            (false, StartKind::Reload) if nav.is_some() => self
-                .entries
-                .iter()
-                .find(|e| e.shown && same_target(&e.url, uri))
-                .map(|entry| (entry.url.clone(), StartDecision::Reload)),
+            // 머리글 조회가 실패한 Reload는 받지 않는다(조회 실패에는 본문을 주지 않는다).
+            (false, StartKind::Reload) if nav.is_some() && header != HostLoadHeader::Unreadable => {
+                self.entries
+                    .iter()
+                    .find(|e| e.shown && same_target(&e.url, uri))
+                    .map(|entry| (entry.url.clone(), StartDecision::Reload))
+            }
             _ => None,
         };
         // 취소한 탐색은 시작하지 않으므로, 이미 받은 main 탐색의 기록을 그대로 둔다.
