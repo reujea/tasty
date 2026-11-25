@@ -8,7 +8,7 @@ use tasty_plugin_protocol::{ModifiersWire, PointerButtonWire, RawInputEventWire}
 use winit::event::MouseButton::{self, Left, Right};
 
 use super::{
-    GONE_POINT, MeshButtonWindow, MeshForwardState, MeshPass, local_point, pointer_moved_event,
+    MeshButtonWindow, MeshForwardState, MeshPass, local_point, pointer_moved_event,
     route_mesh_button,
 };
 use crate::model::{PhysicalPx, PhysicalRect};
@@ -249,7 +249,6 @@ fn a_release_without_a_cursor_reaches_the_pressed_leaf_at_its_last_point() {
             expected.extend(moved.map(|(x, y)| Seen::Moved(x, y - 10.0)));
             expected.extend([
                 Seen::Button(PointerButtonWire::Secondary, false, 5.0, y),
-                Seen::Moved(GONE_POINT.0, GONE_POINT.1),
                 Seen::Gone,
             ]);
             assert_eq!(w.events(side, 1), expected, "{side:?} moved={moved:?}");
@@ -337,7 +336,6 @@ fn a_release_outside_the_window_uses_the_last_point_sent_to_its_leaf() {
             Seen::Button(PointerButtonWire::Middle, true, 5.0, 15.0),
             Seen::Button(PointerButtonWire::Primary, false, 7.0, 25.0),
             Seen::Button(PointerButtonWire::Middle, false, 7.0, 25.0),
-            Seen::Moved(GONE_POINT.0, GONE_POINT.1),
             Seen::Gone,
         ]
     );
@@ -350,9 +348,9 @@ fn a_release_outside_the_window_uses_the_last_point_sent_to_its_leaf() {
     );
 }
 
-/// leaf 하나(100x50 논리 pt)를 덮는 버튼 위젯을 그리는 egui 패스 한 번. 이 패스에서 위젯이 hover였는지 돌려준다.
-/// SDK(`tasty-plugin-sdk` egui_surface/input.rs)처럼 wire 사건을 egui 사건으로 1:1로 옮긴다.
-fn egui_pass(ctx: &egui::Context, events: &[RawInputEventWire]) -> bool {
+/// leaf 하나(100x50 논리 pt)에 0..=100 정수 Slider 하나를 그리는 egui 패스 한 번. SDK(`tasty-plugin-sdk`
+/// egui_surface/input.rs)처럼 wire 사건을 egui 사건으로 1:1로 옮긴다. Slider의 사각형을 돌려준다.
+fn slider_pass(ctx: &egui::Context, events: &[RawInputEventWire], value: &mut i32) -> egui::Rect {
     let events = events
         .iter()
         .map(|e| match *e {
@@ -385,45 +383,60 @@ fn egui_pass(ctx: &egui::Context, events: &[RawInputEventWire]) -> bool {
         events,
         ..Default::default()
     };
-    let mut hovered = false;
-    // 이 시험은 위젯 hover만 본다. 패스 출력(도형·텍스처)은 쓰지 않는다.
+    let mut rect = egui::Rect::NOTHING;
+    // 이 시험은 Slider 값과 사각형만 본다. 패스 출력(도형·텍스처)은 쓰지 않는다.
     let _ = ctx.run(raw, |ctx| {
         egui::CentralPanel::default().show(ctx, |ui| {
-            hovered = ui
-                .allocate_response(ui.available_size(), egui::Sense::click())
-                .hovered();
+            ui.spacing_mut().slider_width = 60.0;
+            rect = ui.add(egui::Slider::new(value, 0..=100)).rect;
         });
     });
-    hovered
+    rect
 }
 
-/// 창 밖 뗌을 받은 leaf는 그 패스를 hover 없이 끝낸다. egui 0.31.1은 PointerButton에서 latest_pos와
-/// interact_pos를 채우고 PointerGone에서 latest_pos만 비우므로, 뗌 좌표가 interact_pos로 남으면 그 패스의
-/// hit-test가 hover를 켜고 plugin이 다음 프레임을 그리지 않는 동안 화면에 남는다. leaf 큐를 실제 egui 패스로
-/// 돌려(hover 확인 → 누름 → CursorLeft의 PointerGone → 창 밖 뗌) 마지막 패스와 그 뒤 빈 패스의 hover를 잰다.
-/// 로컬과 attach가 같다.
+/// 창 밖 뗌은 같은 패스의 입력 결과를 바꾸지 않는다. leaf 큐를 실제 egui 패스로 돌려, 0..=100 Slider를 눌러
+/// 65에 둔 뒤 CursorLeft의 PointerGone을 받고 창 밖에서 떼면 값이 65 그대로인지 잰다. 뗌 묶음에 합성 이동을
+/// 넣으면 그 패스의 끌기 좌표가 바뀌어 값이 튄다. 로컬과 attach가 같다.
 #[test]
-fn a_release_outside_the_window_ends_its_pass_without_hover() {
+fn a_release_outside_the_window_keeps_the_dragged_value() {
+    // 누르면 65가 되는 leaf 논리 x(빈 문맥마다 한 번 배치하고 눌러 본다).
+    let press_at = |x: f32, y: f32| {
+        let ctx = egui::Context::default();
+        let mut v = 0;
+        slider_pass(&ctx, &[], &mut v);
+        let button = |pressed| RawInputEventWire::PointerButton {
+            x,
+            y,
+            button: PointerButtonWire::Primary,
+            pressed,
+            modifiers: ModifiersWire::default(),
+        };
+        slider_pass(&ctx, &[button(true)], &mut v);
+        v
+    };
+    let rect = slider_pass(&egui::Context::default(), &[], &mut 0);
+    let y = rect.center().y;
+    let x = (0..400)
+        .map(|i| rect.left() + rect.width() * i as f32 / 400.0)
+        .find(|x| press_at(*x, y) == 65)
+        .expect("전제: 65가 되는 x가 있다");
     for side in [MeshSide::Local, MeshSide::Attach] {
         let regions = [region(1, 10.0, side)];
         let ctx = egui::Context::default();
-        let over = [RawInputEventWire::PointerMoved { x: 5.0, y: 10.0 }];
-        egui_pass(&ctx, &over);
-        assert!(
-            egui_pass(&ctx, &over),
-            "{side:?} 전제: 포인터 아래 위젯은 hover다"
-        );
+        let mut value = 0;
+        slider_pass(&ctx, &[], &mut value);
         let mut w = Window::default();
-        assert!(w.button(&regions, Some((5.0, 20.0)), (Left, true), false));
+        assert!(w.button(&regions, Some((x, y + 10.0)), (Left, true), false));
         let pressed = w.queue(side, 1);
-        egui_pass(&ctx, &pressed);
-        egui_pass(&ctx, &[RawInputEventWire::PointerGone]);
+        slider_pass(&ctx, &pressed, &mut value);
+        assert_eq!(value, 65, "{side:?} 전제: 누른 값");
+        slider_pass(&ctx, &[RawInputEventWire::PointerGone], &mut value);
+        assert_eq!(value, 65, "{side:?} CursorLeft 뒤");
         assert!(w.button(&regions, None, (Left, false), false));
         let released = w.queue(side, 1).split_off(pressed.len());
-        assert!(
-            !egui_pass(&ctx, &released),
-            "{side:?} 창 밖 뗌의 패스가 hover를 켰다: {released:?}"
-        );
-        assert!(!egui_pass(&ctx, &[]), "{side:?} 그 뒤 패스");
+        slider_pass(&ctx, &released, &mut value);
+        assert_eq!(value, 65, "{side:?} 창 밖 뗌 뒤: {released:?}");
+        slider_pass(&ctx, &[], &mut value);
+        assert_eq!(value, 65, "{side:?} 그 뒤 패스");
     }
 }
