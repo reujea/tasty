@@ -25,7 +25,7 @@ fn pointer_input_after_a_settling_key_waits() {
     assert!(ui.field.ends_with("zCLIP"), "pasted after z: {}", ui.field);
     let release = released(&mut state);
     assert!(release.replay.is_none());
-    assert_eq!(release.queued, vec![Ev::Pointer("click next")]);
+    assert_eq!(release.queued_events(), vec![Ev::Pointer("click next")]);
 }
 
 /// A settling key that then waits for a Wayland read keeps the pointer input queued behind it, and
@@ -56,7 +56,7 @@ fn pointer_input_keeps_its_order_when_a_settled_key_waits_for_a_read() {
     let release = released(&mut state);
     assert!(release.replay.is_none());
     assert_eq!(
-        release.queued,
+        release.queued_events(),
         vec![Ev::Pointer("first"), Ev::Pointer("second")]
     );
 }
@@ -195,7 +195,7 @@ fn an_unsettled_key_goes_back_to_its_owner_after_the_earlier_input() {
         .take_release(EditKeyOwner::Window)
         .expect("the key goes back");
     assert!(release.replay.is_none());
-    assert_eq!(release.queued, vec![press("v"), press("q")]);
+    assert_eq!(release.queued_events(), vec![press("v"), press("q")]);
 }
 
 /// A window replaying a finished hold gives the released key once, marked with its edit, then the
@@ -203,16 +203,19 @@ fn an_unsettled_key_goes_back_to_its_owner_after_the_earlier_input() {
 #[test]
 fn a_release_replays_in_order_and_stops_when_the_window_closes() {
     let arrived = Instant::now();
-    let release = Release {
-        replay: Some((press("c"), EditKey::Copy)),
-        queued: vec![Ev::Other("escape"), Ev::Other("after")],
-        queued_at: vec![arrived, arrived],
-    };
+    let release = Release::of_events(
+        Some((press("c"), EditKey::Copy)),
+        vec![Ev::Other("escape"), Ev::Other("after")],
+        vec![arrived, arrived],
+    );
     let mut seen = Vec::new();
     let closed = replay_release(
         release,
         |closed: &bool| *closed,
-        |event, judged, at| {
+        |step| {
+            let Replayed::Event(event, judged, at) = step else {
+                unreachable!("the line holds only window events");
+            };
             seen.push((event.clone(), judged, at));
             event == Ev::Other("escape")
         },
@@ -244,7 +247,7 @@ fn a_queued_event_keeps_the_arrival_the_window_set() {
     state.replace_arrival(Some(second));
     ui.judge(&mut state, &Ev::Other("tap again"), &mut pending, now);
     ui.pass(&mut state, pending);
-    let (_, queued) = released(&mut state).split();
+    let queued = released(&mut state).queued_arrivals();
     assert_eq!(
         queued,
         vec![(Ev::Other("tap"), first), (Ev::Other("tap again"), second)]
@@ -301,7 +304,7 @@ fn a_wheel_after_a_queued_pointer_move_waits_too() {
     );
     state.resolve_now(Outcome::NotActed);
     let release = state.take_release(owner).expect("released");
-    assert_eq!(release.queued, vec![moved, wheel, pinch]);
+    assert_eq!(release.queued_events(), vec![moved, wheel, pinch]);
 }
 
 /// A focus loss while a key is held queues behind it like the keys before it. The modifiers it
@@ -356,9 +359,9 @@ fn a_focus_loss_while_held_keeps_the_replayed_edit_modifiers() {
     );
     state.resolve_now(Outcome::NotActed);
     let release = state.take_release(owner).expect("released");
-    assert_eq!(release.queued, arrivals);
+    assert_eq!(release.queued_events(), arrivals);
     let mut seen = Vec::new();
-    for event in release.queued {
+    for event in release.queued_events() {
         if event == queued_key {
             let lookup = tasty_key_match::shortcut_lookup_key(
                 &Key::Character("c".into()),
@@ -465,11 +468,10 @@ fn front(state: &mut EditKeyState<Ev>, event: &Ev, pending: &[egui::Event], hand
 /// The window's own release after the pass that took `pending`.
 fn front_release(ui: &mut Ui, state: &mut EditKeyState<Ev>, pending: Vec<egui::Event>) -> Vec<Ev> {
     ui.pass(state, pending);
-    let (_, queued) = state
+    state
         .take_release(EditKeyOwner::Window)
         .expect("the line is released after the pass")
-        .split();
-    queued.into_iter().map(|(event, _)| event).collect()
+        .queued_events()
 }
 
 /// A key after egui input that is not drawn yet (a letter typed into a palette that may close it)
@@ -579,28 +581,58 @@ fn tab() -> egui::Event {
     }
 }
 
-/// A debug injection (text, key, clipboard) while a key waits in the line waits behind it: it goes
-/// into egui's input only after the line has run, so it is not drawn before that key.
+/// The labels of a released line in order: window events by their name, debug injections as text.
+fn line_labels(release: Release<Ev>) -> Vec<String> {
+    use crate::view::main::debug_input::DebugInput;
+    release
+        .split()
+        .1
+        .into_iter()
+        .map(|item| match item {
+            LineItem::Event(event, _) => format!("{event:?}"),
+            LineItem::Debug(DebugInput::Text(text)) => format!("debug {text}"),
+            LineItem::Debug(other) => format!("debug {other:?}"),
+        })
+        .collect()
+}
+
+/// [held window key A, debug B, window key C]: the debug injection takes its place in the same line
+/// as the window events and the release gives them back in the order they came, so C does not run
+/// before B.
 #[test]
-fn a_debug_text_after_a_held_key_draws_after_it() {
+fn a_debug_input_takes_its_place_in_the_hold_line() {
+    use crate::view::main::debug_input::DebugInput;
     let mut ui = Ui::new();
     let mut state = EditKeyState::<Ev>::default();
     let pending = vec![egui::Event::Text("z".into())];
-    front(&mut state, &press("a"), &pending, false);
-    let typed = vec![egui::Event::Text("debug".into())];
-    assert_eq!(state.hold_injection(typed.clone()), None);
-    assert!(state.take_injections().is_empty(), "the line is still open");
-    assert_eq!(
-        front_release(&mut ui, &mut state, pending),
-        vec![press("a")]
+    assert!(front(&mut state, &press("a"), &pending, false));
+    assert!(
+        state.hold_debug(DebugInput::Text("b".into())).is_none(),
+        "the debug input waits in the open line"
     );
-    assert_eq!(state.take_injections(), typed);
+    assert!(front(&mut state, &press("c"), &pending, false));
+    ui.pass(&mut state, pending);
+    let release = state
+        .take_release(EditKeyOwner::Window)
+        .expect("the line is released after the pass");
+    assert_eq!(
+        line_labels(release),
+        vec![
+            format!("{:?}", press("a")),
+            "debug b".to_string(),
+            format!("{:?}", press("c"))
+        ]
+    );
 }
 
-/// With no line open a debug injection goes into egui's input at once.
+/// With no line open a debug injection comes back to run through the window's entry now.
 #[test]
-fn a_debug_text_without_a_hold_draws_now() {
+fn a_debug_input_without_a_line_runs_now() {
+    use crate::view::main::debug_input::DebugInput;
     let mut state = EditKeyState::<Ev>::default();
-    let typed = vec![egui::Event::Text("debug".into())];
-    assert_eq!(state.hold_injection(typed.clone()), Some(typed));
+    assert!(matches!(
+        state.hold_debug(DebugInput::Text("b".into())),
+        Some(DebugInput::Text(text)) if text == "b"
+    ));
+    assert!(!state.busy(), "nothing waits");
 }

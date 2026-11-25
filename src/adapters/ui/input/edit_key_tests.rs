@@ -103,7 +103,7 @@ fn held() -> EditKeyHold<&'static str> {
 fn acted_consumes_the_key_and_keeps_the_queue_order() {
     let release = held().resolve(Outcome::Acted);
     assert!(release.replay.is_none());
-    assert_eq!(release.queued, vec!["release", "next"]);
+    assert_eq!(release.queued_events(), vec!["release", "next"]);
 }
 
 /// 줄 선 이벤트는 받은 때의 도착 시각을 들고 풀린다. 재생이 늦어도 그 시각은 그대로다.
@@ -114,9 +114,12 @@ fn the_queue_keeps_each_arrival_time() {
     let mut hold = EditKeyHold::new("press", EditKey::Paste, true);
     hold.queue("release", start);
     hold.queue("next", later);
-    let (replay, queued) = hold.resolve(Outcome::NotActed).split();
-    assert_eq!(replay, Some(("press", EditKey::Paste)));
-    assert_eq!(queued, vec![("release", start), ("next", later)]);
+    let release = hold.resolve(Outcome::NotActed);
+    assert_eq!(release.replay, Some(("press", EditKey::Paste)));
+    assert_eq!(
+        release.queued_arrivals(),
+        vec![("release", start), ("next", later)]
+    );
 }
 
 /// 동작하지 않았으면 원래 키를 한 번, 뒤 이벤트보다 먼저 재생한다.
@@ -124,7 +127,7 @@ fn the_queue_keeps_each_arrival_time() {
 fn not_acted_replays_the_key_once_before_the_queue() {
     let release = held().resolve(Outcome::NotActed);
     assert_eq!(release.replay, Some(("press", EditKey::Paste)));
-    assert_eq!(release.queued, vec!["release", "next"]);
+    assert_eq!(release.queued_events(), vec!["release", "next"]);
 }
 
 /// 시간 초과는 실행하지 않았음이 보장될 때만 재생하고, 대상이 사라지면 재생하지 않는다.
@@ -135,8 +138,8 @@ fn timeout_and_lost_target_follow_the_rule() {
     consume.queue("next", std::time::Instant::now());
     let release = consume.resolve(Outcome::TimedOut);
     assert!(release.replay.is_none());
-    assert_eq!(release.queued, vec!["next"]);
+    assert_eq!(release.queued_events(), vec!["next"]);
     let release = held().resolve(Outcome::TargetGone);
     assert!(release.replay.is_none());
-    assert_eq!(release.queued, vec!["release", "next"]);
+    assert_eq!(release.queued_events(), vec!["release", "next"]);
 }

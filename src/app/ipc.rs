@@ -9,6 +9,8 @@ mod debug_egui_clipboard;
 mod debug_egui_key;
 #[cfg(all(debug_assertions, feature = "gui"))]
 mod debug_egui_window;
+#[cfg(all(debug_assertions, feature = "gui"))]
+mod debug_input_entry;
 #[cfg(debug_assertions)]
 mod debug_methods;
 #[cfg(all(debug_assertions, feature = "gui"))]

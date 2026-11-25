@@ -556,7 +556,10 @@ fn later_events_queue_behind_the_held_key() {
     ui.pass(&mut state, pending);
     let release = released(&mut state);
     assert_eq!(release.replay, Some((press("v"), EditKey::Paste)));
-    assert_eq!(release.queued, vec![Ev::Other("release"), press("c")]);
+    assert_eq!(
+        release.queued_events(),
+        vec![Ev::Other("release"), press("c")]
+    );
 }
 
 /// A held edit in a window whose frames stopped is taken back out of the input and its key
@@ -732,7 +735,7 @@ fn pointer_input_waits_while_the_edit_is_in_the_input() {
     ui.pass(&mut state, pending);
     let release = released(&mut state);
     assert_eq!(release.replay, Some((press("x"), EditKey::Cut)));
-    assert_eq!(release.queued, vec![Ev::Pointer("click")]);
+    assert_eq!(release.queued_events(), vec![Ev::Pointer("click")]);
 
     ui.focus("field");
     ui.clipboard = ClipText::Pending;

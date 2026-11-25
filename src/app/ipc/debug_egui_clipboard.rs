@@ -8,7 +8,7 @@ use crate::app::App;
 use crate::app::ipc::IpcStep;
 use crate::ipc::protocol::JsonRpcResponse;
 use crate::ipc::server::{IpcCommand, send_response};
-use crate::view::ui::View;
+use crate::view::main::debug_input::DebugInput;
 
 /// 요청의 편집 하나를 egui 이벤트로 만든다. 붙여넣기에는 비어 있지 않은 `text`가 있어야 한다.
 fn clipboard_event(op: &str, text: Option<&str>) -> Result<egui::Event, String> {
@@ -44,45 +44,23 @@ impl App {
             .ok_or_else(|| (-32602, "missing or non-string 'op'".to_string()))?;
         let event = clipboard_event(op, params.get("text").and_then(|v| v.as_str()))
             .map_err(|msg| (-32602, msg))?;
-        // 메인 창은 키 주입과 같은 진입(`inject_clipboard`: 입력 몫 끊기 → 넣기)을 거친다. 보조 창만 큐에 바로 넣는다.
-        let main = if params.get("window_id").is_some() {
-            self.debug_main_window_by_id(params)
+        // 메인 창은 키 주입과 같은 진입(`inject_clipboard`: 입력 몫 끊기 → 넣기)을 거친다. 보조 창은 큐에 바로 넣는다. 두
+        // 창 모두 입구 맨 앞에서 보류 줄 검사를 받는다(`enter_debug_input`).
+        let (wid, window) = if params.get("window_id").is_some() {
+            self.debug_egui_window(params)?
         } else {
             let focused = self
                 .view
                 .focused_view_id
                 .ok_or_else(|| (-32603, "no focused main window".to_string()))?;
-            Some((focused, u64::from(focused)))
+            (u64::from(focused), focused)
         };
-        if let Some((window, wid)) = main
-            && let Some((w, engine)) = self.engines_mut().window_pair(window)
-        {
-            crate::view::main::debug_input::inject_clipboard(
-                &mut w.state,
-                &engine.read(),
-                &mut w.base.gpu,
-                event,
-            );
-            w.mark_dirty();
-            return Ok(serde_json::json!({ "injected": true, "window_id": wid }));
-        }
-        let (wid, view) = if params.get("window_id").is_some() {
-            self.debug_egui_target(params)?
-        } else {
-            let focused = self
-                .view
-                .focused_view_id
-                .ok_or_else(|| (-32603, "no focused main window".to_string()))?;
-            let view = self
-                .view
-                .views
-                .get_mut(&focused)
-                .ok_or_else(|| (-32603, "focused main window is gone".to_string()))?;
-            (u64::from(focused), view.as_mut())
-        };
-        view.base_mut().gpu.debug_push_egui_events(vec![event]);
-        view.mark_dirty();
-        Ok(serde_json::json!({ "injected": true, "window_id": wid }))
+        let entered = self
+            .enter_debug_input(window, DebugInput::Clipboard(event))
+            .ok_or_else(|| (-32603, "focused main window is gone".to_string()))?;
+        let mut body = entered.body();
+        body["window_id"] = serde_json::json!(wid);
+        Ok(body)
     }
 }
 

@@ -152,53 +152,115 @@ pub(crate) enum Outcome {
     TargetGone,
 }
 
-/// `Hold`인 원래 키와 그 뒤에 온 같은 창의 키 이벤트. 결과가 나면 [`Self::resolve`]가 풀어 준다.
+/// `Hold`인 원래 키와 그 뒤에 온 같은 창의 입력. 결과가 나면 [`Self::resolve`]가 풀어 준다.
 #[derive(Debug)]
 pub(crate) struct EditKeyHold<E> {
     original: E,
     edit: EditKey,
-    queued: Vec<E>,
-    /// 줄 선 사건이 창에 도착한 시각(`queued` 와 같은 순서).
-    queued_at: Vec<Instant>,
+    queued: Vec<LineItem<E>>,
     replays_on_timeout: bool,
 }
 
-/// 줄 선 사건과 그것이 창에 도착한 시각.
-pub(crate) type Arrived<E> = (E, Instant);
+/// 보류 줄에 선 입력 하나. 창 사건과 debug 주입이 한 줄에 도착한 순서대로 서고, 재생 때 각자 창 입구를 다시 지난다.
+#[derive(Debug)]
+pub(crate) enum LineItem<E> {
+    /// 창 사건과 그것이 창에 처음 도착한 시각. 재생한 사건의 더블탭·힌트 홀드는 처리 시각이 아니라 이 시각으로
+    /// 판정한다.
+    Event(E, Instant),
+    /// debug 입력 주입 하나(`debug_input::DebugInput`). 재생 때 그 창의 debug 주입 입구를 다시 지난다.
+    #[cfg(debug_assertions)]
+    Debug(crate::view::main::debug_input::DebugInput),
+}
 
-/// 보류를 푼 결과. `replay`는 다음 처리자에 한 번 줄 원래 키이고 편집 판정을 다시 하지 않는다.
-/// `queued`는 보류 중에 온 이벤트로, 받은 순서대로 평소 경로(판정 포함)로 처리한다.
+impl<E> LineItem<E> {
+    /// 창 사건이면 그 사건.
+    #[cfg(test)]
+    pub(crate) fn event(&self) -> Option<&E> {
+        match self {
+            Self::Event(event, _) => Some(event),
+            #[cfg(debug_assertions)]
+            Self::Debug(_) => None,
+        }
+    }
+
+    fn arrived_at(&self) -> Option<Instant> {
+        match self {
+            Self::Event(_, at) => Some(*at),
+            #[cfg(debug_assertions)]
+            Self::Debug(_) => None,
+        }
+    }
+}
+
+/// 보류를 푼 결과. `replay`는 다음 처리자에 한 번 줄 원래 키이고 편집 판정을 다시 하지 않는다. 원래 키는 편집 키
+/// 누름이라 더블탭·힌트 홀드 판정에 시각을 쓰지 않으므로 시각을 두지 않는다. `queued`는 보류 중에 온 입력으로,
+/// 받은 순서대로 평소 입구(판정 포함)로 다시 처리한다.
 #[derive(Debug)]
 pub(crate) struct Release<E> {
     pub(crate) replay: Option<(E, EditKey)>,
-    pub(crate) queued: Vec<E>,
-    /// 줄 선 사건이 창에 도착한 시각(`queued` 와 같은 순서). 재생한 사건의 더블탭·힌트 홀드는 처리 시각이 아니라 이
-    /// 시각으로 판정한다. 원래 키는 편집 키 누름이라 그 판정에 시각을 쓰지 않으므로 두지 않는다.
-    pub(crate) queued_at: Vec<Instant>,
+    pub(crate) queued: Vec<LineItem<E>>,
 }
 
 impl<E> Release<E> {
-    /// 줄 선 사건 가운데 가장 먼저 창에 도착한 시각.
+    /// 줄 선 창 사건 가운데 가장 먼저 창에 도착한 시각.
     pub(crate) fn first_queued_at(&self) -> Option<Instant> {
-        self.queued_at.first().copied()
+        self.queued.iter().find_map(LineItem::arrived_at)
     }
 
-    /// 줄 선 사건 하나를 그 도착 시각과 함께 끝에 더한다.
+    /// 줄 선 창 사건 하나를 그 도착 시각과 함께 끝에 더한다.
     pub(crate) fn push(&mut self, event: E, at: Instant) {
-        self.queued.push(event);
-        self.queued_at.push(at);
+        self.queued.push(LineItem::Event(event, at));
     }
 
-    /// 원래 키와, 줄 선 사건을 그 도착 시각과 짝지은 값. 시각이 없는 사건(시험이 만든 값)은 처리 시각을 쓴다.
-    pub(crate) fn split(self) -> (Option<(E, EditKey)>, Vec<Arrived<E>>) {
-        let at = self.queued_at.into_iter().map(Some);
-        let queued = self
-            .queued
+    /// 줄 선 입력 하나를 끝에 더한다.
+    pub(crate) fn push_item(&mut self, item: LineItem<E>) {
+        self.queued.push(item);
+    }
+
+    /// 원래 키와 줄 선 입력.
+    pub(crate) fn split(self) -> (Option<(E, EditKey)>, Vec<LineItem<E>>) {
+        (self.replay, self.queued)
+    }
+
+    /// 줄 선 창 사건만 순서대로.
+    #[cfg(test)]
+    pub(crate) fn queued_events(&self) -> Vec<E>
+    where
+        E: Clone,
+    {
+        self.queued
+            .iter()
+            .filter_map(LineItem::event)
+            .cloned()
+            .collect()
+    }
+
+    /// 줄 선 창 사건과 그 도착 시각만 순서대로.
+    #[cfg(test)]
+    pub(crate) fn queued_arrivals(&self) -> Vec<(E, Instant)>
+    where
+        E: Clone,
+    {
+        self.queued
+            .iter()
+            .filter_map(|item| Some((item.event()?.clone(), item.arrived_at()?)))
+            .collect()
+    }
+
+    /// 시험이 만드는 값: 줄 선 창 사건과 그 도착 시각. 시각이 모자라면 지금이다.
+    #[cfg(test)]
+    pub(crate) fn of_events(
+        replay: Option<(E, EditKey)>,
+        queued: Vec<E>,
+        at: Vec<Instant>,
+    ) -> Self {
+        let at = at.into_iter().map(Some).chain(std::iter::repeat(None));
+        let queued = queued
             .into_iter()
-            .zip(at.chain(std::iter::repeat(None)))
-            .map(|(event, at)| (event, at.unwrap_or_else(Instant::now)))
+            .zip(at)
+            .map(|(event, at)| LineItem::Event(event, at.unwrap_or_else(Instant::now)))
             .collect();
-        (self.replay, queued)
+        Self { replay, queued }
     }
 }
 
@@ -211,7 +273,6 @@ impl<E> EditKeyHold<E> {
             original,
             edit,
             queued: Vec::new(),
-            queued_at: Vec::new(),
             replays_on_timeout,
         }
     }
@@ -222,13 +283,17 @@ impl<E> EditKeyHold<E> {
 
     /// 보류 중에 온 키 이벤트(누름·떼기·IME·modifier)를 받은 순서대로 붙잡는다.
     pub(crate) fn queue(&mut self, event: E, at: Instant) {
-        self.queued.push(event);
-        self.queued_at.push(at);
+        self.queued.push(LineItem::Event(event, at));
     }
 
-    /// 줄 선 사건 가운데 가장 먼저 창에 도착한 시각.
+    /// 보류 중에 온 입력 하나를 받은 순서대로 붙잡는다.
+    pub(crate) fn queue_item(&mut self, item: LineItem<E>) {
+        self.queued.push(item);
+    }
+
+    /// 줄 선 창 사건 가운데 가장 먼저 창에 도착한 시각.
     pub(crate) fn first_queued_at(&self) -> Option<Instant> {
-        self.queued_at.first().copied()
+        self.queued.iter().find_map(LineItem::arrived_at)
     }
 
     /// 붙잡은 이벤트가 있다. 뒤에 온 이벤트가 이들을 앞지르지 않게 줄을 세울 때 본다.
@@ -252,7 +317,6 @@ impl<E> EditKeyHold<E> {
         Release {
             replay: replay.then_some((self.original, self.edit)),
             queued: self.queued,
-            queued_at: self.queued_at,
         }
     }
 }

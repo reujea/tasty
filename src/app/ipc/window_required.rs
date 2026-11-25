@@ -176,6 +176,71 @@ impl App {
         self.ipc_step_main_window(cmd, focused_id, None)
     }
 
+    /// 메인 창 egui 주입(포인터·글자·키)의 요청 값을 읽어 App 의 debug 주입 입구(`enter_debug_input`)로 넣는다. 입구
+    /// 맨 앞은 winit 사건과 같은 보류 줄 검사다. egui 주입 요청이 아니면 `None`. 창이 메인 창이 아니면 응답 없이
+    /// 처리됨이다.
+    #[cfg(debug_assertions)]
+    fn ipc_main_egui_injection(
+        &mut self,
+        cmd: &IpcCommand,
+        focused_id: winit::window::WindowId,
+        echo: impl Fn(serde_json::Value) -> serde_json::Value,
+    ) -> Option<IpcStep> {
+        use crate::view::main::debug_input::{DebugInput, ScrollUnit};
+        let params = &cmd.request.params;
+        let input = match cmd.request.method.as_str() {
+            // winit 이벤트 대신 egui 입력 큐에 넣어 popup 입력 전달을 시험한다.
+            "debug.inject_egui_mouse" => {
+                let unit = params
+                    .get("unit")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("point");
+                let Some(unit) = ScrollUnit::from_name(unit) else {
+                    return Some(reject_unknown_scroll_unit(cmd));
+                };
+                let (fx, fy, action) = match read_pointer_params(params, unit) {
+                    Ok(v) => v,
+                    Err(msg) => return Some(reject_bad_params(cmd, &msg)),
+                };
+                let surface_id = match params::read_u32(params, "surface_id") {
+                    Ok(v) => v,
+                    Err(msg) => return Some(reject_bad_params(cmd, &msg)),
+                };
+                let modifiers = match read_egui_modifiers(params) {
+                    Ok(v) => v,
+                    Err(msg) => return Some(reject_bad_params(cmd, &msg)),
+                };
+                DebugInput::Pointer {
+                    fx,
+                    fy,
+                    surface_id,
+                    action,
+                    modifiers,
+                }
+            }
+            // TextEdit의 문자 입력은 키 이벤트와 별도의 Text 이벤트다.
+            "debug.inject_egui_text" => {
+                let Some(text) = params.get("text").and_then(|v| v.as_str()) else {
+                    return Some(reject_bad_params(cmd, "missing or non-string 'text'"));
+                };
+                DebugInput::Text(text.to_string())
+            }
+            // 메인 창의 키 주입은 창의 키처럼 입력 몫을 끊고 넣는다(`inject_key`).
+            "debug.inject_egui_key" => match super::debug_egui_key::key_input(params) {
+                Ok(input) => input,
+                Err(msg) => return Some(reject_bad_params(cmd, &msg)),
+            },
+            _ => return None,
+        };
+        let entered = self.enter_debug_input(focused_id, input)?;
+        let response = host_ipc::protocol::JsonRpcResponse::success(
+            cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
+            echo(entered.body()),
+        );
+        send_response(&cmd.response_tx, response);
+        Some(IpcStep::Handled)
+    }
+
     /// 메인 창 `window` 에서 창 의존 메서드를 처리한다. 포커스 창 경로와 `window_id` 로 메인 창을 지정한 egui 주입
     /// (`debug_methods`)이 같은 진입(포인터 `press_focus`, 글자·키 `key_focus`)을 거친다. `echo_window` 를 주면 egui
     /// 주입 응답에 그 창 ID 를 싣는다.
@@ -192,6 +257,9 @@ impl App {
             }
             body
         };
+        if let Some(step) = self.ipc_main_egui_injection(cmd, focused_id, echo) {
+            return step;
+        }
         let (w, mut engine) = match self.engines_mut().window_pair(focused_id) {
             Some(pair) => pair,
             // 현재 ID가 MainView를 가리키지 않으면 별도 응답 없이 처리됨으로 반환한다.
@@ -237,82 +305,6 @@ impl App {
             let response = host_ipc::protocol::JsonRpcResponse::success(
                 cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
                 serde_json::json!({ "injected": ok }),
-            );
-            send_response(&cmd.response_tx, response);
-            return IpcStep::Handled;
-        }
-        // winit 이벤트 대신 egui 입력 큐에 넣어 popup 입력 전달을 시험한다.
-        #[cfg(debug_assertions)]
-        if cmd.request.method == "debug.inject_egui_mouse" {
-            use crate::view::main::debug_input::ScrollUnit;
-            let params = &cmd.request.params;
-            let Some(unit) = ScrollUnit::from_name(
-                params
-                    .get("unit")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("point"),
-            ) else {
-                return reject_unknown_scroll_unit(cmd);
-            };
-            let (fx, fy, action) = match read_pointer_params(params, unit) {
-                Ok(v) => v,
-                Err(msg) => return reject_bad_params(cmd, &msg),
-            };
-            let surface_id = match params::read_u32(params, "surface_id") {
-                Ok(v) => v,
-                Err(msg) => return reject_bad_params(cmd, &msg),
-            };
-            let modifiers = match read_egui_modifiers(params) {
-                Ok(v) => v,
-                Err(msg) => return reject_bad_params(cmd, &msg),
-            };
-            let ok =
-                w.debug_inject_egui_pointer(&engine.read(), fx, fy, surface_id, action, modifiers);
-            let response = host_ipc::protocol::JsonRpcResponse::success(
-                cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
-                echo(serde_json::json!({ "injected": ok })),
-            );
-            send_response(&cmd.response_tx, response);
-            return IpcStep::Handled;
-        }
-        // TextEdit의 문자 입력은 키 이벤트와 별도의 Text 이벤트다.
-        #[cfg(debug_assertions)]
-        if cmd.request.method == "debug.inject_egui_text" {
-            let params = &cmd.request.params;
-            let Some(text) = params.get("text").and_then(|v| v.as_str()) else {
-                return reject_bad_params(cmd, "missing or non-string 'text'");
-            };
-            let ok = w.debug_inject_egui_text(&engine.read(), text);
-            let response = host_ipc::protocol::JsonRpcResponse::success(
-                cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
-                echo(serde_json::json!({ "injected": ok })),
-            );
-            send_response(&cmd.response_tx, response);
-            return IpcStep::Handled;
-        }
-        #[cfg(debug_assertions)]
-        if cmd.request.method == "debug.inject_egui_key" {
-            // 메인 창의 키 주입은 창의 키처럼 입력 몫을 끊고 넣는다(`inject_key`).
-            let read = engine.read();
-            let body = match super::debug_egui_key::egui_key_body_with(
-                &cmd.request.params,
-                |key, pressed, modifiers| {
-                    crate::view::main::debug_input::inject_key(
-                        &mut w.state,
-                        &read,
-                        &mut w.base.gpu,
-                        key,
-                        pressed,
-                        modifiers,
-                    )
-                },
-            ) {
-                Ok(body) => body,
-                Err(msg) => return reject_bad_params(cmd, &msg),
-            };
-            let response = host_ipc::protocol::JsonRpcResponse::success(
-                cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
-                echo(body),
             );
             send_response(&cmd.response_tx, response);
             return IpcStep::Handled;

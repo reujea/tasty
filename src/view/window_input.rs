@@ -186,10 +186,11 @@ pub(crate) fn bind_window_input(
     }
 }
 
-/// 별도 창 debug 키 주입 하나. winit 키와 같은 사건 입구를 지난다: 끊기(`settle_window_input`) → egui 큐 적재
-/// (`debug_input::push_egui_key`) → 실린 사건의 결속과 bare Esc 적용(`bind_window_input`). bare Esc 인지는 메인 창 debug 주입과 같이
-/// 주입이 쥔 egui 수식키와 창이 지금 누른 것으로 보는 실물 Win·Super 로 정한다(`RouteKey::bare_escape`). 매핑 불가 키면
-/// 끊지도 넣지도 않고 `None`.
+/// 별도 창 debug 키 주입 하나. 보류 검사(`enter_window_debug`)를 지난 뒤 winit 키와 같은 사건 입구를 지난다: 실을
+/// 사건을 정하고(`debug_input::egui_key_load`) → 끊기(`settle_window_input`) → egui 큐 적재 → 결속과 bare Esc 적용
+/// (`bind_window_input`). 실을 사건이 없으면(빈 클립보드의 붙여넣기) 끊지도 결속하지도 않는다. bare Esc 인지는 메인 창
+/// debug 주입과 같이 주입이 쥔 egui 수식키와 창이 지금 누른 것으로 보는 실물 Win·Super 로 정한다
+/// (`RouteKey::bare_escape`). 매핑 불가 키면 끊지도 넣지도 않고 `None`.
 #[cfg(debug_assertions)]
 pub(crate) fn inject_window_key<S>(
     ctx: &egui::Context,
@@ -222,17 +223,68 @@ where
     } else {
         WindowKey::Current
     };
-    settle_window_input(sink, ctx, popups, incoming, Some(window_key));
-    let from = sink.queued_events().len();
-    let pushed = crate::view::main::debug_input::push_egui_key(sink, key_name, pressed, modifiers)?;
-    // 창의 보류 줄이 열려 있으면 주입은 줄 뒤로 미뤄져 egui 입력에 들지 않는다. 실린 사건만 묶고 Esc 를 적용한다(메인 창
-    // 주입의 `loaded` 와 같다).
-    let loaded = sink.queued_events().len() > from;
-    if loaded {
-        let held = sink.escape_held();
-        bind_window_input(ctx, popups, incoming, sink.queued_events(), held);
+    let (events, pushed) =
+        crate::view::main::debug_input::egui_key_load(sink, key_name, pressed, modifiers)?;
+    if events.is_empty() {
+        return Some(pushed);
     }
+    settle_window_input(sink, ctx, popups, incoming, Some(window_key));
+    sink.push_events(events);
+    let held = sink.escape_held();
+    bind_window_input(ctx, popups, incoming, sink.queued_events(), held);
     Some(pushed)
+}
+
+/// 별도 창 debug 주입 하나의 입구. 맨 앞은 winit 사건과 같은 보류 줄 검사다(`GpuState::hold_debug_input`). 줄이 열려
+/// 있으면 그 줄 끝에 서고, 줄이 풀리면 `replay_edit_keys` 가 이 입구로 다시 보낸다. 지나면 키는 팝업 관리자를 가진
+/// 창이면 [`inject_window_key`], 아니면 egui 큐에 바로 넣는다. 포인터·글자·붙여넣기는 egui 큐에 바로 넣는다.
+#[cfg(debug_assertions)]
+pub(crate) fn enter_window_debug<V: crate::view::ui::View + ?Sized>(
+    view: &mut V,
+    input: crate::view::main::debug_input::DebugInput,
+) -> crate::view::main::debug_input::DebugEntered {
+    use crate::view::main::debug_input::{
+        DebugEntered, DebugInput, push_egui_key, push_egui_pointer, push_egui_text,
+    };
+    let base = view.base_mut();
+    let Some(input) = base.gpu.hold_debug_input(&base.winit, input) else {
+        view.mark_dirty();
+        return DebugEntered::Held;
+    };
+    let entered = match input {
+        DebugInput::Key {
+            name,
+            pressed,
+            modifiers,
+        } => DebugEntered::Key(match view.window_input() {
+            Some((gpu, popups)) => {
+                let ctx = gpu.egui_ctx.clone();
+                inject_window_key(&ctx, popups, gpu, &name, pressed, modifiers)
+            }
+            None => push_egui_key(&mut view.base_mut().gpu, &name, pressed, modifiers),
+        }),
+        DebugInput::Pointer {
+            fx,
+            fy,
+            action,
+            modifiers,
+            ..
+        } => {
+            push_egui_pointer(&mut view.base_mut().gpu, fx, fy, action, modifiers);
+            DebugEntered::Done(true)
+        }
+        DebugInput::Text(text) => {
+            DebugEntered::Done(push_egui_text(&mut view.base_mut().gpu, &text))
+        }
+        DebugInput::Clipboard(event) => {
+            view.base_mut().gpu.debug_push_egui_events(vec![event]);
+            DebugEntered::Done(true)
+        }
+    };
+    if entered.changed() {
+        view.mark_dirty();
+    }
+    entered
 }
 
 #[cfg(test)]

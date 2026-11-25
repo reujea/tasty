@@ -57,16 +57,26 @@ pub(crate) fn replay_edit_keys<V: ui::View>(
         Option<crate::adapters::ui::input::edit_key::EditKey>,
     ) -> ViewAction,
 ) -> Option<ViewAction> {
+    use crate::gfx::gpu::edit_keys::Replayed;
     let release = view.base_mut().gpu.take_edit_release()?;
     crate::gfx::gpu::edit_keys::replay_release(
         release,
         |action| !matches!(action, ViewAction::None),
-        |event, judged, at| {
-            // 줄 선 사건은 처음 도착한 시각으로 다시 처리한다(더블탭·힌트 홀드 판정).
-            let before = view.base_mut().gpu.replace_event_arrival(at);
-            let action = handle(view, event, judged);
-            view.base_mut().gpu.replace_event_arrival(before);
-            action
+        |step| match step {
+            Replayed::Event(event, judged, at) => {
+                // 줄 선 사건은 처음 도착한 시각으로 다시 처리한다(더블탭·힌트 홀드 판정).
+                let before = view.base_mut().gpu.replace_event_arrival(at);
+                let action = handle(view, event, judged);
+                view.base_mut().gpu.replace_event_arrival(before);
+                action
+            }
+            // 줄 선 debug 주입은 그 창의 주입 입구를 다시 지난다.
+            #[cfg(debug_assertions)]
+            Replayed::Debug(input) => {
+                // 재생에는 IPC 응답이 없다. 줄에 다시 섰는지·넣은 것은 그 주입 입구가 처리했다.
+                let _ = window_input::enter_window_debug(view, input);
+                ViewAction::None
+            }
         },
     )
 }

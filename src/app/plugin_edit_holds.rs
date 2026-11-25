@@ -131,6 +131,25 @@ impl PluginEditHolds {
         true
     }
 
+    /// [`Self::queue`] 의 debug 주입. 기다림 줄이나 보류 줄에 서면 `None`, 아니면 그 주입을 돌려준다.
+    #[cfg(debug_assertions)]
+    pub(crate) fn queue_debug(
+        &mut self,
+        window: WindowId,
+        input: crate::view::main::debug_input::DebugInput,
+    ) -> Option<crate::view::main::debug_input::DebugInput> {
+        let input = match self.debug_behind_await(window, input) {
+            Ok(left) => return left,
+            Err(input) => input,
+        };
+        let Some(held) = self.holds.get_mut(&window) else {
+            return Some(input);
+        };
+        held.hold
+            .queue_item(crate::adapters::ui::input::edit_key::LineItem::Debug(input));
+        None
+    }
+
     /// 회신으로 보류를 푼다. 보류가 없는 회신(창이 닫혔거나 이미 시간이 지났다)은 버린다.
     pub(crate) fn resolve(&mut self, outcomes: Vec<PluginEditOutcome>) -> Vec<ResolvedPluginEdit> {
         let mut resolved = Vec::new();

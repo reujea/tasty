@@ -11,10 +11,12 @@ use winit::event::{ElementState, WindowEvent};
 use winit::window::WindowId;
 
 use super::{PluginEditHold, PluginEditHolds, ResolvedPluginEdit, plugin_replay};
-use crate::adapters::ui::input::edit_key::{EditKey, EditKeyHold, Release};
+use crate::adapters::ui::input::edit_key::{EditKey, EditKeyHold, LineItem, Release};
 use crate::gfx::gpu::edit_keys::{AWAIT_TEXT_LIMIT, HeldEvent};
 use crate::gfx::gpu::plugin_paste_read::PluginPasteEnd;
 use crate::plugin::manager::{PluginCopyTarget, PluginEditOutcome, PluginEditRequest};
+#[cfg(debug_assertions)]
+use crate::view::main::debug_input::DebugInput;
 
 /// 글자를 기다리는 붙여넣기. 요청 id 는 키 시점에 받아 둔다. 그 실행이 끝나면 회신 대기처럼 `Gone`이 와서, 다시
 /// 시작한 같은 id 의 플러그인에 이전 붙여넣기를 보내지 않는다.
@@ -23,10 +25,8 @@ pub(super) struct PasteAwait {
     tag: u64,
     /// 붙잡은 원래 키. 팔레트의 붙여넣기는 없다.
     original: Option<WindowEvent>,
-    /// 기다리는 동안 그 창에 온 키·IME·modifier, 그리고 그 뒤의 포인터 입력.
-    queued: Vec<WindowEvent>,
-    /// 줄 선 입력이 창에 처음 도착한 시각(`queued` 와 같은 순서).
-    queued_at: Vec<Instant>,
+    /// 기다리는 동안 그 창에 온 키·IME·modifier, 그리고 그 뒤의 포인터 입력(debug 주입 포함).
+    queued: Vec<LineItem<WindowEvent>>,
     format_paste: bool,
     since: Instant,
 }
@@ -34,7 +34,16 @@ pub(super) struct PasteAwait {
 impl PasteAwait {
     /// 줄 선 입력 가운데 가장 먼저 창에 도착한 시각.
     pub(super) fn first_queued_at(&self) -> Option<Instant> {
-        self.queued_at.first().copied()
+        self.queued.iter().find_map(|item| match item {
+            LineItem::Event(_, at) => Some(*at),
+            #[cfg(debug_assertions)]
+            LineItem::Debug(_) => None,
+        })
+    }
+
+    /// 키·IME·modifier 는 줄을 서고, 포인터 입력은 이미 줄 선 입력이 있을 때만 그 뒤에 선다.
+    fn takes(&self, input: &impl HeldEvent) -> bool {
+        input.queues_behind_hold() || (input.is_pointer() && !self.queued.is_empty())
     }
 }
 
@@ -75,7 +84,6 @@ impl PluginEditHolds {
             tag,
             original,
             queued: Vec::new(),
-            queued_at: Vec::new(),
             format_paste,
             since: now,
         };
@@ -96,13 +104,29 @@ impl PluginEditHolds {
         at: Instant,
     ) -> Option<bool> {
         let waiting = self.awaits.get_mut(&window)?;
-        let queues =
-            event.queues_behind_hold() || (event.is_pointer() && !waiting.queued.is_empty());
+        let queues = waiting.takes(event);
         if queues {
-            waiting.queued.push(event.clone());
-            waiting.queued_at.push(at);
+            waiting.queued.push(LineItem::Event(event.clone(), at));
         }
         Some(queues)
+    }
+
+    /// [`Self::queue_behind_await`] 의 debug 주입. 줄을 섰으면 `Ok(None)`, 서지 않았으면 `Ok(Some)` 으로 그 주입을
+    /// 돌려준다. 기다림이 없으면 `Err` 로 그대로 돌려준다.
+    #[cfg(debug_assertions)]
+    pub(super) fn debug_behind_await(
+        &mut self,
+        window: WindowId,
+        input: DebugInput,
+    ) -> Result<Option<DebugInput>, DebugInput> {
+        let Some(waiting) = self.awaits.get_mut(&window) else {
+            return Err(input);
+        };
+        if !waiting.takes(&input) {
+            return Ok(Some(input));
+        }
+        waiting.queued.push(LineItem::Debug(input));
+        Ok(None)
     }
 
     /// 기다리는 창의 포인터 누름과 창 포커스 상실은 기다림을 끝낸다. 호스트는 대상 안의 입력칸 포커스를 볼 수 없어
@@ -228,7 +252,6 @@ impl PluginEditHolds {
             request,
             original,
             queued,
-            queued_at,
             ..
         } = waiting;
         let target = request.target;
@@ -244,8 +267,8 @@ impl PluginEditHolds {
         match original {
             Some(original) => {
                 let mut hold = EditKeyHold::new(original, EditKey::Paste, false);
-                for (event, at) in queued.into_iter().zip(queued_at) {
-                    hold.queue(event, at);
+                for item in queued {
+                    hold.queue_item(item);
                 }
                 self.holds.insert(
                     window,
@@ -265,7 +288,6 @@ impl PluginEditHolds {
                         steps: plugin_replay(Release {
                             replay: None,
                             queued,
-                            queued_at,
                         }),
                         edit: EditKey::Paste,
                         result: None,
@@ -316,7 +338,6 @@ fn end_await(
         tag,
         original,
         queued,
-        queued_at,
         ..
     } = waiting;
     tracing::debug!(
@@ -334,7 +355,6 @@ fn end_await(
             .filter(|_| replay)
             .map(|original| (original, EditKey::Paste)),
         queued,
-        queued_at,
     };
     out.resolved.push(ResolvedPluginEdit {
         window,

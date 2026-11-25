@@ -254,27 +254,29 @@ fn every_main_window_pass_opens_and_closes_through_one_function() {
     );
 }
 
-/// debug 키 주입: 메인 창 입구가 `inject_key`(끊기 → 넣기)로 키를 넣는다. 포인터(`press_focus`)·글자(`key_focus`)
-/// 주입과 진입 순서가 같다. `inject_key` 의 동작은 `adapters::ui::popup::route::tests::pass_focus` 가 그 함수를 직접
-/// 불러 잰다.
+/// debug 키 주입: 메인 창 입구가 App 의 주입 입구(`App::enter_debug_input`, 보류 줄 검사 뒤 `MainView::enter_debug_input`)를
+/// 거쳐 `inject_key`(끊기 → 넣기)로 키를 넣는다. 포인터(`press_focus`)·글자(`key_focus`) 주입과 진입 순서가 같다.
+/// `inject_key` 의 동작은 `adapters::ui::popup::route::tests::pass_focus` 가 그 함수를 직접 불러 잰다.
 #[test]
 fn a_debug_key_injection_cuts_the_segment_before_the_key() {
     let src = read("src/app/ipc/window_required.rs");
-    let code = squeeze(&src);
-    let at_key = code
-        .find("ifcmd.request.method==\"debug.inject_egui_key\"{")
-        .expect("debug.inject_egui_key 입구");
-    let branch = &code[at_key..];
-    let branch = &branch[..branch.find("returnIpcStep::Handled;").expect("입구 끝")];
-    at(branch, "egui_key_body_with(", "키 본문");
+    let code = squeeze(&fn_body(&src, "fn ipc_main_egui_injection(").expect("메인 창 egui 주입"));
     at(
-        branch,
-        "crate::view::main::debug_input::inject_key(&mutw.state,&read,&mutw.base.gpu,key,pressed,modifiers,)",
-        "끊고 넣는 주입",
+        &code,
+        "\"debug.inject_egui_key\"=>matchsuper::debug_egui_key::key_input(params){",
+        "키 요청 읽기",
     );
-    assert!(
-        !branch.contains("egui_key_body("),
-        "끊지 않고 넣는 본문을 쓴다"
+    at(
+        &code,
+        "letentered=self.enter_debug_input(focused_id,input)?;",
+        "App 주입 입구",
+    );
+    let input = read("src/view/main/debug_input.rs");
+    let entry = squeeze(&fn_body(&input, "fn enter_debug_input(").expect("메인 창 주입 입구"));
+    at(
+        &entry,
+        "DebugEntered::Key(inject_key(&mutself.state,engine,&mutself.base.gpu,&name,pressed,modifiers,))",
+        "끊고 넣는 주입",
     );
     let input = read("src/view/main/debug_input.rs");
     let inject = squeeze(&fn_body(&input, "fn inject_key<").expect("inject_key"));
@@ -590,24 +592,37 @@ fn a_window_id_injection_into_a_main_window_takes_the_main_window_entry() {
     );
 }
 
-/// debug 클립보드 주입: 메인 창(ID 생략·메인 창 ID)은 `inject_clipboard`(끊기 → 넣기)로 넣는다. 보조 창만 큐에 바로
-/// 넣는다. 동작은 `adapters::ui::popup::route::tests::key_transition` 의 붙여넣기 장면이 잰다.
+/// debug 클립보드 주입: 지목한 창(생략하면 포커스된 메인 창)의 App 주입 입구(`App::enter_debug_input`)로 넣는다. 메인
+/// 창은 `inject_clipboard`(끊기 → 넣기)로 넣고, 보조 창만 큐에 바로 넣는다(`window_input::enter_window_debug`). 동작은
+/// `adapters::ui::popup::route::tests::key_transition` 의 붙여넣기 장면이 잰다.
 #[test]
 fn a_debug_clipboard_injection_into_a_main_window_cuts_the_segment_first() {
     let src = squeeze(&read("src/app/ipc/debug_egui_clipboard.rs"));
-    let pick = at(
+    at(
         &src,
-        "ifletSome((window,wid))=main&&letSome((w,engine))=self.engines_mut().window_pair(window){crate::view::main::debug_input::inject_clipboard(&mutw.state,&engine.read(),&mutw.base.gpu,event,);",
-        "메인 창 진입",
+        ".enter_debug_input(window,DebugInput::Clipboard(event))",
+        "App 주입 입구",
     );
-    let direct = at(
-        &src,
-        "view.base_mut().gpu.debug_push_egui_events(vec![event]);",
-        "보조 창 직접 경로",
+    let entry = squeeze(&read("src/app/ipc/debug_input_entry.rs"));
+    let main = at(
+        &entry,
+        "letentered=w.enter_debug_input(&engine.read(),input);",
+        "메인 창 입구",
     );
-    assert!(
-        pick < direct,
-        "메인 창을 보조 창 직접 경로보다 먼저 고르지 않는다"
+    let window = at(
+        &entry,
+        "crate::view::window_input::enter_window_debug(",
+        "보조 창 입구",
+    );
+    assert!(window < main, "메인 창이 아닌 창만 보조 창 입구로 간다");
+    at(&entry, "if!main{", "메인 창 판정");
+    let input_src = read("src/view/main/debug_input.rs");
+    let main_entry =
+        squeeze(&fn_body(&input_src, "fn enter_debug_input(").expect("메인 창 주입 입구"));
+    at(
+        &main_entry,
+        "DebugInput::Clipboard(event)=>{inject_clipboard(&mutself.state,engine,&mutself.base.gpu,event);",
+        "메인 창의 끊고 넣는 붙여넣기",
     );
     let input = read("src/view/main/debug_input.rs");
     let body = squeeze(&fn_body(&input, "fn inject_clipboard<").expect("inject_clipboard"));

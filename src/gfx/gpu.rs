@@ -932,13 +932,26 @@ impl GpuState {
 
     /// debug 전용: 다음 frame 의 egui 입력 큐에 합성 이벤트를 주입한다(egui-mesh popup
     /// 입력 forward 의 헤드리스 검증용). release 미노출 — 사용자 입력 재현은 debug 격리.
+    /// 보류 검사는 주입 입구 맨 앞([`Self::hold_debug_input`])이 이미 했다.
     #[cfg(debug_assertions)]
-    /// 창의 보류 줄이 열려 있으면 그 줄이 다 돈 뒤 패스 입력에 넣는다(`EditKeyState::hold_injection`).
     pub fn debug_push_egui_events(&mut self, events: Vec<egui::Event>) {
-        if let Some(events) = self.edit_keys.hold_injection(events) {
-            self.egui_state.egui_input_mut().events.extend(events);
-        }
+        self.egui_state.egui_input_mut().events.extend(events);
         self.egui_ctx.request_repaint();
+    }
+
+    /// debug 주입 입구 맨 앞의 보류 검사(`EditKeyState::hold_debug`). 창의 보류 줄이 열려 있으면 주입은 그 줄 끝에
+    /// 서고 `None` 이다. 창은 줄이 기다리는 입력을 받으려 다시 그린다.
+    #[cfg(debug_assertions)]
+    pub fn hold_debug_input(
+        &mut self,
+        window: &winit::window::Window,
+        input: crate::view::main::debug_input::DebugInput,
+    ) -> Option<crate::view::main::debug_input::DebugInput> {
+        let input = self.edit_keys.hold_debug(input);
+        if input.is_none() {
+            window.request_redraw();
+        }
+        input
     }
 
     /// debug 전용: egui 가 누른 것으로 보는 수식 키를 바꾼다. egui-winit 은 실제

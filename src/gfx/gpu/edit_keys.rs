@@ -9,7 +9,7 @@ use winit::event::{ElementState, WindowEvent};
 use winit::keyboard::{Key, ModifiersState, PhysicalKey};
 
 use crate::adapters::ui::input::edit_key::{
-    self, Capability, EditBindings, EditKey, EditKeyHold, Outcome, Release, Verdict,
+    self, Capability, EditBindings, EditKey, EditKeyHold, LineItem, Outcome, Release, Verdict,
 };
 
 /// A held edit in a window whose frames stopped (minimized or hidden) is taken back out of egui's
@@ -219,10 +219,6 @@ pub(crate) struct EditKeyState<E = WindowEvent> {
     hold: Option<HostHold<E>>,
     release: Option<(EditKeyOwner, Release<E>)>,
     settle: Option<SettleLine<E>>,
-    /// debug egui injections that came while the window's line was open. They go into egui's input
-    /// once the line has run, so they are not drawn before the events waiting ahead of them.
-    #[cfg(any(debug_assertions, test))]
-    held_injections: Vec<egui::Event>,
     /// The last frame's input moves focus only when the next pass begins (see [`defers_focus`]).
     /// Until that pass runs, the focus read between frames is not where an edit would go.
     focus_deferred: bool,
@@ -242,8 +238,6 @@ impl<E> Default for EditKeyState<E> {
             hold: None,
             release: None,
             settle: None,
-            #[cfg(any(debug_assertions, test))]
-            held_injections: Vec::new(),
             focus_deferred: false,
             cuts: 0,
             arrival: None,
@@ -326,7 +320,6 @@ impl<E: HeldEvent> EditKeyState<E> {
         let mut line = Release {
             replay: None,
             queued: Vec::new(),
-            queued_at: Vec::new(),
         };
         line.push(event.clone(), self.arrival());
         self.settle = Some(SettleLine {
@@ -482,7 +475,9 @@ impl<E: HeldEvent> EditKeyState<E> {
             if let Some(held) = self.hold.take() {
                 let mut release = held.hold.resolve(Outcome::NotActed);
                 if let Some((event, _)) = release.replay.take() {
-                    release.queued.insert(0, event);
+                    release
+                        .queued
+                        .insert(0, LineItem::Event(event, Instant::now()));
                 }
                 self.add_release(held.owner, release);
             }
@@ -509,35 +504,35 @@ impl<E: HeldEvent> EditKeyState<E> {
         }
     }
 
-    /// A debug egui injection (key, text, clipboard) at the front of the window's input, like a
-    /// window event: while the line is open it waits behind it and `None` is returned; otherwise the
-    /// events go into egui's input now.
-    #[cfg(any(debug_assertions, test))]
-    pub(crate) fn hold_injection(&mut self, events: Vec<egui::Event>) -> Option<Vec<egui::Event>> {
-        if self.busy() {
-            self.held_injections.extend(events);
-            return None;
+    /// A debug input injection at the front of the window's input, like a window event: while the
+    /// line is open it takes its place at the end of that line and `None` is returned; otherwise it
+    /// comes back to run now. Its replay runs it through the window's injection entry again.
+    #[cfg(debug_assertions)]
+    pub(crate) fn hold_debug(
+        &mut self,
+        input: crate::view::main::debug_input::DebugInput,
+    ) -> Option<crate::view::main::debug_input::DebugInput> {
+        if !self.busy() {
+            return Some(input);
         }
-        Some(events)
-    }
-
-    /// The injections held behind the line, once it has run (nothing while it is still open).
-    #[cfg(any(debug_assertions, test))]
-    pub(crate) fn take_injections(&mut self) -> Vec<egui::Event> {
-        if self.busy() {
-            return Vec::new();
-        }
-        std::mem::take(&mut self.held_injections)
+        self.queue_item(LineItem::Debug(input));
+        None
     }
 
     fn queue(&mut self, event: E) {
         let at = self.arrival();
+        self.queue_item(LineItem::Event(event, at));
+    }
+
+    /// Puts `item` at the end of the open line: the held key's, else the settle line, else the
+    /// release still waiting for its owner.
+    fn queue_item(&mut self, item: LineItem<E>) {
         if let Some(held) = self.hold.as_mut() {
-            held.hold.queue(event, at);
+            held.hold.queue_item(item);
         } else if let Some(settle) = self.settle.as_mut() {
-            settle.line.push(event, at);
+            settle.line.push_item(item);
         } else if let Some((_, release)) = self.release.as_mut() {
-            release.push(event, at);
+            release.push_item(item);
         }
     }
 
@@ -734,8 +729,8 @@ impl<E: HeldEvent> EditKeyState<E> {
                 if let Some((event, _)) = replay {
                     earlier.push(event, Instant::now());
                 }
-                for (event, at) in queued {
-                    earlier.push(event, at);
+                for item in queued {
+                    earlier.push_item(item);
                 }
             }
             None => self.release = Some((owner, release)),
@@ -893,11 +888,24 @@ impl super::GpuState {
         let Some(release) = self.edit_keys.take_release(EditKeyOwner::EguiOnly) else {
             return;
         };
-        if let Some((event, _)) = release.replay {
+        let (replay, queued) = release.split();
+        if let Some((event, _)) = replay {
             self.handle_egui_event(window, &event);
         }
-        for event in release.queued {
-            self.handle_egui_event_with_edit_keys(window, &event);
+        for item in queued {
+            match item {
+                LineItem::Event(event, _) => {
+                    self.handle_egui_event_with_edit_keys(window, &event);
+                }
+                // A window with no view has no debug injection entry, so its line holds none.
+                #[cfg(debug_assertions)]
+                LineItem::Debug(input) => {
+                    tracing::warn!(
+                        ?input,
+                        "a debug input waited in a window with no entry for it"
+                    );
+                }
+            }
         }
     }
 
@@ -974,22 +982,33 @@ pub(crate) fn frames_stopped(window: &winit::window::Window) -> bool {
     window.is_minimized() == Some(true) || window.is_visible() == Some(false)
 }
 
-/// Runs a finished hold's events through a window's own event handling, in order: the released key
-/// once, marked with the edit it was judged for, then the queued events unmarked (judged again)
-/// with their arrival times.
+/// One step of a finished hold's replay through a window's own event handling.
+pub(crate) enum Replayed<E> {
+    /// A window event: the released key once, marked with the edit it was judged for (no arrival
+    /// time), or a queued event unmarked (judged again) with its arrival time.
+    Event(E, Option<EditKey>, Option<Instant>),
+    /// A queued debug injection. It runs through the window's injection entry again.
+    #[cfg(debug_assertions)]
+    Debug(crate::view::main::debug_input::DebugInput),
+}
+
+/// Runs a finished hold's line through a window's own event handling, in order: the released key
+/// once, then the queued input in the order it came.
 /// Stops at the first result `done` accepts (the window closed) and returns it.
 pub(crate) fn replay_release<E, A>(
     release: Release<E>,
     done: impl Fn(&A) -> bool,
-    mut handle: impl FnMut(E, Option<EditKey>, Option<Instant>) -> A,
+    mut handle: impl FnMut(Replayed<E>) -> A,
 ) -> Option<A> {
     let (replay, queued) = release.split();
-    let replay = replay.map(|(event, edit)| (event, Some(edit), None));
-    let queued = queued
-        .into_iter()
-        .map(|(event, at)| (event, None, Some(at)));
-    for (event, judged, at) in replay.into_iter().chain(queued) {
-        let result = handle(event, judged, at);
+    let replay = replay.map(|(event, edit)| Replayed::Event(event, Some(edit), None));
+    let queued = queued.into_iter().map(|item| match item {
+        LineItem::Event(event, at) => Replayed::Event(event, None, Some(at)),
+        #[cfg(debug_assertions)]
+        LineItem::Debug(input) => Replayed::Debug(input),
+    });
+    for step in replay.into_iter().chain(queued) {
+        let result = handle(step);
         if done(&result) {
             return Some(result);
         }

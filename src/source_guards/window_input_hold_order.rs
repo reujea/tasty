@@ -83,3 +83,57 @@ fn a_separate_window_key_after_unsettled_input_waits() {
         "별도 창의 줄",
     );
 }
+
+/// debug 주입: 보류 줄 검사가 주입 입구 맨 앞 한 자리이고 winit 사건과 같은 두 줄(plugin 편집 보류 줄, 창의 보류 줄)을
+/// 같은 순서로 본다. 줄 순서와 재생 규칙은 `gfx::gpu::edit_keys` 의 `a_debug_input_takes_its_place_in_the_hold_line` 이
+/// 상태로 잰다. 줄 선 주입은 재생 때 같은 입구로 다시 간다.
+#[test]
+fn a_debug_injection_takes_the_window_hold_lines_first() {
+    let entry = body("src/app/ipc/debug_input_entry.rs", "fn enter_debug_input(");
+    let plugin = at(
+        &entry,
+        "let Some(input) = self.plugin_edit_holds.queue_debug(id, input) else { return Some(DebugEntered::Held); };",
+        "plugin 편집 보류 줄",
+    );
+    let window = at(
+        &entry,
+        "let Some(input) = w.base.gpu.hold_debug_input(&w.base.winit, input) else {",
+        "메인 창의 줄",
+    );
+    let run = at(
+        &entry,
+        "w.enter_debug_input(&engine.read(), input)",
+        "메인 창 주입",
+    );
+    assert!(
+        plugin < window && window < run,
+        "보류 검사가 주입 앞 한 자리가 아니다"
+    );
+    let separate = body(
+        "src/view/window_input.rs",
+        "pub(crate) fn enter_window_debug<",
+    );
+    let hold = at(
+        &separate,
+        "let Some(input) = base.gpu.hold_debug_input(&base.winit, input) else {",
+        "별도 창의 줄",
+    );
+    let key = at(
+        &separate,
+        "inject_window_key(&ctx, popups, gpu, &name, pressed, modifiers)",
+        "별도 창 키",
+    );
+    assert!(hold < key, "별도 창 보류 검사가 주입보다 뒤다");
+    let replay = body("src/app/edit_key_replay.rs", "fn replay_edit_steps(");
+    at(
+        &replay,
+        "ReplayStep::Debug(input) => { let _ = self.enter_debug_input(id, input); }",
+        "메인 창 재생",
+    );
+    let window_replay = body("src/view/mod.rs", "fn replay_edit_keys<");
+    at(
+        &window_replay,
+        "Replayed::Debug(input) => { let _ = window_input::enter_window_debug(view, input); ViewAction::None }",
+        "별도 창 재생",
+    );
+}

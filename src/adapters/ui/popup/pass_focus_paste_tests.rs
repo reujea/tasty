@@ -569,7 +569,7 @@ fn assert_pasted_once(s: &mut FindScene, last: &Seen) {
         "실행한 편집은 원래 키를 재생하지 않는다"
     );
     assert_eq!(
-        done.queued,
+        done.queued_events(),
         [ev("k")],
         "보류 뒤에 선 키는 순서대로 돌아온다"
     );

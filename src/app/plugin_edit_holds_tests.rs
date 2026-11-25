@@ -72,6 +72,7 @@ fn queued(item: &ResolvedPluginEdit) -> Vec<WindowEvent> {
         .filter_map(|step| match step {
             ReplayStep::Original(..) => None,
             ReplayStep::Input(event, _) => Some(event.clone()),
+            ReplayStep::Debug(input) => panic!("이 줄에는 debug 주입이 없다: {input:?}"),
         })
         .collect()
 }

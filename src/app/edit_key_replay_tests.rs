@@ -11,11 +11,7 @@ static START: std::sync::LazyLock<Instant> = std::sync::LazyLock::new(Instant::n
 
 fn release(queued: Vec<u32>) -> Release<u32> {
     let queued_at = queued.iter().map(|n| arrived(*n)).collect();
-    Release {
-        replay: Some((0, EditKey::Copy)),
-        queued,
-        queued_at,
-    }
+    Release::of_events(Some((0, EditKey::Copy)), queued, queued_at)
 }
 
 /// 줄 선 입력은 창 입력 맨 앞의 보류 검사에서 붙잡혔으므로 그 자리부터 다시 거친다(플러그인 단축키 단계 포함). 원래
@@ -36,11 +32,7 @@ fn input_queued_behind_a_plugin_hold_goes_through_plugin_shortcuts_again() {
 /// 처음부터 다시 거친다. 그 사건이 지나지 않은 출발 노드·plugin 단축키 단계를 건너뛰지 않는다.
 #[test]
 fn a_front_held_event_replays_from_the_window_input() {
-    let consumed = Release {
-        replay: None,
-        queued: vec![1],
-        queued_at: vec![arrived(1)],
-    };
+    let consumed = Release::of_events(None, vec![1], vec![arrived(1)]);
     assert_eq!(
         replay_steps(consumed),
         vec![ReplayStep::Input(1, arrived(1))]
@@ -50,11 +42,7 @@ fn a_front_held_event_replays_from_the_window_input() {
 /// 소비한 편집은 원래 키 없이 줄 선 입력만 재생한다.
 #[test]
 fn a_consumed_edit_replays_only_the_queued_input() {
-    let consumed = Release {
-        replay: None,
-        queued: vec![7],
-        queued_at: vec![arrived(7)],
-    };
+    let consumed = Release::of_events(None, vec![7], vec![arrived(7)]);
     assert_eq!(
         replay_steps(consumed),
         vec![ReplayStep::Input(7, arrived(7))]

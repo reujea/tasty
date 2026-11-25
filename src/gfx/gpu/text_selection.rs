@@ -171,12 +171,6 @@ impl GpuState {
     /// 입력 몫이 하나씩 쌓이므로, 나누기는 그것을 함께 꺼내는 공용 패스(`run_main_pass`·`run_window_pass`)만 한다.
     pub(super) fn take_pass_input(&mut self, window: &Window, main_pass: bool) -> egui::RawInput {
         self.edit_keys_before_input(window);
-        // 보류 줄 뒤에 미룬 debug 주입은 줄이 다 돈 뒤 이 패스 입력 끝에 들어간다.
-        #[cfg(debug_assertions)]
-        {
-            let held = self.edit_keys.take_injections();
-            self.egui_state.egui_input_mut().events.extend(held);
-        }
         let mut raw_input = self.egui_state.take_egui_input(window);
         let split = main_pass
             && self.egui_input_cuts.split_pass(

@@ -12,10 +12,84 @@ use winit::event::{ElementState, MouseButton, MouseScrollDelta};
 use super::MainView;
 
 /// 주입할 포인터 동작 종류.
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum InjectPointer {
     Move,
     Button { button: MouseButton, pressed: bool },
     Scroll { dx: f32, dy: f32, unit: ScrollUnit },
+}
+
+/// 창 입구를 지나는 debug egui 입력 주입 하나. 창의 보류 줄이 열려 있으면 winit 사건과 같은 줄에 도착한 순서대로
+/// 서고(`LineItem::Debug`), 줄이 풀리면 그 창의 주입 입구(`App::enter_debug_input`, 별도 창은
+/// `window_input::enter_window_debug`)를 다시 지난다. 끊기·수신자·결속·Esc 적용은 egui 입력에 싣는 그때 정한다.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum DebugInput {
+    /// egui 키 하나(`push_egui_key`). 수식키를 주면 그 창의 유지 수식키를 바꾼다.
+    Key {
+        name: String,
+        pressed: bool,
+        modifiers: Option<egui::Modifiers>,
+    },
+    /// 포인터 하나. 좌표는 `surface_id` 영역(없으면 창 전체)에 대한 정규화 좌표다.
+    Pointer {
+        fx: f32,
+        fy: f32,
+        surface_id: Option<u32>,
+        action: InjectPointer,
+        modifiers: Option<egui::Modifiers>,
+    },
+    /// 글자 하나(`push_egui_text`).
+    Text(String),
+    /// 붙여넣기·복사·잘라내기 하나.
+    Clipboard(egui::Event),
+}
+
+/// debug 주입 하나가 창 입구를 지난 결과.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum DebugEntered {
+    /// 창의 보류 줄에 섰다. 줄이 풀리면 같은 입구를 다시 지난다.
+    Held,
+    /// 키를 넣었다. `None` 은 매핑 불가 키라 아무것도 넣지 않았다.
+    Key(Option<PushedKey>),
+    /// 포인터·글자·붙여넣기를 넣었는지.
+    Done(bool),
+}
+
+impl DebugEntered {
+    /// IPC 응답 본문. 줄에 섰으면 `held: true` 이고 넣은 것은 줄이 풀릴 때 정한다.
+    pub(crate) fn body(self) -> serde_json::Value {
+        match self {
+            Self::Held => serde_json::json!({ "injected": true, "held": true }),
+            Self::Key(Some(pushed)) => {
+                serde_json::json!({ "injected": true, "pushed": pushed.name() })
+            }
+            Self::Key(None) => serde_json::json!({ "injected": false }),
+            Self::Done(injected) => serde_json::json!({ "injected": injected }),
+        }
+    }
+
+    /// 창에 무언가 실었거나 줄에 세웠다(창을 다시 그린다).
+    pub(crate) fn changed(self) -> bool {
+        !matches!(self, Self::Key(None) | Self::Done(false))
+    }
+}
+
+impl crate::gfx::gpu::edit_keys::HeldEvent for DebugInput {
+    fn press(&self) -> Option<(&winit::keyboard::Key, winit::keyboard::PhysicalKey)> {
+        None
+    }
+
+    fn queues_behind_hold(&self) -> bool {
+        !self.is_pointer()
+    }
+
+    fn is_pointer(&self) -> bool {
+        matches!(self, Self::Pointer { .. })
+    }
+
+    fn is_key(&self) -> bool {
+        !self.is_pointer()
+    }
 }
 
 /// 휠 단위. 장치별 변환 경로를 각각 확인할 수 있도록 줄·포인트·페이지를 구분한다.
@@ -167,6 +241,45 @@ impl MainView {
         }
         push_egui_pointer_at(&mut self.base.gpu, pos, action, modifiers);
         true
+    }
+
+    /// 보류 검사를 지난 debug 주입 하나를 메인 창 입구로 넣는다. 키는 `inject_key`, 포인터는
+    /// [`Self::debug_inject_egui_pointer`], 글자는 [`Self::debug_inject_egui_text`], 붙여넣기는 `inject_clipboard` 다.
+    pub(crate) fn enter_debug_input(
+        &mut self,
+        engine: &EngineRead<'_>,
+        input: DebugInput,
+    ) -> DebugEntered {
+        match input {
+            DebugInput::Key {
+                name,
+                pressed,
+                modifiers,
+            } => DebugEntered::Key(inject_key(
+                &mut self.state,
+                engine,
+                &mut self.base.gpu,
+                &name,
+                pressed,
+                modifiers,
+            )),
+            DebugInput::Pointer {
+                fx,
+                fy,
+                surface_id,
+                action,
+                modifiers,
+            } => DebugEntered::Done(
+                self.debug_inject_egui_pointer(engine, fx, fy, surface_id, action, modifiers),
+            ),
+            DebugInput::Text(text) => {
+                DebugEntered::Done(self.debug_inject_egui_text(engine, &text))
+            }
+            DebugInput::Clipboard(event) => {
+                inject_clipboard(&mut self.state, engine, &mut self.base.gpu, event);
+                DebugEntered::Done(true)
+            }
+        }
     }
 
     /// 문자열 전체를 한 egui Text 이벤트로 넣는다. 빈 값·제어문자 등 실입력에서
@@ -375,25 +488,35 @@ pub(crate) fn inject_clipboard<S: super::input_segment::EguiPressSink + EguiKeyS
     sink.push_events(vec![event]);
 }
 
-/// 창 종류와 관계없이 그 창의 egui 입력 큐에 키 하나를 실제 키가 egui에 닿는 모양으로 넣는다.
-/// `modifiers`를 주면 그 창의 유지 수식 키를 먼저 바꾸고, 이벤트에는 유지 수식 키를 싣는다.
-/// 매핑 불가 키면 아무것도 바꾸지 않고 `None`.
+/// 창 종류와 관계없이 그 창의 egui 입력 큐에 키 하나를 실제 키가 egui에 닿는 모양으로 넣는다
+/// ([`egui_key_load`] 의 사건을 넣는다). 매핑 불가 키면 아무것도 바꾸지 않고 `None`.
 pub(crate) fn push_egui_key(
     sink: &mut dyn EguiKeySink,
     key_name: &str,
     pressed: bool,
     modifiers: Option<egui::Modifiers>,
 ) -> Option<PushedKey> {
+    let (events, pushed) = egui_key_load(sink, key_name, pressed, modifiers)?;
+    if !events.is_empty() {
+        sink.push_events(events);
+    }
+    Some(pushed)
+}
+
+/// 키 하나가 그 창의 egui 입력 큐에 실을 사건. `modifiers`를 주면 그 창의 유지 수식 키를 먼저 바꾸고, 이벤트에는 유지
+/// 수식 키를 싣는다. 빈 클립보드의 붙여넣기는 실을 사건이 없다. 매핑 불가 키면 아무것도 바꾸지 않고 `None`.
+pub(crate) fn egui_key_load(
+    sink: &mut dyn EguiKeySink,
+    key_name: &str,
+    pressed: bool,
+    modifiers: Option<egui::Modifiers>,
+) -> Option<(Vec<egui::Event>, PushedKey)> {
     let key = egui::Key::from_name(key_name)?;
     if let Some(m) = modifiers {
         sink.hold_modifiers(m);
     }
     let held = sink.held_modifiers();
-    let (events, pushed) = key_events(key, pressed, held, || sink.clipboard_text());
-    if !events.is_empty() {
-        sink.push_events(events);
-    }
-    Some(pushed)
+    Some(key_events(key, pressed, held, || sink.clipboard_text()))
 }
 
 /// egui-winit 0.31.1 `State::on_keyboard_input`의 변환을 옮겨 적은 것. 눌린 편집 명령은

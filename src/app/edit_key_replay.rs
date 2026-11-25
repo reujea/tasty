@@ -8,7 +8,7 @@ use std::time::Instant;
 use winit::event::WindowEvent;
 use winit::window::WindowId;
 
-use crate::adapters::ui::input::edit_key::{EditBindings, EditKey, Release};
+use crate::adapters::ui::input::edit_key::{EditBindings, EditKey, LineItem, Release};
 use crate::app::App;
 use crate::app::window_access::engines_mut;
 
@@ -20,6 +20,9 @@ pub(crate) enum ReplayStep<E> {
     /// 창 입력 맨 앞의 보류 검사부터 다시 거친다([`App::route_window_input_at`]). 줄 선 입력은 모두 그 검사에서
     /// 붙잡혔다(플러그인 편집 보류 줄, 창의 편집·정착 보류 줄). 시각은 처음 도착한 때다.
     Input(E, Instant),
+    /// 줄 선 debug 주입. 그 창의 주입 입구 맨 앞의 보류 검사부터 다시 거친다([`App::enter_debug_input`]).
+    #[cfg(debug_assertions)]
+    Debug(crate::view::main::debug_input::DebugInput),
 }
 
 /// 풀린 보류의 재생 순서. 원래 키가 먼저이고, 줄 선 입력은 받은 순서대로 창 입력 처음부터 다시 거친다. 재생 중 새
@@ -28,9 +31,11 @@ pub(crate) enum ReplayStep<E> {
 pub(crate) fn replay_steps<E>(release: Release<E>) -> Vec<ReplayStep<E>> {
     let (replay, queued) = release.split();
     let original = replay.map(|(event, edit)| ReplayStep::Original(event, edit));
-    let queued = queued
-        .into_iter()
-        .map(|(event, at)| ReplayStep::Input(event, at));
+    let queued = queued.into_iter().map(|item| match item {
+        LineItem::Event(event, at) => ReplayStep::Input(event, at),
+        #[cfg(debug_assertions)]
+        LineItem::Debug(input) => ReplayStep::Debug(input),
+    });
     original.into_iter().chain(queued).collect()
 }
 
@@ -79,6 +84,11 @@ impl App {
                     self.set_edit_replay(id, None);
                 }
                 ReplayStep::Input(event, at) => self.route_window_input_at(id, event, at),
+                #[cfg(debug_assertions)]
+                ReplayStep::Debug(input) => {
+                    // 재생에는 IPC 응답이 없다. 줄에 다시 섰는지·넣은 것은 그 주입 입구가 처리했다.
+                    let _ = self.enter_debug_input(id, input);
+                }
             }
         }
     }
