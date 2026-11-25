@@ -7,6 +7,8 @@ mod footer;
 mod indicator;
 mod path_bar;
 mod path_fit;
+#[cfg(test)]
+mod states_tests;
 
 pub use folder::draw_folder_mode;
 
@@ -362,23 +364,32 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
+/// 상태 표본의 카드 — 묶음 이름과 변형. 표본과 시험이 함께 읽는다.
+const STATE_CARDS: [(&str, Variant); 5] = [
+    (
+        "loading (remote)",
+        Variant::open(FpState::Loading, true, false),
+    ),
+    ("empty folder", Variant::open(FpState::Empty, false, false)),
+    (
+        "permission denied (local)",
+        Variant::open(FpState::ErrorPerm, false, false),
+    ),
+    (
+        "connection lost (remote)",
+        Variant::open(FpState::ErrorConn, true, false),
+    ),
+    (
+        "multi-select (remote)",
+        Variant::open(FpState::Loaded, true, true),
+    ),
+];
+
 pub fn draw_states(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
-        spec::cluster(ui, theme, "loading (remote)", |ui| {
-            card(ui, theme, Variant::open(FpState::Loading, true, false));
-        });
-        spec::cluster(ui, theme, "empty folder", |ui| {
-            card(ui, theme, Variant::open(FpState::Empty, false, false));
-        });
-        spec::cluster(ui, theme, "permission denied (local)", |ui| {
-            card(ui, theme, Variant::open(FpState::ErrorPerm, false, false));
-        });
-        spec::cluster(ui, theme, "connection lost (remote)", |ui| {
-            card(ui, theme, Variant::open(FpState::ErrorConn, true, false));
-        });
-        spec::cluster(ui, theme, "multi-select (remote)", |ui| {
-            card(ui, theme, Variant::open(FpState::Loaded, true, true));
-        });
+        for (label, v) in STATE_CARDS {
+            spec::cluster(ui, theme, label, |ui| card(ui, theme, v));
+        }
     });
     indicator::draw_no_profile_states_view(ui, theme);
 
