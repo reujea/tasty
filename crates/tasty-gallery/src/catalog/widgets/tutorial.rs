@@ -829,3 +829,6 @@ pub fn draw_composite(ui: &mut egui::Ui, theme: &Theme) {
     });
     spec::note(ui, theme, COMPOSITE_NOTE);
 }
+
+#[cfg(test)]
+mod tests;
