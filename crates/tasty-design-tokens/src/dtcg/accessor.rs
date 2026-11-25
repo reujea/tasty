@@ -797,18 +797,38 @@ fn emit_dim_accessor(set: &TokenSet, token: &Token, acc: &DimAccessor) -> String
         }
         DimAccessor::RawZoom(v) => format!("LogicalPx(({v:?} * self.ui_zoom).round())"),
         DimAccessor::Calc(parts, _) => {
-            let sum: Vec<String> = parts
-                .iter()
-                .map(|(coef, expr)| format!("{expr}.value() * {coef:?}"))
-                .collect();
+            // 음수 계수는 부호를 연산자로 뺀다. `x * -1.0` 은 clippy neg_multiply 에 걸린다.
+            let term = |coef: f32, expr: &str| {
+                if coef == -1.0 {
+                    format!("{expr}.value()")
+                } else {
+                    format!("{expr}.value() * {:?}", coef.abs())
+                }
+            };
+            let join = |sep_plus: &str, sep_minus: &str| {
+                let mut out = String::new();
+                for (i, (coef, expr)) in parts.iter().enumerate() {
+                    let body = term(*coef, expr);
+                    match (i, *coef < 0.0) {
+                        (0, true) => out.push_str(&format!("-{body}")),
+                        (0, false) => out.push_str(&body),
+                        (_, true) => out.push_str(&format!("{sep_minus}{body}")),
+                        (_, false) => out.push_str(&format!("{sep_plus}{body}")),
+                    }
+                }
+                out
+            };
             // 생성 파일도 rustfmt 대상이라 freshness 비교가 깨지지 않게 rustfmt 의 줄바꿈을 따른다.
-            let one_line = format!("LogicalPx({})", sum.join(" + "));
+            let flat = join(" + ", " - ");
+            let one_line = format!("LogicalPx({flat})");
             if 8 + one_line.len() <= 100 {
                 one_line
+            } else if 12 + flat.len() < 100 {
+                format!("LogicalPx(\n            {flat},\n        )")
             } else {
                 format!(
                     "LogicalPx(\n            {},\n        )",
-                    sum.join("\n                + ")
+                    join("\n                + ", "\n                - ")
                 )
             }
         }

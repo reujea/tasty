@@ -71,3 +71,16 @@ fn an_unsupported_calc_is_skipped_not_guessed() {
         );
     }
 }
+
+#[test]
+fn a_negative_calc_term_is_subtracted_not_multiplied_by_minus_one() {
+    let (file, _) = accessors(
+        r#""box-pad": { "$type": "dimension", "$value": "calc(var(--tasty-space-sm) + -1 * var(--tasty-border-width))" }"#,
+    );
+    // `x * -1.0` 은 clippy neg_multiply 에 걸려 생성 파일이 -D warnings 를 통과하지 못한다.
+    assert!(
+        file.contains("LogicalPx(self.spacing_sm.value() * 1.0 - self.border_width.value())"),
+        "{file}"
+    );
+    assert!(!file.contains("* -1.0"), "{file}");
+}
