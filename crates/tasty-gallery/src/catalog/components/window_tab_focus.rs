@@ -98,7 +98,7 @@ fn frames() -> [(&'static str, FocusLook, Frame); 8] {
             super::remote::passkeys_frame,
         ),
         (
-            "remote · tab next to the selected one",
+            "remote · tab next to the open one",
             FocusLook::RemoteTab(2),
             super::remote::attach_form_frame,
         ),
