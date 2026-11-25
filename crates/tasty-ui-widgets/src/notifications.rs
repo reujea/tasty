@@ -102,9 +102,9 @@ fn counts(rows: &[NotificationRow<'_>]) -> [usize; 3] {
 }
 
 // The design caps the displayed count, not the stored or accessible count.
-fn count_label(count: usize) -> String {
-    if count > 99 {
-        "99+".into()
+pub(crate) fn count_label(count: usize) -> String {
+    if count > crate::attention::COUNT_DISPLAY_MAX {
+        format!("{}+", crate::attention::COUNT_DISPLAY_MAX)
     } else {
         count.to_string()
     }

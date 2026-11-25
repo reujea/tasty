@@ -63,10 +63,15 @@ pub fn occupancy_edge_stroke(theme: &Theme, hard: bool) -> egui::Stroke {
     egui::Stroke::new(theme.surface_occupied_border_width().value(), color)
 }
 
-/// 워크스페이스 행 개수 배지의 글자. 99를 넘으면 99+로 줄인다.
+/// 개수를 숫자로 보이는 상한(`semantic.count-display-max`). 워크스페이스 배지·실행 중 개수·
+/// 알림 배지가 이 값 하나를 따른다.
+pub(crate) const COUNT_DISPLAY_MAX: usize =
+    tasty_design_tokens::generated::semantic::COUNT_DISPLAY_MAX as usize;
+
+/// 워크스페이스 행 개수 배지의 글자. 상한을 넘으면 `상한+`(99+)로 줄인다.
 pub fn attention_count_label(count: usize) -> String {
-    if count > 99 {
-        "99+".to_string()
+    if count > COUNT_DISPLAY_MAX {
+        format!("{COUNT_DISPLAY_MAX}+")
     } else {
         count.to_string()
     }
@@ -188,6 +193,56 @@ mod tests {
     fn counts_over_two_digits_collapse() {
         assert_eq!(attention_count_label(99), "99");
         assert_eq!(attention_count_label(100), "99+");
+    }
+
+    #[test]
+    fn every_count_notation_follows_the_design_maximum() {
+        let max = tasty_design_tokens::generated::semantic::COUNT_DISPLAY_MAX as usize;
+        let over = format!("{max}+");
+        assert_eq!(attention_count_label(max), max.to_string());
+        assert_eq!(attention_count_label(max + 1), over);
+        assert_eq!(crate::notifications::count_label(max), max.to_string());
+        assert_eq!(crate::notifications::count_label(max + 1), over);
+        assert_eq!(
+            crate::running_count::running_count_label(max + 1).as_deref(),
+            Some(over.as_str())
+        );
+    }
+
+    /// 값만 보는 시험은 상한이 99인 동안 리터럴 99로 되돌린 코드도 통과시킨다. 그래서 두 함수의
+    /// 본문이 리터럴 대신 상수를 읽는지 소스에서 본다. 실행 중 개수는 attention_count_label을 부른다.
+    #[test]
+    fn the_count_labels_read_the_display_max_instead_of_a_literal() {
+        fn body<'a>(src: &'a str, head: &str) -> &'a str {
+            let start = src.find(head).unwrap_or_else(|| panic!("{head} not found"));
+            let rest = &src[start..];
+            let end = rest
+                .find("\n}\n")
+                .unwrap_or_else(|| panic!("{head} has no end"));
+            &rest[..end]
+        }
+        for (file, src, head) in [
+            (
+                "attention.rs",
+                include_str!("attention.rs"),
+                "pub fn attention_count_label(",
+            ),
+            (
+                "notifications.rs",
+                include_str!("notifications.rs"),
+                "pub(crate) fn count_label(",
+            ),
+        ] {
+            let body = body(src, head);
+            assert!(
+                body.contains("COUNT_DISPLAY_MAX"),
+                "{file} {head} must read COUNT_DISPLAY_MAX:\n{body}"
+            );
+            assert!(
+                !body.contains("99"),
+                "{file} {head} must not compare against a literal:\n{body}"
+            );
+        }
     }
 
     #[test]
