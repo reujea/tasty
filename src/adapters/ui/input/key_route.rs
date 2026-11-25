@@ -190,6 +190,9 @@ pub(crate) struct Routed {
     pub(crate) receiver: KeyReceiver,
     /// 경로에 있는 노드의 level. level 필터가 이 집합으로 후보를 고른다.
     pub(crate) levels: PathLevels,
+    /// 수식키 없는 Esc 라 Esc 규칙(`route_escape`)으로 정한 수신자다. 그 Esc 는 수신자의 Esc 처리(선언·접기·단축키)로
+    /// 가고 편집 바인딩과 겹쳐도 편집 대상이 아니다(`edit_target`).
+    pub(crate) escape: bool,
 }
 
 /// 키 하나의 수신자. `path`는 출발 노드부터 engine 앞까지의 노드, `matching`은 이 키에 맞는 host 단축키
@@ -228,7 +231,8 @@ pub(crate) fn route_key(
             }
         }
     };
-    let receiver = if key.bare_escape() {
+    let escape = key.bare_escape();
+    let receiver = if escape {
         route_escape(path, &shortcut, end)
     } else {
         match path.first() {
@@ -268,7 +272,11 @@ pub(crate) fn route_key(
             }
         }
     };
-    Routed { receiver, levels }
+    Routed {
+        receiver,
+        levels,
+        escape,
+    }
 }
 
 /// 출발 노드의 내용·표시 단계·선언(노드 키맵, 소비 집합, 무대 종료 키)이 이 키를 쓰는지. `Text` 명령 키의

@@ -12,6 +12,7 @@ use super::ui::View;
 use super::window_input::{bind_window_input, incoming_of, settle_window_input, window_key_of};
 use crate::adapters::ui::input::edit_key::EditKey;
 use crate::adapters::ui::popup::PopupManager;
+use crate::adapters::ui::popup::frame_keys::Incoming;
 
 /// 별도 창의 GPU 와 팝업 관리자. 관리자가 없는 창(종료 확인)은 `None` 이고 노드는 창 위젯 하나다.
 pub(crate) type WindowInputOf<V> =
@@ -67,9 +68,12 @@ pub(crate) fn judged_window_event<V: View>(
         judged,
         to_egui,
         |view, event, judged| {
+            // 수식키 없는 Esc 는 편집 바인딩과 겹쳐도 수신자의 Esc 처리로 간다(메인 창 `Routed::escape` 와 같다).
+            let mods = view.base_mut().state.modifiers;
+            let edit_target = incoming_of(event, mods) != Some(Incoming::Escape);
             let base = view.base_mut();
             base.gpu
-                .handle_egui_event_for_window(&base.winit, event, judged)
+                .handle_egui_event_for_window(&base.winit, event, judged, edit_target)
         },
         |view| view.mark_dirty(),
         own,

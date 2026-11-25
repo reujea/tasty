@@ -139,6 +139,7 @@ fn settings_latch_decision() -> KeyDecision {
     KeyDecision::Path(Routed {
         receiver: KeyReceiver::SettingsRequest,
         levels: super::key_level::PathLevels::engine_only(),
+        escape: false,
     })
 }
 

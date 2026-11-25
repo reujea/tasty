@@ -841,15 +841,19 @@ impl super::GpuState {
     /// quit, preset, plugins). `None` when the judgment took the event: the window skips its own
     /// handling as well and gets the event back from [`Self::take_edit_release`], to run through
     /// [`replay_release`]. `replayed` marks that released key, already judged, which goes on as is.
+    /// `edit_target` is false for a key that is no edit's target (a bare Escape goes to its
+    /// receiver's Escape handling): it reaches egui-winit unjudged.
     pub fn handle_egui_event_for_window(
         &mut self,
         window: &winit::window::Window,
         event: &WindowEvent,
         replayed: Option<EditKey>,
+        edit_target: bool,
     ) -> Option<(bool, bool)> {
         let judged = match replayed {
             Some(edit) => EguiKey::Pass(edit),
-            None => self.judge_egui_key(window, event, EditKeyOwner::Window),
+            None if edit_target => self.judge_egui_key(window, event, EditKeyOwner::Window),
+            None => EguiKey::Free,
         };
         match judged {
             EguiKey::Taken => {

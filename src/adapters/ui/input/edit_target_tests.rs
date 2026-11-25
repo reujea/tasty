@@ -153,6 +153,47 @@ fn an_edit_binding_on_a_text_popup_edits_it() {
     assert!(host_target(&state, decision));
 }
 
+/// Given 복사를 수식키 없는 Esc 에 묶고 `Text` 팝업(검색 띠)이 포커스, When Esc 를 누르면, Then 수신자는 Esc 선언대로
+/// 그 팝업이고 단계 6 host 편집 대상이 아니다(Esc 는 편집으로 끝나지 않고 팝업 Esc 처리에 간다).
+#[test]
+fn a_bare_escape_bound_to_an_edit_goes_to_the_escape_handling() {
+    let (mut state, mut session) = scene();
+    bind(&mut session, "copy", "escape");
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let iid = open_text_popup(&mut state, &read);
+    let decision = decide(
+        &state,
+        &read,
+        (Key::Named(NamedKey::Escape), KeyCode::Escape),
+        ModifiersState::empty(),
+    );
+    assert_eq!(receiver(decision), KeyReceiver::Popup(iid));
+    assert!(!host_target(&state, decision));
+}
+
+/// Given 복사를 Esc 에 묶고 `Text` plugin 팝업이 포커스, When Esc 를 누르면, Then 그 팝업이 Esc 수신자이지만 편집 요청
+/// 대상은 아니다.
+#[test]
+fn a_bare_escape_bound_to_an_edit_sends_no_plugin_popup_edit() {
+    let (mut state, mut session) = scene();
+    bind(&mut session, "copy", "escape");
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    place_plugin_popup(&mut state, 42, PopupKeyboard::Text);
+    let decision = decide(
+        &state,
+        &read,
+        (Key::Named(NamedKey::Escape), KeyCode::Escape),
+        ModifiersState::empty(),
+    );
+    assert_eq!(receiver(decision), KeyReceiver::PluginPopup(42));
+    assert_eq!(
+        plugin_popup_edit_target(decision, state.plugin_popup_key_target()),
+        None
+    );
+}
+
 /// `Keys` plugin 팝업 포커스의 편집 키는 그 팝업에 편집 요청을 보내지 않는다(키 주인이어도 수신자가 아니다).
 #[test]
 fn an_edit_key_on_a_keys_plugin_popup_sends_no_edit_request() {

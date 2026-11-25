@@ -150,7 +150,7 @@ fn auxiliary_windows_go_through_the_judged_event_flow() {
     let flow: String = body("src/view/judged_event.rs", "fn judged_window_event<")
         .split_whitespace()
         .collect();
-    let call = "base.gpu.handle_egui_event_for_window(&base.winit,event,judged)";
+    let call = "base.gpu.handle_egui_event_for_window(&base.winit,event,judged,edit_target)";
     let after = flow
         .split(call)
         .nth(1)

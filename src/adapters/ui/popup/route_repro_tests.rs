@@ -523,6 +523,7 @@ fn a_press_on_the_left_field_moves_the_focus_node_and_the_next_letter_goes_there
                     SURFACE_L
                 ),
                 levels: crate::adapters::ui::input::key_level::PathLevels::all(),
+                escape: false,
             }
         ),
         "글자의 수신자는 L egui 화면이다(터미널로 가지 않는다)"
