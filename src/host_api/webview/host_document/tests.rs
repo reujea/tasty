@@ -544,3 +544,22 @@ fn an_unreadable_header_counts_only_while_the_retry_awaits_its_start() {
         docs.awaiting_start(2)
     ));
 }
+
+/// 탐색 ID를 읽지 못한 Reload는 보이는 문서의 주소라도 본문을 받지 못한다.
+#[test]
+fn a_reload_without_a_navigation_id_gets_no_body() {
+    let mut docs = HostDocuments::default();
+    let b = host_document_url(1, 1, 2);
+    docs.sent(2, b.clone(), body("b"));
+    assert_eq!(start(&mut docs, &b, 15), StartDecision::HostLoad);
+    assert_eq!(serve(&mut docs, &b).as_deref(), Some("b"));
+    docs.committed(Some(15), false);
+    assert!(!docs.navigation_completed(Some(15), true));
+    assert_eq!(
+        docs.navigation_started(&b, None, StartKind::Reload, false, None),
+        StartDecision::Cancel
+    );
+    assert!(serve(&mut docs, &b).is_none());
+    assert_eq!(reload(&mut docs, &b, 16), StartDecision::Reload);
+    assert_eq!(serve(&mut docs, &b).as_deref(), Some("b"));
+}

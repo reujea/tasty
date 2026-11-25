@@ -218,7 +218,7 @@ impl HostDocuments {
     /// 예약 주소는 둘만 받는다. 호스트가 보낸 다시 싣기(보낸 문서의 주소와 로드 번호 머리글이 맞고, 그 문서가
     /// 아직 어느 탐색에도 묶이지 않은 리다이렉트가 아닌 새 탐색. 그 탐색 ID에 묶는다)와 commit된 문서의
     /// Reload다. 머리글이 없는 탐색(페이지가 스스로 시작한 탐색)은 보낸 문서의 주소라도 받지 않는다. 탐색 ID를
-    /// 읽지 못한 시작은 묶을 수 없어 받지 않는다. 받지 않은(`Cancel`) 시작은 지금 main 탐색의 기록을 바꾸지
+    /// 읽지 못한 시작은 다시 싣기든 Reload든 묶을 수 없어 받지 않는다. 받지 않은(`Cancel`) 시작은 지금 main 탐색의 기록을 바꾸지
     /// 않는다. 호출자가 그 탐색을 시작 전에 취소한다.
     pub(super) fn navigation_started(
         &mut self,
@@ -250,7 +250,7 @@ impl HostDocuments {
                     entry.nav = Some(nav);
                     (entry.url.clone(), StartDecision::HostLoad)
                 }),
-            (false, StartKind::Reload) => self
+            (false, StartKind::Reload) if nav.is_some() => self
                 .entries
                 .iter()
                 .find(|e| e.shown && same_target(&e.url, uri))
