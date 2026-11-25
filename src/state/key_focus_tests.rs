@@ -641,3 +641,70 @@ fn the_window_focus_pass_refreshes_titles_on_selection_and_queues_key_focus_entr
         "keys came back without a selection change, drain included"
     );
 }
+
+/// 대응표: 무대·키를 가진 팝업·튜토리얼은 없음, 설정 요청은 안내와 무관하게 선택, 안내가 키를 가지면 없음, 주소 띠는
+/// 선택일 때만 그 surface, surface 노드는 그 값.
+#[test]
+fn the_key_focus_table_maps_each_focus_node() {
+    use super::key_focus_of;
+    use crate::adapters::ui::popup::focus::PopupNode;
+    use crate::state::focus_node::FocusNode;
+    let sel = Some(7);
+    for notice in [false, true] {
+        assert_eq!(key_focus_of(FocusNode::Stage, notice, sel), None, "stage");
+        assert_eq!(
+            key_focus_of(FocusNode::Popup(PopupNode::Plugin(3)), notice, sel),
+            None,
+            "popup"
+        );
+        assert_eq!(
+            key_focus_of(FocusNode::SettingsRequest, notice, sel),
+            sel,
+            "settings request"
+        );
+        assert_eq!(
+            key_focus_of(FocusNode::Tutorial, notice, sel),
+            None,
+            "tutorial"
+        );
+    }
+    assert_eq!(key_focus_of(FocusNode::HtmlAddress(7), false, sel), Some(7));
+    assert_eq!(key_focus_of(FocusNode::HtmlAddress(8), false, sel), None);
+    assert_eq!(key_focus_of(FocusNode::HtmlAddress(7), true, sel), None);
+    assert_eq!(
+        key_focus_of(FocusNode::Surface(Some(7)), false, sel),
+        Some(7)
+    );
+    assert_eq!(key_focus_of(FocusNode::Surface(Some(7)), true, sel), None);
+    assert_eq!(key_focus_of(FocusNode::Surface(None), false, None), None);
+}
+
+/// 키 포커스는 창의 포커스 노드를 읽는다. 키를 가진 팝업이 포커스 노드면 선택 surface가 그대로여도 키 포커스가 없다.
+#[test]
+fn key_focus_reads_the_window_focus_node_of_a_focused_popup() {
+    use crate::state::focus_node::FocusNode;
+    let (mut state, mut session, sid) = scene();
+    open_window_popup(&mut state);
+    state.normalize_focus(&session.borrow_mut().read());
+    assert!(matches!(
+        state.focus_node(&session.borrow_mut().read()),
+        FocusNode::Popup(_)
+    ));
+    assert_eq!(
+        state.focused_surface_id(&session.borrow_mut().read()),
+        Some(sid)
+    );
+    assert_eq!(key_focus(&state, &mut session), None);
+}
+
+/// 포커스 노드가 선택 surface면 키 포커스는 그 surface다.
+#[test]
+fn key_focus_of_a_surface_focus_node_is_that_surface() {
+    use crate::state::focus_node::FocusNode;
+    let (state, mut session, sid) = scene();
+    assert_eq!(
+        state.focus_node(&session.borrow_mut().read()),
+        FocusNode::Surface(Some(sid))
+    );
+    assert_eq!(key_focus(&state, &mut session), Some(sid));
+}

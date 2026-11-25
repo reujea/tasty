@@ -1,12 +1,14 @@
 //! host 키 포커스가 들어 있는 surface와 프레임마다 그 값을 한 번 정해 둔 칸. 칠하기(바탕·띠·커서·검색 잉크),
 //! 강조 해제·soft 점유 정리, mesh에 보내는 focused 값, plugin `surface.focused`가 모두 이 판정 하나를 읽는다.
 //! 선택(`focused_surface_id`)만으로는 focused가 아니다. 계약은 `docs/design/policies/focus.md`의
-//! "Surface 포커스 표현" 절에 있다. 입력용 판정(`pass_key_node`, 팝업 키 주인)은 이 모듈을 읽지 않는다.
+//! "Surface 포커스 표현" 절에 있다. 판정은 창의 포커스 노드(`focus_node`, 정규화는 `normalize_focus` 한 곳)를 surface로
+//! 옮기는 대응표다. 순서를 따로 다시 판정하지 않는다. 입력용 판정(`pass_key_node`, 팝업 키 주인)은 이 모듈을 읽지 않는다.
 //!
 //! 한 프레임의 소비자는 그 프레임 첫머리에 채운 값(`frame_key_focus`)을 읽는다. 그리기 중 포커스가 바뀌면
 //! 프레임 끝에 다음 프레임을 요청해 모든 소비자가 함께 바뀐다. GPU 제출이 성공한 프레임의 값은 따로 남겨
 //! (`shown_*`) 그 프레임을 따라야 하는 바깥 소비자(WebView 바탕, plugin 이벤트)가 읽는다.
 
+use super::focus_node::FocusNode;
 use crate::core::CoreState;
 use crate::runtime::engine_read::EngineRead;
 
@@ -27,25 +29,14 @@ pub(crate) struct KeyFocusFrames {
 
 impl super::MainViewState {
     /// host 키 포커스가 들어 있는 surface. 선택 surface의 본문이나 그 surface의 주소 띠에 키가 있을 때만 값이 있다.
-    /// 무대·키를 가진 팝업·복원 안내 안쪽 컨트롤·튜토리얼 말풍선이 키를 가지면 없다. 순서는 [`Self::focus_node`]와
-    /// 같고, 설정 창 열기 요청은 다른 OS 창으로 가는 중이라 선택 surface를 그대로 둔다. 복원 안내는 키 경로가
-    /// 안내로 키를 보내는 판정(`restore_notice::has_keyboard_focus`)을 그대로 읽는다. 안내가 열리기만 하고 키를
-    /// 가져가지 않으면 선택 surface다.
+    /// 창의 포커스 노드(`focus_node`)와 복원 안내 안쪽 포커스(`restore_notice::has_keyboard_focus`, 키 경로가 안내로
+    /// 키를 보내는 판정)를 [`key_focus_of`]로 옮긴 값이다.
     pub(crate) fn key_focus_surface(&self, core: &CoreState) -> Option<u32> {
-        if self.fullscreen_stage_active()
-            || self.popup_focus().is_some()
-            || crate::adapters::ui::restore_notice::has_keyboard_focus(&self.popups)
-        {
-            return None;
-        }
-        let selected = self.focused_surface_id(core);
-        if let Some(sid) = self.html_address.focused_surface() {
-            return (selected == Some(sid)).then_some(sid);
-        }
-        if self.tutorial.active.is_some() && self.tutorial.keyboard_focus {
-            return None;
-        }
-        selected
+        key_focus_of(
+            self.focus_node(core),
+            crate::adapters::ui::restore_notice::has_keyboard_focus(&self.popups),
+            self.focused_surface_id(core),
+        )
     }
 
     /// 이번 프레임의 키 포커스 값을 지금 상태로 채운다. 프레임의 첫 소비자보다 먼저 부른다.
@@ -103,6 +94,22 @@ impl super::MainViewState {
     pub(crate) fn show_key_focus_frame(&mut self, engine: &EngineRead<'_>) {
         self.refresh_frame_key_focus(engine);
         self.finish_frame_key_focus(engine, true);
+    }
+}
+
+/// 포커스 노드에서 host 키 포커스 surface로 가는 대응표. `notice`는 복원 안내 안쪽 컨트롤이 키를 가졌는지, `selected`는
+/// 선택 surface다. 무대·키를 가진 팝업·튜토리얼 말풍선은 surface가 아니다. 설정 창 열기 요청은 다른 OS 창으로 가는
+/// 중이라 선택 surface를 그대로 둔다. 안내가 키를 가지면(무대·팝업·설정 요청이 아닐 때 키 경로의 출발점) surface가
+/// 아니다. 주소 띠는 그 surface가 선택일 때만 키 포커스다. 이번 몫 키의 수신자(`bound_input_key_owner`)와 사건 시점
+/// 몫 값(`pass_key_node`)은 키 하나·몫 하나의 수신자라 포커스 위치가 아니므로 읽지 않는다.
+pub(crate) fn key_focus_of(node: FocusNode, notice: bool, selected: Option<u32>) -> Option<u32> {
+    match node {
+        FocusNode::Stage | FocusNode::Popup(_) => None,
+        FocusNode::SettingsRequest => selected,
+        _ if notice => None,
+        FocusNode::Tutorial => None,
+        FocusNode::HtmlAddress(sid) => (selected == Some(sid)).then_some(sid),
+        FocusNode::Surface(surface) => surface,
     }
 }
 
