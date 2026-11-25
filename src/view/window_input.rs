@@ -180,7 +180,7 @@ pub(crate) fn bind_window_input(
 }
 
 /// 별도 창 debug 키 주입 하나. winit 키와 같은 사건 입구를 지난다: 끊기(`settle_window_input`) → egui 큐 적재
-/// (`debug_input::push_egui_key`) → 결속과 bare Esc 적용(`bind_window_input`). bare Esc 인지는 메인 창 debug 주입과 같이
+/// (`debug_input::push_egui_key`) → 실린 사건의 결속과 bare Esc 적용(`bind_window_input`). bare Esc 인지는 메인 창 debug 주입과 같이
 /// 주입이 쥔 egui 수식키와 창이 지금 누른 것으로 보는 실물 Win·Super 로 정한다(`RouteKey::bare_escape`). 매핑 불가 키면
 /// 끊지도 넣지도 않고 `None`.
 #[cfg(debug_assertions)]
@@ -216,9 +216,15 @@ where
         WindowKey::Current
     };
     settle_window_input(sink, ctx, popups, incoming, Some(window_key));
+    let from = sink.queued_events().len();
     let pushed = crate::view::main::debug_input::push_egui_key(sink, key_name, pressed, modifiers)?;
-    let held = sink.escape_held();
-    bind_window_input(ctx, popups, incoming, sink.queued_events(), held);
+    // 창의 보류 줄이 열려 있으면 주입은 줄 뒤로 미뤄져 egui 입력에 들지 않는다. 실린 사건만 묶고 Esc 를 적용한다(메인 창
+    // 주입의 `loaded` 와 같다).
+    let loaded = sink.queued_events().len() > from;
+    if loaded {
+        let held = sink.escape_held();
+        bind_window_input(ctx, popups, incoming, sink.queued_events(), held);
+    }
     Some(pushed)
 }
 

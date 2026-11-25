@@ -542,3 +542,104 @@ fn a_press_on_the_cover_of_a_separate_window_popup_keeps_that_popup_the_node() {
         "only the covering popup sees the key: {seen:?}"
     );
 }
+
+/// debug 주입 대역: egui 입력 큐와 끊은 자리는 하네스 것이다. `loads` 가 거짓이면 창의 보류 줄이 열려 있어 넣은 사건은
+/// 큐에 들지 않고 줄 뒤로 미뤄진다(`EditKeyState::hold_injection`). 참이면 넣은 사건이 큐 끝에 든다.
+#[cfg(debug_assertions)]
+struct Injection<'h> {
+    harness: &'h mut Harness,
+    loads: bool,
+}
+
+#[cfg(debug_assertions)]
+impl EguiPressSink for Injection<'_> {
+    fn queued_events(&mut self) -> &mut Vec<egui::Event> {
+        &mut self.harness.queue
+    }
+
+    fn cut_queue_here(&mut self) {
+        self.harness.cut_queue_here();
+    }
+}
+
+#[cfg(debug_assertions)]
+impl crate::view::main::debug_input::EguiKeySink for Injection<'_> {
+    fn held_modifiers(&self) -> egui::Modifiers {
+        egui::Modifiers::NONE
+    }
+
+    fn hold_modifiers(&mut self, _modifiers: egui::Modifiers) {}
+
+    fn clipboard_text(&mut self) -> Option<String> {
+        None
+    }
+
+    fn push_events(&mut self, events: Vec<egui::Event>) {
+        if self.loads {
+            self.harness.queue.extend(events);
+        }
+    }
+}
+
+/// 창 위젯 w 가 받은 Esc 누름이 아직 그리지 않은 egui 입력에 있고 같은 묶음의 누름이 노드를 팝업 B 로 옮긴 뒤 debug
+/// Esc 하나를 주입한다. 주입 전 큐 길이와 주입 뒤 큐의 Esc 누름 수를 돌려준다.
+#[cfg(debug_assertions)]
+fn inject_escape_after_a_press(loads: bool) -> (usize, Harness) {
+    let (mut h, mut w) = two_popups();
+    focus_field(&mut h, &mut w, "w");
+    h.key(&mut w, egui::Key::Escape, None);
+    let b = w.center("b");
+    h.click(&mut w, b);
+    let ctx = h.ctx.clone();
+    let before = h.queue.len();
+    let pushed = inject_window_key(
+        &ctx,
+        &mut w.popups,
+        &mut Injection {
+            harness: &mut h,
+            loads,
+        },
+        "Escape",
+        true,
+        None,
+    );
+    assert!(pushed.is_some());
+    (before, h)
+}
+
+/// 큐에 남은 Esc 누름 수.
+#[cfg(debug_assertions)]
+fn queued_escapes(h: &Harness) -> usize {
+    h.queue
+        .iter()
+        .filter(|e| crate::adapters::ui::popup::body_keys::is_escape_press(e))
+        .count()
+}
+
+/// Given 같은 장면, When 보류 줄이 열린 채 debug Esc 를 주입하면(그 누름은 줄 뒤로 미뤄져 egui 입력에 들지 않는다),
+/// Then 주입은 실리지 않은 사건이라 몫을 묶지도 Esc 를 적용하지도 않는다: 앞 Esc 누름은 w 몫으로 egui 입력에 남는다.
+#[cfg(debug_assertions)]
+#[test]
+fn a_held_debug_escape_does_not_take_an_earlier_escape() {
+    let (before, h) = inject_escape_after_a_press(false);
+    assert_eq!(h.queue.len(), before, "nothing is loaded");
+    assert_eq!(
+        queued_escapes(&h),
+        1,
+        "the earlier Escape stays in the egui input"
+    );
+}
+
+/// Given 같은 장면, When 보류 줄 없이 debug Esc 를 주입하면, Then 실린 그 Esc 는 사건 시점 노드 B 의 몫으로 묶여 egui
+/// 입력에서 빠지고(B 에 넘긴다) 앞 Esc 누름은 w 몫으로 남는다.
+#[cfg(debug_assertions)]
+#[test]
+fn a_loaded_debug_escape_goes_to_its_own_node() {
+    let (before, h) = inject_escape_after_a_press(true);
+    assert_eq!(h.queue.len(), before, "the injected Escape is handed to B");
+    assert_eq!(
+        queued_escapes(&h),
+        1,
+        "the earlier Escape stays in the egui input"
+    );
+}
