@@ -225,7 +225,7 @@ pub enum RemoteRowChip<'a> {
     Warn { text: &'a str, tooltip: &'a str },
 }
 
-/// 행 첫 줄. 이름(body · text-primary, 흐린 행은 text-disabled)과 선택 라벨
+/// 행 첫 줄. 이름(body · text-primary, 흐린 행은 text-muted)과 선택 라벨
 /// (`  (label)`, text-muted)을 한 칸에 두고 칩 폭을 뺀 나머지에서 끝을 말줄임한다.
 /// 시안의 이름 weight 600은 egui UI에 굵은 글꼴이 없어 색으로만 근사한다
 /// ([디자인 정합 지침]의 폰트 weight 항목).
