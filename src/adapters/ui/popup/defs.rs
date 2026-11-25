@@ -280,6 +280,8 @@ pub fn all_defs() -> &'static [PopupDef] {
                     keyboard: PopupKeyboard::Text,
                     // 승인 요청 여럿을 차례로 보인다. 다음 요청도 에이전트 출처로 연다.
                     instances: PopupInstances::Queue,
+                    // 범위를 덮지 않으니(scrim 없음) 떠 있는 표면의 popover 그림자를 쓴다.
+                    shadow: PopupShadow::Popover,
                     ..host_decl(popup_size(egui::vec2(480.0, 240.0)))
                 },
                 title_key: "approval.popup.title",

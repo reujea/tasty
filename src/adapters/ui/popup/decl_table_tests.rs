@@ -2,8 +2,9 @@
 //!
 //! `EXPECTED`는 선언 값을 도입하기 전 id 명부(scrim·scrim 포인터·탐색기 끌어 놓기 차단·그림자·
 //! 콘텐츠 여백·배경·테두리·제목줄 아래 선)가 정의마다 낸 결과를 옮겨 적은 것이다. 명부를 지우기 전
-//! 커밋에서 명부 함수의 결과와 이 표가 같은 것을 확인했다. scrim 열만 그 뒤 바뀌었다. 범위를 덮는 것이
-//! 선언 기본값이 되어(D-a) 범위에 붙은 메뉴·안내를 뺀 팝업이 모두 덮는다.
+//! 커밋에서 명부 함수의 결과와 이 표가 같은 것을 확인했다. 그 뒤 바뀐 것은 둘이다. 범위를 덮는 것이
+//! 선언 기본값이 되어(D-a) 범위에 붙은 메뉴·안내를 뺀 팝업이 모두 덮는다(scrim 열). 범위를 덮지
+//! 않는 승인 팝업은 popover 그림자로 바뀌었다(approval 행).
 //! 정의를 더하면 이 표에도 행을 더한다. 표에 없는 정의가 있으면 실패한다.
 
 use super::super::{
@@ -104,7 +105,8 @@ const EXPECTED: &[Row] = &[
         true,
         (Tok::BgPanel, Tok::BorderFrame, Tok::InfoModalTitleEdge),
     ),
-    row("approval", false, false, false, RAISED),
+    // 승인 팝업은 범위를 덮지 않고(창 입력이 막히지 않는다) popover 그림자를 쓴다.
+    row("approval", false, true, false, RAISED),
     row("file_handler_picker", true, false, false, PANEL),
     row("file_picker", true, false, true, PANEL),
     row("port_scanner", true, false, true, PANEL),
