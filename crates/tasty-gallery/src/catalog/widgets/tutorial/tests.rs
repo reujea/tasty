@@ -78,9 +78,11 @@ fn composite_texts_state_the_app_step_count_and_order() {
     let middle: Vec<&str> = BASICS_STEPS[1..n - 1].iter().map(|s| s.id).collect();
     let order = middle.join(" → ");
     assert!(
-        COMPOSITE_NOTE.contains(&format!("shrink the marker {order},")),
+        COMPOSITE_NOTE.contains(&format!("move the marker {order}:")),
         "{COMPOSITE_NOTE}"
     );
+    // 탭 헤더(페인 상단 띠)와 서피스(탭 바 아래)는 서로를 담지 않는다. 마커는 옮겨 갈 뿐이다.
+    assert!(!COMPOSITE_NOTE.contains("containment"), "{COMPOSITE_NOTE}");
     assert!(
         COMPOSITE_NOTE.contains(&format!("last step ({})", BASICS_STEPS[n - 1].id)),
         "{COMPOSITE_NOTE}"

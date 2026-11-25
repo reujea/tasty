@@ -70,8 +70,8 @@ pub(crate) const COMPOSITE_WHEN: &str =
 /// 합성 표본의 설명. 시험이 단계 수·순서를 `BASICS_STEPS`와 대조한다.
 pub(crate) const COMPOSITE_NOTE: &str = "Popup closed: marker (glow ring) + spotlight dim + \
      callout only. Step 1 wraps the whole content area (tabs + surface + status, sidebar \
-     excluded); later steps shrink the marker pane → tab → surface, revealing containment. The \
-     last step (summary) shows the callout alone, with no marker and no dim. Next → step 2 · \
+     excluded); later steps move the marker pane → tab → surface: it shrinks to the pane, then \
+     sits on the pane's tab header, then moves to the surface below the tab bar. The last step (summary) shows the callout alone, with no marker and no dim. Next → step 2 · \
      Back → prev · Skip/Esc → topic popup · last-step Next → reopen popup. Marker + dim are \
      pointer-events:none.";
 
