@@ -36,6 +36,17 @@ thread_local! {
     static LOOK: Cell<Option<FocusLook>> = const { Cell::new(None) };
 }
 
+#[cfg(test)]
+thread_local! {
+    static REMOTE_STRIP: Cell<Option<egui::Id>> = const { Cell::new(None) };
+}
+
+/// 원격 탭 줄을 그린 ui의 id를 적어 둔다. 시험이 위젯이 탭마다 등록한 응답을 이 id로 읽는다.
+#[cfg(test)]
+pub(super) fn note_remote_strip(id: egui::Id) {
+    REMOTE_STRIP.with(|s| s.set(Some(id)));
+}
+
 /// 지금 그리는 예제가 포커스 모양으로 고정한 탭. 이 예제 밖에서는 None이다.
 pub(super) fn look() -> Option<FocusLook> {
     LOOK.with(Cell::get)
@@ -166,8 +177,22 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
 mod tests {
     use super::*;
 
-    /// `frame`을 `look`으로 고정해 한 패스 그리고 (포커스 링 사각형들, 활성 밑줄 x 중심)을 돌려준다.
-    fn paint(theme: &Theme, look: FocusLook, frame: Frame) -> (Vec<egui::Rect>, Option<f32>) {
+    /// 원격 창 탭 줄의 탭 수(Remote profiles·Attach·Passkeys).
+    const REMOTE_TABS: usize = 3;
+
+    /// 한 패스를 그린 결과.
+    struct Painted {
+        /// 포커스 링 사각형들.
+        rings: Vec<egui::Rect>,
+        /// 활성 밑줄의 x 중심.
+        underline: Option<f32>,
+        /// 원격 탭 줄 위젯이 탭마다 등록한 응답의 사각형. 원격 탭 줄을 그리지 않은 그림이면 비어 있다.
+        remote_tabs: Vec<egui::Rect>,
+    }
+
+    /// `frame`을 `look`으로 고정해 한 패스 그린다.
+    fn paint(theme: &Theme, look: FocusLook, frame: Frame) -> Painted {
+        REMOTE_STRIP.with(|s| s.set(None));
         let ctx = egui::Context::default();
         let out = ctx.run(
             egui::RawInput {
@@ -202,35 +227,49 @@ mod tests {
                 _ => {}
             }
         }
-        (rings, underline)
+        // 탭 줄 위젯(`draw_tab_strip_with_focus_look`)이 `ui.interact`에 쓰는 id와 같다.
+        let remote_tabs = REMOTE_STRIP.with(Cell::get).map_or_else(Vec::new, |strip| {
+            (0..REMOTE_TABS)
+                .map(|i| {
+                    ctx.read_response(strip.with((i, "rt_tab")))
+                        .expect("each tab registers its rect")
+                        .rect
+                })
+                .collect()
+        });
+        Painted {
+            rings,
+            underline,
+            remote_tabs,
+        }
     }
 
     /// 원격 탭 칸은 셋이고 (열린 탭, 포커스 탭)이 정본 순서대로 (Passkeys, Remote profiles), (Attach, Passkeys),
-    /// (Attach, Attach)다. 열린 탭은 그린 밑줄이 놓인 탭으로, 탭 자리는 같은 그림의 각 탭 링으로 읽는다.
+    /// (Attach, Attach)다. 탭 자리는 위젯이 탭마다 등록한 응답으로 읽고, 열린 탭은 그린 밑줄이 놓인 탭, 포커스
+    /// 탭은 그린 링이 안쪽에 놓인 탭이다.
     #[test]
     fn the_remote_tab_cells_match_the_canon_three() {
         let theme = tasty_themes::mocha_fallback();
         let inset = tasty_ui_widgets::tab_ring_inset(&theme, theme.tab_indicator_width()).value();
         let mut got = Vec::new();
-        for (_, look, frame) in frames() {
-            let FocusLook::RemoteTab(focus) = look else {
+        for (caption, look, frame) in frames() {
+            let FocusLook::RemoteTab(_) = look else {
                 continue;
             };
-            let tabs: Vec<egui::Rect> = (0..3)
-                .map(|k| {
-                    let (rings, _) = paint(&theme, FocusLook::RemoteTab(k), frame);
-                    assert_eq!(rings.len(), 1, "tab {k}: {rings:?}");
-                    rings[0].expand(inset)
-                })
-                .collect();
-            let (rings, underline) = paint(&theme, look, frame);
-            let x = underline.expect("the open tab draws its underline");
-            let open = tabs
+            let p = paint(&theme, look, frame);
+            assert_eq!(p.remote_tabs.len(), REMOTE_TABS, "{caption}");
+            let x = p.underline.expect("the open tab draws its underline");
+            let open = p
+                .remote_tabs
                 .iter()
                 .position(|t| t.x_range().contains(x))
                 .expect("underline sits under a tab");
-            assert_eq!(rings.len(), 1);
-            assert_eq!(rings[0].expand(inset), tabs[focus], "ring on tab {focus}");
+            assert_eq!(p.rings.len(), 1, "{caption}: {:?}", p.rings);
+            let focus = p
+                .remote_tabs
+                .iter()
+                .position(|t| t.shrink(inset) == p.rings[0])
+                .unwrap_or_else(|| panic!("{caption}: ring {:?} inside no tab", p.rings[0]));
             got.push((open, focus));
         }
         assert_eq!(got, vec![(2, 0), (1, 2), (1, 1)]);

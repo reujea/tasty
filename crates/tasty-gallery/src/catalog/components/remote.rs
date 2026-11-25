@@ -291,6 +291,8 @@ fn ssh_state_card(ui: &mut egui::Ui, theme: &Theme, label: &str, message: &str) 
 
 /// 공용 탭 바에 라벨과 활성 항목을 전달한다. 배경은 카드 전체 폭을 채운다.
 fn tab_bar(ui: &mut egui::Ui, theme: &Theme, active: usize) {
+    #[cfg(test)]
+    super::window_tab_focus::note_remote_strip(ui.id());
     let focus_look = match super::window_tab_focus::look() {
         Some(super::window_tab_focus::FocusLook::RemoteTab(i)) => Some(i),
         _ => None,
