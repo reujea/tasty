@@ -29,20 +29,23 @@ fn collect(shape: &egui::epaint::Shape, out: &mut Vec<String>) {
     }
 }
 
-fn state_card(label: &str) -> Variant {
-    STATE_CARDS
+/// 표본 표에서 묶음 이름으로 카드를 찾아 표본이 그리는 변형 그대로 돌려준다.
+fn card_named(cards: &[(&'static str, Variant)], label: &str) -> Variant {
+    cards
         .iter()
         .find(|(l, _)| *l == label)
         .unwrap_or_else(|| panic!("no state card {label}"))
         .1
 }
 
-fn no_profile_card(state: FpState) -> Variant {
-    let (_, state) = NO_PROFILE_STATE_CARDS
-        .iter()
-        .find(|(_, s)| *s == state)
-        .expect("no-profile state card");
-    Variant::open(*state, true, false).hostless()
+fn state_card(label: &str) -> Variant {
+    card_named(&STATE_CARDS, label)
+}
+
+const NO_PROFILE_VIEW: &str = "View · file-picker-remote-states-no-profile — ";
+
+fn no_profile_card(rest: &str) -> Variant {
+    card_named(&NO_PROFILE_STATE_CARDS, &format!("{NO_PROFILE_VIEW}{rest}"))
 }
 
 /// 본문 자리에 `want` 키 값이 있고 같은 블록의 다른 본문 키 값과 갤러리 전용 문장은 없다.
@@ -95,13 +98,15 @@ fn each_remote_state_card_draws_the_app_body_of_its_state() {
 
     assert_body(
         "no-profile loading",
-        &painted(no_profile_card(FpState::Loading)),
+        &painted(no_profile_card("loading (remote, no profile name)")),
         &["filepicker.loading", "filepicker.loading_body_remote"],
         &["filepicker.loading_body_local"],
     );
     assert_body(
         "no-profile session lost",
-        &painted(no_profile_card(FpState::ErrorConn)),
+        &painted(no_profile_card(
+            "connection lost — session lost (remote, no profile name)",
+        )),
         &[
             "filepicker.error_conn.title",
             "filepicker.error_conn.session_lost",
@@ -110,7 +115,9 @@ fn each_remote_state_card_draws_the_app_body_of_its_state() {
     );
     assert_body(
         "no-profile timeout",
-        &painted(no_profile_card(FpState::ErrorConnTimeout)),
+        &painted(no_profile_card(
+            "connection lost — timeout (remote, no profile name)",
+        )),
         &[
             "filepicker.error_conn.title",
             "filepicker.error_conn.timeout",

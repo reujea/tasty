@@ -137,19 +137,19 @@ pub(super) fn after_title(ui: &mut egui::Ui, theme: &Theme, v: Variant) {
     }
 }
 
-/// 빈 호스트 원격 상태 View 의 카드 — 묶음 이름과 상태. 표본과 시험이 함께 읽는다.
-pub(super) const NO_PROFILE_STATE_CARDS: [(&str, FpState); 3] = [
+/// 빈 호스트 원격 상태 View 의 카드 — 묶음 이름과 변형. 표본과 시험이 같은 항목을 함께 읽는다.
+pub(super) const NO_PROFILE_STATE_CARDS: [(&str, Variant); 3] = [
     (
         "View · file-picker-remote-states-no-profile — loading (remote, no profile name)",
-        FpState::Loading,
+        Variant::open(FpState::Loading, true, false).hostless(),
     ),
     (
         "View · file-picker-remote-states-no-profile — connection lost — session lost (remote, no profile name)",
-        FpState::ErrorConn,
+        Variant::open(FpState::ErrorConn, true, false).hostless(),
     ),
     (
         "View · file-picker-remote-states-no-profile — connection lost — timeout (remote, no profile name)",
-        FpState::ErrorConnTimeout,
+        Variant::open(FpState::ErrorConnTimeout, true, false).hostless(),
     ),
 ];
 
@@ -158,10 +158,8 @@ pub(super) const NO_PROFILE_STATE_CARDS: [(&str, FpState); 3] = [
 pub(super) fn draw_no_profile_states_view(ui: &mut egui::Ui, theme: &Theme) {
     // 세 프레임은 각자 묶음이라 문서 칸에서 줄을 바꾼다(디자인 flex-wrap). 묶음 이름마다 View 이름을 단다.
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
-        for (label, state) in NO_PROFILE_STATE_CARDS {
-            spec::cluster(ui, theme, label, |ui| {
-                card(ui, theme, Variant::open(state, true, false).hostless());
-            });
+        for (label, v) in NO_PROFILE_STATE_CARDS {
+            spec::cluster(ui, theme, label, |ui| card(ui, theme, v));
         }
     });
 }
