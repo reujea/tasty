@@ -779,4 +779,184 @@ mod tests {
         assert!(matches!(action, ViewAction::Close));
         assert_eq!(window.own, 1);
     }
+
+    /// Esc 누름 하나. winit 의 키 사건은 winit 밖에서 만들 수 없어 편집 판정이 읽는 누른 키만 가진다.
+    #[derive(Clone, Debug, PartialEq)]
+    struct EscPress(winit::keyboard::Key);
+
+    impl crate::gfx::gpu::edit_keys::HeldEvent for EscPress {
+        fn press(&self) -> Option<(&winit::keyboard::Key, winit::keyboard::PhysicalKey)> {
+            let code = winit::keyboard::KeyCode::Escape;
+            Some((&self.0, winit::keyboard::PhysicalKey::Code(code)))
+        }
+        fn queues_behind_hold(&self) -> bool {
+            true
+        }
+        fn is_pointer(&self) -> bool {
+            false
+        }
+        fn is_key(&self) -> bool {
+            true
+        }
+        fn interrupts_await(&self) -> bool {
+            false
+        }
+    }
+
+    /// 복사 키를 Esc 에 둔(`copy = ["escape"]`) 별도 창. `managed` 면 Esc 를 받는 비덮음 팝업(설정 창 충돌 질문)이
+    /// 포커스를 가진 팝업 관리자 창이고, 아니면 관리자가 없는 종료 확인 창이다. 창은 아직 패스를 돌리지 않은 누름
+    /// (`pending`)을 가진다.
+    struct EscWindow {
+        popups: Option<PopupManager>,
+        h: crate::view::window_input::tests::Harness,
+        edits: crate::gfx::gpu::edit_keys::EditKeyState<EscPress>,
+        pending: Vec<egui::Event>,
+        own: u32,
+        loaded: u32,
+    }
+
+    impl EscWindow {
+        fn new(managed: bool) -> Self {
+            let popups = managed.then(|| RouteWindow::new(Some(route_def(None, false))).popups);
+            let settings = crate::settings::KeybindingSettings {
+                copy: vec!["escape".into()],
+                ..Default::default()
+            };
+            let mut edits = crate::gfx::gpu::edit_keys::EditKeyState::default();
+            edits.set_bindings(Some(
+                crate::adapters::ui::input::edit_key::EditBindings::from_settings(&settings),
+            ));
+            let press = egui::Event::PointerButton {
+                pos: egui::pos2(5.0, 5.0),
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            };
+            Self {
+                popups,
+                h: crate::view::window_input::tests::Harness::new(),
+                edits,
+                pending: vec![press],
+                own: 0,
+                loaded: 0,
+            }
+        }
+
+        /// 수식키 없는 Esc 누름 하나(`replayed` 는 보류가 풀려 다시 오는 키의 판정)를 제품 단계(단계 4 → 편집 판정
+        /// `window_edit_target`·`window_key_judgement` → egui 적재 → 창 자체 처리, 창이 그 Esc 를 바인딩으로 쓴다)로
+        /// 넘긴다.
+        fn escape(&mut self, replayed: Option<EditKey>) -> ViewAction {
+            use crate::adapters::ui::popup::frame_keys::Incoming;
+            use crate::adapters::ui::popup::window_segments::WindowKey;
+            use crate::gfx::gpu::edit_keys::{
+                ClipText, EditKeyOwner, EguiKey, KeyCx, window_key_judgement,
+            };
+            let route = crate::adapters::ui::input::key_route::RouteKey {
+                key: Some(egui::Key::Escape),
+                modifiers: egui::Modifiers::NONE,
+                super_held: false,
+            };
+            let mut steps = window_steps(
+                self,
+                replayed,
+                true,
+                |w: &mut EscWindow, event: &EscPress, judged, receiver| {
+                    let routed = w.popups.is_some();
+                    let edit_target = window_edit_target(Some(Incoming::Escape), receiver, routed);
+                    let ctx = w.h.ctx.clone();
+                    let (edits, events) = (&mut w.edits, &mut w.pending);
+                    let mut clipboard = |_tag: u64| ClipText::Empty;
+                    let judged = window_key_judgement(judged, edit_target, || {
+                        let cx = KeyCx {
+                            ctx: &ctx,
+                            events,
+                            clipboard: &mut clipboard,
+                        };
+                        edits.judge(event, EditKeyOwner::Window, std::time::Instant::now(), cx)
+                    });
+                    if judged == EguiKey::Taken {
+                        return None;
+                    }
+                    w.loaded += 1;
+                    Some((false, false))
+                },
+                |_| {},
+                |w, _| {
+                    w.own += 1;
+                    ViewAction::Close
+                },
+                WindowKeyNode {
+                    settle: move |w: &mut EscWindow, _: &EscPress| {
+                        let ctx = w.h.ctx.clone();
+                        let key = Some(WindowKey::Path {
+                            key: route,
+                            own: true,
+                        });
+                        let popups = w.popups.as_mut()?;
+                        settle_window_input(&mut w.h, &ctx, popups, Incoming::Escape, key)
+                    },
+                    bind: |_: &mut EscWindow, _: &EscPress| {},
+                    taps: |_: &mut EscWindow, _: &EscPress, _| None,
+                },
+            );
+            run_key_event(
+                &mut steps,
+                EscPress(winit::keyboard::Key::Named(
+                    winit::keyboard::NamedKey::Escape,
+                )),
+            )
+        }
+
+        /// 기다리던 누름을 받는 패스. 그 뒤 보류한 키를 다시 판정하고(`GpuState`와 같다), 풀린 키의 판정을 낸다.
+        fn pass(&mut self) -> Option<EditKey> {
+            use crate::gfx::gpu::edit_keys::{ClipText, EditKeyOwner, KeyCx};
+            let pending = std::mem::take(&mut self.pending);
+            self.edits.input_taken(&pending);
+            let input = egui::RawInput {
+                events: pending,
+                ..Default::default()
+            };
+            let ctx = self.h.ctx.clone();
+            let output = ctx.run(input, |_| {}).platform_output;
+            // 이 창에는 복사할 선택이 없어 패스 출력에 남길 것이 없다.
+            let _ = self.edits.after_pass(output, &ctx);
+            if self.edits.needs_rejudge() {
+                let mut clipboard = |_tag: u64| ClipText::Empty;
+                let mut next = Vec::new();
+                let cx = KeyCx {
+                    ctx: &ctx,
+                    events: &mut next,
+                    clipboard: &mut clipboard,
+                };
+                self.edits.rejudge(cx, std::time::Instant::now());
+            }
+            let release = self.edits.take_release(EditKeyOwner::Window)?;
+            release.split().0.map(|(_, edit)| edit)
+        }
+    }
+
+    /// Given 복사 키가 Esc 이고 아직 패스를 돌리지 않은 누름이 있는 종료 확인 창(팝업 관리자 없음), When 수식키 없는
+    /// Esc 를 치면, Then 편집 판정이 그 Esc 를 누름의 패스까지 보류해 egui 에도 창 자체 처리에도 가지 않고, 그 패스
+    /// 뒤 풀린 Esc 가 창 자체 처리에 간다.
+    #[test]
+    fn a_bare_escape_in_the_quit_window_waits_for_the_pass_of_an_unhandled_press() {
+        let mut window = EscWindow::new(false);
+        drop(window.escape(None));
+        assert_eq!((window.loaded, window.own), (0, 0));
+        assert!(window.edits.busy());
+        let replayed = window.pass();
+        assert_eq!(replayed, Some(EditKey::Copy));
+        drop(window.escape(replayed));
+        assert_eq!((window.loaded, window.own), (1, 1));
+    }
+
+    /// Given 복사 키가 Esc 이고 아직 패스를 돌리지 않은 누름이 있는, Esc 를 받는 팝업이 노드인 관리자 창, When 수식키
+    /// 없는 Esc 를 치면, Then 편집 판정을 건너 그 팝업의 Esc 처리로 바로 실리고 보류가 없다.
+    #[test]
+    fn a_bare_escape_in_a_managed_window_reaches_its_receiver_without_an_edit_hold() {
+        let mut window = EscWindow::new(true);
+        drop(window.escape(None));
+        assert_eq!((window.loaded, window.own), (1, 0));
+        assert!(!window.edits.busy());
+    }
 }

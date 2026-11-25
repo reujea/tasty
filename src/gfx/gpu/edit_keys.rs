@@ -281,6 +281,21 @@ impl<E> Default for EditKeyState<E> {
     }
 }
 
+/// The judgment of a separate window's key ([`super::GpuState::handle_egui_event_for_window`]). A
+/// replayed key, already judged, goes on as its edit. A key that is no edit's target
+/// (`window_input::window_edit_target`) goes on unjudged. Every other key takes `judge`.
+pub(crate) fn window_key_judgement(
+    replayed: Option<EditKey>,
+    edit_target: bool,
+    judge: impl FnOnce() -> EguiKey,
+) -> EguiKey {
+    match replayed {
+        Some(edit) => EguiKey::Pass(edit),
+        None if edit_target => judge(),
+        None => EguiKey::Free,
+    }
+}
+
 /// What a key-time judgment reads from egui and the clipboard.
 pub(crate) struct KeyCx<'a> {
     pub(crate) ctx: &'a egui::Context,
@@ -901,11 +916,9 @@ impl super::GpuState {
         replayed: Option<EditKey>,
         edit_target: bool,
     ) -> Option<(bool, bool)> {
-        let judged = match replayed {
-            Some(edit) => EguiKey::Pass(edit),
-            None if edit_target => self.judge_egui_key(window, event, EditKeyOwner::Window),
-            None => EguiKey::Free,
-        };
+        let judged = window_key_judgement(replayed, edit_target, || {
+            self.judge_egui_key(window, event, EditKeyOwner::Window)
+        });
         match judged {
             EguiKey::Taken => {
                 window.request_redraw();
