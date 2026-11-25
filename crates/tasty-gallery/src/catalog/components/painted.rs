@@ -218,7 +218,7 @@ mod helper_tests {
                 egui::pos2(100.0, 55.0),
                 egui::Align2::LEFT_TOP,
                 USE,
-                egui::FontId::proportional(14.0),
+                egui::TextStyle::Body.resolve(ui.style()),
                 egui::Color32::WHITE,
             );
         });
