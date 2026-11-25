@@ -312,52 +312,71 @@ mod tests {
         (rect, output)
     }
 
-    /// 포커스 링은 Input과 같이 상자 테두리 바로 바깥에 틈 없이 붙은 border_width 한 줄이다.
+    /// 포커스 링은 Input과 같이 상자 테두리 바로 바깥에 틈 없이 붙은 border_width 한 줄이다. 색은 input-border-focus,
+    /// invalid면 같은 자리에 input-border-invalid다. 포커스는 Tab 키로 준다.
     #[test]
     fn the_focus_ring_sits_flush_outside_the_box_edge() {
         let theme = tasty_themes::mocha_fallback();
-        let ctx = egui::Context::default();
-        let mut buf = "a".to_owned();
-        let id = std::cell::Cell::new(None);
-        let ring = |o: &egui::FullOutput| -> Vec<(egui::Rect, f32)> {
+        let ring = |o: &egui::FullOutput| -> Vec<(egui::Rect, f32, egui::Color32)> {
             o.shapes
                 .iter()
                 .filter_map(|c| match &c.shape {
                     egui::Shape::Rect(r)
                         if r.stroke.width > 0.0 && r.stroke_kind == egui::StrokeKind::Outside =>
                     {
-                        Some((r.rect, r.stroke.width))
+                        Some((r.rect, r.stroke.width, r.stroke.color))
                     }
                     _ => None,
                 })
                 .collect()
         };
-        let frame = |ctx: &egui::Context, buf: &mut String| {
-            let mut rect = egui::Rect::NOTHING;
-            let out = ctx.run(
-                egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(
-                        egui::Pos2::ZERO,
-                        egui::vec2(400.0, 600.0),
-                    )),
-                    ..Default::default()
-                },
-                |ctx| {
-                    egui::CentralPanel::default().show(ctx, |ui| {
-                        let o = CodeArea::new("t").show(ui, &theme, buf);
-                        id.set(Some(o.response.id));
-                        rect = o.response.rect;
-                    });
-                },
-            );
-            (rect, out)
+        let tab = egui::Event::Key {
+            key: egui::Key::Tab,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::default(),
         };
-        let (_, rest) = frame(&ctx, &mut buf);
-        assert!(ring(&rest).is_empty());
-        let focus = id.get().expect("drawn");
-        ctx.memory_mut(|m| m.request_focus(focus));
-        let (outer, focused) = frame(&ctx, &mut buf);
-        assert_eq!(ring(&focused), vec![(outer, theme.border_width.value())]);
+        for (invalid, want) in [
+            (false, theme.input_border_focus().to_egui()),
+            (true, theme.input_border_invalid().to_egui()),
+        ] {
+            let ctx = egui::Context::default();
+            let mut buf = "a".to_owned();
+            let id = std::cell::Cell::new(None);
+            let frame = |ctx: &egui::Context, buf: &mut String, events: Vec<egui::Event>| {
+                let mut rect = egui::Rect::NOTHING;
+                let out = ctx.run(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(400.0, 600.0),
+                        )),
+                        focused: true,
+                        events,
+                        ..Default::default()
+                    },
+                    |ctx| {
+                        egui::CentralPanel::default().show(ctx, |ui| {
+                            let o = CodeArea::new("t").invalid(invalid).show(ui, &theme, buf);
+                            id.set(Some(o.response.id));
+                            rect = o.response.rect;
+                        });
+                    },
+                );
+                (rect, out)
+            };
+            let (_, rest) = frame(&ctx, &mut buf, Vec::new());
+            assert!(ring(&rest).is_empty(), "invalid={invalid}");
+            drop(frame(&ctx, &mut buf, vec![tab.clone()]));
+            assert_eq!(ctx.memory(|m| m.focused()), id.get(), "Tab focuses the box");
+            let (outer, focused) = frame(&ctx, &mut buf, Vec::new());
+            assert_eq!(
+                ring(&focused),
+                vec![(outer, theme.border_width.value(), want)],
+                "invalid={invalid}"
+            );
+        }
     }
 
     /// 상자는 min_rows 만큼 자라고, 바깥 높이가 max-height 에 닿으면 그 높이에서 멈춘다.

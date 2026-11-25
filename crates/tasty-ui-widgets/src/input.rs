@@ -739,12 +739,14 @@ mod tests {
             let mut buf = "x".to_owned();
             let id = egui::Id::new("flush");
             let mut outer = egui::Rect::NOTHING;
-            let mut run = |ctx: &egui::Context, buf: &mut String| {
+            let mut run = |ctx: &egui::Context, buf: &mut String, events: Vec<egui::Event>| {
                 let raw = egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
                         egui::Pos2::ZERO,
                         egui::vec2(400.0, 200.0),
                     )),
+                    focused: true,
+                    events,
                     ..Default::default()
                 };
                 ctx.run(raw, |ctx| {
@@ -758,7 +760,7 @@ mod tests {
                     });
                 })
             };
-            let rest = run(&ctx, &mut buf);
+            let rest = run(&ctx, &mut buf, Vec::new());
             let outside = |o: &egui::FullOutput| -> Vec<(egui::Rect, egui::Color32)> {
                 o.shapes
                     .iter()
@@ -774,8 +776,21 @@ mod tests {
                     .collect()
             };
             assert!(outside(&rest).is_empty(), "no ring at rest");
-            ctx.memory_mut(|m| m.request_focus(id));
-            let focused = run(&ctx, &mut buf);
+            // 키보드 사용자처럼 Tab으로 포커스를 준다.
+            let tab = egui::Event::Key {
+                key: egui::Key::Tab,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::default(),
+            };
+            drop(run(&ctx, &mut buf, vec![tab]));
+            assert_eq!(
+                ctx.memory(|m| m.focused()),
+                Some(id),
+                "Tab focuses the field"
+            );
+            let focused = run(&ctx, &mut buf, Vec::new());
             let want = if invalid {
                 theme.input_border_invalid().to_egui()
             } else {
