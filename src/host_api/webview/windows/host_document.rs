@@ -14,6 +14,8 @@ use super::super::NavState;
 use super::super::host_document::{
     HostDocuments, RESERVED_FILTERS, host_document_url, is_reserved, retry_via_host_document,
 };
+use super::super::load_generation::end_cancelled_navigation;
+use tasty_model::html_script::top_level::TopLevelAdmission;
 
 /// view 하나의 예약 호스트 응답 준비물. 404 응답은 미리 만들어 요청 때 실패할 호출을 줄인다.
 pub(super) struct Responder {
@@ -205,11 +207,14 @@ pub(super) fn process_ended(documents: &RefCell<HostDocuments>, renderer: bool) 
     }
 }
 
-/// `NavigationStarting`에서 표에 없는 예약 주소면 시작 전에 취소한다(본문 안 상대 링크 등).
-/// chrome을 Loading으로 바꾸기 전에 불러 보이던 문서를 그대로 둔다. 취소한 탐색 ID는 표에 적어 그 완료가
-/// chrome을 바꾸지 않게 한다. 취소했으면 true다.
+/// `NavigationStarting`에서 표에 없는 예약 주소면 시작 전에 취소한다(본문 안 상대 링크, 그 주소로의
+/// 리다이렉트 등). chrome을 Loading으로 바꾸기 전에 불러 보이던 문서를 그대로 둔다. 취소한 탐색이 chrome의
+/// 지금 로드면 Failed로 끝내고, 아니면 그 ID를 표에 적어 완료가 chrome을 바꾸지 않게 한다
+/// (`end_cancelled_navigation`). 취소했으면 true다.
 pub(super) fn cancel_unknown(
     documents: &RefCell<HostDocuments>,
+    chrome: (&Cell<NavState>, &Cell<Option<u64>>),
+    top_level: &RefCell<TopLevelAdmission>,
     surface: u32,
     args: Option<&ICoreWebView2NavigationStartingEventArgs>,
 ) -> Result<bool> {
@@ -229,7 +234,12 @@ pub(super) fn cancel_unknown(
     let mut id = 0u64;
     // SAFETY: live args on the apartment thread.
     let nav = unsafe { args.NavigationId(&mut id) }.ok().map(|()| id);
-    documents.borrow_mut().cancelled(nav);
+    let mut redirected = BOOL(0);
+    // SAFETY: live args on the apartment thread. A failed query counts as a new navigation.
+    let redirected = unsafe { args.IsRedirected(&mut redirected) }.is_ok() && redirected.as_bool();
+    if end_cancelled_navigation(chrome.0, chrome.1, top_level, nav, redirected) {
+        documents.borrow_mut().cancelled(nav);
+    }
     tracing::debug!(
         "WebView surface {surface}: cancelled a navigation to an unknown host document address"
     );

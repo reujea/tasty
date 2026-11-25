@@ -157,11 +157,39 @@ pub(super) fn end_rejected_load(
     true
 }
 
+/// 시작 처리기가 표에 없는 host 전용 주소의 탐색을 취소했다(`host_document`). 시작 처리기가 하던 원격
+/// 차단 지목 소비를 여기서 한다(리다이렉트가 아닌 시작이 다음 탐색 지목을 소비한다). 취소한 탐색이 chrome의
+/// 지금 로드(호스트가 보낸 `Navigate`, 진행 중 탐색의 리다이렉트)이면 열린 로드를 닫고 Failed로 끝내며 그
+/// 세대를 현재로 둔다. 그 완료는 보통의 실패로 처리하면 된다. 지금 로드가 아니면(보이던 문서가 스스로 시작한
+/// 탐색) chrome을 그대로 두고 true를 돌려준다. 호출자는 그 완료가 chrome을 바꾸지 않게 건너뛴다.
+#[cfg(any(windows, test))]
+pub(super) fn end_cancelled_navigation(
+    nav_state: &std::cell::Cell<NavState>,
+    chrome_generation: &std::cell::Cell<Option<u64>>,
+    top_level: &std::cell::RefCell<tasty_model::html_script::top_level::TopLevelAdmission>,
+    nav: Option<u64>,
+    redirected: bool,
+) -> bool {
+    let mut top = top_level.borrow_mut();
+    if !redirected {
+        top.drop_next();
+    }
+    if !is_current_load(chrome_generation.get(), nav) {
+        return true;
+    }
+    top.end();
+    nav_state.set(NavState::Failed);
+    if nav.is_some() {
+        chrome_generation.set(nav);
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        CancelledDecisions, NavState, SignalOrderLoads, end_rejected_load, is_current_load,
-        nav_state_after_end,
+        CancelledDecisions, NavState, SignalOrderLoads, end_cancelled_navigation,
+        end_rejected_load, is_current_load, nav_state_after_end,
     };
 
     /// 세대가 빈 구간의 정책 중단 오류만 Cancel한 수만큼 흡수한다. 다른 오류는 수를 남긴 채 두고,
@@ -340,5 +368,84 @@ mod tests {
         assert_eq!(nav_state_after_end(generation.get(), Some(7), true), None);
         assert_eq!(nav_state_after_end(generation.get(), Some(7), false), None);
         assert_eq!(nav.get(), NavState::Failed);
+    }
+
+    use std::cell::{Cell, RefCell};
+    use tasty_model::html_script::top_level::{Designation, Origin, StartKind, TopLevelAdmission};
+
+    const NEXT_PAGE: &str = "https://example.com/next";
+
+    /// 지목이 남았는지. 남았으면 원격 차단 중에도 다음 탐색이 열린다.
+    fn next_start_admitted(top: &RefCell<TopLevelAdmission>) -> bool {
+        top.borrow_mut()
+            .start(NEXT_PAGE, StartKind::Other, false, Origin::default())
+    }
+
+    #[test]
+    fn a_cancelled_host_navigation_ends_its_load_and_its_designation() {
+        // load_url이 Loading·빈 세대·지목을 세운 뒤 그 탐색이 표에 없는 예약 주소라 취소된다.
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(None);
+        let top = RefCell::new(TopLevelAdmission::default());
+        top.borrow_mut().designate(Designation::Next);
+        assert!(!end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(5),
+            false
+        ));
+        assert_eq!(nav.get(), NavState::Failed);
+        assert_eq!(generation.get(), Some(5));
+        assert!(
+            !next_start_admitted(&top),
+            "지목이 다음 탐색으로 이어지지 않는다"
+        );
+        // 앞서 시작한 탐색 4의 늦은 성공도 Failed를 덮지 않는다.
+        assert_eq!(nav_state_after_end(generation.get(), Some(4), true), None);
+    }
+
+    #[test]
+    fn a_redirect_into_an_unknown_reserved_address_fails_the_load() {
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(Some(6));
+        let top = RefCell::new(TopLevelAdmission::default());
+        top.borrow_mut().start(
+            NEXT_PAGE,
+            StartKind::Other,
+            false,
+            Origin {
+                remote_allowed: true,
+                remote_document: false,
+            },
+        );
+        assert!(top.borrow().admitting());
+        assert!(!end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(6),
+            true
+        ));
+        assert_eq!(nav.get(), NavState::Failed);
+        assert!(!top.borrow().admitting(), "열린 로드를 닫는다");
+    }
+
+    #[test]
+    fn a_page_navigation_to_an_unknown_reserved_address_keeps_the_shown_document() {
+        let nav = Cell::new(NavState::Done);
+        let generation = Cell::new(Some(6));
+        let top = RefCell::new(TopLevelAdmission::default());
+        top.borrow_mut().designate(Designation::Next);
+        assert!(end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(7),
+            false
+        ));
+        assert_eq!(nav.get(), NavState::Done);
+        assert_eq!(generation.get(), Some(6));
+        assert!(!next_start_admitted(&top), "시작처럼 지목을 소비한다");
     }
 }

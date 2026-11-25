@@ -493,7 +493,14 @@ impl PlatformWebView {
             let h_start = NavigationStartingEventHandler::create(Box::new(
                 move |sender, args| -> windows::core::Result<()> {
                     // 표에 없는 host 전용 주소(본문 안 상대 링크 등)는 chrome을 바꾸기 전에 취소한다.
-                    if host_document::cancel_unknown(&docs_start, surface_id, args.as_ref())? {
+                    let chrome = (&*nav_start, &*chrome_start);
+                    if host_document::cancel_unknown(
+                        &docs_start,
+                        chrome,
+                        &top_start,
+                        surface_id,
+                        args.as_ref(),
+                    )? {
                         return Ok(());
                     }
                     tracing::debug!("WebView surface {surface_id}: load started");
