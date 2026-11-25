@@ -3,6 +3,10 @@
 use super::painted::{Painted, paint};
 use tasty_type_appearance::theme::Theme;
 
+/// 공용 Spinner 가 트랙 원에 곱하는 저대비 alpha(tasty-ui-widgets spinner.rs 의 TRACK_ALPHA, 정본
+/// `.tasty-spinner__track { opacity: 0.22 }`). 그린 도형 가운데 트랙 원을 고르는 데만 쓴다.
+const SPINNER_TRACK_ALPHA: f32 = 0.22;
+
 fn theme() -> Theme {
     Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0)
 }
@@ -83,7 +87,10 @@ fn the_ports_sample_rows_start_ports_pad_x_inside_the_window() {
 fn the_remote_sample_detect_spinner_is_remote_detect_spinner_size() {
     let th = theme();
     let painted = paint(|ui| super::remote::draw(ui, &th));
-    let track = th.spinner_indicator().to_egui().gamma_multiply(0.22);
+    let track = th
+        .spinner_indicator()
+        .to_egui()
+        .gamma_multiply(SPINNER_TRACK_ALPHA);
     let radius = painted
         .shapes
         .iter()
