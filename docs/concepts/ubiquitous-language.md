@@ -91,7 +91,7 @@
 ### Surface 주의 환기 (→ [`features/surface-highlight`](../features/surface-highlight/index.md))
 
 - **Attention** — surface에 확인할 일이 남았음을 나타내는 공유 상태. EngineSession의 `LiveDomainState.attention`가 surface ID별 `{ kind, raised_at }`을 저장한다. kind는 Completion·NeedsInput이다.
-  알림 패널의 `NotificationStore` 항목과는 별개다. `effects_of().panel_item`이 패널 표시 여부를 정하고 이벤트를 발생시킨 쪽이 패널 항목을 만든다. 원 SurfaceBinding을 확인한 App의 FocusObserved 실행에서 해제한다. toast, completion, Claude 훅, OSC133 명령 완료 등 여러 경로가 같은 attention을 사용한다.
+  알림 패널의 `NotificationStore` 항목과는 별개다. `effects_of().panel_item`이 패널 표시 여부를 정하고 이벤트를 발생시킨 쪽이 패널 항목을 만든다. 렌더가 host 키 포커스 surface에 대해 만든 FocusObserved를 App이 실행할 때 원 SurfaceBinding을 확인하고, 창이 OS 포커스를 가지며 그 surface가 내용을 숨기는 점유(hard lock, 점유 workspace의 멤버) 중이 아니면 해제한다. FocusObserved는 창이 비활성일 때도 만들어지고, 점유와 OS 포커스는 실행할 때 본다. toast, completion, Claude 훅, OSC133 명령 완료 등 여러 경로가 같은 attention을 사용한다.
 - **Highlight** — attention을 화면에 표시하는 이름. 테두리, 노란 탭 제목, 소속 워크스페이스의 개수 배지로 나타낸다. `draw_surface_highlights`·`SurfaceHighlightRegion` 같은 화면 코드가 사용한다. Core 상태 이름 Attention과 구분하며, 잠깐 나타나는 Toast와 달리 surface에 남아 있다.
 - **Completion** — surface의 작업 완료 신호. release의 `surface.completion`·`tasty surface completion`으로 보고한다. `AttentionKind::Completion`을 발생시키는 경로이지만 attention 전체를 뜻하지는 않는다. 에이전트가 자기 결과를 보고하는 기능이며, 완료 전용 효과가 필요해지면 이 처리 경로를 확장한다.
 

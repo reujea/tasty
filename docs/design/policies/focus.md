@@ -372,14 +372,16 @@ markdown과 image는 kind 이름과 등록한 플러그인 id를 함께 본다. 
 
 **포커스는 선택이 아니라 host 키 포커스다.** surface는 선택된 surface이면서 키가 그 본문이나 그 surface의 chrome(html 주소 띠)에 있을 때만 focused다. 키를 가진 팝업(범위·scrim과 무관), 무대, 복원 안내 안쪽 컨트롤, 튜토리얼 말풍선이 키를 가지면 focused surface가 없다. 복원 안내는 열리기만 하고 키를 가져가지 않으면 아무것도 바꾸지 않는다. 키를 가져가지 않는 팝업(agent가 연 passive 팝업, 컨텍스트 메뉴, Select·autocomplete 목록, 툴팁)은 아무것도 바꾸지 않는다. 판정은 `MainViewState::key_focus_surface`(`src/state/key_focus.rs`) 하나이고, 프레임마다 첫머리에 한 번 정한 값을 바탕·띠·터미널 커서·검색 잉크, 완료·입력 대기 강조 해제와 고아 soft 점유 정리, egui-mesh·attach mesh에 알리는 focused 값이 함께 읽는다. 키 포커스 값은 프레임 첫머리에 한 번 정하고, 그리기를 마칠 때 지금 값이 그 값과 다르면 다음 프레임을 그린다(`finish_redraw`의 `key_focus_moved_since_frame`). 그래서 프레임을 시작할 때 이미 키를 가진 팝업은 그 프레임부터 모든 표시와 동작이 따르고, 그리기 도중 키를 얻은 팝업(탭 바의 Find 버튼이 검색 바에 포커스를 주는 경우, 그리기 중 탭 전환)은 다음 프레임부터 따른다. 그 사이 한 프레임은 이미 정한 값으로 칠하므로 팝업 띠와 surface 표지가 함께 켜질 수 있다. 팝업 띠의 판정은 입력용(`popup_focus`)이라 프레임 값을 읽지 않는다. WebView 바탕과 plugin `surface.focused`는 화면에 낸 프레임의 값을 따른다. 입력 판단(`pass_key_node`, 팝업 키 주인)은 이 값을 읽지 않는다.
 
-**값은 키 포커스와 점유가 정한다.** 바탕 값은 키 포커스 surface이고 내용을 숨기는 점유가 아닐 때 focus 값이다(`surface_focus::bed_focused`). 터미널 PTY 커서도 같은 값을 따르고 출력 중 억제는 그대로다(`surface_focus::TerminalFocusPaint`). surface에 알리는 focused 값은 점유와 무관하게 키 포커스만 따른다. 이 값을 받는 쪽은 egui-mesh·attach mesh와 plugin `surface.focused`다.
+**값은 키 포커스와 점유가 정한다.** 바탕 값은 키 포커스 surface이고 내용을 숨기는 점유가 아닐 때 focus 값이다(`surface_focus::bed_focused`). 터미널 PTY 커서도 같은 값을 따르고 출력 중 억제는 그대로다(`surface_focus::TerminalFocusPaint`). egui-mesh·attach mesh surface가 받는 `focused` 불리언은 점유와 무관하게 그 프레임의 키 포커스만 따르고, 값이 바뀔 때 알린다(`key_focus::told_focused`). plugin `surface.focused` 이벤트는 이 불리언과 다르다. payload는 `surface_id`·`prev_surface_id`이고, 화면에 낸 프레임에서 키 포커스가 어느 surface로 들어간 진입만 알린다(제출된 키 포커스 진입, [이벤트 목록](../../reference/event-catalog.md)). 키를 잃는 전이는 알리지 않는다.
 
-- WebView가 받는 값은 bed kind의 바탕 값 하나다(`set_bed_focused`, `src/app/webview_sync/bed_focus.rs`). 키 포커스이고 내용을 숨기는 점유가 아닐 때만 참이라 hard 점유 중에는 키 포커스가 있어도 거짓이다. 점유와 무관한 host focused 통지는 WebView에 없고, html·edge kind WebView는 이 값도 받지 않는다. 그 통지는 후속 작업이다.
+- WebView가 받는 값은 bed kind의 바탕 값 하나다(`set_bed_focused`, `src/app/webview_sync/bed_focus.rs`). 키 포커스이고 내용을 숨기는 점유가 아닐 때만 참이라 hard 점유 중에는 키 포커스가 있어도 거짓이다. 점유와 무관한 host focused 통지는 WebView에 없고, html·edge kind WebView는 이 값도 받지 않는다.
 - 키 포커스 surface가 없으면(키를 가진 팝업 아래, attach 대기 선택) 모든 바탕이 unfocus 값이다.
 - OS 창의 활성 여부는 보지 않는다. 비활성 창의 포커스 surface는 focus 값을 유지한다. 강조 해제만 OS 창 활성을 함께 본다.
 - 강조 해제와 고아 soft 점유 정리는 내용을 숨기는 점유(hard lock, 점유 workspace의 멤버) 동안 미뤄지고 점유가 풀린 첫 프레임에 처리된다(`src/app/frame_effect.rs` `FocusObserved`). leaf의 링은 하나다: 응답 대기, 점유, 완료 순이다(`surface_rings`).
 - hard 점유된 surface와 점유 workspace의 멤버는 포커스를 가져도 입력을 받지 않으므로 unfocus 값이다. terminal은 점유 workspace에서도 surface lock을 받으므로 `is_hard_occupied`로 판정할 때와 결과가 같다.
-- 전환은 한 프레임에 끝나고 레이아웃은 변하지 않는다.
+- 프레임을 시작할 때 키 포커스가 바뀌었으면 전환은 그 프레임에 끝난다. 그리기 도중 팝업이 키를 얻으면 팝업 띠가 그 프레임에 먼저 켜지고, surface 표지는 다시 그리는 다음 프레임에 바뀐다(위 "포커스는 선택이 아니라 host 키 포커스다" 문단의 한계).
+- 전환에 애니메이션은 없다. 바탕·띠·커서는 값이 바뀐 프레임에 새 값으로 바로 칠한다.
+- 전환해도 레이아웃은 변하지 않는다. 띠 행은 포커스와 상관없이 예약된다(위 "띠는 행을 예약한다").
 
 **입력 판단과 분리한다.** 이 값은 칠에만 쓴다. 입력은 포커스 자체와 점유 입력 검사를 따로 본다. `ExplorerInput.focused`는 입력 판단이고 hard 점유 때도 낮추지 않는다.
 
