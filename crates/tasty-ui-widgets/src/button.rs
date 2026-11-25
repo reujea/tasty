@@ -230,7 +230,10 @@ impl<'a> Button<'a> {
         };
         let (rect, resp) = ui.allocate_exact_size(egui::vec2(desired_w, height), sense);
 
-        let pressed = resp.is_pointer_button_down_on();
+        // 포커스된 버튼에서 Space·Enter를 누르고 있는 동안도 포인터 누름과 같은 눌림 상태다.
+        let pressed = resp.is_pointer_button_down_on()
+            || (resp.has_focus()
+                && ui.input(|i| i.key_down(egui::Key::Space) || i.key_down(egui::Key::Enter)));
         let (fill, border, fg) = if !self.enabled {
             // accent 채움은 빠지고 모든 variant가 같은 중립 상자를 쓴다. Ghost는 상자가 없다.
             let fg = theme.button_disabled_fg().to_egui();
