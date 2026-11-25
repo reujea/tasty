@@ -84,6 +84,7 @@ impl PlatformWebView {
             return;
         }
         let load = self.begin_load();
+        self.host_documents.borrow_mut().requested(Some(url));
         self.top_level.borrow_mut().designate(Designation::Next);
         let url = HSTRING::from(url);
         // SAFETY: HSTRING은 클로저가 갖고 있어 호출 끝까지 살아있고 Navigate는 main thread 호출.
@@ -98,6 +99,7 @@ impl PlatformWebView {
             return;
         }
         let load = self.begin_load();
+        self.host_documents.borrow_mut().requested(None);
         let fallback = (self.host_document_ready && may_exceed_limit(html)).then(|| {
             super::host_document::Fallback {
                 documents: self.host_documents.clone(),

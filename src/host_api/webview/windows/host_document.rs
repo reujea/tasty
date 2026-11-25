@@ -250,7 +250,8 @@ pub(super) fn start(
     }
     // SAFETY: live args on the apartment thread.
     unsafe { args.SetCancel(true)? };
-    if end_cancelled_navigation(chrome.0, chrome.1, top_level, nav, redirected) {
+    let host_sent = documents.borrow().is_requested(&text);
+    if end_cancelled_navigation(chrome.0, chrome.1, top_level, nav, redirected, host_sent) {
         documents.borrow_mut().cancelled(nav);
     }
     tracing::debug!(

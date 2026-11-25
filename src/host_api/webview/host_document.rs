@@ -92,6 +92,8 @@ pub(super) struct HostDocuments {
     main: Option<Main>,
     /// 시작 전에 취소한 탐색. 그 완료는 chrome 상태를 바꾸지 않는다.
     cancelled: Option<u64>,
+    /// 호스트가 마지막으로 `load_url`로 요청한 주소. 본문 로드(`load_html`)면 None이다.
+    requested: Option<String>,
 }
 
 /// 탐색 시작에 대한 판정.
@@ -119,6 +121,18 @@ impl HostDocuments {
             nav: None,
             shown: false,
         });
+    }
+
+    /// 호스트 로드 요청. `load_url`이면 그 주소, `load_html`이면 None이다.
+    pub(super) fn requested(&mut self, url: Option<&str>) {
+        self.requested = url.map(str::to_string);
+    }
+
+    /// 이 주소가 호스트가 마지막으로 `load_url`로 요청한 주소인지.
+    pub(super) fn is_requested(&self, uri: &str) -> bool {
+        self.requested
+            .as_deref()
+            .is_some_and(|r| same_target(r, uri))
     }
 
     /// 다시 싣기 `Navigate`가 바로 거절됐다. 시작 신호가 오지 않으므로 여기서 지운다.

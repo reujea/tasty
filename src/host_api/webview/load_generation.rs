@@ -173,11 +173,17 @@ pub(super) fn chrome_state_after_end(
     nav_state_after_end(started, ended, success)
 }
 
-/// 시작 처리기가 표에 없는 host 전용 주소의 탐색을 취소했다(`host_document`). 시작 처리기가 하던 원격
-/// 차단 지목 소비를 여기서 한다(리다이렉트가 아닌 시작이 다음 탐색 지목을 소비한다). 취소한 탐색이 chrome의
-/// 지금 로드(호스트가 보낸 `Navigate`, 진행 중 탐색의 리다이렉트)이면 열린 로드를 닫고 Failed로 끝내며 그
-/// 세대를 현재로 둔다. 그 완료는 보통의 실패로 처리하면 된다. 지금 로드가 아니면(보이던 문서가 스스로 시작한
-/// 탐색) chrome을 그대로 두고 true를 돌려준다. 호출자는 그 완료가 chrome을 바꾸지 않게 건너뛴다.
+/// 시작 처리기가 host 전용 주소의 탐색을 취소했다(`host_document`). 취소한 탐색이 chrome의 지금 로드인지는
+/// 아래로 가린다. 탐색 ID를 모르면 지금 로드로 보지 않는다(닫힌 쪽).
+///
+/// - 리다이렉트: 세대가 그 탐색의 ID일 때만 지금 로드다. 세대가 빈 구간(`begin_load` 뒤 요청의 시작 전)의
+///   리다이렉트는 새 요청보다 앞선 탐색의 것이다.
+/// - 리다이렉트가 아닌 시작: 세대가 빈 구간에서 호스트가 보낸 기록과 맞을 때(`host_sent`)만 지금 로드다.
+///   세대가 있으면 그 뒤의 새 시작은 보이던 문서가 시작한 탐색이다.
+///
+/// 지금 로드면 시작 처리기가 하던 원격 차단 지목 소비를 하고(리다이렉트가 아닐 때), 열린 로드를 닫고
+/// Failed로 끝내며 그 ID를 세대로 둔다. 그 완료는 보통의 실패로 처리하면 된다. 지금 로드가 아니면 chrome·
+/// 세대·지목을 그대로 두고 true를 돌려준다. 호출자는 그 완료가 chrome을 바꾸지 않게 건너뛴다.
 #[cfg(any(windows, test))]
 pub(super) fn end_cancelled_navigation(
     nav_state: &std::cell::Cell<NavState>,
@@ -185,19 +191,23 @@ pub(super) fn end_cancelled_navigation(
     top_level: &std::cell::RefCell<tasty_model::html_script::top_level::TopLevelAdmission>,
     nav: Option<u64>,
     redirected: bool,
+    host_sent: bool,
 ) -> bool {
+    let current = match (chrome_generation.get(), nav) {
+        (_, None) => false,
+        (Some(generation), Some(id)) => redirected && generation == id,
+        (None, Some(_)) => !redirected && host_sent,
+    };
+    if !current {
+        return true;
+    }
     let mut top = top_level.borrow_mut();
     if !redirected {
         top.drop_next();
     }
-    if !is_current_load(chrome_generation.get(), nav) {
-        return true;
-    }
     top.end();
     nav_state.set(NavState::Failed);
-    if nav.is_some() {
-        chrome_generation.set(nav);
-    }
+    chrome_generation.set(nav);
     false
 }
 
@@ -440,7 +450,8 @@ mod tests {
             &generation,
             &top,
             Some(5),
-            false
+            false,
+            true
         ));
         assert_eq!(nav.get(), NavState::Failed);
         assert_eq!(generation.get(), Some(5));
@@ -472,7 +483,8 @@ mod tests {
             &generation,
             &top,
             Some(6),
-            true
+            true,
+            false
         ));
         assert_eq!(nav.get(), NavState::Failed);
         assert!(!top.borrow().admitting(), "열린 로드를 닫는다");
@@ -489,10 +501,61 @@ mod tests {
             &generation,
             &top,
             Some(7),
+            false,
             false
         ));
         assert_eq!(nav.get(), NavState::Done);
         assert_eq!(generation.get(), Some(6));
-        assert!(!next_start_admitted(&top), "시작처럼 지목을 소비한다");
+        assert!(
+            next_start_admitted(&top),
+            "그 로드의 탐색이 아니면 지목을 남긴다"
+        );
+    }
+
+    #[test]
+    fn a_cancelled_redirect_of_an_earlier_navigation_keeps_the_requested_load() {
+        // begin_load가 세대를 비우고 지목을 세운 뒤, 요청의 시작 전에 앞 탐색 4의 리다이렉트가 취소된다.
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(None);
+        let top = RefCell::new(TopLevelAdmission::default());
+        top.borrow_mut().designate(Designation::Next);
+        assert!(end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(4),
+            true,
+            false
+        ));
+        assert_eq!(nav.get(), NavState::Loading);
+        assert_eq!(generation.get(), None);
+        // 같은 구간의, 호스트가 보낸 기록과 맞지 않는 새 탐색도 요청을 끝내지 않는다.
+        assert!(end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(5),
+            false,
+            false
+        ));
+        assert_eq!(nav.get(), NavState::Loading);
+        assert_eq!(generation.get(), None);
+        assert!(next_start_admitted(&top), "요청의 지목은 남는다");
+    }
+
+    #[test]
+    fn a_cancelled_navigation_without_an_id_is_not_the_current_load() {
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(None);
+        let top = RefCell::new(TopLevelAdmission::default());
+        assert!(end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            None,
+            false,
+            true
+        ));
+        assert_eq!(nav.get(), NavState::Loading);
     }
 }

@@ -442,3 +442,15 @@ fn a_body_that_never_left_keeps_the_previous_document() {
     assert_eq!(docs.loads(), vec![(1, true)]);
     assert_eq!(reload(&mut docs, &a, 12), StartDecision::Reload);
 }
+
+/// 호스트가 보낸 기록(`load_url` 주소)은 마지막 요청만 남고, 본문 로드는 그 기록을 지운다.
+#[test]
+fn the_requested_address_is_the_host_record() {
+    let mut docs = HostDocuments::default();
+    let a = "http://v1-1.tasty-host-document.invalid/notes.md";
+    docs.requested(Some(a));
+    assert!(docs.is_requested(&format!("{a}#top")));
+    assert!(!docs.is_requested("http://v1-1.tasty-host-document.invalid/other.md"));
+    docs.requested(None);
+    assert!(!docs.is_requested(a));
+}
