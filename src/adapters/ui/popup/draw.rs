@@ -373,7 +373,8 @@ impl PopupManager {
                 fullscreen_requested = Some(stage);
             } else if let Some(iid) = hovered_box {
                 // 팝업 안 누름. 포커스를 받지 않는 팝업은 누름으로 순서를 바꾸지 않는다(bring_to_front가 거른다).
-                // 포커스 위치는 누름 스냅샷이 정했다. 스냅샷 없는 누름(별도 창)만 여기서 같은 함수로 정한다.
+                // 포커스 위치는 사건 시점에 정했다(메인 창 누름 스냅샷, 별도 창 사건 입구 `press_window_at`). 사건 시점에
+                // 정하지 않은 누름만 여기서 같은 함수로 정한다.
                 bring_front = Some(iid);
                 if !press.focus_decided {
                     self.focus_on_press(Some(super::focus::PopupNode::Host(iid)));

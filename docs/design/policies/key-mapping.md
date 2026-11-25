@@ -288,11 +288,11 @@ surface의 입력칸(주소·이름), 설정·Preset·Plugins·종료 확인 창
   남기지 않으며, 그 요청은 더 기다리지 않는다. 줄 선 입력은 그때 바로 재생한다. 이 판정은 같은 pump 의 회신보다 먼저
   한다(`PluginEditHolds::settle`). 그래서 같은 pump 에 닫힘과 회신이 겹쳐도 그 회신은 원래 키를 재생하거나 복사 글자를
   쓰지 않고 버려진다. surface 대상 보류는 그 창의 키를 지금도 그 surface 가 받을 때만 살아 있다
-  (`hold_target_live`, `MainView::plugin_surface_key_target`). 닫힌 surface 는 포커스를 가질 수 없으므로 같은 판정으로 끝난다.
+  (`hold_target_live`, `MainView::plugin_surface_key_target`: 편집 키가 지금 닿는 경로 끝 surface, `key_nodes::edit_key_surface`). 닫힌 surface 는 포커스를 가질 수 없으므로 같은 판정으로 끝난다.
 - headless 실행은 키를 붙잡는 창이 없으므로 회신을 pump 직후 꺼내 버린다(`src/boot/headless_plugins.rs`).
 - 메인 창의 편집 키는 경로 키다. 편집 대상은 그 키의 수신자다([입력 계층의 경로 키](../../architecture/input-layer.md#경로-키),
   `edit_target`). `Keys` 팝업이 포커스여도 편집 키는 그 팝업이 쓰지 않아 경로를 올라가고, 경로가 끝난 노드(단축키·
-  surface)가 받는다. 뗌처럼 경로 키가 아닌 사건은 오버레이 게이트와 키 주인 plugin 팝업으로 정한다.
+  surface)가 받는다. 경로가 surface 에 닿지 않고 끝나면(덮는 팝업이 버린 키, Window 범위 팝업) plugin surface 편집도 없다. 뗌처럼 경로 키가 아닌 사건은 오버레이 게이트와 키 주인 plugin 팝업으로 정한다.
 - 플러그인 팝업이 키를 받으면 메인 창이 egui-winit 보다 먼저 판정한다(`src/view/main/plugin_popup_keys.rs`). 키를 받는
   팝업은 그 키의 수신자인 plugin 팝업이다. 플러그인 붙여넣기 대상도 같은 값이다. 호스트는 팝업 안 입력칸의 선택을 모르므로
   `Act`를 내지 않는다.
