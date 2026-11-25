@@ -1,6 +1,6 @@
 //! 탐색 요청·이력 이동과 탐색 상태 조회. 이벤트 처리기는 `PlatformWebView::create`에 있다.
 use super::super::entry_response::windows as entry_adapter;
-use super::super::host_document::{may_exceed_limit, refuse_load_url};
+use super::super::host_document::{may_exceed_limit, refuse_load_url, replace_host_request};
 use super::super::load_generation::end_rejected_load;
 use super::super::scan_resume::HistoryStep;
 use super::super::{NavState, PendingNavigation};
@@ -173,10 +173,13 @@ impl PlatformWebView {
         );
     }
 
-    /// 호스트 출처 로드·이동. 스캔 재시작 상태를 갱신하고 남은 사용자 클릭을 지운다.
+    /// 호스트 출처 로드·이동. 스캔 재시작 상태를 갱신하고 앞 요청의 지목과 남은 사용자 클릭을 지운다.
     fn host_request(&self, step: Option<HistoryStep>) {
         self.scan_resume.borrow_mut().host_request(step);
-        self.host_documents.borrow_mut().host_reload(false);
+        replace_host_request(
+            &mut self.host_documents.borrow_mut(),
+            &mut self.top_level.borrow_mut(),
+        );
         if let Some(route) = &self.host_input {
             route.cancel_click();
         }

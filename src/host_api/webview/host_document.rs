@@ -71,6 +71,17 @@ pub(super) fn refuse_load_url(
     true
 }
 
+/// 호스트의 새 로드·이동 요청은 앞 요청을 대신한다. 앞 요청이 세운 원격 허용 지목(`Designation::Next`)과
+/// 호스트 Reload 기록을 지운다. 지목을 세우는 요청(허용한 `load_url`, 이력 이동, `reload`)은 이 뒤에 자기
+/// 지목을 세운다. 세우지 않는 요청(거절한 `load_url`, `load_html`) 뒤에는 지목이 남지 않는다.
+pub(super) fn replace_host_request(
+    documents: &mut HostDocuments,
+    top_level: &mut tasty_model::html_script::top_level::TopLevelAdmission,
+) {
+    documents.host_reload(false);
+    top_level.drop_next();
+}
+
 /// 시작 전에 취소한 예약 주소 탐색이 지금 호스트 로드가 보낸 것인지. `header`는 그 시작 요청의
 /// `HOST_LOAD_HEADER` 값, `latest`는 지금 호스트 로드 번호다. WebView2는 다시 읽기·이력 이동·리다이렉트에서
 /// 앞 요청의 머리글을 다시 보내므로, 머리글이 있는 것만으로는 지금 로드가 보낸 탐색이 아니다. 번호가 지금

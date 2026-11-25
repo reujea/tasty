@@ -711,6 +711,67 @@ mod tests {
         assert!(next_start_admitted(&top));
     }
 
+    /// 새 호스트 요청은 앞 요청의 지목을 지운다. 지목을 세우지 않는 요청 뒤에는 지목이 남지 않고, 지목을
+    /// 세우는 요청은 자기 지목을 갖는다. 호출 순서는 `view_navigation`과 같다.
+    #[test]
+    fn a_new_host_request_replaces_the_earlier_designation() {
+        use super::super::host_document::{
+            HostDocuments, HostLoadHeader, StartDecision, host_document_url, refuse_load_url,
+            replace_host_request,
+        };
+        use tasty_model::html_script::top_level::StartKind;
+        let reload = |docs: &mut HostDocuments, top: &RefCell<TopLevelAdmission>| {
+            replace_host_request(docs, &mut top.borrow_mut());
+            top.borrow_mut().designate(Designation::Next);
+            docs.host_reload(true);
+        };
+        // 보이는 문서 A에 reload()를 보낸 뒤, 그 시작 전에 load_url이 예약 주소를 거절한다.
+        let mut docs = HostDocuments::default();
+        let a = host_document_url(1, 1, 1);
+        docs.sent(1, a.clone(), std::sync::Arc::from("a"));
+        let a_load = HostLoadHeader::Load(1);
+        let started = docs.navigation_started(&a, Some(15), StartKind::Other, false, a_load);
+        assert_eq!(started, StartDecision::HostLoad);
+        assert!(docs.respond(&a, true, true, false).is_some());
+        docs.served();
+        docs.committed(Some(15), false);
+        assert!(!docs.navigation_completed(Some(15), true));
+        let top = RefCell::new(TopLevelAdmission::default());
+        reload(&mut docs, &top);
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(None);
+        replace_host_request(&mut docs, &mut top.borrow_mut());
+        assert!(refuse_load_url(&a, &nav, &generation, 2));
+        assert_eq!(nav.get(), NavState::Failed);
+        // A의 Reload가 머리글을 읽지 못해 취소돼도 관계없는 다음 main 탐색은 예외를 받지 않는다.
+        let unreadable = HostLoadHeader::Unreadable;
+        let start = docs.navigation_started(&a, Some(16), StartKind::Reload, false, unreadable);
+        assert_eq!(start, StartDecision::Cancel);
+        let host_reload = docs.take_host_reload();
+        assert!(!host_reload, "뒤 요청이 기록을 지웠다");
+        end_cancelled_navigation(&nav, &generation, &top, Some(16), false, false, host_reload);
+        assert!(
+            !next_start_admitted(&top),
+            "거절한 load_url 뒤에는 지목이 없다"
+        );
+        // reload() 뒤 load_html(지목을 세우지 않는다)도 앞 지목을 지운다.
+        reload(&mut docs, &top);
+        replace_host_request(&mut docs, &mut top.borrow_mut());
+        assert!(!next_start_admitted(&top), "load_html 뒤에는 지목이 없다");
+        // 지목을 세우는 요청은 앞 요청 뒤에도 자기 지목을 갖는다.
+        reload(&mut docs, &top);
+        assert!(next_start_admitted(&top), "reload");
+        for (name, url) in [("load_url", "https://example.com/1"), ("history", "")] {
+            reload(&mut docs, &top);
+            replace_host_request(&mut docs, &mut top.borrow_mut());
+            if !url.is_empty() {
+                assert!(!refuse_load_url(url, &nav, &generation, 3), "{name}");
+            }
+            top.borrow_mut().designate(Designation::Next);
+            assert!(next_start_admitted(&top), "{name}");
+        }
+    }
+
     #[test]
     fn a_cancelled_history_start_with_an_earlier_load_number_keeps_the_new_load() {
         use super::super::host_document::{HostLoadHeader, sent_for_current_load};
