@@ -1,7 +1,7 @@
 //! host 전용 주소(`super::super::host_document`)의 WebView2 배선: 예약 호스트 필터, 응답, 새 창 차단.
-//! 예약 호스트 요청은 여기서 로컬로 응답한다. 다만 요청 정보(`Request`·`Uri`·`Method`·`ResourceContext`)
-//! 조회나 `SetResponse`가 실패하면 응답을 설정하지 못한 채 빠져나가, 그 요청은 이름 해석으로 넘어갈 수
-//! 있고 `.invalid`라 해석은 실패한다. 판정과 본문 표는 OS 무관 모듈에 있다.
+//! 예약 호스트 요청은 여기서 로컬로 응답한다. 다만 요청 정보 조회(예약 판정 전의 `Request`·`Uri`, 404
+//! 선택 전의 `Request`·`Method`·`ResourceContext`)나 `SetResponse`가 실패하면 응답을 설정하지 못한 채
+//! 반환한다(WebView2가 그 뒤에 하는 일은 확인하지 않았다). 판정과 본문 표는 OS 무관 모듈에 있다.
 
 use std::cell::{Cell, RefCell};
 use std::sync::Arc;
@@ -105,7 +105,7 @@ impl Responder {
             Err(e) => {
                 tracing::error!(
                     "WebView surface {surface}: answering a host document request failed ({e}); \
-                     the request may reach name resolution"
+                     the request is left without a response"
                 );
                 if reply.body {
                     nav_state.set(NavState::Failed);
@@ -116,7 +116,7 @@ impl Responder {
     }
 
     /// 예약 호스트 요청 하나를 끝낸다. 지금 main 탐색의 문서 요청이면 본문을, 아니면 404를 보낸다.
-    /// `body`는 본문을 실은 200 응답인지, `sent`는 `SetResponse` 결과다. 실패하면 요청이 이름 해석으로 넘어갈 수 있다.
+    /// `body`는 본문을 실은 200 응답인지, `sent`는 `SetResponse` 결과다. 실패하면 응답이 설정되지 않는다(그 뒤 WebView2의 동작은 확인하지 않았다).
     fn reply(
         &self,
         documents: &RefCell<HostDocuments>,
