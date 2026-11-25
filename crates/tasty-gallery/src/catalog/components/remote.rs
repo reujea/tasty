@@ -18,6 +18,8 @@ use crate::catalog::widgets::dialog as kit;
 mod forms;
 mod passkeys;
 pub(super) use passkeys::passkeys_frame;
+#[cfg(test)]
+mod attach_meta_tests;
 mod segment_rule;
 pub use forms::{draw_generic_passkey_forms, draw_profile_form};
 pub use passkeys::draw_passkeys;
@@ -390,11 +392,7 @@ pub fn draw_attach(ui: &mut egui::Ui, theme: &Theme) {
                 "inactive badge",
                 theme.accent_warning().to_egui(),
             ),
-            TokenChip::new(
-                "text-disabled",
-                "inactive name",
-                theme.text_disabled().to_egui(),
-            ),
+            TokenChip::new("text-muted", "inactive name", theme.text_muted().to_egui()),
             TokenChip::without_color("separator", "row dividers"),
             TokenChip::new("text-muted", "target mono", theme.text_muted().to_egui()),
             TokenChip::new("bg-sidebar", "tab strip", theme.bg_sidebar().to_egui()),
