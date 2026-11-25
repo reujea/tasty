@@ -1,14 +1,18 @@
-//! 내보내기 실패 표본의 잉크와 버튼 바탕을 그려진 도형으로 확인한다(본체 notices_tests와 같은 방식).
+//! 내보내기 실패·파싱 실패·번들 경고 표본의 잉크, 본문 폭, 버튼 바탕을 그려진 도형으로 확인한다
+//! (본체 notices_tests와 같은 방식).
 
 use tasty_type_appearance::theme::Theme;
 
-use super::remaining_values::unknown_export_failure;
+use super::open_values::draw_open_values;
+use super::remaining_values::{draw_remaining_values, unknown_export_failure};
 
 /// 그려진 글자 하나 — 문자열, 위치, 실제로 칠해진 색.
 struct PaintedText {
     text: String,
     rect: egui::Rect,
     color: egui::Color32,
+    /// 줄바꿈 폭 — 배치가 준 최대 폭이다.
+    wrap_width: f32,
 }
 
 /// 한 프레임에 그려진 것.
@@ -36,7 +40,7 @@ fn paint(mut draw: impl FnMut(&mut egui::Ui)) -> Painted {
         let raw = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
                 egui::Pos2::ZERO,
-                egui::vec2(900.0, 480.0),
+                egui::vec2(900.0, 2400.0),
             )),
             ..Default::default()
         };
@@ -64,6 +68,7 @@ fn paint(mut draw: impl FnMut(&mut egui::Ui)) -> Painted {
                     text: t.galley.text().to_string(),
                     rect: t.visual_bounding_rect(),
                     color,
+                    wrap_width: t.galley.job.wrap.max_width,
                 })
             }
             _ => None,
@@ -108,6 +113,41 @@ impl Painted {
             .min_by(|a, b| a.0.total_cmp(&b.0))
             .map(|(_, fill)| fill)
             .unwrap_or_else(|| panic!("nothing filled under {inner:?}"))
+    }
+
+    fn texts_with(&self, needle: &str) -> Vec<&PaintedText> {
+        let found: Vec<&PaintedText> = self
+            .texts
+            .iter()
+            .filter(|t| t.text.contains(needle))
+            .collect();
+        assert!(!found.is_empty(), "{needle:?} was not painted");
+        found
+    }
+
+    /// `inner`를 품는, `fill`로 채운 가장 작은 사각형.
+    fn rect_filled_around(&self, fill: egui::Color32, inner: egui::Rect) -> egui::Rect {
+        self.shapes
+            .iter()
+            .filter_map(|s| match s {
+                egui::Shape::Rect(r)
+                    if r.brush.is_none() && r.fill == fill && r.rect.contains_rect(inner) =>
+                {
+                    Some(r.rect)
+                }
+                _ => None,
+            })
+            .min_by(|a, b| a.area().total_cmp(&b.area()))
+            .unwrap_or_else(|| panic!("no rect filled with {fill:?} around {inner:?}"))
+    }
+
+    /// `area` 안에 칠한 글리프의 tint.
+    fn glyphs_in(&self, area: egui::Rect) -> Vec<egui::Color32> {
+        self.glyphs
+            .iter()
+            .filter(|(r, _)| area.contains_rect(*r))
+            .map(|(_, c)| *c)
+            .collect()
     }
 
     fn rect_filled_with(&self, fill: egui::Color32) -> egui::Rect {
@@ -187,6 +227,101 @@ fn unknown_export_failure_sample_paints_the_app_inks_on_the_raised_card() {
             other.color,
             th.button_ghost_raised_fg().to_egui(),
             "ghost label"
+        );
+    }
+}
+
+fn tint_fill(th: &Theme, tone: egui::Color32) -> egui::Color32 {
+    tone.gamma_multiply(th.tint_fill_alpha())
+}
+
+fn both_themes() -> [Theme; 2] {
+    [
+        tasty_themes::mocha_fallback(),
+        crate::host_shell::latte_theme(),
+    ]
+}
+
+/// 번들 경고 블록: 제목·개수(`total`건)·tint 안 글리프는 accent-warning-raised, 보이는 각 줄은
+/// text-on-active다.
+fn assert_bundle_warning_block(p: &Painted, th: &Theme, total: u64, lines: &[&str]) {
+    let raised = th.accent_warning_raised().to_egui();
+    let title = p.text(crate::i18n::t("settings.keybindings.ie_notices_title"));
+    assert_eq!(title.color, raised, "warning title");
+    let tint = p.rect_filled_around(tint_fill(th, th.accent_warning().to_egui()), title.rect);
+    assert_eq!(p.glyphs_in(tint), vec![raised], "warning glyph");
+    let count = crate::i18n::t_count(
+        "settings.keybindings.ie_notices_count",
+        total,
+        &[&total.to_string()],
+    );
+    assert_eq!(p.text(&count).color, raised, "warning count");
+    for line in lines {
+        assert_eq!(
+            p.text(line).color,
+            th.text_on_active().to_egui(),
+            "warning line {line:?}"
+        );
+    }
+}
+
+/// open values 표본: 두 파싱 실패 블록의 제목과 tint 안 글리프는 accent-danger-strong, 번들 경고 블록은
+/// accent-warning-raised 머리와 text-on-active 줄, 내보내기 실패 본문은 measure-md에서 줄바꿈한다.
+/// Mocha는 accent-warning과 그 raised 값이 같아 경고 머리의 옛 잉크는 Latte가 가른다.
+#[test]
+fn open_values_sample_paints_parse_failure_and_bundle_warning_inks() {
+    let latte = crate::host_shell::latte_theme();
+    assert_ne!(
+        latte.accent_warning_raised(),
+        latte.accent_warning(),
+        "Latte must separate the raised warning ink from the base one"
+    );
+    for th in both_themes() {
+        assert_ne!(th.accent_danger_strong(), th.accent_danger_raised());
+        assert_ne!(th.text_on_active(), th.text_secondary());
+        assert_ne!(th.measure_md.value(), th.measure_lg.value());
+        let p = paint(|ui| draw_open_values(ui, &th));
+
+        let strong = th.accent_danger_strong().to_egui();
+        let titles = p.texts_with(crate::i18n::t("settings.keybindings.ie_failure_title"));
+        assert_eq!(titles.len(), 2, "with and without a line number");
+        for title in titles {
+            assert_eq!(title.color, strong, "parse failure title");
+            let tint =
+                p.rect_filled_around(tint_fill(&th, th.accent_danger().to_egui()), title.rect);
+            assert_eq!(p.glyphs_in(tint), vec![strong], "parse failure glyph");
+        }
+
+        assert_bundle_warning_block(
+            &p,
+            &th,
+            4,
+            &[
+                "Written by a newer schema",
+                "2 unknown actions were skipped",
+                "The group [keybindings.image] is empty",
+            ],
+        );
+
+        assert_eq!(
+            p.text("the folder is read-only. Nothing was written.")
+                .wrap_width,
+            th.measure_md.value(),
+            "export failure body measure"
+        );
+    }
+}
+
+/// remaining values 표본: 한 건 경고 블록의 머리·줄 잉크와 미분류 실패 본문의 measure-md 폭.
+#[test]
+fn remaining_values_sample_paints_one_notice_inks_and_measured_body() {
+    for th in both_themes() {
+        let p = paint(|ui| draw_remaining_values(ui, &th));
+        assert_bundle_warning_block(&p, &th, 1, &["1 unknown action was skipped"]);
+        assert_eq!(
+            p.text(" Nothing was written.").wrap_width,
+            th.measure_md.value(),
+            "export failure body measure"
         );
     }
 }

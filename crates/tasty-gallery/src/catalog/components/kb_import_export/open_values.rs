@@ -9,8 +9,8 @@ use crate::catalog::spec::{self, StageVariant, TokenChip};
 
 use super::entry::action_row;
 use super::notices::{
-    NoticeInk, dropped_notice, export_failure_block, failure_body, notice_block, notice_line,
-    parse_failure,
+    bundle_notices_ink, dropped_notice, export_failure_block, failure_body, notice_block,
+    notice_line, parse_failure,
 };
 use super::paint::caption;
 use super::{IE_FILE, NOTICE_FOLD_AT, SPECIMEN_W, STATE, State};
@@ -187,7 +187,7 @@ fn bundle_notices(ui: &mut egui::Ui, theme: &Theme, st: &mut State) {
     let clicked = notice_block(
         ui,
         theme,
-        NoticeInk::same(theme.accent_warning().to_egui()),
+        bundle_notices_ink(theme),
         icons::ALERT_TRIANGLE,
         "Read with warnings",
         Some(&crate::i18n::t_count(

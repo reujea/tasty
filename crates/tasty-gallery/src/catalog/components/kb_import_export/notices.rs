@@ -37,14 +37,35 @@ pub(super) struct NoticeInk {
 }
 
 impl NoticeInk {
-    /// tint·글리프·제목이 한 색인 블록.
-    pub(super) fn same(tone: egui::Color32) -> Self {
+    /// 글리프와 제목이 같은 잉크인 블록.
+    fn same(tint: egui::Color32, ink: egui::Color32) -> Self {
         Self {
-            tint: tone,
-            glyph: tone,
-            title: tone,
+            tint,
+            glyph: ink,
+            title: ink,
         }
     }
+}
+
+/// jsx `IeParseFailG` — 제목과 글리프 모두 accent-danger-strong(본체 parse_failure_ink와 같은 값).
+pub(super) fn parse_failure_ink(theme: &Theme) -> NoticeInk {
+    NoticeInk::same(
+        theme.accent_danger().to_egui(),
+        theme.accent_danger_strong().to_egui(),
+    )
+}
+
+/// jsx `IeBundleNoticesG` — 제목·개수·글리프 모두 accent-warning-raised(본체 bundle_notices_ink와 같은 값).
+pub(super) fn bundle_notices_ink(theme: &Theme) -> NoticeInk {
+    NoticeInk::same(
+        theme.accent_warning().to_egui(),
+        theme.accent_warning_raised().to_egui(),
+    )
+}
+
+/// 번들 경고 한 줄의 잉크 — jsx `IeBlockG` 본문 칸의 text-on-active(본체 bundle_notice_line_ink와 같은 값).
+pub(super) fn bundle_notice_line_ink(theme: &Theme) -> egui::Color32 {
+    theme.text_on_active().to_egui()
 }
 
 /// jsx `IeExportFailG` — raised 카드 위 danger tint. 제목은 accent-danger-strong, 글리프는
@@ -108,10 +129,10 @@ pub(super) fn export_failure_block(
     action_buttons(ui, theme, actions, Ground::Raised)
 }
 
-/// 실패 블록 본문 한 문단 — 12 text-on-active.
+/// 실패 블록 본문 한 문단 — 12, max-width measure-md, text-on-active.
 pub(super) fn failure_body(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.scope(|ui| {
-        ui.set_max_width(theme.measure_lg.value());
+        ui.set_max_width(theme.measure_md.value());
         ui.label(
             egui::RichText::new(text)
                 .size(theme.font_size_term_sm.value())
@@ -185,7 +206,7 @@ pub(super) fn parse_failure(ui: &mut egui::Ui, theme: &Theme, with_line: bool) {
     notice_block(
         ui,
         theme,
-        NoticeInk::same(theme.accent_danger().to_egui()),
+        parse_failure_ink(theme),
         icons::ALERT_CIRCLE,
         crate::i18n::t("settings.keybindings.ie_failure_title"),
         None,
@@ -203,7 +224,7 @@ pub(super) fn parse_failure(ui: &mut egui::Ui, theme: &Theme, with_line: bool) {
     );
 }
 
-/// 번들 경고 한 줄 — 흐린 글머리 · 12 text-secondary.
+/// 번들 경고 한 줄 — 흐린 글머리 · 12 text-on-active.
 pub(super) fn notice_line(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = GROUP_CHEVRON_GAP.value();
@@ -215,7 +236,7 @@ pub(super) fn notice_line(ui: &mut egui::Ui, theme: &Theme, text: &str) {
         ui.label(
             egui::RichText::new(text)
                 .size(theme.font_size_term_sm.value())
-                .color(theme.text_secondary().to_egui()),
+                .color(bundle_notice_line_ink(theme)),
         );
     });
 }
