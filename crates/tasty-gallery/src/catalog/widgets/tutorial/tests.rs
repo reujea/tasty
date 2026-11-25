@@ -372,9 +372,9 @@ fn a_rejected_step_under_a_block_comment_reports_its_own_line() {
 #[test]
 fn composite_edge_fades_stay_on_the_stage() {
     // 바닥보다 좁은 열의 첫 프레임: 오른쪽으로 더 스크롤할 수 있어 오른쪽 페이드가 있다. 페이드(메시)는
-    // 무대의 세로 범위를 그대로 덮는다(무대 아래로 넘지도, 높이 0으로 줄지도 않는다).
+    // 무대의 세로 범위를 그대로 덮는다(무대 아래로 넘지도, 높이 0으로 줄지도 않는다). 세로로 남은 가용
+    // 높이가 큰 첫 번째 경우와, 긴 갤러리 페이지처럼 남은 높이가 0인 두 번째 경우를 함께 본다.
     let theme = tasty_themes::mocha_fallback();
-    let ctx = egui::Context::default();
     let col_w = floor() / 2.0;
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
@@ -383,13 +383,28 @@ fn composite_edge_fades_stay_on_the_stage() {
         )),
         ..Default::default()
     };
+    for no_height_left in [false, true] {
+        edge_fades_cover_the_stage(&theme, col_w, input.clone(), no_height_left);
+    }
+}
+
+fn edge_fades_cover_the_stage(
+    theme: &tasty_type_appearance::theme::Theme,
+    col_w: f32,
+    input: egui::RawInput,
+    no_height_left: bool,
+) {
+    let ctx = egui::Context::default();
     let mut stage = None;
     let output = ctx.run(input, |ctx| {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
                 ui.set_max_width(col_w);
+                if no_height_left {
+                    ui.add_space(ui.available_height());
+                }
                 ui.data_mut(|d| d.insert_temp(crate::catalog::spec::body_column_width_id(), col_w));
-                stage = Some(super::composite_specimen(ui, &theme).stage);
+                stage = Some(super::composite_specimen(ui, theme).stage);
             });
         });
     });
@@ -406,7 +421,7 @@ fn composite_edge_fades_stay_on_the_stage() {
     for m in meshes {
         assert!(
             (m.top() - stage.top()).abs() <= 0.5 && (m.bottom() - stage.bottom()).abs() <= 0.5,
-            "페이드 {m:?}의 세로 범위가 무대 {stage:?}와 같아야 한다"
+            "남은 높이 0={no_height_left}: 페이드 {m:?}의 세로 범위가 무대 {stage:?}와 같아야 한다"
         );
     }
 }
