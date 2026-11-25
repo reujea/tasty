@@ -60,51 +60,62 @@ pub fn specs() -> Vec<crate::catalog::Spec> {
     }]
 }
 
+/// 예제 칸들: (캡션, 고정할 포커스 탭, 창 그림).
+fn frames() -> [(&'static str, FocusLook, Frame); 8] {
+    [
+        (
+            "settings · L1 tab",
+            FocusLook::L1(0),
+            super::settings::frame,
+        ),
+        (
+            "settings · selected L1 tab",
+            FocusLook::L1(1),
+            super::settings::frame,
+        ),
+        (
+            "settings · L2 row",
+            FocusLook::L2(1),
+            super::settings::frame,
+        ),
+        // 원격 탭 세 칸은 정본 remote-tab-focus·remote-tab-next-to-selected-focus·remote-selected-tab-focus
+        // (tasty-page develop 80fa994 overlays-windows/window-tab-focus.jsx)다. 열린 탭은 Passkeys·Attach·Attach,
+        // 포커스 탭은 Remote profiles·Passkeys·Attach다.
+        (
+            "remote · tab strip",
+            FocusLook::RemoteTab(0),
+            super::remote::passkeys_frame,
+        ),
+        (
+            "remote · tab next to the selected one",
+            FocusLook::RemoteTab(2),
+            super::remote::attach_form_frame,
+        ),
+        (
+            "remote · selected tab",
+            FocusLook::RemoteTab(1),
+            super::remote::attach_form_frame,
+        ),
+        (
+            "remote · segmented",
+            FocusLook::Segment(1),
+            super::remote::attach_form_frame,
+        ),
+        (
+            "plugins · tab bar",
+            FocusLook::PluginTab(1),
+            super::plugins_window::installed_frame,
+        ),
+    ]
+}
+
 fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
         ui.spacing_mut().item_spacing = egui::vec2(STAGE_GAP.value(), STAGE_GAP.value());
         ui.with_layout(
             egui::Layout::left_to_right(egui::Align::Min).with_main_wrap(true),
             |ui| {
-                let frames: [(&str, FocusLook, Frame); 7] = [
-                    (
-                        "settings · L1 tab",
-                        FocusLook::L1(0),
-                        super::settings::frame,
-                    ),
-                    (
-                        "settings · selected L1 tab",
-                        FocusLook::L1(1),
-                        super::settings::frame,
-                    ),
-                    (
-                        "settings · L2 row",
-                        FocusLook::L2(1),
-                        super::settings::frame,
-                    ),
-                    // 정본 remote-tab-next-to-selected-focus·remote-selected-tab-focus(page gallery-leftovers f04edb6).
-                    (
-                        "remote · tab next to the selected one",
-                        FocusLook::RemoteTab(1),
-                        super::remote::passkeys_frame,
-                    ),
-                    (
-                        "remote · selected tab",
-                        FocusLook::RemoteTab(2),
-                        super::remote::passkeys_frame,
-                    ),
-                    (
-                        "remote · segmented",
-                        FocusLook::Segment(1),
-                        super::remote::attach_form_frame,
-                    ),
-                    (
-                        "plugins · tab bar",
-                        FocusLook::PluginTab(1),
-                        super::plugins_window::installed_frame,
-                    ),
-                ];
-                for (caption, look, frame) in frames {
+                for (caption, look, frame) in frames() {
                     spec::wrap_item(ui, |ui| {
                         showing(ui, look, |ui| {
                             ui.spacing_mut().item_spacing.y = theme.spacing_xs.value();
@@ -149,4 +160,79 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
             theme.border_focus().to_egui(),
         )],
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `frame`을 `look`으로 고정해 한 패스 그리고 (포커스 링 사각형들, 활성 밑줄 x 중심)을 돌려준다.
+    fn paint(theme: &Theme, look: FocusLook, frame: Frame) -> (Vec<egui::Rect>, Option<f32>) {
+        let ctx = egui::Context::default();
+        let out = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 1200.0),
+                )),
+                ..Default::default()
+            },
+            |c| {
+                egui::CentralPanel::default()
+                    .show(c, |ui| showing(ui, look, |ui| frame(ui, theme)));
+            },
+        );
+        let mut rings = Vec::new();
+        let mut underline = None;
+        for s in &out.shapes {
+            match &s.shape {
+                egui::Shape::Rect(r)
+                    if r.stroke.width == theme.focus_ring_width.value()
+                        && r.stroke_kind == egui::StrokeKind::Inside
+                        && r.stroke.color == theme.border_focus().to_egui() =>
+                {
+                    rings.push(r.rect);
+                }
+                egui::Shape::LineSegment { points, stroke }
+                    if stroke.width == theme.tab_indicator_width().value()
+                        && stroke.color == theme.accent_primary().to_egui() =>
+                {
+                    underline = Some((points[0].x + points[1].x) * 0.5);
+                }
+                _ => {}
+            }
+        }
+        (rings, underline)
+    }
+
+    /// 원격 탭 칸은 셋이고 (열린 탭, 포커스 탭)이 정본 순서대로 (Passkeys, Remote profiles), (Attach, Passkeys),
+    /// (Attach, Attach)다. 열린 탭은 그린 밑줄이 놓인 탭으로, 탭 자리는 같은 그림의 각 탭 링으로 읽는다.
+    #[test]
+    fn the_remote_tab_cells_match_the_canon_three() {
+        let theme = tasty_themes::mocha_fallback();
+        let inset = tasty_ui_widgets::tab_ring_inset(&theme, theme.tab_indicator_width()).value();
+        let mut got = Vec::new();
+        for (_, look, frame) in frames() {
+            let FocusLook::RemoteTab(focus) = look else {
+                continue;
+            };
+            let tabs: Vec<egui::Rect> = (0..3)
+                .map(|k| {
+                    let (rings, _) = paint(&theme, FocusLook::RemoteTab(k), frame);
+                    assert_eq!(rings.len(), 1, "tab {k}: {rings:?}");
+                    rings[0].expand(inset)
+                })
+                .collect();
+            let (rings, underline) = paint(&theme, look, frame);
+            let x = underline.expect("the open tab draws its underline");
+            let open = tabs
+                .iter()
+                .position(|t| t.x_range().contains(x))
+                .expect("underline sits under a tab");
+            assert_eq!(rings.len(), 1);
+            assert_eq!(rings[0].expand(inset), tabs[focus], "ring on tab {focus}");
+            got.push((open, focus));
+        }
+        assert_eq!(got, vec![(2, 0), (1, 2), (1, 1)]);
+    }
 }

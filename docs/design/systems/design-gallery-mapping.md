@@ -573,8 +573,9 @@ thread-local mock. `crates/tasty-gallery/src/catalog/widgets/<name>.rs`.
 시안 갤러리에 없는 갤러리 전용 예제로, 콘텐츠 열 최대 폭(620) 안에 행·스위치·색 override·언어 선택을 모았다.
 창 안 탭의 키보드 포커스는 시안 `overlays-windows/window-tab-focus.jsx` ↔ 갤러리 `components/window_tab_focus.rs`
 (`window-tabs-keyboard-focus`, 설정 구역 끝)다. 설정창·원격 창·플러그인 창 그림을 그대로 쓰고, 칸마다 한 탭을
-포커스 모양으로 고정한다. 원격 탭 줄은 선택 탭 바로 옆 탭과 선택 탭을 따로 보인다(page 표본
-`remote-tab-next-to-selected-focus`·`remote-selected-tab-focus`). 링 모양은 시안이 정본이다.
+포커스 모양으로 고정한다. 원격 탭 줄은 시안의 세 칸을 따른다. `remote-tab-focus`는 Passkeys가 열린 채 Remote
+profiles에, `remote-tab-next-to-selected-focus`는 Attach가 열린 채 Passkeys에, `remote-selected-tab-focus`는
+Attach가 열린 채 Attach에 포커스가 있다. 링 모양은 시안이 정본이다.
 Layouts 의 `widgets/layout_2depth.rs`(`twodepth`)는 이 미러가 아니라 특정 창에 매이지
 않는 일반 2단계 레이아웃(168/40, 토큰으로 계산)이다.
 
