@@ -34,6 +34,14 @@ pub(super) fn parse_host_load(value: &str) -> Option<u64> {
     value.trim().parse().ok()
 }
 
+/// 시작 전에 취소한 예약 주소 탐색이 지금 호스트 로드가 보낸 것인지. `header`는 그 시작 요청의
+/// `HOST_LOAD_HEADER` 값, `latest`는 지금 호스트 로드 번호다. WebView2는 다시 읽기·이력 이동·리다이렉트에서
+/// 앞 요청의 머리글을 다시 보내므로, 머리글이 있는 것만으로는 지금 로드가 보낸 탐색이 아니다. 번호가 지금
+/// 로드와 같을 때만이다.
+pub(super) fn sent_for_current_load(header: Option<u64>, latest: u64) -> bool {
+    header == Some(latest)
+}
+
 /// Win32 `NavigateToString`이 받는 문자열의 최대 크기(UTF-16 바이트).
 const NAVIGATE_TO_STRING_MAX_BYTES: usize = 2 * 1024 * 1024;
 

@@ -544,6 +544,30 @@ mod tests {
     }
 
     #[test]
+    fn a_cancelled_history_start_with_an_earlier_load_number_keeps_the_new_load() {
+        use super::super::host_document::sent_for_current_load;
+        // 로드 3이 요청돼 세대가 빈 구간에, 로드 2의 머리글을 다시 보낸 이력 이동이 취소된다.
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(None);
+        let top = RefCell::new(TopLevelAdmission::default());
+        top.borrow_mut().designate(Designation::Next);
+        let host_sent = sent_for_current_load(Some(2), 3);
+        assert!(end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(9),
+            false,
+            host_sent
+        ));
+        assert_eq!(nav.get(), NavState::Loading);
+        assert_eq!(generation.get(), None);
+        assert!(next_start_admitted(&top), "새 로드의 지목은 남는다");
+        assert!(sent_for_current_load(Some(3), 3));
+        assert!(!sent_for_current_load(None, 3));
+    }
+
+    #[test]
     fn a_cancelled_navigation_without_an_id_is_not_the_current_load() {
         let nav = Cell::new(NavState::Loading);
         let generation = Cell::new(None);

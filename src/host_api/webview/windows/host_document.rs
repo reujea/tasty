@@ -13,7 +13,7 @@ use windows::core::{BOOL, Error, HSTRING, Interface, PWSTR, Result, w};
 use super::super::NavState;
 use super::super::host_document::{
     HOST_LOAD_HEADER, HostDocuments, RESERVED_FILTERS, StartDecision, host_document_url,
-    host_load_header, is_reserved, parse_host_load, retry_via_host_document,
+    host_load_header, is_reserved, parse_host_load, retry_via_host_document, sent_for_current_load,
 };
 use super::super::load_generation::end_cancelled_navigation;
 use tasty_model::html_script::top_level::{StartKind, TopLevelAdmission};
@@ -222,6 +222,7 @@ pub(super) fn start(
     documents: &RefCell<HostDocuments>,
     chrome: (&Cell<NavState>, &Cell<Option<u64>>),
     top_level: &RefCell<TopLevelAdmission>,
+    latest: u64,
     surface: u32,
     args: Option<&ICoreWebView2NavigationStartingEventArgs>,
 ) -> Result<StartDecision> {
@@ -254,7 +255,8 @@ pub(super) fn start(
     }
     // SAFETY: live args on the apartment thread.
     unsafe { args.SetCancel(true)? };
-    let host_sent = host_load.is_some() || documents.borrow().is_requested(&text);
+    let host_sent =
+        sent_for_current_load(host_load, latest) || documents.borrow().is_requested(&text);
     if end_cancelled_navigation(chrome.0, chrome.1, top_level, nav, redirected, host_sent) {
         documents.borrow_mut().cancelled(nav);
     }

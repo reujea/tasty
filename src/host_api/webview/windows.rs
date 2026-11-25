@@ -490,6 +490,8 @@ impl PlatformWebView {
             let click_slot: remote_block::ClickSlot = Rc::default();
             let click_start = click_slot.clone();
             let docs_start = host_documents.clone();
+            let host_load: Rc<Cell<u64>> = Rc::default();
+            let load_start = host_load.clone();
             let h_start = NavigationStartingEventHandler::create(Box::new(
                 move |sender, args| -> windows::core::Result<()> {
                     // 호스트가 보내지 않은 host 전용 주소 탐색(본문 안 상대 링크 등)은 chrome을 바꾸기 전에 취소한다.
@@ -498,6 +500,7 @@ impl PlatformWebView {
                         &docs_start,
                         chrome,
                         &top_start,
+                        load_start.get(),
                         surface_id,
                         args.as_ref(),
                     )?;
@@ -936,7 +939,7 @@ impl PlatformWebView {
                 nav_state,
                 content_process_ended,
                 chrome_generation,
-                host_load: Rc::default(),
+                host_load,
                 host_documents,
                 host_document_ready: host_responder.is_some(),
                 host_document_allowed: Rc::default(),
