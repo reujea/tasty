@@ -76,12 +76,12 @@ pub fn draw_open_values(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::new(
                 "accent-warning",
                 "warning block",
-                theme.accent_warning().to_egui(),
+                theme.accent_warning_raised().to_egui(),
             ),
             TokenChip::new(
                 "accent-danger",
                 "failure blocks",
-                theme.accent_danger().to_egui(),
+                theme.accent_danger_raised().to_egui(),
             ),
             TokenChip::without_color(
                 "kb-ie-notice-inset",

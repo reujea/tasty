@@ -62,7 +62,7 @@ pub fn draw_remaining_values(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::new(
                 "accent-danger",
                 "failure block",
-                theme.accent_danger().to_egui(),
+                theme.accent_danger_raised().to_egui(),
             ),
             TokenChip::new(
                 "text-on-active",

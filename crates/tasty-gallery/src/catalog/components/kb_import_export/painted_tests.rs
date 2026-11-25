@@ -207,3 +207,43 @@ fn remaining_values_meta_names_the_os_line_ink_text_on_active() {
         assert_eq!(swatch, th.text_on_active().to_egui(), "OS line chip swatch");
     }
 }
+
+/// open values·remaining values Meta의 accent 칩은 정본 Meta처럼 토큰 이름 accent-warning·accent-danger에
+/// raised 값 스와치를 보인다. Mocha는 기본 accent와 raised 값이 같아 옛 스와치는 Latte가 가른다.
+#[test]
+fn import_meta_accent_chips_show_the_raised_swatches() {
+    let latte = crate::host_shell::latte_theme();
+    assert_ne!(latte.accent_warning_raised(), latte.accent_warning());
+    assert_ne!(latte.accent_danger_raised(), latte.accent_danger());
+    for th in both_themes() {
+        let bed = th.surface_raised().to_egui();
+        let p = paint(|ui| draw_open_values(ui, &th));
+        for (use_, name, ink) in [
+            (
+                "— warning block",
+                "accent-warning",
+                th.accent_warning_raised().to_egui(),
+            ),
+            (
+                "— failure blocks",
+                "accent-danger",
+                th.accent_danger_raised().to_egui(),
+            ),
+        ] {
+            let (chip, swatch) = p.token_chip(bed, use_);
+            assert!(p.has_text_in(name, chip), "{use_:?} chip is named {name}");
+            assert_eq!(swatch, ink, "{use_:?} chip swatch");
+        }
+        let p = paint(|ui| draw_remaining_values(ui, &th));
+        let (chip, swatch) = p.token_chip(bed, "— failure block");
+        assert!(
+            p.has_text_in("accent-danger", chip),
+            "failure block chip name"
+        );
+        assert_eq!(
+            swatch,
+            th.accent_danger_raised().to_egui(),
+            "failure block chip swatch"
+        );
+    }
+}
