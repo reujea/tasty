@@ -109,10 +109,15 @@ impl super::MainViewState {
             },
             // Close·Unfocus 는 지금 인스턴스 포커스를 풀고 그 Esc 를 넘긴다. 입력 시점의 키 주인(단계 8 이 묶은 이
             // 인스턴스) 본문이 팝업 층에서 이 Esc 를 받고, 본문이 쓰지 않았으면 Close 는 그 패스 중앙 단계
-            // (`popup::escape_step`)가 닫는다. 펼친 host 팝업은 포커스를 풀지 않고 넘긴다. 본문이 쓰지 않았으면 중앙
-            // 단계가 다시 접는다(닫지 않는다). 순서 검증: crates/tasty-doc-guards/tests/escape_dismisses_the_focused_popup.rs.
+            // (`popup::escape_step`)가 닫는다. 펼친 host 팝업과 자식 팝업이 열린 팝업은 포커스를 풀지 않고 넘긴다
+            // (`PopupState::escape_releases_focus`). 펼친 팝업 본문이 쓰지 않았으면 중앙 단계가 다시 접는다(닫지 않는다).
+            // 순서 검증: crates/tasty-doc-guards/tests/escape_dismisses_the_focused_popup.rs.
             KeyReceiver::Popup(instance) => {
-                if !self.popups.instance(instance).is_some_and(|p| p.expanded()) {
+                if self
+                    .popups
+                    .instance(instance)
+                    .is_none_or(|p| p.escape_releases_focus())
+                {
                     self.popups.set_instance_focused(instance, false);
                 }
                 EscapeOutcome::Consumed {

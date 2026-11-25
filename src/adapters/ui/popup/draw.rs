@@ -905,6 +905,8 @@ impl PopupManager {
                                     super::body_keys::with_body_keys(ctx, takes_keys, || {
                                         content_fn(&mut cx, ui)
                                     });
+                                popup.child_open =
+                                    super::child_popup_ids::child_popup_open(ctx, cx.instance);
                                 escape_consumed |= escape_here
                                     && cx.keys.consumed().contains(
                                         &super::keys::ConsumedKey::Basic(

@@ -2675,6 +2675,63 @@ mod tests {
         assert!(tool_open(&state, iid));
     }
 
+    /// Given 양식의 패스키 ComboBox 가 열린 키 주인 remote_tool, When 그리기 전에 수식키 없는 Esc 가 두 번 한 묶음으로
+    /// 오면(사건 입구 하네스), Then 패스가 Esc 마다 나뉘어 첫 패스는 ComboBox 만 닫고, 둘째 Esc 는 그 패스 뒤 팝업 노드에서
+    /// 시작해 양식을 목록으로 돌린다. 팝업은 열린 채다.
+    #[test]
+    fn two_escapes_in_one_batch_close_the_dropdown_then_the_popup() {
+        use crate::adapters::ui::popup::window_input_test_support::{WindowInput, click_widget_at};
+        let (mut state, mut session) = crate::state::tests::test_state();
+        let engine = session.borrow_mut();
+        let read = engine.read();
+        let ctx = egui::Context::default();
+        let iid = remote_tool_form(&ctx, &mut state, &read);
+        let texts = layer_frame(&ctx, &mut state, &read, Vec::new());
+        let combo = painted_at(&texts, t("remote_tool.passkey_none")).expect("패스키 ComboBox");
+        let button = click_widget_at(&ctx, combo.center()).expect("패스키 ComboBox 버튼");
+        layer_click(&ctx, &mut state, &read, combo.center());
+        assert!(
+            egui::ComboBox::is_open(&ctx, button),
+            "패스키 목록이 열렸다"
+        );
+        let mut input = WindowInput::default();
+        input.escape(&ctx, &mut state, &read, true);
+        input.escape(&ctx, &mut state, &read, true);
+        let screen = crate::model::PhysicalRect {
+            x: crate::model::PhysicalPx(0.0),
+            y: crate::model::PhysicalPx(0.0),
+            width: crate::model::PhysicalPx(1600.0),
+            height: crate::model::PhysicalPx(900.0),
+        };
+        let mut passes = Vec::new();
+        loop {
+            let (_, output) = input.run_pass(
+                &mut state,
+                &ctx,
+                egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1600.0, 900.0)),
+                &mut crate::gfx::gpu::text_selection::HeldPastes::default(),
+                &mut |_| {},
+                |ctx, state| {
+                    crate::adapters::ui::draw_popups(ctx, state, &read, &[], screen, 1.0);
+                },
+            );
+            drop(output);
+            passes.push((
+                egui::ComboBox::is_open(&ctx, button),
+                read_ui(&ctx).profile_view,
+            ));
+            if input.is_empty() || passes.len() > 4 {
+                break;
+            }
+        }
+        assert_eq!(
+            passes,
+            [(false, Sub::Form), (false, Sub::List)],
+            "Esc 마다 한 패스: ComboBox 가 닫히고 다음 패스에 양식이 목록으로 돌아간다"
+        );
+        assert!(tool_open(&state, iid), "팝업은 열린 채다");
+    }
+
     /// T-4a3-23: Given 프로토콜 두 개 이상인 목록의 프로토콜 필터가 열려 있을 때, When Esc 가 오면, Then 필터만 닫히고
     /// 팝업은 열린 채다. 목록은 디스크의 프로필 대신 시험 프로필로 그린다(본문은 시험 정의 팝업이 `draw_profile_list`
     /// 를 부른다).

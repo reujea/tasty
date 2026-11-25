@@ -371,6 +371,9 @@ pub struct PopupState {
     /// native WebView를 모두 숨기거나 그 키보드 포커스를 회수하지 않고, 겹치는 WebView만
     /// 키보드 입력이 없을 때 숨긴다. 포커스를 받거나 닫히면 해제한다.
     passive: bool,
+    /// 마지막으로 그린 패스 끝에 이 인스턴스의 자식 팝업(드롭다운 등)이 열려 있었는지. 사건 시점의 egui 상태다.
+    /// 그 뒤 오는 Esc 는 자식이 닫으므로 본문이 쓴 Esc 다(`escape_step` (c), `PopupState::escape_releases_focus`).
+    child_open: bool,
     /// If true, clicking outside this popup will close it (not just unfocus).
     pub close_on_outside_click: bool,
     /// true면 타이틀바·닫기 버튼 없이 콘텐츠만 렌더링한다.
@@ -605,6 +608,7 @@ impl PopupState {
             drag_offset: egui::Vec2::ZERO,
             scope,
             passive: false,
+            child_open: false,
             close_on_outside_click: false,
             headless: false,
             sticky_focus: false,
@@ -734,6 +738,7 @@ impl PopupState {
             drag_offset: self.drag_offset,
             scope: self.scope.clone(),
             passive: self.passive,
+            child_open: false,
             close_on_outside_click: self.close_on_outside_click,
             headless: self.headless,
             sticky_focus: self.sticky_focus,
@@ -762,6 +767,7 @@ impl PopupState {
         self.open = false;
         self.dragging = false;
         self.passive = false;
+        self.child_open = false;
         // 리사이즈 상태 리셋 → 다음 open 시 sizer 가 크기를 다시 결정하도록 복원.
         self.resizing = None;
         self.size_user_overridden = false;

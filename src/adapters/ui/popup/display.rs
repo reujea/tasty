@@ -336,6 +336,13 @@ impl PopupState {
         matches!(self.display, PopupDisplay::Expanded { .. })
     }
 
+    /// 사건 시점에 이 인스턴스가 받은 bare Esc 가 그 포커스를 푸는지(두 창의 Esc 적용이 함께 읽는다). 펼친 팝업은 풀지
+    /// 않고 넘긴다(쓰지 않았으면 중앙 단계가 다시 접는다). 마지막 패스 끝에 자식 팝업이 열려 있었으면 그 Esc 는 자식이
+    /// 닫는 본문의 Esc 라(`escape_step` (c)) 풀지 않는다. 그래서 뒤 Esc 도 그 패스 뒤 이 노드에서 시작한다.
+    pub(crate) fn escape_releases_focus(&self) -> bool {
+        !self.expanded() && !self.child_open
+    }
+
     /// 접혀 있는지(버튼만 그리거나 부모 버튼이 대표한다).
     pub(crate) fn collapsed(&self) -> bool {
         matches!(self.display, PopupDisplay::Collapsed(_))

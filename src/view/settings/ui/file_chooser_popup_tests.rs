@@ -1124,12 +1124,13 @@ fn conflict_keys(keys: [egui::Key; 2]) -> (Panel, SettingsUiState, String, usize
 }
 
 /// M-E1-4 F: Given 키 주인 충돌 질문, When 한 입력 묶음에 bare Esc 뒤 Y 가 오면, Then 별도 창 사건 입구가 Esc 몫 뒤에서
-/// 끊어(조건 8 뒤 경계) Esc 패스가 질문을 닫고 Y 는 닫힌 질문에 가지 않아 바인딩은 적용되지 않는다. Esc 는 사건 시점에
-/// 질문의 포커스를 풀어 Y 의 노드가 창 위젯으로 바뀌므로 Y 앞에 노드가 바뀐 빈 패스가 하나 더 있다.
+/// 끊어(조건 8 뒤 경계) Esc 패스가 질문을 닫고 Y 는 닫힌 질문에 가지 않아 바인딩은 적용되지 않는다. Esc 가 사건 시점에
+/// 질문의 포커스를 풀어도 창을 덮는 질문은 Y 시점에도 노드다(덮인 창 위젯은 포커스 노드가 될 수 없다). 그래서 Y 는
+/// 질문 몫이고 끊는 자리는 Esc 몫 뒤 하나다.
 #[test]
 fn escape_then_yes_on_the_conflict_question_applies_nothing() {
     let (_p, st, combo, cuts) = conflict_keys([egui::Key::Escape, egui::Key::Y]);
-    assert_eq!(cuts, 2, "Esc 몫, 노드가 바뀐 빈 패스, Y 몫으로 나뉜다");
+    assert_eq!(cuts, 1, "Esc 몫과 Y 몫으로 나뉜다");
     assert!(!applied(&st, &combo), "바인딩이 적용되지 않는다");
     assert!(!st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID), "닫힌다");
     assert!(st.pending_binding.is_none(), "Esc 가 대기를 취소한다");
@@ -1565,6 +1566,50 @@ fn escape_closes_only_the_hidden_crumbs_menu() {
         st.file_chooser.take_outcome(CONSUMER),
         None,
         "취소하지 않았다"
+    );
+}
+
+/// Given 설정 창 선택기의 숨은 경로 메뉴가 열려 있을 때, When 별도 창 사건 입구로 Esc 가 와서 메뉴를 닫고 다음 묶음에
+/// Esc 가 또 오면, Then 뒤 Esc 는 선택기가 받아 선택기가 닫히고 취소 결과를 남긴다.
+#[test]
+fn a_later_escape_after_the_crumbs_menu_closes_the_chooser() {
+    let root = tempfile::tempdir().expect("임시 폴더");
+    let mut deep = root.path().to_path_buf();
+    for i in 0..40 {
+        deep.push(format!("d{i:02}"));
+    }
+    std::fs::create_dir_all(&deep).expect("깊은 폴더");
+    let (mut p, mut st) = plain_panel();
+    let mut h = crate::view::window_input::tests::Harness::new();
+    st.open_file_chooser_at(
+        CONSUMER,
+        file_chooser::FileChooserMode::Folder,
+        Vec::new(),
+        None,
+        Some(deep),
+    );
+    drop(drain_settings(&mut h, &mut p, &mut st));
+    let out = drain_settings(&mut h, &mut p, &mut st);
+    let crumbs = text_rect_in(&out, "…").center();
+    h.click(&mut st, crumbs);
+    drop(drain_settings(&mut h, &mut p, &mut st));
+    assert!(h.ctx.memory(|m| m.any_popup_open()), "경로 메뉴가 열렸다");
+    h.key(&mut st, egui::Key::Escape, None);
+    drop(drain_settings(&mut h, &mut p, &mut st));
+    assert!(!h.ctx.memory(|m| m.any_popup_open()), "메뉴가 닫힌다");
+    assert!(
+        st.popups.is_open(FILE_PICKER_POPUP_ID),
+        "선택기는 열린 채다"
+    );
+    h.key(&mut st, egui::Key::Escape, None);
+    drop(drain_settings(&mut h, &mut p, &mut st));
+    assert!(
+        !st.popups.is_open(FILE_PICKER_POPUP_ID),
+        "뒤 Esc 가 선택기를 닫는다"
+    );
+    assert_eq!(
+        st.file_chooser.take_outcome(CONSUMER),
+        Some(file_chooser::FileChooserOutcome::Cancelled)
     );
 }
 

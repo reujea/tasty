@@ -96,6 +96,7 @@ impl PopupManager {
         events: &[egui::Event],
         incoming: Incoming,
     ) -> usize {
+        self.normalize_window_focus();
         let focus = self.window_key_node(ctx);
         let mut cuts = 0;
         loop {
@@ -117,6 +118,22 @@ impl PopupManager {
             self.window.open_node().get_or_insert(focus);
         }
         cuts
+    }
+
+    /// 별도 창의 포커스 위치를 지금 상태에 맞춘다(메인 창 `MainViewState::normalize_focus` 와 같은 규칙). 덮인 노드는
+    /// 포커스 노드가 될 수 없다: 포커스 위치보다 위(z)에 창을 덮는 보이는 팝업이 있으면(포커스 위치가 없거나 창
+    /// 위젯이어도) 그 가운데 맨 위가 포커스 위치다. 별도 창의 팝업은 모두 Window 범위다. 키·IME·누름의 끊기 앞과
+    /// `run` 앞에 부른다.
+    fn normalize_window_focus(&mut self) {
+        let above = self.host_key_owner().map(|p| p.z_seq);
+        let top = self
+            .covering_nodes()
+            .filter(|(_, _, z)| above.is_none_or(|a| *z > a))
+            .max_by_key(|(_, _, z)| *z)
+            .map(|(iid, _, _)| iid);
+        if let Some(iid) = top {
+            self.set_instance_focused(iid, true);
+        }
     }
 
     /// 누름을 사건 시점에 적용한다. `pos` 의 레이어가 열린 인스턴스(등록 자식 포함)나 그 덮음 막이면 그 인스턴스로,
@@ -185,8 +202,9 @@ impl PopupManager {
     }
 
     /// 단계 8·11(별도 창): egui 에 실은 bare Esc 누름 하나를 그 수신 노드(`settle_window_key`)로 묶고 결과를 적용한다.
-    /// 수신자가 팝업이면 그 누름을 `pending`(egui 입력)에서 빼 그 팝업에 넘기고(메인 창과 같은 넘김 기록), 펼치지 않은
-    /// 팝업이면 포커스를 푼다. 창 위젯이면 egui 입력에 둔다. `escape_held` 는 직전 패스 끝의 Escape 눌림 상태다.
+    /// 수신자가 팝업이면 그 누름을 `pending`(egui 입력)에서 빼 그 팝업에 넘기고(메인 창과 같은 넘김 기록), 메인 창과 같은
+    /// 규칙(`PopupState::escape_releases_focus`)으로 포커스를 푼다. 창 위젯이면 egui 입력에 둔다. `escape_held` 는 직전
+    /// 패스 끝의 Escape 눌림 상태다.
     pub(crate) fn apply_window_escape(
         &mut self,
         pending: &mut Vec<egui::Event>,
@@ -197,7 +215,7 @@ impl PopupManager {
             return;
         };
         self.bind_window_key_node(Some(PopupNode::Host(iid)));
-        if !self.instance(iid).is_some_and(|p| p.expanded()) {
+        if self.instance(iid).is_none_or(|p| p.escape_releases_focus()) {
             self.set_instance_focused(iid, false);
         }
         if let Some(at) = pending.iter().rposition(super::body_keys::is_escape_press) {
@@ -266,6 +284,7 @@ impl PopupManager {
     /// 별도 창 `run` 전에 결속 없는 몫의 키 주인을 지금 노드로 정한다. egui 가 같은 `run` 안에서 패스를 다시 돌려도 같은
     /// 값을 쓴다(`GpuState::run_window_pass`).
     pub(crate) fn begin_window_run(&mut self, ctx: &egui::Context) {
+        self.normalize_window_focus();
         self.window.run_owner = self.window_key_node(ctx).popup();
     }
 
