@@ -1513,6 +1513,45 @@ fn a_later_escape_after_the_crumbs_menu_closes_the_chooser() {
     );
 }
 
+/// Given 설정 창 선택기의 숨은 경로 메뉴가 열려 있을 때, When 별도 창 사건 입구로 그리기 전에 수식키 없는 Esc 가 두 번
+/// 한 묶음으로 오면, Then 첫 Esc 몫은 메뉴만 닫고 둘째 Esc 몫은 선택기 본체를 닫아 취소 결과를 남긴다.
+#[test]
+fn two_escapes_in_one_batch_close_the_crumbs_menu_then_the_chooser() {
+    let root = tempfile::tempdir().expect("임시 폴더");
+    let mut deep = root.path().to_path_buf();
+    for i in 0..40 {
+        deep.push(format!("d{i:02}"));
+    }
+    std::fs::create_dir_all(&deep).expect("깊은 폴더");
+    let (mut p, mut st) = plain_panel();
+    let mut h = crate::view::window_input::tests::Harness::new();
+    st.open_file_chooser_at(
+        CONSUMER,
+        file_chooser::FileChooserMode::Folder,
+        Vec::new(),
+        None,
+        Some(deep),
+    );
+    drop(drain_settings(&mut h, &mut p, &mut st));
+    let out = drain_settings(&mut h, &mut p, &mut st);
+    let crumbs = text_rect_in(&out, "…").center();
+    h.click(&mut st, crumbs);
+    drop(drain_settings(&mut h, &mut p, &mut st));
+    assert!(h.ctx.memory(|m| m.any_popup_open()), "경로 메뉴가 열렸다");
+    h.key(&mut st, egui::Key::Escape, None);
+    h.key(&mut st, egui::Key::Escape, None);
+    drop(drain_settings(&mut h, &mut p, &mut st));
+    assert!(!h.ctx.memory(|m| m.any_popup_open()), "메뉴가 닫힌다");
+    assert!(
+        !st.popups.is_open(FILE_PICKER_POPUP_ID),
+        "둘째 Esc 가 선택기를 닫는다"
+    );
+    assert_eq!(
+        st.file_chooser.take_outcome(CONSUMER),
+        Some(file_chooser::FileChooserOutcome::Cancelled)
+    );
+}
+
 /// T-4a3-21x: Given 설정 창 선택기가 W1 키 주인이고 선택기 자식이 아닌 egui 팝업 id 가 열려 있을 때(그 패스에 그리지
 /// 않는다), When Esc 가 오면, Then 그 id 는 열린 채이고 선택기는 자기 자식만 세어 닫히며 취소 결과를 남긴다.
 #[test]

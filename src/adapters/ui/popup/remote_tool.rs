@@ -2727,10 +2727,10 @@ mod tests {
     }
 
     /// Given 양식의 패스키 ComboBox 가 열린 키 주인 remote_tool, When 그리기 전에 수식키 없는 Esc 가 두 번 한 묶음으로
-    /// 오면(사건 입구 하네스), Then 패스가 Esc 마다 나뉘어 첫 패스는 ComboBox 만 닫고, 둘째 Esc 는 그 패스 뒤 팝업 노드에서
-    /// 시작해 양식을 목록으로 돌린다. 팝업은 열린 채다.
+    /// 오면(사건 입구 하네스), Then 패스가 Esc 마다 나뉘어 첫 패스는 ComboBox 만 닫고, 둘째 Esc 는 본문이 받아 양식을
+    /// 목록으로 돌린다(하위 화면 복귀). 팝업은 열린 채다.
     #[test]
-    fn two_escapes_in_one_batch_close_the_dropdown_then_the_popup() {
+    fn two_escapes_in_one_batch_close_the_dropdown_then_leave_the_form() {
         use crate::adapters::ui::popup::window_input_test_support::{WindowInput, click_widget_at};
         let (mut state, mut session) = crate::state::tests::test_state();
         let engine = session.borrow_mut();
