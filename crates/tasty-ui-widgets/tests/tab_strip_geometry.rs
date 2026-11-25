@@ -99,3 +99,21 @@ fn a_tab_pads_its_label_by_space_md_on_each_side() {
         );
     }
 }
+
+/// 이웃한 두 탭 사이는 `remote_tab_gap` 이다. 탭마다 활성으로 그려 밑줄로 탭 사각형을 잰다.
+#[test]
+fn neighbouring_tabs_are_remote_tab_gap_apart() {
+    let th = theme();
+    let tabs: Vec<egui::Rangef> = (0..LABELS.len())
+        .map(|i| underline(&painted(&th, i), &th))
+        .collect();
+    for pair in tabs.windows(2) {
+        let gap = pair[1].min - pair[0].max;
+        assert!(
+            (gap - th.remote_tab_gap().value()).abs() < 0.5,
+            "탭 {:?} 와 {:?} 사이 {gap} 가 remote_tab_gap 이 아니다",
+            pair[0],
+            pair[1]
+        );
+    }
+}
