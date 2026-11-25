@@ -40,7 +40,7 @@ use self::navigation::{
 use super::entry_response::{EntryResponseSource, windows as entry_adapter};
 use super::host_document::{HostDocuments, StartDecision, is_reserved};
 use super::keys::WebViewKeySink;
-use super::load_generation::{is_current_load, nav_state_after_end};
+use super::load_generation::{chrome_state_after_end, is_current_load};
 use super::scan_resume::{RequestAction, ScanResume, Start, StartKind};
 use super::script_gate::ScriptGate;
 use super::window_region::{PointerGate, WindowRegion};
@@ -732,7 +732,8 @@ impl PlatformWebView {
                             Err(e) => {
                                 tracing::warn!(
                                     "WebView surface {surface_id}: NavigationId failed on \
-                                     completion ({e}); the gate treats it as the current load"
+                                     completion ({e}); the gate treats it as the current load, \
+                                     the chrome state ignores it"
                                 );
                                 None
                             }
@@ -817,7 +818,7 @@ impl PlatformWebView {
                         }
                     }
                     // 앞 로드의 늦은 종료는 새 로드의 Loading을 Done이나 Failed로 덮지 않는다.
-                    match nav_state_after_end(chrome_done.get(), nav_id, success) {
+                    match chrome_state_after_end(chrome_done.get(), nav_id, success) {
                         Some(state) => nav_done.set(state),
                         None => tracing::debug!(
                             "WebView surface {surface_id}: keeping the chrome state of the newer load"

@@ -140,8 +140,10 @@ const REJECTED_LOAD: u64 = u64::MAX;
 /// 호스트가 보낸 로드 호출(WebView2 `Navigate`·`NavigateToString`)이 거절됐다. 탐색이 시작되지 않아
 /// 종료 신호가 오지 않으므로 chrome을 여기서 Failed로 끝낸다. `latest`는 마지막에 요청한 호스트 로드의
 /// 번호이고 `rejected`는 거절된 호출의 번호다. 붙잡혔다가 늦게 보낸 앞 요청의 거절은 그 뒤에 요청한
-/// 로드의 상태를 덮지 않는다. 거절된 로드는 자기 세대를 현재로 남겨(`chrome_generation`), 그보다 앞서
-/// 시작한 탐색의 늦은 종료가 오류 타일을 지우지 못하게 한다. chrome을 바꿨으면 true다.
+/// 로드의 상태를 덮지 않는다. 거절 전까지 새 main 탐색이 시작하지 않았으면(세대가 `begin_load`가 비운
+/// None 그대로면) 거절된 로드가 자기 세대를 현재로 남겨(`chrome_generation`), 그보다 앞서 시작한 탐색의
+/// 늦은 종료가 오류 타일을 지우지 못하게 한다. 거절 전에 시작한 탐색이 세대를 세웠으면 그 세대를 두어 그
+/// 탐색의 종료를 따른다. chrome을 바꿨으면 true다.
 #[cfg(any(windows, test))]
 pub(super) fn end_rejected_load(
     nav_state: &std::cell::Cell<NavState>,
@@ -153,8 +155,22 @@ pub(super) fn end_rejected_load(
         return false;
     }
     nav_state.set(NavState::Failed);
-    chrome_generation.set(Some(REJECTED_LOAD));
+    if chrome_generation.get().is_none() {
+        chrome_generation.set(Some(REJECTED_LOAD));
+    }
     true
+}
+
+/// WebView2 `NavigationCompleted`의 chrome 상태. 완료의 `NavigationId`를 읽지 못했으면(None) 지금 로드의
+/// 종료로 보지 않고 상태를 바꾸지 않는다(닫힌 쪽). 나머지는 `nav_state_after_end`와 같다.
+#[cfg(any(windows, test))]
+pub(super) fn chrome_state_after_end(
+    started: Option<u64>,
+    ended: Option<u64>,
+    success: bool,
+) -> Option<NavState> {
+    ended?;
+    nav_state_after_end(started, ended, success)
 }
 
 /// 시작 처리기가 표에 없는 host 전용 주소의 탐색을 취소했다(`host_document`). 시작 처리기가 하던 원격
@@ -188,8 +204,8 @@ pub(super) fn end_cancelled_navigation(
 #[cfg(test)]
 mod tests {
     use super::{
-        CancelledDecisions, NavState, SignalOrderLoads, end_cancelled_navigation,
-        end_rejected_load, is_current_load, nav_state_after_end,
+        CancelledDecisions, NavState, SignalOrderLoads, chrome_state_after_end,
+        end_cancelled_navigation, end_rejected_load, is_current_load, nav_state_after_end,
     };
 
     /// 세대가 빈 구간의 정책 중단 오류만 Cancel한 수만큼 흡수한다. 다른 오류는 수를 남긴 채 두고,
@@ -374,6 +390,37 @@ mod tests {
     use tasty_model::html_script::top_level::{Designation, Origin, StartKind, TopLevelAdmission};
 
     const NEXT_PAGE: &str = "https://example.com/next";
+
+    #[test]
+    fn a_navigation_started_before_the_rejection_follows_its_own_end() {
+        // begin_load가 세대를 비운 뒤, 거절보다 먼저 페이지가 탐색 8을 시작했다.
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(Some(8));
+        assert!(end_rejected_load(&nav, &generation, 3, 3));
+        assert_eq!(nav.get(), NavState::Failed);
+        assert_eq!(
+            generation.get(),
+            Some(8),
+            "시작한 탐색의 세대를 지우지 않는다"
+        );
+        assert_eq!(
+            chrome_state_after_end(generation.get(), Some(8), true),
+            Some(NavState::Done)
+        );
+    }
+
+    #[test]
+    fn an_end_without_an_id_after_a_rejection_keeps_the_failure() {
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(None);
+        assert!(end_rejected_load(&nav, &generation, 3, 3));
+        assert_eq!(chrome_state_after_end(generation.get(), None, true), None);
+        assert_eq!(chrome_state_after_end(None, None, true), None);
+        assert_eq!(
+            chrome_state_after_end(Some(7), Some(7), false),
+            Some(NavState::Failed)
+        );
+    }
 
     /// 지목이 남았는지. 남았으면 원격 차단 중에도 다음 탐색이 열린다.
     fn next_start_admitted(top: &RefCell<TopLevelAdmission>) -> bool {
