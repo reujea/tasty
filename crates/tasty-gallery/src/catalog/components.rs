@@ -50,6 +50,8 @@ pub mod modifier_hint;
 pub mod move_source;
 pub mod notification_panel;
 pub mod occupancy_borders;
+#[cfg(test)]
+mod painted;
 pub mod plugin_settings;
 pub mod plugins_window;
 pub mod port_scanner;
