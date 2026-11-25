@@ -715,7 +715,7 @@ mod tests {
         };
         let mut got = None;
         // 배치만 재고 그린 출력(도형·플랫폼 출력)은 쓰지 않는다.
-        let _ = ctx.run(input, |ctx| {
+        let _unused_output = ctx.run(input, |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 ui.vertical(|ui| {
                     ui.set_max_width(col_w);
