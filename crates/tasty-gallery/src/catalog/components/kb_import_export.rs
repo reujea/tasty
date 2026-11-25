@@ -230,3 +230,6 @@ fn selected_count(st: &State) -> usize {
         .filter(|k| !st.deselected.contains(k))
         .count()
 }
+
+#[cfg(test)]
+mod painted_tests;

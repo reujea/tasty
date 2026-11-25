@@ -82,7 +82,7 @@ pub fn draw_remaining_values(ui: &mut egui::Ui, theme: &Theme) {
 }
 
 /// jsx `IeExportFailG reason="other"` — 같은 Export 행과 블록, catch-all 구절 + OS 줄 하나.
-fn unknown_export_failure(ui: &mut egui::Ui, theme: &Theme) {
+pub(super) fn unknown_export_failure(ui: &mut egui::Ui, theme: &Theme) {
     let mut notice = |ui: &mut egui::Ui| {
         export_failure_block(
             ui,
