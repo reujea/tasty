@@ -375,6 +375,10 @@ pub struct MainViewState {
     #[cfg(feature = "gui")]
     pub(crate) surface_focus_edges: Vec<crate::state::surface_focus::FocusEdgeLeaf>,
 
+    /// 프레임마다 정한 host 키 포커스 값(`state::key_focus`). 칠하기·강조 해제·mesh·plugin 통지가 읽는다.
+    #[cfg(feature = "gui")]
+    pub(crate) key_focus: crate::state::key_focus::KeyFocusFrames,
+
     /// 버튼을 누른 mesh leaf. 뗄 때까지 포인터를 그 leaf가 받는다(띠 행이나 leaf 밖에서 떼도).
     #[cfg(feature = "gui")]
     pub(crate) mesh_press: crate::state::mesh_frames::MeshPresses,

@@ -484,8 +484,7 @@ impl GpuState {
             engine.settings.appearance.scaled_sidebar_width()
         };
         let terminal_rect = self.compute_terminal_rect(state.sidebar_width);
-        let (pane_rects, dividers, focused_surface_id) =
-            self.prepare_layout(state, engine, terminal_rect);
+        let (pane_rects, dividers, key_focus) = self.prepare_layout(state, engine, terminal_rect);
 
         let mut timing = frame_timing::FrameBreakdown {
             layout_ms: render_start.elapsed().as_secs_f64() * 1000.0,
@@ -582,7 +581,7 @@ impl GpuState {
             &view,
             &regions,
             &engine.as_ref(),
-            focused_surface_id,
+            key_focus,
             selection,
             vi_cursor,
             &state.terminal_views,
@@ -888,7 +887,8 @@ impl GpuState {
         let pane_rects = state.pane_rects(engine, workspace, terminal_rect, self.scale_factor);
         let mut dividers = state.pane_dividers(engine, workspace, terminal_rect, self.scale_factor);
 
-        let focused_surface_id = state.focused_surface_id(engine);
+        // 바탕·커서·검색 잉크는 선택이 아니라 이 프레임의 키 포커스를 따른다(`state::key_focus`).
+        let key_focus = state.frame_key_focus();
         for (pane_id, pane_rect) in &pane_rects {
             if let Some(pane) = pane_layout.find_pane(*pane_id) {
                 let tab_bar_h = state.tab_bar_height;
@@ -908,7 +908,7 @@ impl GpuState {
                 }
             }
         }
-        (pane_rects, dividers, focused_surface_id)
+        (pane_rects, dividers, key_focus)
     }
 
     /// Compute grid size for a given rect.

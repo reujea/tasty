@@ -37,6 +37,8 @@ mod fullscreen_stage_tests;
 mod handler_recent;
 #[cfg(feature = "gui")]
 pub(crate) mod input_destination;
+#[cfg(feature = "gui")]
+pub(crate) mod key_focus;
 #[cfg(any(feature = "gui", test))]
 mod layout;
 #[cfg(feature = "gui")]
@@ -422,6 +424,8 @@ impl RequestContext {
             html_content_insets: std::collections::HashMap::new(),
             #[cfg(feature = "gui")]
             surface_focus_edges: Vec::new(),
+            #[cfg(feature = "gui")]
+            key_focus: Default::default(),
             #[cfg(feature = "gui")]
             mesh_press: Default::default(),
             #[cfg(feature = "gui")]

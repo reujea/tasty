@@ -360,8 +360,8 @@ markdown과 image는 kind 이름과 등록한 플러그인 id를 함께 본다. 
 
 **띠는 행을 예약한다.** 띠 kind leaf는 포커스와 상관없이 위쪽 행을 비우므로 포커스가 바뀌어도 내용이 움직이지 않는다. 행의 아래 경계는 정수 물리 px이고(`tasty_ui_widgets::surface_focus_edge_rows`), native 페이지의 위 끝·plugin 프레임·주소 띠가 모두 그 경계 아래에서 시작한다. 첫 프레임부터 같다. 행은 plugin 입력 영역이 아니고, 그 행을 누르면 leaf 클릭처럼 포커스만 옮긴다. plugin 프레임에서 버튼을 누르면 각 뗌은 그 버튼을 누른 leaf로 가므로 행 위에서 떼도 plugin이 뗌을 받는다. 누른 동안의 포인터 이동·휠은 마지막으로 누른 leaf로 간다(다른 leaf에서 다른 버튼(왼쪽·오른쪽·가운데)을 누르면 그 leaf로 옮겨 간다). 뒤로·앞으로처럼 plugin wire 밖의 버튼은 누름 기록에 들어가지 않으므로 이동·휠 대상을 바꾸지 않는다. 포인터가 창 밖으로 나간 뒤 온 뗌은 그 leaf에 좌표를 실어 마지막으로 보낸 사건(이동·누름·뗌)의 좌표 그대로 가고, 그 뒤 같은 leaf에 `PointerGone`이 다시 간다(뗌 → `PointerGone`, 사이에 다른 사건 없음). 뗌 좌표 때문에 plugin이 포인터를 안에 둔 채 남지 않게 하려는 것이다. 보낸 좌표가 없으면 기록만 지운다. 한계: egui 0.31.1 InputState는 `PointerGone`에서 latest_pos만 비우고 interact_pos는 그 패스에 남기므로, 뗌을 받은 그 패스에는 뗌 자리의 hover가 한 번 보일 수 있다. plugin의 다음 패스에서 사라진다. interact_pos를 옮기려고 합성 이동을 넣으면 같은 패스의 끌기 값(Slider 등)이 그 좌표로 바뀌므로 넣지 않는다. 띠 행 예약이 남은 페이지 본문(leaf에서 주소 띠·배너와 아래 여백을 뺀 양수 높이)을 1 물리 px 미만으로 만들면 native 페이지는 숨는다. 띠 행을 빼기 전 본문이 이미 0 이하면 띠가 없을 때와 같은 자리에 1 px 창을 둔다([WebView](../systems/webview.md)).
 
-- 띠 색은 그 화면의 모델 포커스를 따른다. hard 점유여도 포커스를 가지면 켜진다. mirror는 client 자기 포커스다.
-- 링(응답 대기·점유·완료)이 있는 leaf는 행 안에서 비포커스 띠 → 링 → 켜진 띠 순서로 칠한다. 링이 위 행을, 켜진 띠가 아래 행을 차지한다. 포커스된 leaf에는 행 안에 완료 링을 두지 않는다. 링은 띠 leaf에서 행 아래만 칠한다.
+- 띠 색은 그 화면의 host 키 포커스를 따른다. hard 점유여도 키 포커스를 가지면 켜진다. mirror는 client 자기 포커스다.
+- 링(응답 대기·점유·완료)이 있는 leaf는 행 안에서 비포커스 띠 → 링 → 켜진 띠 순서로 칠한다. 링이 위 행을, 켜진 띠가 아래 행을 차지한다. 포커스된 leaf에 남은 완료 강조(해제 조건이 맞지 않은 동안)도 행 안에 보인다. 링은 띠 leaf에서 행 아래만 칠한다.
 - native WebView는 host 층보다 위라서 webview leaf에서는 페이지가 덮은 곳의 링이 보이지 않고 행 안의 윗변만 보인다. html의 주소 띠·배너는 host가 그리므로 그 옆에서는 링 옆변이 보인다.
 - 띠는 `Order::Middle` 층이라 탭 바와 host·plugin 팝업 아래다. host 팝업이 plugin 팝업 위인 프레임에는 plugin 본문이 egui보다 먼저 합성되므로, 띠는 실제로 합성되는 본문(본문이 있고 primitive가 남은 팝업)의 잘림 영역만 비운다. 팝업 본문은 한 프레임에 한 번, egui 패스 전에만 디코드하고 띠 구멍과 합성이 그 결과 하나를 쓴다. 합성 단계는 다시 디코드하지 않으므로 그 사이 plugin이 새 프레임을 써도 같은 프레임의 띠 구멍과 합성 본문은 같은 clip이다(첫 프레임, clip이 바뀌는 프레임 포함). 디코드 대상은 직전 프레임에 합성 영역을 받은 팝업이다. 그래서 접힌 채이거나 배치되지 않은 채인 팝업은 디코드하지 않지만, 접거나 대상 탭을 숨기는 전환 프레임에는 직전 영역을 근거로 한 번 더 디코드할 수 있다. 합성 영역을 처음 받은 프레임(처음 열림, 숨겼다 돌아옴, 접혔다 펼침)에는 본문을 합성하지 않으며 띠도 비우지 않는다. 이번 패스에 합성 영역을 받았고, 패스 전 디코드 대상 목록에 없고, 받은 프레임이 있는 팝업이 하나라도 있으면 그 패스 끝에 바로 다음 프레임을 요청한다(`popup_scope::redraw_for_undecoded_bodies`). 다음 패스에서 그 팝업은 디코드 대상에 들어가지만, 받은 프레임이 이전 배율로 그린 것이면 디코드가 보류되어 본문이 비어 있을 수 있다. 이 경로는 그때 다시 요청하지 않으며, 본문은 plugin이 새 배율로 그린 프레임이 올 때 채워진다. 아직 프레임을 받지 못한 팝업은 요청하지 않고, 프레임 도착이 다시 그리기를 부른다.
 - mirror mesh는 서버가 descriptor에 실은 소유 plugin의 `bed_focus`로 분류한다([attach 동작](../../dev-guide/attach-behavior.md)). 값을 싣지 않는 옛 서버의 mirror mesh는 띠다.
@@ -370,10 +370,12 @@ markdown과 image는 kind 이름과 등록한 플러그인 id를 함께 본다. 
 
 워크스페이스 팝업의 DAG 그래프는 surface가 아니므로 캔버스가 `dag-canvas-bg` 그대로다.
 
-**값은 포커스와 점유가 정한다.** 판정은 `bed_focused = (포커스 surface == 이 surface) && !is_content_hidden(이 surface)` 하나다.
+**포커스는 선택이 아니라 host 키 포커스다.** surface는 선택된 surface이면서 키가 그 본문이나 그 surface의 chrome(html 주소 띠)에 있을 때만 focused다. 키를 가진 팝업(범위·scrim과 무관), 무대, 튜토리얼 말풍선이 키를 가지면 focused surface가 없다. 키를 가져가지 않는 팝업(agent가 연 passive 팝업, 컨텍스트 메뉴, Select·autocomplete 목록, 툴팁)은 아무것도 바꾸지 않는다. 판정은 `MainViewState::key_focus_surface`(`src/state/key_focus.rs`) 하나이고, 프레임마다 첫머리에 한 번 정한 값을 바탕·띠·터미널 커서·검색 잉크, 완료·입력 대기 강조 해제와 고아 soft 점유 정리, egui-mesh·attach mesh에 알리는 focused 값이 함께 읽는다. 그리기 중 키 포커스가 옮겨 가면 다음 프레임에 함께 바뀐다. WebView 바탕과 plugin `surface.focused`는 화면에 낸 프레임의 값을 따른다. 입력 판단(`pass_key_node`, 팝업 키 주인)은 이 값을 읽지 않는다.
 
-- 포커스 surface가 없으면(attach 대기 선택) 모든 바탕이 unfocus 값이다.
-- OS 창의 활성 여부는 보지 않는다. 비활성 창의 포커스 surface는 focus 값을 유지한다.
+**값은 키 포커스와 점유가 정한다.** 바탕 값은 키 포커스 surface이고 내용을 숨기는 점유가 아닐 때 focus 값이다(`surface_focus::bed_focused`). 터미널 PTY 커서도 같은 값을 따르고 출력 중 억제는 그대로다(`surface_focus::TerminalFocusPaint`). surface에 알리는 focused 값은 점유와 무관하게 키 포커스만 따른다.
+
+- 키 포커스 surface가 없으면(키를 가진 팝업 아래, attach 대기 선택) 모든 바탕이 unfocus 값이다.
+- OS 창의 활성 여부는 보지 않는다. 비활성 창의 포커스 surface는 focus 값을 유지한다. 강조 해제만 OS 창 활성을 함께 본다.
 - hard 점유된 surface와 점유 workspace의 멤버는 포커스를 가져도 입력을 받지 않으므로 unfocus 값이다. terminal은 점유 workspace에서도 surface lock을 받으므로 `is_hard_occupied`로 판정할 때와 결과가 같다.
 - 전환은 한 프레임에 끝나고 레이아웃은 변하지 않는다.
 
@@ -383,7 +385,7 @@ markdown과 image는 kind 이름과 등록한 플러그인 id를 함께 본다. 
 
 ## 코드 위치
 
-- Surface 포커스 표현: 판정과 분류는 `src/state/surface_focus.rs`(띠 예약 `reserves_edge`·`below_edge`), 띠 칠하기는 `src/adapters/ui/surface_focus_edge.rs`, 링 판정은 `src/adapters/ui/surface_rings.rs`, mesh 프레임 영역은 `src/state/mesh_frames.rs`, 바탕 값 접근은 `tasty_ui_widgets::surface_bed`, chrome 타일의 바탕 선택은 `src/adapters/ui/surface/webview_chrome.rs`의 `WebviewTile`이고, 타일 그리기는 그 바탕을 받는 `tasty_ui_widgets::webview_page_tile`이다.
+- Surface 포커스 표현: 키 포커스 판정과 프레임 값은 `src/state/key_focus.rs`, 판정과 분류는 `src/state/surface_focus.rs`(띠 예약 `reserves_edge`·`below_edge`), 띠 칠하기는 `src/adapters/ui/surface_focus_edge.rs`, 링 판정은 `src/adapters/ui/surface_rings.rs`, mesh 프레임 영역은 `src/state/mesh_frames.rs`, 바탕 값 접근은 `tasty_ui_widgets::surface_bed`, chrome 타일의 바탕 선택은 `src/adapters/ui/surface/webview_chrome.rs`의 `WebviewTile`이고, 타일 그리기는 그 바탕을 받는 `tasty_ui_widgets::webview_page_tile`이다.
 
 - `active_modal_id()` / `modal_active` 게이트: `src/app/event_handler.rs`(`self.view.active_modal_id()`), View 디스패치.
 - focus 대상 해석 / `TASTY_SURFACE_ID` / `this`: `crates/tasty-cli/src/request.rs`.

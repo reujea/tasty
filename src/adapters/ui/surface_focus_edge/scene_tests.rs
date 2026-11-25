@@ -381,3 +381,80 @@ fn the_painted_edge_ends_on_the_host_row_and_opens_only_the_composited_clip() {
         "팝업 밖은 칠한다"
     );
 }
+
+/// 창 범위 팝업이 키를 가진 프레임에는 켜진 표지가 없다: 띠 leaf는 unfocused이고, 바탕 값도 없으며, 창 범위 팝업은
+/// 포커스 막대를 그리지 않는다(`popup/draw.rs`·`popup_render.rs`가 창 범위를 뺀다). 팝업을 닫은 프레임에는 그 leaf
+/// 하나가 켜진다.
+#[test]
+fn a_window_scope_popup_with_key_focus_leaves_nothing_lit() {
+    let (mut state, mut session) = scene(
+        "mesh-demo",
+        local_mesh("mesh-demo", "com.example.demo"),
+        None,
+    );
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let panes = pane_rects(&state, &read);
+    state
+        .popups
+        .open_centered_focused(
+            "notifications",
+            crate::adapters::ui::popup::PopupScope::Window,
+        )
+        .expect("opens");
+    state.refresh_frame_key_focus(&read);
+    super::collect(&mut state, &read, &panes, SCALE);
+    let lit = |state: &MainViewState| {
+        let edges = state
+            .surface_focus_edges
+            .iter()
+            .filter(|e| e.focused)
+            .count();
+        let beds = usize::from(crate::state::surface_focus::bed_focused(
+            state.frame_key_focus(),
+            SID,
+            &read.live.occupancy,
+        ));
+        edges + beds
+    };
+    assert!(!state.surface_focus_edges.is_empty(), "an edge leaf");
+    assert_eq!(lit(&state), 0, "the popup holds key focus");
+
+    state.popups.close("notifications");
+    state.refresh_frame_key_focus(&read);
+    super::collect(&mut state, &read, &panes, SCALE);
+    assert_eq!(
+        state
+            .surface_focus_edges
+            .iter()
+            .filter(|e| e.focused)
+            .count(),
+        1,
+        "key focus is back in the leaf"
+    );
+}
+
+/// 키 포커스를 가진 띠 leaf에 남은 완료 강조(OS 창 비활성 등)는 띠 행 안에도 링으로 보인다.
+#[test]
+fn a_focused_edge_leaf_keeps_a_completion_ring_in_its_row() {
+    let (mut state, mut session) = scene(
+        "mesh-demo",
+        local_mesh("mesh-demo", "com.example.demo"),
+        None,
+    );
+    let mut engine = session.borrow_mut();
+    engine.raise_attention(SID, crate::core::AttentionKind::Completion);
+    let read = engine.read();
+    let panes = pane_rects(&state, &read);
+    state.refresh_frame_key_focus(&read);
+    super::collect(&mut state, &read, &panes, SCALE);
+    let edge = *state.surface_focus_edges.first().expect("edge leaf");
+    assert!(edge.focused);
+    assert_eq!(
+        edge.ring,
+        Some(tasty_ui_widgets::attention_edge_stroke(
+            &crate::theme::theme(),
+            crate::core::AttentionKind::Completion.into(),
+        ))
+    );
+}

@@ -758,6 +758,8 @@ mod frame_draw_order;
 #[cfg(test)]
 mod input_destination_call_sites;
 #[cfg(test)]
+mod key_focus_reads;
+#[cfg(test)]
 mod popup_body_key_gate;
 #[cfg(test)]
 mod press_focus_call_sites;

@@ -34,7 +34,7 @@ pub(crate) struct FocusEdgeLeaf {
     pub(crate) below: egui::Rect,
     /// 물리 leaf에서 정한 행 경계. 띠는 이 값으로 칠해 내용 예약과 같은 물리 px에서 끝난다.
     pub(crate) rows: tasty_ui_widgets::SurfaceFocusEdgeRows,
-    /// 그 화면의 모델 포커스. hard 점유여도 포커스를 따른다.
+    /// 그 프레임의 host 키 포커스. hard 점유여도 키 포커스를 따른다.
     pub(crate) focused: bool,
     /// 띠 행 안에 다시 칠할 링.
     pub(crate) ring: Option<egui::Stroke>,
@@ -110,15 +110,47 @@ pub(crate) fn below_edge(
     }
 }
 
-/// 바탕 kind가 focus 값을 칠할지 정한다. 포커스를 가져도 입력을 받지 않는 점유 내용은 unfocus 값이다.
-/// `focused`는 attach 대기 선택이면 `None`이고, OS 창의 활성 여부를 보지 않는다.
-/// 입력 판단에는 쓰지 않는다. 입력은 포커스 자체와 점유 입력 검사를 따로 본다.
+/// 바탕 kind가 focus 값을 칠할지 정한다. 키 포커스를 가져도 입력을 받지 않는 점유 내용은 unfocus 값이다.
+/// `key_focus`는 그 프레임의 host 키 포커스 surface(`MainViewState::frame_key_focus`)이고, 키를 가진 팝업 아래나
+/// attach 대기 선택이면 `None`이다. OS 창의 활성 여부를 보지 않는다.
+/// 입력 판단에는 쓰지 않는다. 입력은 포커스 노드와 점유 입력 검사를 따로 본다.
 pub(crate) fn bed_focused(
-    focused: Option<u32>,
+    key_focus: Option<u32>,
     surface: u32,
     occupancy: &OccupancyRegistry,
 ) -> bool {
-    focused == Some(surface) && !occupancy.is_content_hidden(surface)
+    key_focus == Some(surface) && !occupancy.is_content_hidden(surface)
+}
+
+/// 터미널 하나의 포커스 칠하기 결정. 바탕·기본 잉크·검색 활성 잉크가 `bed_focused`를, PTY 커서가 `show_cursor`를
+/// 읽는다. 값은 이 프레임의 키 포커스(`state::key_focus`)와 점유가 정한다. vi 복사 커서는 따로 그리는 overlay다.
+#[cfg(feature = "gui")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct TerminalFocusPaint {
+    pub(crate) bed_focused: bool,
+    /// focused 바탕인데 출력 중이라 PTY 커서를 숨긴다.
+    pub(crate) cursor_suppressed: bool,
+    pub(crate) show_cursor: bool,
+}
+
+#[cfg(feature = "gui")]
+impl TerminalFocusPaint {
+    /// `suppress_during_output`은 focused 바탕일 때만 부른다(Windows에서는 터미널 락을 시도한다).
+    pub(crate) fn of(
+        key_focus: Option<u32>,
+        surface_id: u32,
+        occupancy: &OccupancyRegistry,
+        suppress_during_output: impl FnOnce() -> bool,
+    ) -> Self {
+        let bed_focused =
+            crate::state::surface_focus::bed_focused(key_focus, surface_id, occupancy);
+        let cursor_suppressed = bed_focused && suppress_during_output();
+        Self {
+            bed_focused,
+            cursor_suppressed,
+            show_cursor: bed_focused && !cursor_suppressed,
+        }
+    }
 }
 
 #[cfg(test)]

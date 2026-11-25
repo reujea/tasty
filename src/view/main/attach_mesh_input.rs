@@ -134,7 +134,8 @@ impl MainView {
     ) {
         let terminal_rect = self.compute_terminal_rect();
         let ppp = self.base.gpu.scale_factor();
-        let focused = self.state.focused_surface_id(engine);
+        // 원격 plugin에 알리는 focused 값은 이 프레임의 키 포커스다(`state::key_focus`).
+        let key_focus = self.state.frame_key_focus();
         let modifiers = self.mesh_modifiers();
         let current_theme = self.mesh_theme_snapshot(engine);
 
@@ -154,12 +155,12 @@ impl MainView {
             let w = rect.width.value().round().max(1.0) as u32;
             let h = rect.height.value().round().max(1.0) as u32;
             let geom = (w, h, ppp.to_bits());
-            let is_focused = focused == Some(sid);
+            let is_focused = crate::state::key_focus::told_focused(key_focus, sid);
 
             let st = self.attach_mesh_input.entry(sid).or_default();
             let geom_changed = st.last_geom != Some(geom);
             let theme_changed = st.last_theme.as_ref() != Some(&current_theme);
-            let focus_changed = st.last_focused != Some(is_focused);
+            let focus_changed = crate::state::key_focus::focus_changed(st.last_focused, is_focused);
             let has_input = !st.events.is_empty();
 
             let mut context = None;

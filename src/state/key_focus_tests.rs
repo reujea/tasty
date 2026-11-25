@@ -1,0 +1,382 @@
+//! host 키 포커스 판정(`key_focus_surface`)과 프레임 값, 그 값을 읽는 강조 해제·soft 점유 정리·plugin 이벤트 감지.
+//! 창(winit·GPU)을 띄우지 않고 창이 부르는 같은 함수를 지금 상태로 부른다.
+
+use crate::adapters::ui::popup::{PopupInstanceId, PopupScope};
+use crate::adapters::ui::search_bar::SEARCH_BAR_POPUP_ID;
+use crate::core::state::attention::AttentionKind;
+use crate::runtime::engine_session::EngineSession;
+use crate::state::RequestContext;
+
+/// 터미널 하나가 선택된 장면과 그 surface ID.
+fn scene() -> (RequestContext, EngineSession, u32) {
+    crate::i18n::init("en");
+    let (state, mut session) = crate::state::tests::test_state();
+    let sid = session
+        .borrow_mut()
+        .workspace_at(0)
+        .expect("workspace")
+        .all_surface_ids()[0];
+    assert_eq!(
+        state.focused_surface_id(&session.borrow_mut().read()),
+        Some(sid),
+        "the terminal is selected"
+    );
+    (state, session, sid)
+}
+
+/// 창 범위 팝업(알림 목록)을 키 포커스를 주며 연다.
+fn open_window_popup(state: &mut RequestContext) -> PopupInstanceId {
+    state
+        .popups
+        .open_centered_focused("notifications", PopupScope::Window)
+        .expect("opens")
+}
+
+/// 선택 surface 범위의 검색 바를 키 포커스를 주며 연다.
+fn open_search_bar(state: &mut RequestContext, session: &mut EngineSession, sid: u32) {
+    state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new(SEARCH_BAR_POPUP_ID, PopupScope::Surface(sid))
+                .focused(),
+            true,
+        )
+        .expect("the search bar opens");
+    state.normalize_focus(&session.borrow_mut().read());
+}
+
+fn key_focus(state: &RequestContext, session: &mut EngineSession) -> Option<u32> {
+    state.key_focus_surface(&session.borrow_mut().read())
+}
+
+/// 선택 surface의 본문에 키가 있으면 그 surface가 키 포커스다. 키를 가진 팝업이 열리면 범위와 무관하게 없고,
+/// 닫히면 돌아온다.
+#[test]
+fn a_popup_that_holds_key_focus_leaves_no_surface_with_key_focus() {
+    let (mut state, mut session, sid) = scene();
+    assert_eq!(key_focus(&state, &mut session), Some(sid));
+
+    open_window_popup(&mut state);
+    assert_eq!(key_focus(&state, &mut session), None, "window scope");
+    state.popups.close("notifications");
+    assert_eq!(key_focus(&state, &mut session), Some(sid), "closed");
+
+    open_search_bar(&mut state, &mut session, sid);
+    assert_eq!(key_focus(&state, &mut session), None, "surface scope");
+    assert_eq!(
+        state.focused_surface_id(&session.borrow_mut().read()),
+        Some(sid),
+        "the selection stays"
+    );
+}
+
+/// 주소 띠에 키가 있으면 그 surface가 선택일 때만 키 포커스다. 선택이 아닌 surface의 띠는 키 포커스를 만들지 않는다.
+#[test]
+fn an_address_band_gives_key_focus_only_to_the_selected_surface() {
+    crate::i18n::init("en");
+    let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+    assert_eq!(key_focus(&state, &mut session), Some(201), "the selection");
+    state.html_address.set_focused_for_test(201);
+    assert_eq!(key_focus(&state, &mut session), Some(201), "its own band");
+    state.html_address.set_focused_for_test(101);
+    assert_eq!(
+        key_focus(&state, &mut session),
+        None,
+        "another surface's band"
+    );
+}
+
+/// 키 포커스를 주지 않고 연 팝업(agent가 연 passive 팝업)은 키 포커스를 바꾸지 않는다. surface에 있던 키도, 다른
+/// 팝업에 있던 키도 그대로다.
+#[test]
+fn a_popup_opened_without_focus_keeps_key_focus_where_it_was() {
+    let (mut state, mut session, sid) = scene();
+    state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new("notifications", PopupScope::Window),
+            true,
+        )
+        .expect("opens passive");
+    state.normalize_focus(&session.borrow_mut().read());
+    assert_eq!(key_focus(&state, &mut session), Some(sid), "on the surface");
+    state.popups.close("notifications");
+
+    open_search_bar(&mut state, &mut session, sid);
+    state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new("notifications", PopupScope::Window),
+            true,
+        )
+        .expect("opens passive");
+    state.normalize_focus(&session.borrow_mut().read());
+    assert_eq!(
+        key_focus(&state, &mut session),
+        None,
+        "still on the search bar"
+    );
+}
+
+/// 설정 창 열기 요청은 다른 OS 창으로 가는 중이라 선택 surface의 키 포커스를 그대로 둔다. 튜토리얼 말풍선이 키를
+/// 가지면 키 포커스 surface가 없다.
+#[test]
+fn a_settings_request_keeps_and_the_tutorial_bubble_takes_key_focus() {
+    let (mut state, mut session, sid) = scene();
+    state.settings_open_requested = true;
+    assert_eq!(
+        key_focus(&state, &mut session),
+        Some(sid),
+        "settings request"
+    );
+    state.settings_open_requested = false;
+
+    state.tutorial.request_start(0);
+    state.tutorial.start_pending();
+    assert!(state.tutorial.active.is_some(), "the tutorial runs");
+    state.tutorial.keyboard_focus = true;
+    assert_eq!(key_focus(&state, &mut session), None, "tutorial bubble");
+    state.tutorial.keyboard_focus = false;
+    assert_eq!(
+        key_focus(&state, &mut session),
+        Some(sid),
+        "bubble without keys"
+    );
+}
+
+/// 프레임 값은 프레임 첫머리에 정한 값이다. 그리기 중 키가 팝업으로 가면 프레임 값은 그대로이고 다음 프레임을
+/// 그리게 한다.
+#[test]
+fn the_frame_value_holds_for_the_frame_and_asks_for_the_next_one_when_focus_moves() {
+    let (mut state, mut session, sid) = scene();
+    state.refresh_frame_key_focus(&session.borrow_mut().read());
+    assert_eq!(state.frame_key_focus(), Some(sid));
+    assert!(!state.key_focus_moved_since_frame(&session.borrow_mut().read()));
+
+    open_window_popup(&mut state);
+    assert_eq!(
+        state.frame_key_focus(),
+        Some(sid),
+        "this frame keeps its value"
+    );
+    assert!(state.key_focus_moved_since_frame(&session.borrow_mut().read()));
+    state.finish_frame_key_focus(&session.borrow_mut().read(), true);
+
+    state.refresh_frame_key_focus(&session.borrow_mut().read());
+    assert_eq!(state.frame_key_focus(), None, "the next frame");
+    assert!(!state.key_focus_moved_since_frame(&session.borrow_mut().read()));
+}
+
+/// 준비 단계를 건너뛴 그리기는 그 프레임에 아직 정하지 않았을 때만 값을 정한다.
+#[test]
+fn a_draw_without_preparation_fills_the_frame_value_once() {
+    let (mut state, mut session, sid) = scene();
+    state.refresh_frame_key_focus(&session.borrow_mut().read());
+    open_window_popup(&mut state);
+    state.ensure_frame_key_focus(&session.borrow_mut().read());
+    assert_eq!(state.frame_key_focus(), Some(sid), "already filled");
+    state.finish_frame_key_focus(&session.borrow_mut().read(), true);
+    state.ensure_frame_key_focus(&session.borrow_mut().read());
+    assert_eq!(state.frame_key_focus(), None, "a new frame");
+}
+
+/// 바깥 소비자가 읽는 값은 화면에 낸 프레임의 것이다. 제출에 실패한 프레임은 값을 바꾸지 않는다. 바탕 값은
+/// 내용을 숨기는 점유 중이면 없다.
+#[test]
+fn the_shown_bed_follows_only_frames_that_were_shown() {
+    let (mut state, mut session, sid) = scene();
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    assert_eq!(state.shown_bed_focus(), Some(sid));
+
+    open_window_popup(&mut state);
+    state.refresh_frame_key_focus(&session.borrow_mut().read());
+    state.finish_frame_key_focus(&session.borrow_mut().read(), false);
+    assert_eq!(state.shown_bed_focus(), Some(sid), "not shown");
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    assert_eq!(state.shown_bed_focus(), None, "shown under the popup");
+
+    state.popups.close("notifications");
+    session
+        .borrow_mut()
+        .live
+        .occupancy
+        .acquire(sid, 41)
+        .expect("occupy");
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    assert_eq!(state.shown_bed_focus(), None, "hard occupied");
+}
+
+/// 이 프레임의 FocusObserved를 만들어 창의 Inputs 단계처럼 적용한다.
+fn observe(state: &mut RequestContext, session: &mut EngineSession, window_focused: bool) -> bool {
+    state.refresh_frame_key_focus(&session.borrow_mut().read());
+    let effect = crate::view::main::redraw::focus_observed_effect(
+        state,
+        &session.borrow_mut().read(),
+        window_focused,
+    );
+    let Some(effect) = effect else {
+        return false;
+    };
+    state.dispatch_intent(
+        crate::intent::Intent::Frame(effect.into()).from_user_menu("render-focus"),
+    );
+    for intent in state.take_pending_intents() {
+        if let crate::intent::Intent::Frame(effect) = &intent.body {
+            effect.apply(&mut session.borrow_mut(), None, &intent.origin);
+        }
+    }
+    true
+}
+
+fn attention(session: &mut EngineSession, sid: u32) -> Option<AttentionKind> {
+    session.borrow_mut().attention_kind(sid)
+}
+
+fn has_soft(session: &mut EngineSession, sid: u32) -> bool {
+    session
+        .borrow_mut()
+        .live
+        .occupancy
+        .occupancy_of(sid)
+        .is_some()
+}
+
+/// 부모 surface가 트리에 없는 soft 점유를 둔다.
+fn orphan_soft(session: &mut EngineSession, sid: u32) {
+    session
+        .borrow_mut()
+        .occupy_soft(sid, 987_654u32, None)
+        .expect("soft");
+}
+
+/// 키를 가진 팝업 아래에서는 강조와 고아 soft 점유가 남는다. 키가 돌아온 프레임에 둘 다 정리된다.
+#[test]
+fn highlights_stay_under_a_focused_popup_and_clear_when_key_focus_returns() {
+    let (mut state, mut session, sid) = scene();
+    session
+        .borrow_mut()
+        .raise_attention(sid, AttentionKind::Completion);
+    orphan_soft(&mut session, sid);
+    open_window_popup(&mut state);
+    assert!(!observe(&mut state, &mut session, true), "no observation");
+    assert_eq!(
+        attention(&mut session, sid),
+        Some(AttentionKind::Completion)
+    );
+    assert!(has_soft(&mut session, sid));
+
+    state.popups.close("notifications");
+    assert!(observe(&mut state, &mut session, true));
+    assert_eq!(attention(&mut session, sid), None, "cleared");
+    assert!(!has_soft(&mut session, sid), "orphan dropped");
+}
+
+/// 키를 가져가지 않는 팝업 아래에서는 지금처럼 정리된다.
+#[test]
+fn a_popup_without_focus_does_not_hold_back_the_clearing() {
+    let (mut state, mut session, sid) = scene();
+    session
+        .borrow_mut()
+        .raise_attention(sid, AttentionKind::NeedsInput);
+    state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new("notifications", PopupScope::Window),
+            true,
+        )
+        .expect("opens passive");
+    assert!(observe(&mut state, &mut session, true));
+    assert_eq!(attention(&mut session, sid), None);
+}
+
+/// OS 창이 비활성이면 강조는 남고 고아 soft 점유만 정리된다.
+#[test]
+fn an_inactive_os_window_drops_the_orphan_and_keeps_the_highlight() {
+    let (mut state, mut session, sid) = scene();
+    session
+        .borrow_mut()
+        .raise_attention(sid, AttentionKind::Completion);
+    orphan_soft(&mut session, sid);
+    assert!(observe(&mut state, &mut session, false));
+    assert_eq!(
+        attention(&mut session, sid),
+        Some(AttentionKind::Completion)
+    );
+    assert!(!has_soft(&mut session, sid));
+}
+
+/// hard 점유 중에는 고아 soft 정리가 미뤄지고, 점유가 풀린 첫 관측에서 지워진다.
+#[test]
+fn hard_occupancy_delays_the_orphan_drop_until_it_ends() {
+    let (mut state, mut session, sid) = scene();
+    orphan_soft(&mut session, sid);
+    session
+        .borrow_mut()
+        .live
+        .occupancy
+        .acquire(sid, 41)
+        .expect("hard");
+    assert!(observe(&mut state, &mut session, true));
+    assert!(
+        session
+            .borrow_mut()
+            .live
+            .occupancy
+            .occupancy_of(sid)
+            .is_some(),
+        "hard shows"
+    );
+    session.borrow_mut().force_detach(sid).expect("released");
+    assert!(has_soft(&mut session, sid), "the orphan waited");
+    assert!(observe(&mut state, &mut session, true));
+    assert!(
+        !has_soft(&mut session, sid),
+        "dropped after the hard occupancy"
+    );
+}
+
+/// mesh에 알리는 값은 점유와 무관하게 키 포커스만 따르고, 값이 바뀔 때 다시 알린다.
+#[test]
+fn mesh_focus_is_told_from_key_focus_on_every_change() {
+    use super::{focus_changed, told_focused};
+    assert!(told_focused(Some(3), 3));
+    assert!(!told_focused(None, 3), "a popup holds key focus");
+    assert!(!told_focused(Some(4), 3));
+    assert!(focus_changed(None, false), "first context");
+    assert!(focus_changed(Some(true), false), "the popup took key focus");
+    assert!(focus_changed(Some(false), true), "key focus came back");
+    assert!(!focus_changed(Some(true), true));
+}
+
+/// 검색 바가 키를 가지면 밑 터미널은 unfocused 바탕·활성 일치 잉크이고 PTY 커서를 그리지 않는다.
+#[test]
+fn the_terminal_under_a_focused_search_bar_paints_unfocused() {
+    use crate::state::surface_focus::TerminalFocusPaint;
+    let (mut state, mut session, sid) = scene();
+    open_search_bar(&mut state, &mut session, sid);
+    state.refresh_frame_key_focus(&session.borrow_mut().read());
+    let occupancy = crate::core::attach::OccupancyRegistry::new();
+    let paint = TerminalFocusPaint::of(state.frame_key_focus(), sid, &occupancy, || false);
+    assert!(!paint.bed_focused);
+    assert!(!paint.show_cursor);
+    let theme = tasty_themes::mocha_fallback();
+    let ink = crate::renderer::SearchHighlights::for_theme(
+        &theme,
+        paint.bed_focused,
+        Default::default(),
+        &[],
+        0,
+    )
+    .active_fg;
+    assert_eq!(ink, theme.search_match_active_unfocused_fg().to_gpu_rgba());
+
+    state.popups.close(SEARCH_BAR_POPUP_ID);
+    state.refresh_frame_key_focus(&session.borrow_mut().read());
+    let back = TerminalFocusPaint::of(state.frame_key_focus(), sid, &occupancy, || false);
+    assert!(back.bed_focused && back.show_cursor, "key focus came back");
+    let suppressed = TerminalFocusPaint::of(state.frame_key_focus(), sid, &occupancy, || true);
+    assert!(
+        suppressed.cursor_suppressed && !suppressed.show_cursor,
+        "output suppression stays"
+    );
+}

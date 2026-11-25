@@ -6,7 +6,6 @@
 //! 띠 층은 `Order::Middle`이라 Foreground인 탭 바·host·plugin 팝업 셸보다 늘 아래다.
 
 use crate::app::plugin_display::PluginDisplay;
-use crate::core::AttentionKind;
 use crate::model::PhysicalRect;
 use crate::runtime::engine_read::EngineRead;
 use crate::state::MainViewState;
@@ -21,7 +20,8 @@ pub(crate) fn collect(
     scale_factor: f32,
 ) {
     let theme = crate::theme::theme();
-    let focused = state.focused_surface_id(engine);
+    // 띠는 선택이 아니라 이 프레임의 키 포커스를 따른다(점유와 무관, `state::key_focus`).
+    let focused = state.frame_key_focus();
     let mut out = Vec::new();
     if let Some(ws) = engine.workspace_at(state.active_workspace_index(engine)) {
         for &(pane_id, pane_rect) in pane_rects {
@@ -44,7 +44,7 @@ pub(crate) fn collect(
                     below: crate::adapters::ui::to_egui_rect(below, scale_factor),
                     rows: crate::state::surface_focus::edge_rows(&theme, r.rect, scale_factor),
                     focused: is_focused,
-                    ring: row_ring(engine, &theme, r.id, is_focused),
+                    ring: row_ring(engine, &theme, r.id),
                 });
             }
         }
@@ -53,19 +53,17 @@ pub(crate) fn collect(
 }
 
 /// 띠 행 안에 보일 링. 지금 화면에서 위에 오는 점유 링(Foreground)을 attention 링보다 먼저 본다.
-/// 포커스된 leaf의 완료 링은 행에 두지 않는다(완료는 포커스로 풀린다는 정본 규칙). 행 밖 링은 그대로다.
+/// 포커스된 leaf에 남은 완료 강조(OS 창 비활성 등 해제 조건이 맞지 않은 동안)도 행 밖 링과 같이 보인다.
 fn row_ring(
     engine: &EngineRead<'_>,
     theme: &tasty_type_appearance::theme::Theme,
     surface_id: u32,
-    focused: bool,
 ) -> Option<egui::Stroke> {
     use crate::adapters::ui::surface_rings::{attention_ring, occupancy_mark};
     if let Some(mark) = occupancy_mark(engine, surface_id).filter(|m| m.edge) {
         return Some(tasty_ui_widgets::occupancy_edge_stroke(theme, mark.hard));
     }
     attention_ring(engine, surface_id)
-        .filter(|kind| !(focused && *kind == AttentionKind::Completion))
         .map(|kind| tasty_ui_widgets::attention_edge_stroke(theme, kind.into()))
 }
 

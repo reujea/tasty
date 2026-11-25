@@ -62,7 +62,7 @@ impl GpuState {
         view: &wgpu::TextureView,
         regions: &[(u32, PhysicalRect, Vec<crate::model::SurfaceRegion<'_>>)],
         engine: &EngineRead<'_>,
-        focused_surface_id: Option<u32>,
+        key_focus: Option<u32>,
         selection: Option<&tasty_selection::TextSelection>,
         vi_cursor: Option<(u32, tasty_selection::SelectionPoint)>,
         terminal_views: &crate::state::terminal_view::TerminalViewports,
@@ -96,11 +96,13 @@ impl GpuState {
                 let surface_id = &region.id;
                 let rect = &region.rect;
                 // 읽기 전용 화면은 포커스 값과 포커스 커서를 표시하지 않는다.
-                let is_focused = crate::state::surface_focus::bed_focused(
-                    focused_surface_id,
+                let paint = crate::state::surface_focus::TerminalFocusPaint::of(
+                    key_focus,
                     *surface_id,
                     &engine.live.occupancy,
+                    || terminal.should_suppress_cursor_during_output(),
                 );
+                let is_focused = paint.bed_focused;
                 let bg = if is_focused {
                     term_surface.focused_bg.to_gpu_rgba()
                 } else {
@@ -166,11 +168,10 @@ impl GpuState {
                     });
                 let search_ref = search_highlights.as_ref();
 
-                let suppress_cursor = is_focused && terminal.should_suppress_cursor_during_output();
-                if suppress_cursor {
+                if paint.cursor_suppressed {
                     self.terminal_cursor_restore_pending = true;
                 }
-                let show_cursor = is_focused && !suppress_cursor;
+                let show_cursor = paint.show_cursor;
 
                 self.renderer.track_surface(*surface_id);
                 terminal.with_view(&terminal_views.get(engine, *surface_id), |view| {

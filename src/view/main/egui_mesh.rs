@@ -322,7 +322,9 @@ impl MainView {
     ) {
         let terminal_rect = self.compute_terminal_rect();
         let ppp = self.base.gpu.scale_factor();
+        // IME 위치는 입력용이라 선택을 읽고, plugin에 알리는 focused 값은 이 프레임의 키 포커스를 읽는다.
         let focused = self.state.focused_surface_id(engine);
+        let key_focus = self.state.frame_key_focus();
         let modifiers = self.mesh_modifiers();
         let current_theme = self.mesh_theme_snapshot(engine);
 
@@ -377,6 +379,7 @@ impl MainView {
                 &plugin_id,
             );
             let is_focused = focused == Some(sid);
+            let told = crate::state::key_focus::told_focused(key_focus, sid);
             // 전송을 생략할 프레임도 IME 위치는 필요하므로 조기 반환 전에 갱신한다.
             if is_focused
                 && let Some(ime) = mgr.egui_mesh_frame(sid).and_then(|f| f.ime_cursor.as_ref())
@@ -395,7 +398,7 @@ impl MainView {
                     });
             let theme_changed = st.common.theme_changed(&current_theme);
             let need_full = st.common.pending_full;
-            let focus_changed = st.last_focused != Some(is_focused);
+            let focus_changed = crate::state::key_focus::focus_changed(st.last_focused, told);
             let invalidated = st.invalidated;
 
             if !(geom_changed
@@ -412,7 +415,7 @@ impl MainView {
             let events = std::mem::take(&mut st.events);
             st.common.record_sent(geom, &current_theme, has_frame);
             st.common.pending_full = false;
-            st.last_focused = Some(is_focused);
+            st.last_focused = Some(told);
             st.invalidated = false;
 
             let params = SurfaceSetContextParams {
@@ -422,7 +425,7 @@ impl MainView {
                 pixels_per_point: ppp,
                 raw_input: RawInputWire {
                     time: Some(mesh_time_now()),
-                    focused: is_focused,
+                    focused: told,
                     modifiers,
                     events,
                 },

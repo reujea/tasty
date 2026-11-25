@@ -23,18 +23,12 @@ const READS: [&str; 5] = [
 ];
 
 /// 지금 값을 읽어도 되는 그리기 자리: 파일, 감싼 함수, 호출이 든 줄(공백 줄임), 이유.
-const ALLOWED: [(&str, &str, &str, &str); 12] = [
+const ALLOWED: [(&str, &str, &str, &str); 10] = [
     (
         "src/adapters/ui/egui_panels.rs",
         "draw_egui_panels",
         "let focused_surface_id = state.focused_surface_id(engine);",
-        "포커스 바탕(bed_focused)과 외부 변경 확인 대상 표시",
-    ),
-    (
-        "src/adapters/ui/surface_focus_edge.rs",
-        "collect",
-        "let focused = state.focused_surface_id(engine);",
-        "띠 kind leaf의 포커스 띠 표시(바탕 kind의 bed_focused와 같은 값)",
+        "외부 변경 확인 대상(포커스 탭) 표시. 바탕은 프레임 키 포커스를 읽는다",
     ),
     (
         "src/adapters/ui/file_open_tool.rs",
@@ -89,12 +83,6 @@ const ALLOWED: [(&str, &str, &str, &str); 12] = [
         "path_of_focus",
         "let Some(surface) = state.focused_surface_id(core) else {",
         "포커스 경로 계산(포커스 노드 정규화가 쓴다)",
-    ),
-    (
-        "src/gfx/gpu.rs",
-        "prepare_layout",
-        "let focused_surface_id = state.focused_surface_id(engine);",
-        "레이아웃의 포커스 surface 표시",
     ),
 ];
 

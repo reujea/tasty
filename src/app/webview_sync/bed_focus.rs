@@ -1,8 +1,8 @@
-//! 바탕 kind WebView의 페이지에 바탕 포커스 상태를 넘긴다. 값은 `state::surface_focus::bed_focused`가
-//! 세션의 포커스와 점유로 정하고, 페이지 쪽 계약은 `crate::webview::bed_focus`에 있다.
+//! 바탕 kind WebView의 페이지에 바탕 포커스 상태를 넘긴다. 값은 마지막으로 낸 프레임이 focused 바탕을 칠한
+//! surface(`MainViewState::shown_bed_focus`, 키 포커스와 점유로 정함)이고, 페이지 쪽 계약은 `crate::webview::bed_focus`에 있다.
 
 use crate::runtime::surface_registry::KindCapabilities;
-use crate::state::surface_focus::{FocusMark, bed_focused, focus_mark};
+use crate::state::surface_focus::{FocusMark, focus_mark};
 use crate::view::MainView;
 use crate::webview::PlatformWebView;
 
@@ -31,11 +31,8 @@ fn wanted(
     sid: u32,
 ) -> Option<bool> {
     let remote = find_remote_surface(view, engine, sid)?;
-    let focused = bed_focused(
-        view.state.focused_surface_id(engine),
-        sid,
-        &engine.live.occupancy,
-    );
+    // GPU 프레임이 보류되거나 실패한 동안에도 화면에 낸 바탕과 같은 값을 둔다.
+    let focused = view.state.shown_bed_focus() == Some(sid);
     to_send(remote.kind_static, remote.capabilities, focused, None)
 }
 

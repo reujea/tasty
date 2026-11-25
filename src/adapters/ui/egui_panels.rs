@@ -166,9 +166,11 @@ pub fn draw_egui_panels(
         state.explorer_clipboard.cut_paths();
     // 렌더 중 state를 빌리기 전에 최근 폴더를 한 번 읽어 둔다.
     let explorer_recent_dirs: Vec<String> = state.recent_files.get(EXPLORER_RECENT_KIND);
-    // 포커스 표시(바탕·외부 변경 확인)에 쓰는 지금 포커스 surface. 탐색기 본문과 주소 입력칸이 키를 받을지는 이 값이
+    // 외부 변경 확인 대상(포커스 탭)을 고르는 선택 surface. 탐색기 본문과 주소 입력칸이 키를 받을지는 이 값이
     // 아니라 그리는 몫의 키 노드로 정한다. 주소 띠를 꺼내기 전에 읽는다(포커스 노드가 띠의 포커스를 읽는다).
     let focused_surface_id = state.focused_surface_id(engine);
+    // 바탕은 선택이 아니라 이 프레임의 키 포커스를 따른다(`state::key_focus`).
+    let key_focus = state.frame_key_focus();
     let pass_key_node = state.pass_key_node(engine);
     // 그 몫 키들을 분류한 사건 시점의 복원 안내 포커스. 탐색기 타입어헤드는 그때 안내가 키를 가졌으면 읽지 않는다.
     let pass_notice_focus = state.pass_notice_focus();
@@ -241,11 +243,8 @@ pub fn draw_egui_panels(
         let Some(surface) = engine.find_surface_by_id(sid) else {
             continue;
         };
-        let bed_focused = crate::state::surface_focus::bed_focused(
-            focused_surface_id,
-            sid,
-            &engine.live.occupancy,
-        );
+        let bed_focused =
+            crate::state::surface_focus::bed_focused(key_focus, sid, &engine.live.occupancy);
 
         if let Some(empty) = surface.empty() {
             draw_panel_frame_no_margin(ctx, &format!("empty_panel_{}", id_suffix), info, |ui| {

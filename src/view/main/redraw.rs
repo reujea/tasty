@@ -58,6 +58,22 @@ pub(crate) fn host_window_has_os_focus(
     winit_focused || webview_holds()
 }
 
+/// 이 프레임에 키 포커스를 가진 surface를 사용자가 본 것으로 알리는 효과. 효과는 그 surface의 강조를 지우고
+/// (`window_focused`일 때) 고아 soft 점유를 정리한다. 키를 가진 팝업 아래나 무대 중에는 키 포커스 surface가 없어
+/// 효과도 없다. 대상은 프레임 값(`frame_key_focus`)이라 같은 프레임의 칠하기와 같다.
+pub(crate) fn focus_observed_effect(
+    state: &crate::state::MainViewState,
+    engine: &EngineRead<'_>,
+    window_focused: bool,
+) -> Option<crate::app::frame_effect::InputEffect> {
+    let sid = state.frame_key_focus()?;
+    let target = crate::runtime::surface_binding::SurfaceBinding::capture(engine, sid)?;
+    Some(crate::app::frame_effect::InputEffect::FocusObserved {
+        target,
+        window_focused,
+    })
+}
+
 /// 포커스 회수 대상으로 남길 surface인지. 닫힌 surface의 webview는 같은 프레임 뒤에서
 /// 제거되므로 map에 남아 있어도 이번 프레임의 HTML surface 목록에 없으면 제외한다.
 pub(crate) fn webview_release_candidate_is_live(
@@ -143,6 +159,11 @@ impl MainView {
 
         self.poll_outbound_drag(engine);
 
+        // 그리기 중 키 포커스가 옮겨 갔으면(덮는 팝업의 정규화, 그리기 중 연 팝업 등) 모든 소비자가 함께 바뀌도록
+        // 다음 프레임을 그린다.
+        if self.state.key_focus_moved_since_frame(engine) {
+            self.base.state.dirty = true;
+        }
         if self.base.state.dirty && self.base.ready_to_draw() {
             self.base.winit.request_redraw();
         }
@@ -247,27 +268,16 @@ impl MainView {
         if !self.base.state.dirty {
             return;
         }
+        // 이 프레임의 그리기·강조 해제·mesh 전송이 읽는 키 포커스 값을 첫 소비자보다 먼저 정한다.
+        self.state.refresh_frame_key_focus(engine);
         // App drains these outputs before drawing this frame, including an otherwise idle
         // terminal. Fullscreen stage rendering must not acknowledge hidden terminal content.
-        if !self.state.fullscreen_stage_active()
-            && let Some(sid) = self.state.focused_surface_id(engine)
-            && let Some(target) =
-                crate::runtime::surface_binding::SurfaceBinding::capture(engine, sid)
-        {
-            // 포커스 surface는 포커스 pane과 현재 workspace의 것이다. 창까지 OS 포커스를
-            // 가져야 사용자가 실제로 본 것으로 보고 attention을 지운다.
-            let window_focused = host_window_has_os_focus(self.base.state.focused, || {
-                self.webviews.values().any(|wv| wv.holds_keyboard_focus())
-            });
+        let window_focused = host_window_has_os_focus(self.base.state.focused, || {
+            self.webviews.values().any(|wv| wv.holds_keyboard_focus())
+        });
+        if let Some(effect) = focus_observed_effect(&self.state, engine, window_focused) {
             self.state.dispatch_intent(
-                crate::intent::Intent::Frame(
-                    crate::app::frame_effect::InputEffect::FocusObserved {
-                        target,
-                        window_focused,
-                    }
-                    .into(),
-                )
-                .from_user_menu("render-focus"),
+                crate::intent::Intent::Frame(effect.into()).from_user_menu("render-focus"),
             );
         }
         // Reconcile composition for every displayed content source, including
@@ -289,21 +299,25 @@ impl MainView {
         plugin_manager: Option<PluginDisplay<'_>>,
     ) {
         if !self.base.state.dirty || !self.base.ready_to_draw() {
+            self.state.finish_frame_key_focus(engine, false);
             return;
         }
+        // 준비 단계를 건너뛴 프레임(저장 중단, clean 준비 뒤 mesh 재전송으로 선 dirty)도 그리기 전에 값을 정한다.
+        self.state.ensure_frame_key_focus(engine);
         // Preparation and drawing share the same dirty frame. Consume it only after
         // this final admission check, so prepare_render_inputs cannot skip the draw.
         self.base.begin_surface_frame();
-        self.submit_gpu_frame(engine, plugin_manager);
+        let shown = self.submit_gpu_frame(engine, plugin_manager);
+        self.state.finish_frame_key_focus(engine, shown);
         self.drain_full_texture_requests(engine);
     }
 
-    /// 실제 GPU 프레임 제출 + surface 에러 분기 처리.
+    /// 실제 GPU 프레임 제출 + surface 에러 분기 처리. 프레임을 화면에 냈으면 참이다.
     fn submit_gpu_frame(
         &mut self,
         engine: &EngineRead<'_>,
         plugin_manager: Option<PluginDisplay<'_>>,
-    ) {
+    ) -> bool {
         if self.state.dialogs.remote_row_popup.take_dropped() {
             self.hovered_link = None;
         }
@@ -320,7 +334,7 @@ impl MainView {
             .map(|h| (h.surface_id, &h.highlight));
         let active_sel = self.active_text_selection();
         let vi_cursor = self.vi_copy.as_ref().map(|v| (v.surface_id, v.cursor));
-        match self.base.gpu.render(
+        let shown = match self.base.gpu.render(
             &mut self.state,
             engine,
             &self.base.winit,
@@ -337,19 +351,26 @@ impl MainView {
                 if self.base.gpu.take_redraw_requests(self.state.window_drawn) {
                     self.base.state.dirty = true;
                 }
+                true
             }
             Err(e @ (wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated)) => {
                 self.base.gpu.reconfigure(self.base.winit.inner_size());
                 self.base.surface_failed(&e);
+                false
             }
             Err(wgpu::SurfaceError::OutOfMemory) => {
                 self.base.state.repaint.cancel_surface_retry();
                 tracing::error!("GPU out of memory");
                 crate::crash_report::record_error("GPU out of memory");
+                false
             }
-            Err(e) => self.base.surface_failed(&e),
-        }
+            Err(e) => {
+                self.base.surface_failed(&e);
+                false
+            }
+        };
         self.copy_egui_text();
+        shown
     }
 
     /// egui-mesh(로컬 plugin 대상) + attach mesh mirror(원격 대상) full 재전송
