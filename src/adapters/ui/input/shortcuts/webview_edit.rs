@@ -42,7 +42,7 @@ impl MainView {
         mods: ModifiersState,
     ) -> Option<WebViewEditAction> {
         webview_edit_for_surface_key(
-            &self.state,
+            self.state.focused_surface_id(engine),
             |sid| self.webviews.contains_key(&sid),
             engine,
             key,
@@ -80,16 +80,17 @@ pub(crate) fn webview_edit_order() -> impl Iterator<Item = WebViewEditAction> {
         .chain(AFTER_CLIPBOARD_EDITS)
 }
 
-/// `webview_edit_for_key` 의 판정. 포커스 surface 에 native WebView 가 있고(`has_webview`) 키가 편집 바인딩이면 그
-/// 편집이다. 창 view 가 없는 plugin 단축키 단계도 같은 판정을 쓴다.
+/// `webview_edit_for_key` 의 판정. 키를 받은 surface `sid`(winit 키는 포커스 surface, native WebView 가 넘긴 키는 그
+/// 키를 받은 surface)에 native WebView 가 있고(`has_webview`) 키가 편집 바인딩이면 그 편집이다. 창 view 가 없는
+/// plugin 단축키 단계도 같은 판정을 쓴다.
 pub(crate) fn webview_edit_for_surface_key(
-    state: &crate::state::MainViewState,
+    sid: Option<u32>,
     has_webview: impl Fn(u32) -> bool,
     engine: &EngineRead<'_>,
     key: &Key,
     mods: ModifiersState,
 ) -> Option<WebViewEditAction> {
-    let sid = state.focused_surface_id(engine)?;
+    let sid = sid?;
     if !has_webview(sid) {
         return None;
     }

@@ -604,3 +604,41 @@ fn a_forwarded_current_key_keeps_the_window_gate() {
     ));
     assert!(ran(&mut state).is_empty());
 }
+
+/// native WebView 를 가진 plugin surface A 가 넘긴 Ctrl+F10 을 App plugin 단계에 넣는다. 모델 포커스는 `focus` 다.
+fn webview_forwarded_f10(focus: u32, copy: Option<&str>) -> Vec<String> {
+    let (mut state, mut session) = scene(focus);
+    if let Some(combo) = copy {
+        let engine = session.borrow_mut();
+        assert!(engine.runtime.settings.keybindings.set_field("copy", combo));
+    }
+    let mut mgr = manager();
+    let engine = session.borrow_mut();
+    state.normalize_focus(&engine.read());
+    plugin_shortcut_in_window(
+        &mut state,
+        &engine,
+        Some(&mut mgr),
+        |sid| sid == A,
+        &Key::Named(NamedKey::F10),
+        ModifiersState::CONTROL,
+        PluginKeyGate::Forwarded(ForwardedKey::Path, A),
+    );
+    names(&mut state)
+}
+
+/// Given 복사를 Ctrl+F10 에 묶었고 모델 포커스는 WebView 가 없는 터미널 B, When WebView 를 가진 A 가 Ctrl+F10 을 넘기면,
+/// Then 받은 A 의 WebView 편집이 plugin 명령보다 먼저라 명령은 실행하지 않는다.
+#[test]
+fn a_forwarded_edit_key_yields_to_the_receiving_webview() {
+    assert_eq!(
+        webview_forwarded_f10(B, Some("ctrl+f10")),
+        Vec::<String>::new()
+    );
+}
+
+/// Given 같은 장면에서 Ctrl+F10 이 편집 바인딩이 아니다, When A 가 넘기면, Then plugin 명령이 실행된다.
+#[test]
+fn a_forwarded_plain_key_from_a_webview_runs_the_plugin_command() {
+    assert_eq!(webview_forwarded_f10(B, None), ["glob_only"]);
+}

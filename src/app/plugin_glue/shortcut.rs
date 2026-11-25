@@ -278,9 +278,10 @@ pub(crate) fn plugin_shortcut_in_window(
             state.command_target(&engine.read()),
         ),
     };
-    // 포커스 WebView의 편집 바인딩은 plugin 명령보다 먼저다. native 자식이 키를 받을 때와 같은 순서다.
+    // 키를 받은 WebView의 편집 바인딩은 plugin 명령보다 먼저다. native 자식이 키를 받을 때와 같은 순서다. 넘긴 키는
+    // 받은 surface, winit 키는 포커스 surface 다.
     if shortcuts::webview_edit_for_surface_key(
-        state,
+        received_by.or_else(|| state.focused_surface_id(&engine.read())),
         has_webview,
         &engine.read(),
         shortcut_key,
