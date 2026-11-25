@@ -208,6 +208,9 @@ pub(crate) const SIZE_24: LogicalPx = LogicalPx(24.0);
 /// `primitive.size-240` = 240px
 pub(crate) const SIZE_240: LogicalPx = LogicalPx(240.0);
 
+/// `primitive.size-26` = 26px
+pub(crate) const SIZE_26: LogicalPx = LogicalPx(26.0);
+
 /// `primitive.size-260` = 260px
 pub(crate) const SIZE_260: LogicalPx = LogicalPx(260.0);
 

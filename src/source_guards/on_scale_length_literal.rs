@@ -62,7 +62,7 @@ const EGUI_LENGTH_HEADS: &[&str] = &[
 const DECLARATION_SITES: &[(&str, usize, &str)] = &[
     (
         "crates/tasty-design-tokens/src/generated/",
-        80,
+        81,
         "스케일 자신 — 이 파일이 곧 size-* 의 정본이다",
     ),
     (
@@ -689,9 +689,11 @@ fn the_gallery_share_splits_into_four_kinds() {
     // 검색 막대 견본의 입력 칸 하한 80은 견본 액자 안의 최소 폭이며 역할 토큰이 없다.
     // size-84·size-76이 스케일에 들어와 탐색기 사이드바·git viewer·배너 견본의 84와 표 견본의
     // 열 초기 폭 84·76이 잡힌다. 그 견본의 역할 토큰은 없다.
+    // size-26이 스케일에 들어와 git viewer 견본의 파일 행 높이 26과 아이콘 크기 견본의 칸 26이 잡힌다.
+    // 그 견본의 역할 토큰은 없다.
     assert!(
-        named_value <= 27 && displayed <= roster,
-        "갤러리의 같은 Theme 값 자리 {named_value}(상한 27) 또는 전시 후보 {displayed}(전시 명부 {roster})가 상한을 넘었다. 줄어든 것은 실패가 아니다"
+        named_value <= 29 && displayed <= roster,
+        "갤러리의 같은 Theme 값 자리 {named_value}(상한 29) 또는 전시 후보 {displayed}(전시 명부 {roster})가 상한을 넘었다. 줄어든 것은 실패가 아니다"
     );
 }
 

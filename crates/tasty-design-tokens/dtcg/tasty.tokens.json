@@ -341,6 +341,10 @@
       "$type": "dimension",
       "$value": "22px"
     },
+    "size-26": {
+      "$type": "dimension",
+      "$value": "26px"
+    },
     "size-28": {
       "$type": "dimension",
       "$value": "28px"
@@ -3498,6 +3502,10 @@
       "$type": "color",
       "$value": "{semantic.overlay-hover}"
     },
+    "html-surface-specimen-min-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-288}"
+    },
     "html-remote-banner-glyph": {
       "$type": "color",
       "$value": "{semantic.accent-info-raised}"
@@ -4542,7 +4550,7 @@
     },
     "plugins-list-width": {
       "$type": "dimension",
-      "$value": "{primitive.size-288}"
+      "$value": "{primitive.size-240}"
     },
     "plugins-attention-list-width": {
       "$type": "dimension",
@@ -4563,6 +4571,30 @@
     "plugins-header-pad-right": {
       "$type": "dimension",
       "$value": "calc(var(--tasty-space-lg) + -1 * var(--tasty-border-width))"
+    },
+    "plugins-window-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-560}"
+    },
+    "plugins-header-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-48}"
+    },
+    "plugins-tab-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-26}"
+    },
+    "plugins-tab-gap": {
+      "$type": "dimension",
+      "$value": "calc(1 * var(--tasty-space-sm) + 1 * var(--tasty-size-2))"
+    },
+    "plugins-list-row-gap": {
+      "$type": "dimension",
+      "$value": "calc(1 * var(--tasty-space-xs) + 1 * var(--tasty-size-2))"
+    },
+    "plugins-manifest-meta-gap": {
+      "$type": "dimension",
+      "$value": "{primitive.size-3}"
     },
     "plugins-header-glyph": {
       "$type": "color",
@@ -5974,6 +6006,10 @@
     "remote-filter-dropdown-width": {
       "$type": "dimension",
       "$value": "{primitive.size-240}"
+    },
+    "remote-filter-list-max-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-168}"
     },
     "palette-width": {
       "$type": "dimension",

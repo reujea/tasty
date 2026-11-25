@@ -2694,6 +2694,12 @@ impl crate::theme::Theme {
         self.accent_info_raised()
     }
 
+    /// `component.html-surface-specimen-min-width` → `{primitive.size-288}` = 288px
+    #[inline]
+    pub fn html_surface_specimen_min_width(&self) -> LogicalPx {
+        LogicalPx((288.0 * self.ui_zoom).round())
+    }
+
     /// `component.icon-button-bg-active` → `{semantic.overlay-active}`
     #[inline]
     pub fn icon_button_bg_active(&self) -> PremulColor {
@@ -4608,6 +4614,12 @@ impl crate::theme::Theme {
         self.accent_decorative()
     }
 
+    /// `component.plugins-header-height` → `{primitive.size-48}` = 48px
+    #[inline]
+    pub fn plugins_header_height(&self) -> LogicalPx {
+        LogicalPx((48.0 * self.ui_zoom).round())
+    }
+
     /// `component.plugins-header-pad-left` → `calc(var(--tasty-size-20) + -1 * var(--tasty-border-width))` = 19px
     #[inline]
     pub fn plugins_header_pad_left(&self) -> LogicalPx {
@@ -4628,16 +4640,50 @@ impl crate::theme::Theme {
         LogicalPx((14.0 * self.ui_zoom).round())
     }
 
-    /// `component.plugins-list-width` → `{primitive.size-288}` = 288px
+    /// `component.plugins-list-row-gap` → `calc(1 * var(--tasty-space-xs) + 1 * var(--tasty-size-2))` = 6px
+    #[inline]
+    pub fn plugins_list_row_gap(&self) -> LogicalPx {
+        LogicalPx(
+            self.spacing_xs.value() * 1.0 + LogicalPx((2.0 * self.ui_zoom).round()).value() * 1.0,
+        )
+    }
+
+    /// `component.plugins-list-width` → `{primitive.size-240}` = 240px
     #[inline]
     pub fn plugins_list_width(&self) -> LogicalPx {
-        LogicalPx((288.0 * self.ui_zoom).round())
+        LogicalPx((240.0 * self.ui_zoom).round())
+    }
+
+    /// `component.plugins-manifest-meta-gap` → `{primitive.size-3}` = 3px
+    #[inline]
+    pub fn plugins_manifest_meta_gap(&self) -> LogicalPx {
+        LogicalPx((3.0 * self.ui_zoom).round())
     }
 
     /// `component.plugins-tab-focus-ring` → `{semantic.accent-primary-raised}`
     #[inline]
     pub fn plugins_tab_focus_ring(&self) -> HexColor {
         self.accent_primary_raised()
+    }
+
+    /// `component.plugins-tab-gap` → `calc(1 * var(--tasty-space-sm) + 1 * var(--tasty-size-2))` = 10px
+    #[inline]
+    pub fn plugins_tab_gap(&self) -> LogicalPx {
+        LogicalPx(
+            self.spacing_sm.value() * 1.0 + LogicalPx((2.0 * self.ui_zoom).round()).value() * 1.0,
+        )
+    }
+
+    /// `component.plugins-tab-height` → `{primitive.size-26}` = 26px
+    #[inline]
+    pub fn plugins_tab_height(&self) -> LogicalPx {
+        LogicalPx((26.0 * self.ui_zoom).round())
+    }
+
+    /// `component.plugins-window-height` → `{primitive.size-560}` = 560px
+    #[inline]
+    pub fn plugins_window_height(&self) -> LogicalPx {
+        LogicalPx((560.0 * self.ui_zoom).round())
     }
 
     /// `component.plugins-window-width` → `{primitive.size-880}` = 880px
@@ -4974,6 +5020,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn remote_filter_dropdown_width(&self) -> LogicalPx {
         LogicalPx((240.0 * self.ui_zoom).round())
+    }
+
+    /// `component.remote-filter-list-max-height` → `{primitive.size-168}` = 168px
+    #[inline]
+    pub fn remote_filter_list_max_height(&self) -> LogicalPx {
+        LogicalPx((168.0 * self.ui_zoom).round())
     }
 
     /// `component.remote-filter-menu-width` → `{primitive.size-240}` = 240px

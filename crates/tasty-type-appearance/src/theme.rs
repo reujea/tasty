@@ -1826,11 +1826,6 @@ impl Theme {
     pub fn tutorial_topic_body_max_height(&self) -> LogicalPx {
         LogicalPx((200.0 * self.ui_zoom).round())
     }
-    /// plugins 화면 헤더 높이 (48px).
-    #[inline]
-    pub fn plugins_header_height(&self) -> LogicalPx {
-        LogicalPx((48.0 * self.ui_zoom).round())
-    }
     /// plugins 화면 좌측 리스트 패널 폭 (240px). 목록 탭과 알림 탭이 같은 폭을
     /// 공유한다 — 탭을 바꿀 때 패널 경계가 움직이지 않아야 한다.
     #[inline]
@@ -2473,7 +2468,6 @@ mod tests {
                 200.0,
                 "tutorial_topic_body_max_height",
             ),
-            (Theme::plugins_header_height, 48.0, "plugins_header_height"),
             (
                 Theme::plugins_side_panel_width,
                 240.0,

@@ -893,6 +893,9 @@ pub mod html {
 
     /// `component.html-script-marker-size` → `{semantic.icon-size-xs}` = 12px
     pub const SCRIPT_MARKER_SIZE: LogicalPx = crate::generated::semantic::ICON_SIZE_XS;
+
+    /// `component.html-surface-specimen-min-width` → `{primitive.size-288}` = 288px
+    pub const SURFACE_SPECIMEN_MIN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_288;
 }
 
 pub mod icon_button {
@@ -1517,8 +1520,20 @@ pub mod plugins {
     /// `component.plugins-attention-list-width` → `{primitive.size-240}` = 240px
     pub const ATTENTION_LIST_WIDTH: LogicalPx = crate::generated::primitive::SIZE_240;
 
+    /// `component.plugins-header-height` → `{primitive.size-48}` = 48px
+    pub const HEADER_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_48;
+
     /// `component.plugins-inset` → `{primitive.size-14}` = 14px
     pub const INSET: LogicalPx = crate::generated::primitive::SIZE_14;
+
+    /// `component.plugins-manifest-meta-gap` → `{primitive.size-3}` = 3px
+    pub const MANIFEST_META_GAP: LogicalPx = crate::generated::primitive::SIZE_3;
+
+    /// `component.plugins-tab-height` → `{primitive.size-26}` = 26px
+    pub const TAB_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_26;
+
+    /// `component.plugins-window-height` → `{primitive.size-560}` = 560px
+    pub const WINDOW_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_560;
 
     /// `component.plugins-window-width` → `{primitive.size-880}` = 880px
     pub const WINDOW_WIDTH: LogicalPx = crate::generated::primitive::SIZE_880;
@@ -1527,8 +1542,8 @@ pub mod plugins {
 pub mod plugins_list {
     use tasty_type_geometry::length::LogicalPx;
 
-    /// `component.plugins-list-width` → `{primitive.size-288}` = 288px
-    pub const WIDTH: LogicalPx = crate::generated::primitive::SIZE_288;
+    /// `component.plugins-list-width` → `{primitive.size-240}` = 240px
+    pub const WIDTH: LogicalPx = crate::generated::primitive::SIZE_240;
 }
 
 pub mod popup {
@@ -1690,6 +1705,9 @@ pub mod remote {
 
     /// `component.remote-filter-dropdown-width` → `{primitive.size-240}` = 240px
     pub const FILTER_DROPDOWN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_240;
+
+    /// `component.remote-filter-list-max-height` → `{primitive.size-168}` = 168px
+    pub const FILTER_LIST_MAX_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_168;
 
     /// `component.remote-filter-menu-width` → `{primitive.size-240}` = 240px
     pub const FILTER_MENU_WIDTH: LogicalPx = crate::generated::primitive::SIZE_240;
