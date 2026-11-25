@@ -19,14 +19,20 @@ fn top_level_elements(src: &str, start: usize) -> Vec<(usize, String)> {
     let (mut i, mut depth, mut from) = (start, 0usize, start);
     let mut out = Vec::new();
     let push = |from: usize, to: usize, out: &mut Vec<(usize, String)>| {
-        let text: String = src[from..to]
-            .lines()
-            .map(|l| l.split("//").next().unwrap_or(""))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let lead = text.len() - text.trim_start().len();
-        if !text.trim().is_empty() {
-            out.push((from + lead, text.trim().to_owned()));
+        // 원소의 위치는 주석을 뺀 첫 글자가 원문에서 놓인 바이트다(주석 줄을 원소 줄로 세지 않는다).
+        let (mut at, mut first) = (from, None);
+        let mut code = Vec::new();
+        for line in src[from..to].split_inclusive('\n') {
+            let kept = line.split("//").next().unwrap_or("");
+            if first.is_none() && !kept.trim().is_empty() {
+                first = Some(at + (kept.len() - kept.trim_start().len()));
+            }
+            code.push(kept.trim_end_matches('\n'));
+            at += line.len();
+        }
+        let text = code.join("\n");
+        if let Some(first) = first {
+            out.push((first, text.trim().to_owned()));
         }
     };
     while i < b.len() {
