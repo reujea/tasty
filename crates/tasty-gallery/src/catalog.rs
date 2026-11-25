@@ -1967,7 +1967,7 @@ pub fn pages() -> Vec<Page> {
                             ),
                             components::settings_performance::draw_number_field,
                         ),
-                    ].into_iter().chain(components::settings_frame_rate::specs()).collect(),
+                    ].into_iter().chain(components::settings_frame_rate::specs()).chain(components::window_tab_focus::specs()).collect(),
                 ),
                 single(
                     "kbplugins",

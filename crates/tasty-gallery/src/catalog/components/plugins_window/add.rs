@@ -259,9 +259,18 @@ fn action_bar(ui: &mut egui::Ui, theme: &Theme, spec: BarSpec) {
             danger: !spec.blocked && spec.kind.is_unverified(),
             busy: spec.busy,
             progress: t("plugins.add_adding"),
-            focus_cancel: spec.focus_cancel,
+            focus_cancel: spec.focus_cancel && first_request(ui),
         },
     );
+}
+
+/// 본체처럼 초기 포커스를 처음 그리는 패스에 한 번만 요청한다. 매 패스 요청하면 Tab으로 옮긴 포커스를 되가져와
+/// 한 패스에 링이 둘 생긴다.
+fn first_request(ui: &egui::Ui) -> bool {
+    let id = ui.id().with("plugin_add_focus_cancel_requested");
+    let first = ui.ctx().data(|d| d.get_temp::<bool>(id)).is_none();
+    ui.ctx().data_mut(|d| d.insert_temp(id, true));
+    first
 }
 
 /// 디자인 `Bar`·`AddBarG` 줄. 신뢰·미인증 네 가지(모르는 키는 Cancel 포커스),

@@ -109,7 +109,7 @@ pub fn draw_passkeys(ui: &mut egui::Ui, theme: &Theme) {
 }
 
 /// 시안 `RemoteFrame tab="passkeys"` — 머리 · 탭 · add-bar · 목록.
-fn passkeys_frame(ui: &mut egui::Ui, theme: &Theme) {
+pub(in crate::catalog::components) fn passkeys_frame(ui: &mut egui::Ui, theme: &Theme) {
     kit::frame_card(ui, theme, WIDTH, kit::panel_fill(theme), |ui| {
         attach_header(ui, theme);
         tab_bar(ui, theme, 2);

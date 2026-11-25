@@ -11,6 +11,7 @@ use tasty_ui_widgets::{
     select, switch,
 };
 
+use super::window_tab_focus::FocusLook;
 use crate::catalog::icons;
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::catalog::widgets::dialog as kit;
@@ -109,45 +110,7 @@ thread_local! {
 
 /// Overlays › Settings window — 시안 `SettingsFrame`: L1 탭 줄 아래 L2 사이드바와 콘텐츠, 하단 버튼 줄.
 pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
-    let band_h = theme.titlebar_height + theme.spacing_sm; // 44
-    spec::stage(ui, theme, StageVariant::Center, |ui| {
-        kit::frame_card(ui, theme, FRAME_W, kit::panel_fill(theme), |ui| {
-            ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
-            l1_band(
-                ui,
-                theme,
-                band_h,
-                &L1Layout {
-                    title: "Settings",
-                    tabs: L1_TABS,
-                    active: L1_ACTIVE,
-                    tab_pad_x: L1_TAB_PAD_X,
-                    divider_margin_l: L1_SEP_MARGIN_L,
-                },
-            );
-            kit::hsep(ui, theme);
-            // 콘텐츠 높이는 버튼 줄을 뺀 나머지다. 버튼 줄 높이는 직전 프레임에 잰 값을 쓴다.
-            let footer_id = ui.id().with("settings_footer_h");
-            let footer_h: f32 = ui
-                .data(|d| d.get_temp(footer_id))
-                .unwrap_or(theme.item_height_interactive.value());
-            let bw = theme.border_width.value();
-            // 프레임 위아래 테두리와 L1 줄 아래 구분선을 뺀 높이가 사이드바·콘텐츠 열의 높이다.
-            let mid_h = (FRAME_H.value() - band_h.value() - bw * 3.0).max(theme.measure_sm.value());
-            ui.horizontal_top(|ui| {
-                ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
-                l2_sidebar(ui, theme, mid_h);
-                vsep(ui, theme, mid_h);
-                ui.vertical(|ui| {
-                    ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
-                    content(ui, theme, mid_h - footer_h - bw);
-                    kit::hsep(ui, theme);
-                    let r = footer(ui, theme);
-                    ui.data_mut(|d| d.insert_temp(footer_id, r.height()));
-                });
-            });
-        });
-    });
+    spec::stage(ui, theme, StageVariant::Center, |ui| frame(ui, theme));
 
     spec::meta(
         ui,
@@ -179,6 +142,47 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         theme,
         "L1 stays small forever; growth happens only in L2. Plugins are their own L1 tab — never crammed into another group's sidebar.",
     );
+}
+
+/// 설정 창 그림(620 × 380). 창 안 탭 포커스 예제도 이 그림을 쓴다.
+pub(super) fn frame(ui: &mut egui::Ui, theme: &Theme) {
+    let band_h = theme.titlebar_height + theme.spacing_sm; // 44
+    kit::frame_card(ui, theme, FRAME_W, kit::panel_fill(theme), |ui| {
+        ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
+        l1_band(
+            ui,
+            theme,
+            band_h,
+            &L1Layout {
+                title: "Settings",
+                tabs: L1_TABS,
+                active: L1_ACTIVE,
+                tab_pad_x: L1_TAB_PAD_X,
+                divider_margin_l: L1_SEP_MARGIN_L,
+            },
+        );
+        kit::hsep(ui, theme);
+        // 콘텐츠 높이는 버튼 줄을 뺀 나머지다. 버튼 줄 높이는 직전 프레임에 잰 값을 쓴다.
+        let footer_id = ui.id().with("settings_footer_h");
+        let footer_h: f32 = ui
+            .data(|d| d.get_temp(footer_id))
+            .unwrap_or(theme.item_height_interactive.value());
+        let bw = theme.border_width.value();
+        // 프레임 위아래 테두리와 L1 줄 아래 구분선을 뺀 높이가 사이드바·콘텐츠 열의 높이다.
+        let mid_h = (FRAME_H.value() - band_h.value() - bw * 3.0).max(theme.measure_sm.value());
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
+            l2_sidebar(ui, theme, mid_h);
+            vsep(ui, theme, mid_h);
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
+                content(ui, theme, mid_h - footer_h - bw);
+                kit::hsep(ui, theme);
+                let r = footer(ui, theme);
+                ui.data_mut(|d| d.insert_temp(footer_id, r.height()));
+            });
+        });
+    });
 }
 
 /// 설정 창 콘텐츠의 컨트롤 어휘. 시안 갤러리에는 없는 갤러리 전용 예제로, 본체의 행·스위치·
@@ -266,7 +270,16 @@ pub(super) fn l1_band(ui: &mut egui::Ui, theme: &Theme, band_h: LogicalPx, layou
     row.add_space(L1_SEP_MARGIN_R.value());
     for (i, t) in layout.tabs.iter().enumerate() {
         let active = i == layout.active;
-        l1_tab(&mut row, theme, t, band_h, layout.tab_pad_x, active);
+        let focused = super::window_tab_focus::look() == Some(FocusLook::L1(i));
+        l1_tab(
+            &mut row,
+            theme,
+            t,
+            band_h,
+            layout.tab_pad_x,
+            active,
+            focused,
+        );
     }
 }
 
@@ -277,6 +290,7 @@ fn l1_tab(
     band_h: LogicalPx,
     pad: LogicalPx,
     active: bool,
+    focused: bool,
 ) {
     let galley = ui.painter().layout_no_wrap(
         label.to_owned(),
@@ -309,6 +323,16 @@ fn l1_tab(
         ui.painter()
             .rect_filled(bar, 0.0, theme.accent_primary().to_egui());
     }
+    // 본체 L1 탭처럼 링을 탭 안쪽에 그리고 밑줄과 focus-ring-offset 만큼 띄운다.
+    if focused {
+        tasty_ui_widgets::paint_inset_ring(
+            ui.painter(),
+            theme,
+            rect,
+            theme.tab_indicator_width().value() + theme.focus_ring_offset.value(),
+            theme.border_focus().to_egui(),
+        );
+    }
 }
 
 fn l2_sidebar(ui: &mut egui::Ui, theme: &Theme, mid_h: f32) {
@@ -334,15 +358,30 @@ fn l2_sidebar(ui: &mut egui::Ui, theme: &Theme, mid_h: f32) {
                 kit::hsep(ui, theme);
                 kit::region_sym(ui, L2_LIST_PAD, L2_LIST_PAD, |ui| {
                     ui.spacing_mut().item_spacing.y = 0.0;
+                    let mut ring = None;
                     for (i, label) in L2_SECTIONS.iter().enumerate() {
-                        l2_item(ui, theme, label, i == L2_SELECTED);
+                        let rect = l2_item(ui, theme, label, i == L2_SELECTED);
+                        if super::window_tab_focus::look() == Some(FocusLook::L2(i)) {
+                            ring = Some(rect);
+                        }
+                    }
+                    // 이 예제의 행은 간격 없이 붙어 있어 링이 이웃 행에 걸치므로 모든 행을 그린 뒤 얹는다.
+                    if let Some(rect) = ring {
+                        tasty_ui_widgets::paint_control_ring(
+                            ui.painter(),
+                            theme,
+                            rect,
+                            theme.corner_radius_sm.value(),
+                            tasty_ui_widgets::control_ring_gap(theme),
+                            theme.border_focus().to_egui(),
+                        );
                     }
                 });
             });
         });
 }
 
-fn l2_item(ui: &mut egui::Ui, theme: &Theme, label: &str, active: bool) {
+fn l2_item(ui: &mut egui::Ui, theme: &Theme, label: &str, active: bool) -> egui::Rect {
     let font = egui::FontId::proportional(theme.font_size_body.value());
     let row_h = ui.fonts(|f| f.row_height(&font));
     let h = row_h + L2_ITEM_PAD_Y.value() * 2.0;
@@ -367,6 +406,7 @@ fn l2_item(ui: &mut egui::Ui, theme: &Theme, label: &str, active: bool) {
         font,
         fg.to_egui(),
     );
+    rect
 }
 
 fn vsep(ui: &mut egui::Ui, theme: &Theme, mid_h: f32) {

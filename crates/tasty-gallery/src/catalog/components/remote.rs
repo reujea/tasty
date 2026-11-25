@@ -6,8 +6,9 @@ use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     Button, ButtonVariant, IconButton, IconButtonVariant, LocalSshHost, LocalSshSectionData,
     ProtocolFilterItem, ProtocolFilterLabels, RemoteRowChip, Spinner, TabStripData, TextWrap,
-    draw_local_ssh_section, draw_protocol_filter_body, draw_protocol_filter_button, draw_tab_strip,
-    remote_list_row, remote_row_title, select, selectable_text, warn_badge,
+    draw_local_ssh_section, draw_protocol_filter_body, draw_protocol_filter_button,
+    draw_tab_strip_with_focus_look, remote_list_row, remote_row_title, select, selectable_text,
+    warn_badge,
 };
 
 use crate::catalog::icons;
@@ -16,6 +17,7 @@ use crate::catalog::widgets::dialog as kit;
 
 mod forms;
 mod passkeys;
+pub(super) use passkeys::passkeys_frame;
 mod segment_rule;
 pub use forms::{draw_generic_passkey_forms, draw_profile_form};
 pub use passkeys::draw_passkeys;
@@ -287,7 +289,11 @@ fn ssh_state_card(ui: &mut egui::Ui, theme: &Theme, label: &str, message: &str) 
 
 /// 공용 탭 바에 라벨과 활성 항목을 전달한다. 배경은 카드 전체 폭을 채운다.
 fn tab_bar(ui: &mut egui::Ui, theme: &Theme, active: usize) {
-    draw_tab_strip(
+    let focus_look = match super::window_tab_focus::look() {
+        Some(super::window_tab_focus::FocusLook::RemoteTab(i)) => Some(i),
+        _ => None,
+    };
+    draw_tab_strip_with_focus_look(
         ui,
         theme,
         &TabStripData {
@@ -295,6 +301,7 @@ fn tab_bar(ui: &mut egui::Ui, theme: &Theme, active: usize) {
             active,
             x_range: ui.max_rect().x_range(),
         },
+        focus_look,
     );
 }
 
@@ -532,6 +539,11 @@ pub fn draw_attach_form(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
+/// 창 안 탭 포커스 예제가 쓰는 Attach 폼(SSH profile 선택).
+pub(super) fn attach_form_frame(ui: &mut egui::Ui, theme: &Theme) {
+    attach_form_card(ui, theme, false);
+}
+
 fn attach_form_card(ui: &mut egui::Ui, theme: &Theme, inline: bool) {
     kit::frame_card(ui, theme, FORM_WIDTH, kit::panel_fill(theme), |ui| {
         attach_header(ui, theme);
@@ -713,7 +725,10 @@ fn seg_pair(ui: &mut egui::Ui, theme: &Theme, labels: [&str; 2], second: bool) {
         &labels,
         usize::from(second),
         egui::Sense::hover(),
-        None,
+        match super::window_tab_focus::look() {
+            Some(super::window_tab_focus::FocusLook::Segment(i)) => Some(i),
+            _ => None,
+        },
     );
 }
 

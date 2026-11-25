@@ -222,24 +222,15 @@ fn header(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, tab: Tab) {
     x += theme.border_width.value() + theme.spacing_sm.value();
 
     let tab_y = cy - (theme.item_height_tab.value() + STRUCT_GAP_2.value()) * 0.5;
-    x += segment_tab(
-        ui,
-        theme,
-        &p,
-        egui::pos2(x, tab_y),
-        &Segment {
+    let tab_h = theme.item_height_tab.value() + STRUCT_GAP_2.value();
+    let segments = [
+        Segment {
             label: "Installed",
             count: Some(installed::ROWS.len()),
             danger: false,
             selected: matches!(tab, Tab::Installed { .. }),
         },
-    ) + STRUCT_GAP_2.value();
-    x += segment_tab(
-        ui,
-        theme,
-        &p,
-        egui::pos2(x, tab_y),
-        &Segment {
+        Segment {
             label: "Attention",
             // 0개일 때 배지가 사라지는 규칙도 이 함수에서 확인한다.
             count: Some(match tab {
@@ -249,19 +240,36 @@ fn header(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, tab: Tab) {
             danger: true,
             selected: matches!(tab, Tab::Attention { .. }),
         },
-    ) + STRUCT_GAP_2.value();
-    segment_tab(
-        ui,
-        theme,
-        &p,
-        egui::pos2(x, tab_y),
-        &Segment {
+        Segment {
             label: "Add plugin",
             count: None,
             danger: false,
             selected: matches!(tab, Tab::Add { .. }),
         },
-    );
+    ];
+    let mut ring = None;
+    for (i, seg) in segments.iter().enumerate() {
+        let w = segment_tab(ui, theme, &p, egui::pos2(x, tab_y), seg);
+        if super::window_tab_focus::look() == Some(super::window_tab_focus::FocusLook::PluginTab(i))
+        {
+            ring = Some(egui::Rect::from_min_size(
+                egui::pos2(x, tab_y),
+                egui::vec2(w, tab_h),
+            ));
+        }
+        x += w + STRUCT_GAP_2.value();
+    }
+    // 이 예제의 탭 사이는 2라 링이 이웃 탭에 걸치므로 세 탭을 모두 그린 뒤 얹는다.
+    if let Some(rect) = ring {
+        tasty_ui_widgets::paint_control_ring(
+            &p,
+            theme,
+            rect,
+            theme.corner_radius.value(),
+            tasty_ui_widgets::control_ring_gap(theme),
+            theme.border_focus().to_egui(),
+        );
+    }
 
     let close = theme.item_height_interactive.value();
     let close_rect = egui::Rect::from_min_size(
@@ -369,6 +377,23 @@ fn window(ui: &mut egui::Ui, theme: &Theme, tab: Tab) {
         }
         Tab::Add { preview } => add::form_pane(ui, theme, body, preview),
     }
+}
+
+/// 창 안 탭 포커스 예제가 쓰는 Installed 창(첫 행 선택). 시안 `plugins-tab-focus`처럼 창을 탭 막대가 든 헤더와
+/// 본문 첫 부분까지만 잘라 보인다.
+pub(super) fn installed_frame(ui: &mut egui::Ui, theme: &Theme) {
+    let tab = Tab::Installed {
+        detail: installed::Detail::Selected(0),
+    };
+    let full = stage_size(theme, tab);
+    let header_h =
+        theme.item_height_interactive.value() + theme.spacing_lg.value() + theme.spacing_xs.value();
+    let crop = egui::vec2(full.x, header_h * 2.0);
+    let (rect, _) = ui.allocate_exact_size(crop, egui::Sense::hover());
+    let mut child =
+        ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(rect.min, full)));
+    child.set_clip_rect(rect.intersect(ui.clip_rect()));
+    window(&mut child, theme, tab);
 }
 
 /// 디자인 `ThemePair` — Mocha·Latte를 `bg-app` 바탕에 그린다. 예제 폭이 560이라 위아래로 쌓는다.

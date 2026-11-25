@@ -1,7 +1,9 @@
 //! 공용 Button의 종류·크기·아이콘·비활성 상태 예제.
 
 use tasty_type_appearance::theme::Theme;
-use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, Ground, IconButton, checkbox, switch};
+use tasty_ui_widgets::{
+    Button, ButtonVariant, ControlSize, Ground, IconButton, checkbox, pinned_focus, switch,
+};
 
 use super::glyph;
 use crate::catalog::spec::{StageVariant, TokenChip, cluster, dont, meta, stage};
@@ -55,6 +57,37 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 .enabled(false)
                 .show(ui, theme);
         });
+        // 키보드 포커스 모양을 고정한다. 링은 상자에서 focus-ring-offset 띄운 focus-ring-width, Switch는 트랙에서 두 배
+        // 띄우고, active 바탕 위에서는 accent-primary-raised다. 비활성 컨트롤에는 링이 없다.
+        cluster(
+            ui,
+            theme,
+            "keyboard focus — ring 1 off the box · switch 2 off · disabled none",
+            |ui| {
+                pinned_focus(ui, |ui| {
+                    Button::new("Save")
+                        .variant(ButtonVariant::Primary)
+                        .show(ui, theme);
+                    Button::new("Open folder")
+                        .variant(ButtonVariant::Secondary)
+                        .show(ui, theme);
+                    Button::new("Cancel")
+                        .variant(ButtonVariant::Ghost)
+                        .show(ui, theme);
+                    IconButton::new().show(ui, theme, &|ui, rect, c| {
+                        glyph::SEARCH.image(rect.height(), c).paint_at(ui, rect)
+                    });
+                    let mut wrap = false;
+                    checkbox(ui, theme, &mut wrap, "Wrap", true, Ground::Panel);
+                    let mut on = true;
+                    switch(ui, theme, &mut on, None, true);
+                    Button::new("Disabled")
+                        .variant(ButtonVariant::Secondary)
+                        .enabled(false)
+                        .show(ui, theme);
+                });
+            },
+        );
         ghost_on_raised(ui, theme);
     });
 

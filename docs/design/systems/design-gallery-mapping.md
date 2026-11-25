@@ -571,6 +571,9 @@ thread-local mock. `crates/tasty-gallery/src/catalog/widgets/<name>.rs`.
 `draw_titlebar_view`에 닫기 버튼 하나와 키보드 포커스 표시를 넘긴다) ↔ 갤러리
 `components/settings_titlebar_linux.rs`(`settings-titlebar-linux`, 시안 같은 이름 카드의 Mocha·Latte 칸)다. `settings-controls` 는
 시안 갤러리에 없는 갤러리 전용 예제로, 콘텐츠 열 최대 폭(620) 안에 행·스위치·색 override·언어 선택을 모았다.
+창 안 탭의 키보드 포커스는 시안 `overlays-windows/window-tab-focus.jsx` ↔ 갤러리 `components/window_tab_focus.rs`
+(`window-tabs-keyboard-focus`, 설정 구역 끝)다. 설정창·원격 창·플러그인 창 그림을 그대로 쓰고, 칸마다 한 탭을
+포커스 모양으로 고정한다. 링 모양은 시안이 정본이다.
 Layouts 의 `widgets/layout_2depth.rs`(`twodepth`)는 이 미러가 아니라 특정 창에 매이지
 않는 일반 2단계 레이아웃(168/40, 토큰으로 계산)이다.
 
