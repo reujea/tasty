@@ -302,6 +302,18 @@ fn composite_stage_keeps_its_floor_and_holds_the_callout() {
 }
 
 #[test]
+fn composite_stage_scrolls_horizontally_in_a_narrow_column() {
+    let (l, _) = composite_in_column(floor() / 2.0, false, false);
+    assert!(
+        l.stage.width() > l.viewport.width() + 0.5,
+        "무대 {:?}가 보이는 영역 {:?}보다 넓어야 한다",
+        l.stage,
+        l.viewport
+    );
+    assert_eq!(l.content.x, floor(), "스크롤 내용 폭 {:?}", l.content);
+}
+
+#[test]
 fn composite_tail_is_visible_after_scrolling_to_the_end_under_a_widening_specimen() {
     // 주제 팝업 표본이 열의 Ui를 넓힌 뒤에도 보이는 영역은 열 안에 있고, 끝까지 스크롤하면 꼬리 끝이 보인다.
     let col_w = 300.0;
