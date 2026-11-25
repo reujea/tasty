@@ -23,8 +23,10 @@ const DANGER_CHOICES: [(&str, bool); 3] = [
 
 pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
-        // 범위를 덮지 않아(scrim 없음) 떠 있는 표면의 popover 그림자를 쓴다.
-        kit::frame_card_popover(ui, theme, WIDTH, kit::panel_fill(theme), |ui| {
+        // 범위를 덮지 않아(scrim 없음) 떠 있는 표면의 popover 그림자를 쓴다. 테두리는 본체 팝업 공용
+        // 셸과 같은 border-frame이다.
+        let edge = theme.border_frame().to_egui();
+        kit::frame_card_popover_edge(ui, theme, WIDTH, kit::panel_fill(theme), edge, |ui| {
             kit::region_sym(ui, theme.spacing_md, theme.spacing_md, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
@@ -208,4 +210,59 @@ fn danger_column(ui: &mut egui::Ui, theme: &Theme, label: &str) {
                 approval_choice(ui, theme, choice, destructive);
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 그려진 도형에서 그림자와 프레임이 짝인 묶음(`egui::Frame`이 그린 상자)을 순서대로 모은다.
+    fn framed_boxes(
+        shape: &egui::Shape,
+        out: &mut Vec<(egui::epaint::RectShape, egui::epaint::RectShape)>,
+    ) {
+        if let egui::Shape::Vec(inner) = shape {
+            if let [egui::Shape::Rect(shadow), egui::Shape::Rect(frame)] = inner.as_slice() {
+                out.push((shadow.clone(), frame.clone()));
+            }
+            for s in inner {
+                framed_boxes(s, out);
+            }
+        }
+    }
+
+    /// 표본 승인 프레임이 본체 팝업 셸과 같은 border-frame 테두리와 popover 그림자로 그려진다.
+    #[test]
+    fn the_approval_frame_uses_border_frame_and_the_popover_shadow() {
+        for theme in [
+            tasty_themes::mocha_fallback(),
+            crate::host_shell::latte_theme(),
+        ] {
+            assert_ne!(
+                theme.border_frame(),
+                theme.border_strong(),
+                "두 테두리 색이 갈려야 시험이 뜻이 있다"
+            );
+            let ctx = egui::Context::default();
+            crate::fonts::install(&ctx);
+            let out = ctx.run(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| draw(ui, &theme));
+            });
+            let mut boxes = Vec::new();
+            for clipped in &out.shapes {
+                framed_boxes(&clipped.shape, &mut boxes);
+            }
+            let fill = kit::panel_fill(&theme);
+            let (shadow, frame) = boxes
+                .into_iter()
+                .find(|(_, f)| f.fill == fill)
+                .expect("승인 프레임이 그려져야 한다");
+            assert_eq!(frame.stroke.color, theme.border_frame().to_egui(), "테두리");
+            let want = theme
+                .shadow_popover()
+                .to_egui()
+                .as_shape(frame.rect, frame.corner_radius);
+            assert_eq!(shadow, want, "그림자");
+        }
+    }
 }
