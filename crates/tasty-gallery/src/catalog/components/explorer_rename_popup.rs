@@ -14,7 +14,7 @@ pub(super) fn card(ui: &mut egui::Ui, theme: &Theme) {
         super::rename_popup::Card {
             layout: tasty_ui_widgets::RenamePopupLayout::Explorer,
             title: t("explorer.popup.rename.title"),
-            save: t("button.save"),
+            save: t("explorer.popup.rename.rename"),
             name: "photo.png",
             error: None,
             waiting: None,
@@ -32,7 +32,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ("frame", "360 × ui scale · dialog-bg · 1px border-strong"),
             ("title", "heading semibold"),
             ("input", "28 · input-bg · seeded current name"),
-            ("footer", "right — Cancel · Save (primary) · button sm"),
+            ("footer", "right — Cancel · Rename (primary) · button sm"),
         ],
         &[
             TokenChip::new("dialog-bg", "frame", theme.dialog_bg().to_egui()),

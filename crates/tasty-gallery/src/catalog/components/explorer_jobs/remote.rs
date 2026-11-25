@@ -350,7 +350,7 @@ pub fn draw_remote_waiting(ui: &mut egui::Ui, theme: &Theme) {
                             crate::catalog::components::rename_popup::Card {
                                 layout: tasty_ui_widgets::RenamePopupLayout::Explorer,
                                 title: t_lang(lang, "explorer.popup.rename.title"),
-                                save: t_lang(lang, "button.save"),
+                                save: t_lang(lang, "explorer.popup.rename.rename"),
                                 name: "report-final.pdf",
                                 error: None,
                                 waiting: Some(t_lang(lang, "explorer.remote.renaming_no_host")),
@@ -409,7 +409,7 @@ fn rename_card(ui: &mut egui::Ui, theme: &Theme, waiting: Option<&str>) {
         crate::catalog::components::rename_popup::Card {
             layout: tasty_ui_widgets::RenamePopupLayout::Explorer,
             title: t("explorer.popup.rename.title"),
-            save: t("button.save"),
+            save: t("explorer.popup.rename.rename"),
             name: "report-final.pdf",
             error: None,
             waiting,

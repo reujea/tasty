@@ -79,8 +79,6 @@ pub fn draw_rename_popup(
     };
     let target = &rename.target;
 
-    let is_add_favorite = matches!(target, RenameTarget::ExplorerAddFavorite { .. });
-
     if !rename_target_exists(target, engine) || rename.waiting.as_ref().is_some_and(|w| w.done) {
         return PopupAction::Close;
     }
@@ -102,10 +100,10 @@ pub fn draw_rename_popup(
         _ => category_validation(target, &rename.buffer, engine),
     };
 
-    let save_label = if is_add_favorite {
-        t("explorer.popup.add_favorite.add")
-    } else {
-        t("button.save")
+    let save_label = match target {
+        RenameTarget::ExplorerAddFavorite { .. } => t("explorer.popup.add_favorite.add"),
+        RenameTarget::ExplorerEntry { .. } => t("explorer.popup.rename.rename"),
+        _ => t("button.save"),
     };
     let view = RenamePopupView {
         layout: rename_layout(target),
