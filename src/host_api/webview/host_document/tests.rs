@@ -131,7 +131,7 @@ fn reserved_addresses_are_recognised_after_url_normalisation() {
         assert!(is_reserved(url), "{url}");
         assert!(!host_may_load_url(url), "{url}");
     }
-    // 해석에 실패한 주소는 풀어 쓴 원문에 예약 접미사가 있으면 예약으로 본다.
+    // 해석에 실패한 주소는 원문의 호스트 후보만 백분율 부호를 풀고 소문자로 바꿔 예약 접미사를 본다.
     assert!(url::Url::parse("http://v1-1%2Etasty-host-document.invalid:99999/1").is_err());
     assert!(is_reserved(
         "http://v1-1%2Etasty-host-document.invalid:99999/1"
