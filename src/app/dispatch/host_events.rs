@@ -37,19 +37,12 @@ impl App {
     pub(crate) fn dispatch_pending_host_events(&mut self) {
         let mut drained = std::mem::take(&mut self.state.pending_host_events);
         for (state, mut engine) in engines_mut!(self).sessions() {
-            if let Some(selected) = state.detect_selection_change(engine.core) {
-                engine.refresh_tab_osc_title(selected);
-            }
-            let mut observed = state.detect_focus_change();
-            observed.extend(state.detect_workspace_activation(engine.core));
-            observed.extend(state.detect_tab_focus_change(engine.core));
-            engine.runtime.pending_host_events.extend(observed);
+            observe_window_focus(state, &mut engine);
         }
         // Includes parked, pending and retiring owners; delivery never depends on a live View.
         for session in self.engines.all_sessions_mut() {
             let mut engine = session.borrow_mut();
             let events = take_current_host_events(&mut engine);
-            reproject_osc_title_on_focus(&mut engine, &events);
             resolve_hook_fired_task_waits(&self.services, &engine.as_ref(), &events);
             drained.extend(events);
         }
@@ -222,14 +215,20 @@ impl App {
     }
 }
 
-/// 포커스가 옮겨온 surface의 제목을 탭에 반영한다.
-/// 배경 탭의 포커스 변경은 여기서 감지하지 않아 닫기·이동 경로가 직접 반영한다.
-fn reproject_osc_title_on_focus(engine: &mut EngineMut<'_>, events: &[PendingHostEvent]) {
-    for ev in events {
-        if let PendingHostEvent::SurfaceFocused { surface_id, .. } = ev {
-            engine.refresh_tab_osc_title(*surface_id);
-        }
+/// 창 하나의 포커스 변화를 감지해 plugin 이벤트 큐에 넣는다. 탭의 OSC 제목은 선택이 바뀔 때만 새 선택 surface의
+/// 것으로 다시 읽는다. 키 포커스 진입(`surface.focused`)은 제목을 다시 읽지 않는다. 배경 탭의 포커스 변경은 여기서
+/// 감지하지 않아 닫기·이동 경로가 직접 반영한다.
+pub(crate) fn observe_window_focus(
+    state: &mut crate::state::MainViewState,
+    engine: &mut EngineMut<'_>,
+) {
+    if let Some(selected) = state.detect_selection_change(engine.core) {
+        engine.refresh_tab_osc_title(selected);
     }
+    let mut observed = state.detect_focus_change();
+    observed.extend(state.detect_workspace_activation(engine.core));
+    observed.extend(state.detect_tab_focus_change(engine.core));
+    engine.runtime.pending_host_events.extend(observed);
 }
 
 /// 이벤트를 다른 창의 이벤트와 합치기 전에 해당 engine으로 대기 작업을 완료한다.
