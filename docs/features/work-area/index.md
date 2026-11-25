@@ -52,6 +52,7 @@ Pane 은 **독립적인 탭 바를 가진 화면 영역**이다. Workspace 안�
 - 필드: `id` · `tabs: Vec<Tab>`. 탭 바 가로 스크롤은 도메인 Pane과 별도로 View가 pane ID별 논리 픽셀 값으로 소유한다.
 - 탭 동작: 추가(사용자 생성은 새 탭 선택, 에이전트 생성은 선택 유지) · 닫기(**마지막 탭은 못 닫음** — 구조 명령의 `close_facts`가 거절한다) · 전환 · 이동. Pane은 선택 탭을 저장하지 않는다. 선택 탭은 View의 `NavigationState`가 pane ID별로 가지며 닫기·이동 뒤에도 살아 있는 선택 ID를 유지한다. 상태 축과 전이는 [pane 상태 모델](../../concepts/state-model/pane.md)에 있다.
 - **활성 탭 추종 스크롤**: 탭이 많아 탭 바에 좌우 화살표가 뜬 상태에서 전환(단축키·클릭 공통)하거나 pane 이 리사이즈돼 활성 탭이 뷰포트 밖으로 밀려나면 View의 pane ID별 `tab_bar_scroll`을 자동 보정해 다시 보이게 한다(`src/adapters/ui/tab_bar.rs` `TabBarAction::AutoScrollToActiveTab`). 활성 인덱스/지오메트리가 실제로 바뀐 시점에만 보정하므로, 사용자가 화살표로 수동 스크롤해 둔 상태(활성 탭 불변)는 덮어쓰지 않는다.
+- **키보드 정지점 아님**: 탭 바의 탭·닫기·스크롤 표지·+·오른쪽 아이콘은 포인터 입력만 받는다. Tab·Shift+Tab 포커스가 들르지 않고 포커스 링도 그리지 않으며, 키 입력은 pane 내용으로 간다(디자인 소스 vendor/README.md "States via overlays", `src/adapters/ui/tab_bar.rs` `POINTER_CLICK`).
 - 분할(상위): `PaneNode::split_pane_in_place` 로 Pane 을 좌우/상하로 쪼갠다. 새 Pane 의 PTY 는 구조 변경 *전에* 미리 생성(트리가 빈 store 상태를 보지 않도록).
 
 ### Tab — 하위 레이아웃 (탭 종속)

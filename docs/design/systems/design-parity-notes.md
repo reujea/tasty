@@ -141,8 +141,8 @@ D2Coding 11px, 배율 1에서 확인한 예(`crates/tasty-gallery/tests/mono_met
 - **`color-mix(accent 40%, transparent)`**(Tag 상태 보더): `accent.gamma_multiply(0.4)`.
 - **`::after` 오버레이 틴트**(Button/IconButton hover/active): pseudo-element 없음 →
   `rect_filled(overlay_*.to_egui_premultiplied())` 수동.
-- **focus ring**(box-shadow 0 0 0 1px): box-shadow 없음 → `rect_stroke(outer.expand(bw),
-  border_focus, Outside)`. **Motion 계약상 즉시**(focus-ring/invalid/checked 는 기능 → fade 금지).
+- **focus ring**: 모양의 정본은 디자인 소스 vendor/README.md "States via overlays"다. box-shadow·outline 이 없으므로
+  `crates/tasty-ui-widgets/src/focus_ring.rs`가 Outside·Inside 획으로 옮겨 그린다. **Motion 계약상 즉시**(focus-ring/invalid/checked 는 기능 → fade 금지).
 - **separator 토큰**: 디자인 `--tasty-separator`(어두운 테마 white 8%, 밝은 테마 black 8%)는 premultiplied 색 `Theme.separator`로 저장한다. hline·테두리에는 `to_egui_premultiplied()`로 넘긴다. unmultiplied로 바꾸면 어두운 테마에서 white 8%가 어두운 회색으로 칠해져 배경과 거의 같아진다. 카드 안 구획선은 separator, 팝업의 바깥 경계는 `border-strong`이다. 둘을 바꿔 쓰지 않는다.
 - **icon 글리프**: 위젯이 색을 상태별로 정해 `IconPainter` 클로저에 전달(아이콘 시스템은
   호출측 소유 — 본체 `icons::Icon`, 갤러리 mock 모두 동일 인터페이스).
