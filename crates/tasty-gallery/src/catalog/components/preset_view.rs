@@ -19,10 +19,6 @@ use crate::catalog::spec::{StageVariant, TokenChip, meta, note, stage};
 const STAGE_PAD: LogicalPx = LogicalPx(20.0);
 /// 목록 본문 여백 — `padding: "0 6px 6px"`.
 const LIST_PAD: LogicalPx = LogicalPx(6.0);
-/// 창 최대 폭 — `maxWidth: 680`. 무대가 좁으면 무대 폭을 따른다.
-const WIN_MAX_W: LogicalPx = LogicalPx(680.0);
-/// 창 높이 — `height: 452`.
-const WIN_H: LogicalPx = LogicalPx(452.0);
 /// 제목줄 높이 — `height: 36`.
 const TITLE_H: LogicalPx = LogicalPx(36.0);
 /// L1 범위 탭 줄 높이 — `height: 40`. 탭 버튼은 아래 테두리 1 을 뺀 39.
@@ -301,7 +297,8 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         ui,
         theme,
         &[
-            ("frame", "up to 680 × 452 (adaptive)"),
+            ("frame width", "preset-window-width (adaptive)"),
+            ("frame height", "preset-window-height"),
             ("L1 tabs", "40px, accent underline"),
             ("list", "196px, fill + 2px bar"),
             ("toolbar", "44px, Edit on the right"),
@@ -334,7 +331,11 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
 
 fn window(ui: &mut egui::Ui, theme: &Theme, st: &mut WinState) {
     let bw = theme.border_width.value();
-    let win_w = WIN_MAX_W.value().min(ui.available_width());
+    // 창 크기는 앱 PresetView의 처음 크기(preset-window-width × preset-window-height)다. 무대가 좁으면 무대 폭을 따른다.
+    let win_w = theme
+        .preset_window_width()
+        .value()
+        .min(ui.available_width());
     egui::Frame::new()
         .fill(theme.bg_panel().to_egui())
         .stroke(egui::Stroke::new(bw, theme.border_strong().to_egui()))
@@ -342,7 +343,7 @@ fn window(ui: &mut egui::Ui, theme: &Theme, st: &mut WinState) {
         .shadow(theme.shadow_modal().to_egui())
         .show(ui, |ui| {
             let w = win_w - bw * 2.0;
-            let h = WIN_H.value() - bw * 2.0;
+            let h = theme.preset_window_height().value() - bw * 2.0;
             let (rect, _) = ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::hover());
             let title = egui::Rect::from_min_size(rect.min, egui::vec2(w, TITLE_H.value()));
             title_bar(ui, theme, title);
