@@ -1,7 +1,10 @@
 //! X11 XIM can commit a composition and replay its ending physical key afterward.
 //! Remember ownership at the raw press, before XFilterEvent clears the preedit.
 //! A window key event pairs with the last raw press of its physical key observed before it
-//! arrived, so presses held behind earlier input and replayed later keep their own pairs.
+//! arrived, so presses held behind earlier input and replayed later keep their own pairs. Only the
+//! observations a window event can still pair with are kept: with no input waiting in the
+//! window's lines, the last one per key; otherwise also the last one observed by the earliest
+//! waiting event's arrival and the ones after it.
 
 use std::collections::HashMap;
 use std::time::Instant;
@@ -59,12 +62,29 @@ impl ExplorerImeKeys {
 
     /// A raw press observed at `at`. Every new physical press stands for itself, even if XIM never
     /// forwarded the prior one: a later genuine key pairs with its own observation, not an older one.
-    fn press(&mut self, key: PhysicalKey, input: Option<InputOwner>, at: Instant) {
+    /// `waiting` is when the earliest window event still waiting in the window's lines arrived. An
+    /// event yet to come pairs with this press or a later one, and a waiting event with the last
+    /// press observed by its arrival, so older observations of the key are dropped here.
+    fn press(
+        &mut self,
+        key: PhysicalKey,
+        input: Option<InputOwner>,
+        at: Instant,
+        waiting: Option<Instant>,
+    ) {
         let owner = input.filter(|owner| match owner {
             InputOwner::Rename { .. } => self.rename_composing == Some(*owner),
             _ => self.composing == Some(owner.surface()),
         });
-        self.presses.entry(key).or_default().push((at, owner));
+        let observed = self.presses.entry(key).or_default();
+        let kept =
+            waiting.and_then(|oldest| observed.iter().rposition(|(seen, _)| *seen <= oldest));
+        match kept {
+            Some(first) => drop(observed.drain(..first)),
+            None if waiting.is_none() => observed.clear(),
+            None => {}
+        }
+        observed.push((at, owner));
     }
 
     fn rename_ime(&mut self, event: &Ime, owner: Option<InputOwner>) {
@@ -162,7 +182,14 @@ impl crate::App {
                 .and_then(|view| view.as_main_mut())
             && let Some(engine) = self.engines.window_read(id)
         {
-            main.observe_explorer_raw_key(&engine, &key);
+            let waiting = [
+                main.base.gpu.oldest_waiting_input(),
+                self.plugin_edit_holds.oldest_waiting(id),
+            ]
+            .into_iter()
+            .flatten()
+            .min();
+            main.observe_explorer_raw_key(&engine, &key, waiting);
         }
     }
 }
@@ -178,10 +205,12 @@ impl crate::view::main::MainView {
         crate::adapters::ui::input::shortcuts::focused_explorer_surface_id(&self.state, engine)
     }
 
+    /// `waiting` 은 그 창 보류 줄(창의 편집·정착 줄, App 플러그인 편집 보류 줄)에 선 가장 이른 사건의 도착 시각이다.
     pub(crate) fn observe_explorer_raw_key(
         &mut self,
         engine: &crate::runtime::engine_read::EngineRead<'_>,
         event: &RawKeyEvent,
+        waiting: Option<Instant>,
     ) {
         if event.state == ElementState::Pressed {
             let input = rename_input_owner(&self.state, engine).or_else(|| {
@@ -200,7 +229,7 @@ impl crate::view::main::MainView {
                 })
             });
             self.explorer_ime_keys
-                .press(event.physical_key, input, Instant::now());
+                .press(event.physical_key, input, Instant::now(), waiting);
         }
     }
 
@@ -280,14 +309,14 @@ mod tests {
             let mut keys = ExplorerImeKeys::default();
             let key = PhysicalKey::Code(code);
             keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
-            keys.press(key, Some(InputOwner::List(7)), Instant::now());
+            keys.press(key, Some(InputOwner::List(7)), Instant::now(), None);
             keys.ime(&Ime::Preedit(String::new(), None), Some(7));
             keys.ime(&Ime::Commit("간".into()), Some(7));
             assert_eq!(
                 keys.take(key, Instant::now(), Some(7)),
                 Some(InputOwner::List(7))
             );
-            keys.press(key, Some(InputOwner::List(7)), Instant::now());
+            keys.press(key, Some(InputOwner::List(7)), Instant::now(), None);
             assert!(
                 keys.take(key, Instant::now(), Some(7)).is_none(),
                 "next genuine key must work"
@@ -300,9 +329,9 @@ mod tests {
         let mut keys = ExplorerImeKeys::default();
         let key = PhysicalKey::Code(KeyCode::ArrowDown);
         keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
-        keys.press(key, Some(InputOwner::List(7)), Instant::now());
+        keys.press(key, Some(InputOwner::List(7)), Instant::now(), None);
         keys.ime(&Ime::Commit("간".into()), Some(7));
-        keys.press(key, Some(InputOwner::List(7)), Instant::now());
+        keys.press(key, Some(InputOwner::List(7)), Instant::now(), None);
         assert!(keys.take(key, Instant::now(), Some(7)).is_none());
     }
 
@@ -316,12 +345,45 @@ mod tests {
         let key = PhysicalKey::Code(KeyCode::ArrowDown);
         let t0 = Instant::now();
         keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
-        keys.press(key, Some(InputOwner::List(7)), t0);
+        keys.press(key, Some(InputOwner::List(7)), t0, None);
         let first = t0 + ms(1);
-        keys.press(key, Some(InputOwner::List(7)), t0 + ms(2));
+        keys.press(key, Some(InputOwner::List(7)), t0 + ms(2), Some(first));
         let second = t0 + ms(3);
         assert_eq!(keys.take(key, first, Some(7)), Some(InputOwner::List(7)));
         assert_eq!(keys.take(key, second, Some(7)), Some(InputOwner::List(7)));
+    }
+
+    /// Given 조합 중 explorer 가 같은 물리 키의 원시 누름을 거듭 관찰했고 창 보류 줄에 선 사건이 없다(App plugin 단축키나
+    /// XIM 이 창 사건을 보내지 않아 짝 짓기가 불리지 않았다), When 누름을 더 관찰하면, Then 그 키의 관찰은 뒤에 올 창 사건이
+    /// 짝 지을 마지막 하나만 남는다.
+    #[test]
+    fn observations_with_no_input_waiting_keep_only_the_last_per_key() {
+        let mut keys = ExplorerImeKeys::default();
+        let key = PhysicalKey::Code(KeyCode::ArrowDown);
+        keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
+        for _ in 0..50 {
+            keys.press(key, Some(InputOwner::List(7)), Instant::now(), None);
+        }
+        assert_eq!(keys.presses[&key].len(), 1);
+    }
+
+    /// Given 창 보류 줄에 `first` 에 도착한 사건이 서 있다, When 그 뒤 같은 키 누름을 거듭 관찰하면, Then `first` 까지의
+    /// 마지막 관찰과 그 뒤 관찰만 남고 줄 선 사건은 자기 관찰과 짝을 짓는다.
+    #[test]
+    fn observations_before_the_earliest_waiting_event_are_dropped() {
+        let ms = std::time::Duration::from_millis;
+        let mut keys = ExplorerImeKeys::default();
+        let key = PhysicalKey::Code(KeyCode::ArrowDown);
+        let t0 = Instant::now();
+        keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
+        keys.press(key, None, t0, None);
+        keys.press(key, Some(InputOwner::List(7)), t0 + ms(1), None);
+        let first = t0 + ms(2);
+        keys.press(key, None, t0 + ms(3), Some(first));
+        keys.press(key, None, t0 + ms(4), Some(first));
+        let seen: Vec<Instant> = keys.presses[&key].iter().map(|(at, _)| *at).collect();
+        assert_eq!(seen, [t0 + ms(1), t0 + ms(3), t0 + ms(4)]);
+        assert_eq!(keys.take(key, first, Some(7)), Some(InputOwner::List(7)));
     }
 
     #[test]
@@ -329,14 +391,14 @@ mod tests {
         let key = PhysicalKey::Code(KeyCode::Delete);
         let mut keys = ExplorerImeKeys::default();
         keys.ime(&Ime::Enabled, Some(7));
-        keys.press(key, Some(InputOwner::List(7)), Instant::now());
+        keys.press(key, Some(InputOwner::List(7)), Instant::now(), None);
         assert!(keys.take(key, Instant::now(), Some(7)).is_none());
         keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
-        keys.press(key, None, Instant::now());
+        keys.press(key, None, Instant::now(), None);
         assert!(keys.take(key, Instant::now(), Some(7)).is_none());
-        keys.press(key, Some(InputOwner::List(8)), Instant::now());
+        keys.press(key, Some(InputOwner::List(8)), Instant::now(), None);
         assert!(keys.take(key, Instant::now(), Some(8)).is_none());
-        keys.press(key, Some(InputOwner::List(7)), Instant::now());
+        keys.press(key, Some(InputOwner::List(7)), Instant::now(), None);
         assert!(keys.take(key, Instant::now(), Some(8)).is_none());
     }
 
@@ -372,11 +434,11 @@ mod tests {
         let escape = PhysicalKey::Code(KeyCode::Escape);
         let find = InputOwner::Find(7);
         keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
-        keys.press(escape, Some(find), Instant::now());
+        keys.press(escape, Some(find), Instant::now(), None);
         keys.ime(&Ime::Preedit(String::new(), None), Some(7));
         keys.ime(&Ime::Commit("간".into()), Some(7));
         assert_eq!(keys.take(escape, Instant::now(), Some(7)), Some(find));
-        keys.press(escape, Some(find), Instant::now());
+        keys.press(escape, Some(find), Instant::now(), None);
         assert!(keys.take(escape, Instant::now(), Some(7)).is_none());
     }
 
@@ -404,7 +466,7 @@ mod tests {
         let key = PhysicalKey::Code(KeyCode::ArrowDown);
         let mut keys = ExplorerImeKeys::default();
         keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
-        keys.press(key, Some(InputOwner::List(7)), Instant::now());
+        keys.press(key, Some(InputOwner::List(7)), Instant::now(), None);
         assert!(keys.take(key, Instant::now(), None).is_none());
     }
 
@@ -414,7 +476,7 @@ mod tests {
         let key = PhysicalKey::Code(KeyCode::ArrowDown);
         let mut keys = ExplorerImeKeys::default();
         keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
-        keys.press(key, Some(InputOwner::List(7)), Instant::now());
+        keys.press(key, Some(InputOwner::List(7)), Instant::now(), None);
         assert_eq!(
             keys.take(key, Instant::now(), Some(7)),
             Some(InputOwner::List(7))

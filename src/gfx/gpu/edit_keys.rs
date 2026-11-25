@@ -288,6 +288,15 @@ impl<E: HeldEvent> EditKeyState<E> {
         self.modifiers = modifiers;
     }
 
+    /// When the earliest window event still waiting in this window's lines (behind a hold, a release
+    /// or a settle line) reached the window. `None` when no event waits.
+    pub(crate) fn oldest_waiting(&self) -> Option<Instant> {
+        let hold = self.hold.as_ref().and_then(|h| h.hold.first_queued_at());
+        let release = self.release.as_ref().and_then(|(_, r)| r.first_queued_at());
+        let settle = self.settle.as_ref().and_then(|s| s.line.first_queued_at());
+        [hold, release, settle].into_iter().flatten().min()
+    }
+
     /// A key is held, or its release still waits for the owner.
     pub(crate) fn busy(&self) -> bool {
         self.hold.is_some() || self.release.is_some() || self.settle.is_some()
@@ -754,6 +763,12 @@ impl super::GpuState {
     /// event runs. Returns the value it replaces.
     pub fn replace_event_arrival(&mut self, at: Option<Instant>) -> Option<Instant> {
         self.edit_keys.replace_arrival(at)
+    }
+
+    /// When the earliest window event still waiting in this window's lines reached the window
+    /// (`EditKeyState::oldest_waiting`).
+    pub fn oldest_waiting_input(&self) -> Option<Instant> {
+        self.edit_keys.oldest_waiting()
     }
 
     /// [`Self::replace_event_arrival`]'s value (now when the event came by another way).

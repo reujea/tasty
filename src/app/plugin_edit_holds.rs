@@ -102,6 +102,19 @@ impl PluginEditHolds {
         );
     }
 
+    /// 이 창의 플러그인 편집 보류 줄과 붙여넣기 기다림 줄에 선 입력 가운데 가장 먼저 창에 도착한 시각.
+    pub(crate) fn oldest_waiting(&self, window: WindowId) -> Option<Instant> {
+        let hold = self
+            .holds
+            .get(&window)
+            .and_then(|h| h.hold.first_queued_at());
+        let waiting = self
+            .awaits
+            .get(&window)
+            .and_then(paste_await::PasteAwait::first_queued_at);
+        [hold, waiting].into_iter().flatten().min()
+    }
+
     /// 보류 중인 창의 키·IME·modifier·포인터 입력을 줄 세운다. 줄을 섰으면 true 이고 호출자는 처리하지 않는다.
     /// `at` 은 그 입력이 창에 처음 도착한 시각이고 재생 때 그대로 쓴다.
     pub(crate) fn queue(&mut self, window: WindowId, event: &WindowEvent, at: Instant) -> bool {

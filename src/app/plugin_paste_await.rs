@@ -31,6 +31,13 @@ pub(super) struct PasteAwait {
     since: Instant,
 }
 
+impl PasteAwait {
+    /// 줄 선 입력 가운데 가장 먼저 창에 도착한 시각.
+    pub(super) fn first_queued_at(&self) -> Option<Instant> {
+        self.queued_at.first().copied()
+    }
+}
+
 /// 기다림을 정리한 결과. App 이 요청을 취소하고, 읽기를 취소하고, 요청을 대상에 붙이고, 입력을 재생한다.
 #[derive(Default)]
 pub(crate) struct AwaitSettled {

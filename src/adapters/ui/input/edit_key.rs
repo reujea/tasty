@@ -178,6 +178,11 @@ pub(crate) struct Release<E> {
 }
 
 impl<E> Release<E> {
+    /// 줄 선 사건 가운데 가장 먼저 창에 도착한 시각.
+    pub(crate) fn first_queued_at(&self) -> Option<Instant> {
+        self.queued_at.first().copied()
+    }
+
     /// 줄 선 사건 하나를 그 도착 시각과 함께 끝에 더한다.
     pub(crate) fn push(&mut self, event: E, at: Instant) {
         self.queued.push(event);
@@ -219,6 +224,11 @@ impl<E> EditKeyHold<E> {
     pub(crate) fn queue(&mut self, event: E, at: Instant) {
         self.queued.push(event);
         self.queued_at.push(at);
+    }
+
+    /// 줄 선 사건 가운데 가장 먼저 창에 도착한 시각.
+    pub(crate) fn first_queued_at(&self) -> Option<Instant> {
+        self.queued_at.first().copied()
     }
 
     /// 붙잡은 이벤트가 있다. 뒤에 온 이벤트가 이들을 앞지르지 않게 줄을 세울 때 본다.
