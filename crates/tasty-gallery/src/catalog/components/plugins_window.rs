@@ -335,8 +335,7 @@ fn window(ui: &mut egui::Ui, theme: &Theme, tab: Tab) {
         theme.bg_panel().to_egui(),
     );
 
-    let header_h =
-        theme.item_height_interactive.value() + theme.spacing_lg.value() + theme.spacing_xs.value();
+    let header_h = theme.plugins_header_height().value();
     let header_rect = egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), header_h));
     header(ui, theme, header_rect, tab);
 
@@ -389,8 +388,7 @@ pub(super) fn installed_frame(ui: &mut egui::Ui, theme: &Theme) {
         detail: installed::Detail::Selected(0),
     };
     let full = stage_size(theme, tab);
-    let header_h =
-        theme.item_height_interactive.value() + theme.spacing_lg.value() + theme.spacing_xs.value();
+    let header_h = theme.plugins_header_height().value();
     let crop = egui::vec2(full.x, header_h * 2.0);
     let (rect, _) = ui.allocate_exact_size(crop, egui::Sense::hover());
     let mut child =

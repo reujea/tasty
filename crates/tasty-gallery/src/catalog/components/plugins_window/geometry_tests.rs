@@ -61,3 +61,32 @@ fn the_header_pads_read_the_plugins_header_pad_tokens() {
         "닫기 칸 오른쪽 {close_right} 가 창 {frame:?} 오른쪽에서 {right} 가 아니다"
     );
 }
+
+/// 헤더 밴드 높이는 `plugins_header_height` 다. 밴드 아래 separator 선이 창 위에서 그만큼 아래에 있다.
+#[test]
+fn the_header_band_is_plugins_header_height_tall() {
+    let th = theme();
+    let (painted, frame) = installed_window(&th);
+    let sep = th.separator.to_egui_premultiplied();
+    let line = painted
+        .shapes
+        .iter()
+        .filter_map(|s| match s {
+            egui::Shape::LineSegment { points, stroke }
+                if stroke.color == sep && (points[0].y - points[1].y).abs() < 0.01 =>
+            {
+                Some(points[0].y)
+            }
+            _ => None,
+        })
+        .min_by(f32::total_cmp)
+        .expect("헤더 아래 separator 선이 없다");
+    // 선은 밴드 아래 변에서 반 픽셀 위에 긋는다(header 의 `rect.bottom() - 0.5`).
+    let bottom = line + 0.5;
+    let want = th.plugins_header_height().value();
+    assert!(
+        (bottom - frame.top() - want).abs() < 0.5,
+        "헤더 아래 {bottom} 가 창 위 {} 에서 plugins_header_height {want} 가 아니다",
+        frame.top()
+    );
+}
