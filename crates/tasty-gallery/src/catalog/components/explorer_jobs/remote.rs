@@ -422,9 +422,12 @@ fn rename_card(ui: &mut egui::Ui, theme: &Theme, waiting: Option<&str>) {
 pub fn draw_rename_ground(ui: &mut egui::Ui, theme: &Theme) {
     let renaming = t_fmt("explorer.remote.renaming", HOST);
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
-        spec::cluster(ui, theme, "normal", |ui| rename_card(ui, theme, None));
+        // 두 카드의 이름 칸 ID 가 겹치지 않게 카드마다 나눈다.
+        spec::cluster(ui, theme, "normal", |ui| {
+            ui.push_id("normal", |ui| rename_card(ui, theme, None));
+        });
         spec::cluster(ui, theme, "waiting — field read-only", |ui| {
-            rename_card(ui, theme, Some(&renaming))
+            ui.push_id("waiting", |ui| rename_card(ui, theme, Some(&renaming)));
         });
     });
     spec::meta(

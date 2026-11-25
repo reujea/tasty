@@ -305,3 +305,18 @@ fn folder_picker_specimens_have_no_duplicate_ids() {
         tasty_gallery::catalog::components::file_picker::draw_folder_mode(ui, &theme)
     });
 }
+
+/// rename 팝업 바탕 표본은 평소·대기 두 카드를 한 줄에 그린다. 카드의 이름 칸 ID 가 겹치면 debug 빌드에
+/// 'First/Second use of widget ID' 경고가 그려진다.
+#[test]
+fn explorer_rename_popup_ground_specimen_은_id_충돌_없이_렌더된다() {
+    let theme = tasty_themes::mocha_fallback();
+    let draw = tasty_gallery::catalog::pages()
+        .into_iter()
+        .flat_map(|page| page.sections)
+        .flat_map(|section| section.specs)
+        .find(|spec| spec.id == "explorer-rename-popup-ground")
+        .expect("explorer-rename-popup-ground spec")
+        .draw;
+    assert_no_id_clash("explorer-rename-popup-ground", |ui| draw(ui, &theme));
+}
