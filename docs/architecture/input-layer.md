@@ -280,19 +280,25 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 이미 줄 선 것이 있으면 뒤에 선다(`held_order`).
 
 정착 줄: 줄이 닫혀 있어도, 정착되지 않은 앞 입력(포커스를 옮길 수 있는 앞 입력)이 있으면 키·IME 사건은 그 입력을 가져간
-패스 뒤로 미룬다. 조건은 `EditKeyState::hold_front` 가 정본이다. 그래서 [팔레트를 닫는 Esc, 글자]의 글자는 Esc 를 그린 패스
-뒤에 그때의 포커스 노드(터미널)에서 정한다(`window_key_gate_tests.rs`의
-`a_held_key_after_a_focus_moving_segment_reaches_the_new_node`). 대가로 클릭 뒤 같은 묶음의 키는 한 패스 늦다. 터미널로
+패스 뒤로 미룬다. 보류의 정본은 `EditKeyState::hold_front` 와 재생 호출(`App::replay_edit_steps`, 별도 창
+`view::replay_edit_keys`)이고, 줄의 상태 규칙은 `edit_keys_hold_tests.rs`(`a_key_after_unsettled_egui_input_waits_for_its_pass`
+등)가 잰다. 그래서 [팔레트를 닫는 Esc, 글자]의 글자는 Esc 를 그린 패스 뒤에 그때의 포커스 노드(터미널)에서 정한다. 패스 뒤
+노드에서 다음 키의 수신자는 `window_key_gate_tests.rs`의
+`the_next_key_after_a_focus_moving_pass_is_received_at_the_node_it_left` 가 본다. 대가로 클릭 뒤 같은 묶음의 키는 한 패스 늦다. 터미널로
 가는 키는 egui 에 싣지 않아 뒤 키를 붙잡지 않는다.
 
-줄이 풀리면 원래 키(편집 판정을 받은 키)는 판정한 편집으로 view 에 한 번 넘기고, 줄 선 사건은 모두 받은 순서대로 창 입력
-처음부터 다시 지난다(`ReplayStep::Input`, 별도 창은 `view::replay_edit_keys`). 재생 중 사건이 새 보류를 만나면 그 사건과
+줄이 풀리면 원래 키(편집 판정을 받은 키)는 판정한 편집으로 view 에 한 번 넘기고, 줄 선 입력은 모두 받은 순서대로 창 입력
+처음부터 다시 지난다(`ReplayStep::Input`·`ReplayStep::Debug`, 별도 창은 `view::replay_edit_keys`). 재생 중 사건이 새 보류를 만나면 그 사건과
 남은 재생 사건이 그 줄 앞에 그대로 선다(재생은 한 호출 안에서 끝나 그 사이 새 입력이 끼지 않는다). 출발 노드와 수신자는
 재생 시점에 다시 정한다. quit 창은 팝업 관리자가 없어 맨 앞 검사 없이 지금의 편집 보류(단계 6 안)만 쓴다. 단계 6 안의
 줄 서기(`EditKeyState::judge`의 `queues`)는 quit 창과 egui 전용 창이 쓰고, 메인 창과 세 창에서는 맨 앞 검사가 먼저 받는다.
 
-줄 밖 입력: debug egui 주입(키·글자·클립보드, 메인 창과 별도 창)은 winit 사건이 아니라 egui 입력 묶음이다. 줄이 열려 있으면
-그 묶음은 줄이 다 돈 뒤 패스 입력 끝에 들어가(`EditKeyState::hold_injection`), 기다리는 키보다 먼저 그려지지 않는다. X11
+debug egui 주입(키·포인터·글자·클립보드, 메인 창과 별도 창)도 같은 줄에 선다. 주입 입구 맨 앞이 winit 사건과 같은 두 줄
+(plugin 편집 보류 줄, 창의 줄)을 본다(`App::enter_debug_input`, 별도 창 `view::window_input::enter_window_debug`). 줄이 열려
+있으면 주입은 도착한 순서대로 줄 끝에 서고(`edit_key::LineItem::Debug`), 줄이 풀리면 같은 입구를 다시 지나 그때 끊기·수신자·
+결속·Esc 적용을 정한다. 순서는 `edit_keys_hold_tests.rs`의 `a_debug_input_takes_its_place_in_the_hold_line` 이 잰다.
+
+줄 밖 입력: X11
 `DeviceEvent::Key`는 입력이 아니라 관찰이라 줄에 서지 않는다. 누름 때 explorer 입력 주인을 도착 시각과 함께 물리 키마다
 차례로 기록하고, 키를 처리할 때 그 키가 도착한 시각의 관찰과 짝지어 그때의 주인으로 걸러 소비한다(`ExplorerImeKeys::take`).
 그래서 같은 물리 키의 두 누름이 줄에 서도 각자 자기 관찰을 쓰고, 줄 섰다 재생한 키도 재생 시점 주인을 쓴다.
@@ -302,16 +308,19 @@ host chrome·popup·오버레이가 아예 그려지지 않아 같은 tier 안�
 설정·plugins·preset 창의 키 사건은 메인 창과 같은 키 사건 순서(`run_key_event`)를 창 입구(`judged_window_event`)에서
 지난다. 사건 시점 노드는 팝업 인스턴스 하나이거나 창 위젯이고, 노드를 정하는 함수는
 `PopupManager::window_key_node`(`src/adapters/ui/popup/window_segments.rs`) 하나다. 덮인 노드는 포커스 노드가 될 수 없다는
-메인 창 규칙도 같다(창을 덮는 팝업이 있으면 그 팝업이 노드다). 단계 3~5 에서 누름·키 사건은 egui 입력에 들어가기 전에 그
+메인 창 규칙도 같다(창을 덮는 팝업이 있으면 누름 여부와 관계없이 그 팝업이 노드다, `PopupManager::window_cover_above`). 단계 3~5 에서 누름·키 사건은 egui 입력에 들어가기 전에 그
 노드로 입력을 끊고(끊는 조건은 메인 창과 같은 `PopupManager::cut_key_frame`), 누름은 그 자리에서 포커스를 옮긴다. 덮는
 팝업의 덮음 막이를 누르면 그 팝업을 누른 것이고, 그 누름을 그리는 패스는 포커스를 다시 정하지 않는다. 단계 4 수신자는 메인
 창과 같은 `key_route::route_key`가 그 노드에서 정한다(`PopupManager::settle_window_key`,
-`key_nodes::separate_window_receiver`). 노드 목록은 사건 시점 팝업과 그 위의 창 노드(창 위젯과 창 자체 처리)다. 팝업이 쓰지
-않는 키와 Esc 선언이 넘긴 Esc 는 창 노드가 받는다. egui 에 실은 키의 몫은 그 노드로 묶고, 창 자체 처리(단계 11, 설정 창의
-toggle_settings 등)는 창 노드가 받은 키만 본다. egui 에 실은 bare Esc 는 그 몫을 끝내고, 수신자가 팝업이면 메인 창과 같은
+`key_nodes::separate_window_receiver`). 노드 목록은 사건 시점 팝업과, 그 팝업이 창을 덮지 않을 때 그 위의 창 범위 노드(창
+위젯과 창 자체 처리, `ScopeContent::Window`)다. 창을 덮는 팝업이 노드면 창 범위 노드는 경로에 없어, 그 팝업이 쓰지 않는
+키는 아무도 받지 않는다(창 자체 처리의 Engine level 후보만 받는다). 결과는 `window_input_tests.rs`의
+`a_key_a_covering_popup_does_not_use_reaches_no_window_node`·`an_engine_key_under_a_covering_popup_reaches_the_window_s_own_handling`
+이 정본이다. egui 에 실은 키의 몫은 출발 노드로 묶고, 창 자체 처리(단계 11, 설정 창의 toggle_settings 등)는 창 노드가 받은
+키만 본다. egui 에 실은 bare Esc 는 그 몫을 끝내고, 수신자가 팝업이면 메인 창과 같은
 넘김 기록으로 그 Esc 를 키 주인에 넘기고 같은 규칙으로 포커스를 푼다(`PopupManager::apply_window_escape`,
-`PopupState::escape_releases_focus`). debug 키 주입도 같은 입구를 지나고, 창의 보류 줄이 열려 egui 입력에 실리지 않은 주입은
-몫을 묶지 않는다(`view::window_input::inject_window_key`). 패스는 메인 창과 같은 순서 함수로 열고 닫으며
+`PopupState::receive_escape`). debug 키 주입은 보류 줄 검사(`enter_window_debug`)를 지난 뒤 같은 입구를 지나고, 실을 사건이
+없으면(빈 클립보드의 붙여넣기) 끊지도 묶지도 않는다(`view::window_input::inject_window_key`). 패스는 메인 창과 같은 순서 함수로 열고 닫으며
 (`GpuState::run_window_pass`), `run` 전에 결속 없는 몫의 키 주인을 관리자에 둔다(`PopupManager::begin_window_run`).
 장면별 기대는 `window_input_tests.rs`와 `judged_event.rs` 시험이 정본이다. quit 창은 팝업 관리자가 없어 노드가 창 위젯
 하나다.
@@ -331,12 +340,16 @@ plugin surface 편집 대상도 없다. App 의 plugin surface 편집 보류 정
 판정한 편집으로 경로를 정한다(`EditBindings::with_judged`). 재생 사이에 설정이 바뀌어도 그 판정을 쓴다.
 
 뗌은 짝 누름의 수신자에게 간다(`state::held_keys`). 창이 egui 에 실은 누름은 뗌이 올 때까지 기록하고, 그 뗌은 지금
-게이트와 관계없이 egui 로 보낸다. 그 누름을 plugin 팝업이 받았으면 그 팝업 입력 앞에 뗌을 붙이고(키 주인이 아니어도),
-지금 수신자가 다른 노드면 egui 로는 보내지 않는다.
+게이트와 관계없이 egui 입력 순서대로 싣는다(egui 의 눌림 기록이 풀려 다음 누름은 반복이 아니다). plugin wire 수집은 그
+뗌을 그 키의 누름을 받은 plugin 팝업에만 보낸다(키 주인이 아니어도, `plugin_bridge::MeshKeyRoute`). 지금 키 주인은 남의
+누름의 뗌을 받지 않는다.
 egui 에 싣지 않은 누름(터미널·egui-mesh 는 누름만 받는다)의 뗌은 egui 로 보내지 않는다. 그래서 단축키가 포커스를 옮긴
 뒤의 뗌이 원래 수신자의 눌림을 푼다. OS 포커스를 잃을 때(`WindowEvent::Focused(false)`, X11·Windows 의 합성 짝뗌은 App 이
 거른다)와 모달이 열릴 때(`App::open_modal`, 모달 중 뗌은 단계 0·1 에서 막힌다)는 뗌 사건을 기다리지 않고 기록한 눌림을
-그 자리에서 모두 푼다. 다음 첫 누름은 새 누름이다. Escape 뗌은 Esc 몫 기록(`note_unfed_escape_release`)이 맡는다. 경로 키가 아닌 사건은 키 경로 이전의
+그 자리에서 모두 푸는 뗌을 egui 입력 끝에 싣는다. 그 뗌도 같은 수집 규칙으로 누름을 받은 팝업에 한 번 간다. 다음 첫 누름은
+새 누름이다. 장면은 `popup_render.rs`의 `a_key_release_goes_to_the_popup_that_took_its_press_in_order`·
+`a_new_press_after_a_release_on_another_popup_is_not_a_repeat`·`a_focus_loss_release_reaches_the_popup_that_took_the_press_once`
+가 정본이다. Escape 뗌은 Esc 몫 기록(`note_unfed_escape_release`)이 맡는다. 경로 키가 아닌 사건은 키 경로 이전의
 게이트(`window_feeds_egui`·`window_holds_terminal_keys`·`window_keys_to_overlay`)를 그대로 지난다. 수식키 없는 Esc 도
 경로 키다. 그 판정은 `RouteKey::bare_escape` 하나이고(논리 키가 없으면 물리 키) 편집 바인딩보다
 먼저 본다. 수신자는 `key_route::route_escape`가 정하고, 그 결과는 단계 11 `MainViewState::apply_escape_key`가 적용한다.

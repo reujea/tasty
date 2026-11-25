@@ -1574,11 +1574,12 @@ fn escape_on_a_focused_notification_closes_it() {
     );
 }
 
-/// Given 덮는 명령 팔레트가 포커스인 창, When 그리기 전에 Esc 와 글자 a 가 한 묶음으로 오면(사건 입구 하네스), Then 그리기
-/// 전의 a 는 아직 팔레트 노드에서 시작하지만(창은 a 를 넘긴 Esc 뒤에 세운다), Esc 몫을 그린 뒤 다시 지나는 a 는 그 패스가
-/// 팔레트를 닫은 뒤의 노드(터미널 surface)에서 시작해 그 surface 가 받는다.
+/// Given 덮는 명령 팔레트가 포커스인 창과 그 팔레트가 받은 Esc(사건 입구 하네스), When Esc 몫을 그리기 전과 그 패스가
+/// 팔레트를 닫은 뒤에 다음 키 a 의 수신자를 보면, Then 그리기 전에는 팔레트이고 패스 뒤에는 그 패스가 남긴 노드(터미널
+/// surface)다. 이 시험은 패스 뒤 노드에서 다음 키의 수신자만 본다. 키를 그 패스 뒤로 미루는 보류 줄은
+/// `edit_keys_hold_tests.rs`의 `a_key_after_unsettled_egui_input_waits_for_its_pass` 가 잰다.
 #[test]
-fn a_held_key_after_a_focus_moving_segment_reaches_the_new_node() {
+fn the_next_key_after_a_focus_moving_pass_is_received_at_the_node_it_left() {
     use crate::adapters::ui::input::key_nodes::path_receiver;
     use crate::adapters::ui::input::key_route::KeyReceiver;
     use crate::adapters::ui::popup::window_input_test_support::{WindowInput, typed_decision};

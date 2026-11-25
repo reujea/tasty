@@ -248,8 +248,8 @@ pub(crate) struct RoutedPress {
     /// 클릭이라 바깥 클릭이 아니다.
     pub(crate) focus_before: ScopePath,
     pub(crate) button: egui::PointerButton,
-    /// 누름 스냅샷(`MainViewState::take_press_snapshot`)이 이 누름의 포커스 위치를 이미 정했는지. 스냅샷 없이
-    /// 프레임에서 만든 누름(별도 창)은 그리기가 같은 함수(`PopupManager::focus_on_press`)로 정한다.
+    /// 누름 스냅샷(`MainViewState::take_press_snapshot`)이 이 누름의 포커스 위치를 이미 정했는지. 별도 창은 사건 입구가
+    /// 정했는지를 `PopupManager::window_press_decided` 로 읽는다.
     pub(crate) focus_decided: bool,
 }
 
