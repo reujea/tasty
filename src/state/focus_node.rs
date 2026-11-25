@@ -573,6 +573,42 @@ impl super::MainViewState {
             .max_by_key(|(_, z)| *z)
             .map(|(node, _)| node)
     }
+
+    /// 범위를 덮지 않는 보이는 팝업(host·plugin)과 그 배치 범위·순번·Esc 선언. 범위 노드에 붙는 팝업의 원천이다
+    /// (`key_nodes::window_key_path`). host 는 `PopupManager::attached_nodes` 이고, plugin 은 살아 있는 키 후보 가운데
+    /// 지난 프레임 덮는 사각형(`plugin_popup_covers`)이 없는 인스턴스다. 펼친 plugin 팝업은 창에 서므로 덮는다.
+    pub(crate) fn attached_popup_nodes(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            PopupNode,
+            PopupScope,
+            u64,
+            crate::adapters::ui::popup::PopupEscape,
+        ),
+    > + '_ {
+        let host = self
+            .popups
+            .attached_nodes()
+            .map(|(iid, scope, z, escape)| (PopupNode::Host(iid), scope, z, escape));
+        let plugin = self
+            .plugin_popup_key_candidates
+            .iter()
+            .filter(|(id, z)| {
+                self.plugin_node_alive(*id)
+                    && !self.popups.plugin_expanded().contains(id)
+                    && !self.plugin_popup_covers.iter().any(|c| c.z_seq == *z)
+            })
+            .filter_map(|&(id, _)| {
+                let (scope, z) = self.node_placement(PopupNode::Plugin(id))?;
+                let escape = self
+                    .plugin_popup_key_decls
+                    .get(&id)
+                    .map_or(crate::adapters::ui::popup::PopupEscape::Close, |(_, e)| *e);
+                Some((PopupNode::Plugin(id), scope, z, escape))
+            });
+        host.chain(plugin)
+    }
 }
 
 /// 그려진 화면에 노드가 없는 몫에 남은 버튼 뗌을, egui 의 눌림 상태만 풀고 클릭·드래그 끝·드롭은 만들지 않게

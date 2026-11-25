@@ -328,9 +328,9 @@ pub(crate) fn window_key_path(
     scopes
 }
 
-/// 이 level 범위 노드에 붙은 팝업(z 최상단 먼저): 그 level 범위에 놓인 보이는 비덮음 host 인스턴스 가운데 범위가
-/// 명령 대상의 같은 level 노드인 것. 경로의 범위 노드가 명령 대상의 조상이므로(`key_path::popup_scope_levels`) 같은
-/// 대상으로 고른다.
+/// 이 level 범위 노드에 붙은 팝업(host·plugin 을 한 z 순서로, 최상단 먼저): 그 level 범위에 놓인 보이는 비덮음
+/// 인스턴스(`MainViewState::attached_popup_nodes`) 가운데 범위가 명령 대상의 같은 level 노드인 것. 경로의 범위 노드가
+/// 명령 대상의 조상이므로(`key_path::popup_scope_levels`) 같은 대상으로 고른다.
 fn attached_popups(
     state: &MainViewState,
     engine: &EngineRead<'_>,
@@ -340,20 +340,16 @@ fn attached_popups(
     use crate::adapters::ui::popup::route::{path_of_command_target, path_of_scope};
     let target = path_of_command_target(state, engine);
     let mut found = state
-        .popups
-        .attached_nodes()
+        .attached_popup_nodes()
         .filter(|(_, scope, _, _)| {
             scope_level(scope) == level && path_of_scope(engine, scope).same_at(&target, level)
         })
-        .map(|(iid, _, z, escape)| (z, iid, escape))
+        .map(|(node, _, z, escape)| (z, node, escape))
         .collect::<Vec<_>>();
     found.sort_by_key(|(z, _, _)| std::cmp::Reverse(*z));
     found
         .into_iter()
-        .map(|(_, iid, escape)| AttachedPopup {
-            node: PopupNode::Host(iid),
-            escape,
-        })
+        .map(|(_, node, escape)| AttachedPopup { node, escape })
         .collect()
 }
 

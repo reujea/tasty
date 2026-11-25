@@ -149,3 +149,23 @@ fn escape_cancels_a_pending_explorer_address_check() {
         KeyReceiver::Shortcut { .. }
     ));
 }
+
+/// Given 같은 장면에 범위를 덮지 않는 plugin 팝업이 알림 목록보다 위(z)에 Window 범위로 포커스 없이 떠 있을 때, When bare
+/// Esc 를 누르면, Then 붙은 팝업은 host·plugin 을 한 z 순서로 보므로 그 plugin 팝업이 받는다.
+#[test]
+fn escape_reaches_an_attached_plugin_popup_above_the_host_one() {
+    let mut s = scene();
+    let z = tasty_host_plugin::next_popup_z_seq();
+    s.state.plugin_popup_key_candidates.push((42, z));
+    s.state
+        .plugin_popup_bound_scopes
+        .insert(42, ("p".to_string(), Some(PopupScope::Window)));
+    s.state.plugin_popup_key_decls.insert(
+        42,
+        (
+            crate::adapters::ui::popup::PopupKeyboard::Keys,
+            crate::adapters::ui::popup::PopupEscape::Close,
+        ),
+    );
+    assert_eq!(escape_receiver(&mut s), KeyReceiver::PluginPopup(42));
+}
