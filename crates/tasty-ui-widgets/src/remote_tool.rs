@@ -19,8 +19,6 @@ use crate::{TagVariant, tag};
 pub fn filter_dropdown_content_width(th: &Theme, frame_x: LogicalPx) -> LogicalPx {
     LogicalPx((th.remote_filter_dropdown_width().value() - frame_x.value()).max(0.0))
 }
-/// 프로토콜 목록이 길어질 때의 스크롤 상한. 드롭다운이 팝업 밖으로 자라지 않게 한다.
-pub const FILTER_DROPDOWN_MAX_HEIGHT: LogicalPx = LogicalPx(168.0);
 
 // ── 구역 구분선 · 버튼 ───────────────────────────────────────────────────
 
@@ -710,10 +708,12 @@ pub fn draw_protocol_filter_body(
     });
     filter_rule(ui, th);
     filter_section(ui, th, |ui| {
-        // 바깥 높이가 좁은 자리(가로로 감싸는 행 등)에서도 상한까지 자라고, 내용이 짧으면 줄어든다.
+        // 프로토콜 목록이 길어질 때의 스크롤 상한(정본 `remote-filter-list-max-height`). 드롭다운이 팝업 밖으로
+        // 자라지 않게 하고, 바깥 높이가 좁은 자리(가로로 감싸는 행 등)에서도 상한까지 자라며 내용이 짧으면 줄어든다.
+        let max_h = th.remote_filter_list_max_height().value();
         egui::ScrollArea::vertical()
-            .max_height(FILTER_DROPDOWN_MAX_HEIGHT.value())
-            .min_scrolled_height(FILTER_DROPDOWN_MAX_HEIGHT.value())
+            .max_height(max_h)
+            .min_scrolled_height(max_h)
             .drag_to_scroll(false)
             .show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = th.spacing_sm.value();
