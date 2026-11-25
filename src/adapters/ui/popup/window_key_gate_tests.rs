@@ -1307,12 +1307,12 @@ fn focus_bars(ctx: &egui::Context, state: &mut RequestContext) -> usize {
     super::focus_bar_count(&out)
 }
 
-/// 켜진 surface 표지 수: focused 띠 leaf와 바탕 값이 focus인 surface. 창 범위 시험
+/// surface 표지: (띠 leaf 수, 켜진 띠 수, 바탕 값이 focus인 surface 수). 창 범위 시험
 /// (`surface_focus_edge::scene_tests`)과 같은 계수이고, 프레임 값을 지금 키 포커스로 채운 뒤 센다.
-fn lit_surfaces(
+fn surface_marks(
     state: &mut RequestContext,
     session: &mut crate::runtime::engine_session::EngineSession,
-) -> usize {
+) -> (usize, usize, usize) {
     let engine = session.borrow_mut();
     let read = engine.read();
     state.refresh_frame_key_focus(&read);
@@ -1327,6 +1327,7 @@ fn lit_surfaces(
     };
     let panes = state.pane_rects(&read, ws, screen, 1.0);
     crate::adapters::ui::surface_focus_edge::collect(state, &read, &panes, 1.0);
+    let listed = state.surface_focus_edges.len();
     let edges = state
         .surface_focus_edges
         .iter()
@@ -1343,12 +1344,13 @@ fn lit_surfaces(
             )
         })
         .count();
-    edges + beds
+    (listed, edges, beds)
 }
 
 /// 좁은 범위 키 주인은 자기 막대 하나를 켠다. 창 위로 펼친 팝업이 키를 가진 프레임과 그 팝업이 연 자식이 키를 가진
 /// 프레임에는 어느 팝업도 막대를 그리지 않고 키 포커스 surface도 없어 창 안에 켜진 표지가 없다(정본 RULES 4절
-/// "Shown over the window"). 둘을 닫아 키가 surface로 돌아오면 표지 하나가 켜진다.
+/// "Shown over the window"). 선택 surface는 띠를 예약하는 로컬 mesh라(`surface_focus_edge::scene_tests`와 같은
+/// 꾸밈) 띠 계수가 실제로 센다. 둘을 닫아 키가 surface로 돌아오면 그 띠가 켜진다.
 #[test]
 fn a_popup_shown_over_the_window_and_its_child_light_nothing() {
     const CHILD: PopupId = "window_key_gate_test_child";
@@ -1366,8 +1368,24 @@ fn a_popup_shown_over_the_window_and_its_child_light_nothing() {
             PopupScope::Window,
         ));
     });
+    let selected = state
+        .focused_surface_id(&session.core_state)
+        .expect("a selected surface");
+    session.runtime.surfaces.insert(
+        selected,
+        Box::new(crate::runtime::egui_mesh_surface::EguiMeshSurface::new(
+            selected,
+            "mesh-demo",
+            "com.example.demo".into(),
+            "Mesh".into(),
+            None,
+        )),
+    );
     assert_eq!(focus_bars(&ctx, &mut state), 1, "the narrow owner X");
     assert_eq!(state.key_focus_surface(&session.borrow_mut().read()), None);
+    let (listed, edges, beds) = surface_marks(&mut state, &mut session);
+    assert!(listed > 0, "the mesh leaf reserves an edge");
+    assert_eq!((edges, beds), (0, 0), "X: no surface lit");
 
     state.popups.close_instance(x, PopupCloseReason::Command);
     state.popups.expand(g);
@@ -1383,11 +1401,9 @@ fn a_popup_shown_over_the_window_and_its_child_light_nothing() {
         "the expanded G holds the keys"
     );
     assert_eq!(focus_bars(&ctx, &mut state), 0, "G draws no bar");
-    assert_eq!(
-        lit_surfaces(&mut state, &mut session),
-        0,
-        "G: no surface lit"
-    );
+    let (listed, edges, beds) = surface_marks(&mut state, &mut session);
+    assert!(listed > 0, "the edge leaf is still listed");
+    assert_eq!((edges, beds), (0, 0), "G: no edge or bed lit");
 
     let mut request = OpenRequest::new(CHILD, PopupScope::Surface(2)).focused();
     request.parent = Some(g);
@@ -1404,20 +1420,16 @@ fn a_popup_shown_over_the_window_and_its_child_light_nothing() {
         Some(child)
     );
     assert_eq!(focus_bars(&ctx, &mut state), 0, "the child draws no bar");
-    assert_eq!(
-        lit_surfaces(&mut state, &mut session),
-        0,
-        "the child: no surface lit"
-    );
+    let (listed, edges, beds) = surface_marks(&mut state, &mut session);
+    assert!(listed > 0, "the edge leaf is still listed");
+    assert_eq!((edges, beds), (0, 0), "the child: no edge or bed lit");
 
     state
         .popups
         .close_instance(child, PopupCloseReason::Command);
     state.popups.close_instance(g, PopupCloseReason::Command);
     focus_bars(&ctx, &mut state);
-    assert_eq!(
-        lit_surfaces(&mut state, &mut session),
-        1,
-        "keys back on the surface"
-    );
+    let (listed, edges, _) = surface_marks(&mut state, &mut session);
+    assert!(listed > 0, "the edge leaf is listed");
+    assert!(edges >= 1, "keys back on the surface light its edge");
 }
