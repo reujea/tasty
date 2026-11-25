@@ -550,7 +550,7 @@ thread-local mock. `crates/tasty-gallery/src/catalog/widgets/<name>.rs`.
 함수가 없다** — 특정 창이 아니라 좌측 고정 리스트(200) → 우측 detail 배치 관용구 자체를
 보이는 데모다. Plugins 창의 미러는 이것이 아니라
 `crates/tasty-gallery/src/catalog/components/plugins_window.rs` 이고, 그쪽은 목록 폭을 본체와
-같은 접근자 `Theme::plugins_side_panel_width`(240)에서 읽고 행 높이도 40 이다(위
+같은 접근자 `Theme::plugins_list_width`(240)에서 읽고 행 높이도 40 이다(위
 [Overlays — plugins window](#overlays--plugins-window) 절). 필터가 놓이는 자리도 다르다 —
 본체 Plugins 창의 필터는 헤더 밴드 우측이고 이 idiom 데모는 목록 안이다.
 

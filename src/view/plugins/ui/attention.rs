@@ -79,7 +79,7 @@ pub(super) fn draw_attention_tab(
     }
 
     egui::SidePanel::left("plugins_attention_list")
-        .exact_width(th.plugins_side_panel_width().value())
+        .exact_width(th.plugins_attention_list_width().value())
         .resizable(false)
         .frame(super::list::list_panel_frame(ctx))
         .show(ctx, |ui| {

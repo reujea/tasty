@@ -61,7 +61,7 @@ fn panel(ui: &mut egui::Ui, theme: &Theme, width: f32, contents: impl FnOnce(&mu
 
 /// 디자인 `ReservedRow` — 목록 폭의 사이드바 바탕에 행 하나.
 fn row(ui: &mut egui::Ui, theme: &Theme, entry: &Entry, selected: bool) {
-    let width = theme.plugins_side_panel_width().value();
+    let width = theme.plugins_attention_list_width().value();
     let pad = theme.spacing_sm.value();
     let row_h = PLUGIN_LIST_ROW_HEIGHT.value();
     let (rect, _) =
@@ -85,7 +85,7 @@ const FOUR_REASONS: [usize; 4] = [0, 1, RESERVED_SAMPLE, HEALTH_ERROR];
 
 /// 디자인 `AttnList` — 목록 폭 사이드바에 네 사유를 한 행씩 둔다. 라벨은 그 언어의 사유 라벨이다.
 fn reason_list(ui: &mut egui::Ui, theme: &Theme, lang: &str, selected: Option<usize>) {
-    let width = theme.plugins_side_panel_width().value();
+    let width = theme.plugins_attention_list_width().value();
     let pad = theme.spacing_sm.value();
     let gap = theme.spacing_xs.value();
     let row_h = PLUGIN_LIST_ROW_HEIGHT.value();

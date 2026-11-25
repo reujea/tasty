@@ -58,7 +58,7 @@ pub(super) fn draw_list_tab(
         .collect();
 
     egui::SidePanel::left("plugins_list")
-        .exact_width(th.plugins_side_panel_width().value())
+        .exact_width(th.plugins_list_width().value())
         .resizable(false)
         .frame(list_panel_frame(ctx))
         .show(ctx, |ui| {

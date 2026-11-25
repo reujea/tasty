@@ -33,9 +33,10 @@ enum Tab {
     Add { preview: bool },
 }
 
-/// 본체 Installed·Attention 목록과 같은 너비 접근자를 사용한다.
+/// 본체 Installed 목록과 같은 너비 접근자를 사용한다. 본체 Attention 목록의 `plugins_attention_list_width` 도
+/// 같은 240 이라 두 탭이 한 폭을 쓴다.
 fn list_w(theme: &Theme) -> f32 {
-    theme.plugins_side_panel_width().value()
+    theme.plugins_list_width().value()
 }
 
 /// 예제 창의 크기. 상세 정보를 한눈에 비교하도록 Installed 화면은 더 높게 잡는다.
@@ -627,7 +628,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "list",
-                "폭 `plugins_side_panel_width` · 아바타 32 · 이름 13 + 부제 10 muted",
+                "폭 `plugins_list_width` · 아바타 32 · 이름 13 + 부제 10 muted",
             ),
             (
                 "builtin",

@@ -165,8 +165,8 @@ mod tests {
         let all = scan_all();
         let found = all
             .iter()
-            .find(|(n, _)| n == "plugins_side_panel_width")
-            .expect("실제 plugins_side_panel_width 접근자를 수집하지 못했다");
+            .find(|(n, _)| n == "file_picker_note_max_width")
+            .expect("실제 file_picker_note_max_width 접근자를 수집하지 못했다");
         assert_eq!(found.1, Verdict::ZoomAware);
         let delegating = all
             .iter()

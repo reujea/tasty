@@ -1826,12 +1826,6 @@ impl Theme {
     pub fn tutorial_topic_body_max_height(&self) -> LogicalPx {
         LogicalPx((200.0 * self.ui_zoom).round())
     }
-    /// plugins 화면 좌측 리스트 패널 폭 (240px). 목록 탭과 알림 탭이 같은 폭을
-    /// 공유한다 — 탭을 바꿀 때 패널 경계가 움직이지 않아야 한다.
-    #[inline]
-    pub fn plugins_side_panel_width(&self) -> LogicalPx {
-        LogicalPx((240.0 * self.ui_zoom).round())
-    }
     /// 파일 선택 팝업의 설명문 최대 폭 (340px) — 이 폭에서 줄바꿈한다.
     #[inline]
     pub fn file_picker_note_max_width(&self) -> LogicalPx {
@@ -2469,11 +2463,6 @@ mod tests {
                 "tutorial_topic_body_max_height",
             ),
             (
-                Theme::plugins_side_panel_width,
-                240.0,
-                "plugins_side_panel_width",
-            ),
-            (
                 Theme::file_picker_note_max_width,
                 340.0,
                 "file_picker_note_max_width",
@@ -2712,7 +2701,6 @@ mod tests {
         assert_eq!(t.remote_tool_header_min_height().value(), 26.0);
         assert_eq!(t.tutorial_topic_body_max_height().value(), 200.0);
         assert_eq!(t.plugins_header_height().value(), 48.0);
-        assert_eq!(t.plugins_side_panel_width().value(), 240.0);
         assert_eq!(t.file_picker_note_max_width().value(), 340.0);
         assert_eq!(t.button_gap().value(), t.spacing_sm.value()); // button gap
         assert_eq!(t.button_radius().value(), t.corner_radius.value());

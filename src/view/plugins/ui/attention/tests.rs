@@ -608,7 +608,7 @@ fn the_attention_list_starts_space_sm_below_the_panel_top() {
     let th = theme::theme();
     let out = draw_output(entry(AttentionKind::HealthError));
     let active = th.surface_active().to_egui();
-    let list_w = th.plugins_side_panel_width().value();
+    let list_w = th.plugins_attention_list_width().value();
     fn walk(shape: &egui::Shape, fill: egui::Color32, list_w: f32, out: &mut Vec<egui::Rect>) {
         match shape {
             egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, fill, list_w, out)),
