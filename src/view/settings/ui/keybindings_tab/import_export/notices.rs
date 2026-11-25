@@ -67,9 +67,14 @@ pub(super) fn export_failure_ink(th: &Theme) -> NoticeInk {
 /// 내보내기 실패의 버튼은 tint 밖 raised 카드 바탕에 놓인다(디자인 `IeExportFailG`).
 const EXPORT_FAILURE_ACTION_GROUND: Ground = Ground::Raised;
 
-/// 알림 블록의 본문 잉크 — 디자인 `IeBlockG` 본문의 text-on-active.
+/// 내보내기 실패 블록의 본문 잉크 — 디자인 `IeExportFailG` 본문의 text-on-active.
 pub(super) fn notice_body_ink(th: &Theme) -> egui::Color32 {
     th.text_on_active().to_egui()
+}
+
+/// 가져오기 파싱 실패 블록의 본문 잉크 — 가져오기 detail의 text-secondary.
+pub(super) fn parse_failure_body_ink(th: &Theme) -> egui::Color32 {
+    th.text_secondary().to_egui()
 }
 
 /// 액션 버튼 행. 눌린 액션의 인덱스를 돌려준다.
@@ -152,14 +157,14 @@ pub(super) fn notice_block(
     clicked
 }
 
-/// 실패 블록의 본문 한 문단 — 12 text-on-active, max-width measure-md.
-fn failure_body(ui: &mut egui::Ui, th: &Theme, text: &str) {
+/// 실패 블록의 본문 한 문단 — 12, max-width measure-md. 잉크는 블록마다 다르다.
+fn failure_body(ui: &mut egui::Ui, th: &Theme, text: &str, ink: egui::Color32) {
     ui.scope(|ui| {
         ui.set_max_width(th.measure_md.value());
         ui.label(
             egui::RichText::new(text)
                 .size(th.font_size_term_sm.value())
-                .color(notice_body_ink(th)),
+                .color(ink),
         );
     });
 }
@@ -203,7 +208,7 @@ pub(super) fn parse_failure(ui: &mut egui::Ui, th: &Theme, failure: &Failure) ->
         icons::ALERT_CIRCLE,
         t("settings.keybindings.ie_failure_title"),
         None,
-        |ui| failure_body(ui, th, &body),
+        |ui| failure_body(ui, th, &body, parse_failure_body_ink(th)),
         &[NoticeAction {
             label: t("settings.keybindings.ie_choose_another"),
             variant: ButtonVariant::Secondary,
@@ -260,7 +265,7 @@ pub(super) fn export_failure(
         ),
         None,
         |ui| {
-            failure_body(ui, th, &body);
+            failure_body(ui, th, &body, notice_body_ink(th));
             if let Some(message) = os_message {
                 os_reason_line(ui, th, message);
             }
