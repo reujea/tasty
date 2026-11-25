@@ -202,6 +202,34 @@ pub(crate) fn plugin_key_gate_open(
         .gate_open
 }
 
+/// 편집 키 하나가 지금 포커스 노드에서 닿는 경로 끝 surface. plugin surface 편집 보류의 대상이 아직 키를 받는지(App
+/// 보류 정리)와 지금 경로로 남는 사건의 plugin surface 편집 대상이 읽는다. 노드 목록은 키 사건과 같은 함수
+/// (`window_key_path`)이고, 그 키는 egui 키가 없는 수식키 없는 편집 누름으로 본다: `Text` 노드는 쓰고 `Keys`·`None`
+/// 팝업은 경로 위로 넘긴다(`RouteKey::consumed_by`). 단축키 후보는 보지 않는다. 덮인 surface·무대·래치면 없다.
+pub(crate) fn edit_key_surface(state: &MainViewState, engine: &EngineRead<'_>) -> Option<u32> {
+    let key = RouteKey {
+        key: None,
+        modifiers: egui::Modifiers::NONE,
+        super_held: false,
+    };
+    let lookup = Key::Unidentified(winit::keyboard::NativeKey::Unidentified);
+    let egui_surface = focused_surface_takes_egui(state, engine);
+    let path = window_key_path(
+        state,
+        engine,
+        key,
+        &lookup,
+        ModifiersState::empty(),
+        egui_surface,
+        true,
+    );
+    let edits = EditBindings::from_settings(&engine.settings.keybindings).with_judged(true);
+    match route_key(&path, key, &edits, &[]).receiver {
+        KeyReceiver::Surface(sid) => Some(sid),
+        _ => None,
+    }
+}
+
 /// 포커스 surface 가 egui 로 입력을 받는 host 위젯(registry `consumes_egui_input`)인지.
 pub(crate) fn focused_surface_takes_egui(state: &MainViewState, engine: &EngineRead<'_>) -> bool {
     state

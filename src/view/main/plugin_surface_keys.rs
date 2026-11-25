@@ -171,13 +171,12 @@ impl MainView {
         }
     }
 
-    /// 창의 키를 지금 받는 로컬 egui-mesh surface. 호스트 egui 가 키를 받는 동안(팝업·모달·무대)은 없다.
-    /// 보류의 대상이 아직 키를 받는지 App 이 이것으로 확인한다.
+    /// 편집 키를 지금 받는 로컬 egui-mesh surface: 편집 키가 포커스 노드에서 경로를 올라 닿는 surface 가 포커스
+    /// egui-mesh surface 일 때 그 surface 다(`key_nodes::edit_key_surface`). 편집 키를 쓰는 노드(`Text` 팝업·모달·무대)나
+    /// 덮는 팝업이 있으면 없다. 보류의 대상이 아직 키를 받는지 App 이 이것으로 확인한다.
     pub(crate) fn plugin_surface_key_target(&self, engine: &EngineRead<'_>) -> Option<u32> {
-        if self.host_egui_has_keys() {
-            return None;
-        }
-        self.focused_egui_mesh_surface_id(engine)
+        let sid = crate::adapters::ui::input::key_nodes::edit_key_surface(&self.state, engine)?;
+        (self.focused_egui_mesh_surface_id(engine) == Some(sid)).then_some(sid)
     }
 
     /// 호스트 egui(팝업·모달·무대)가 키를 받는지. 무대는 키보드 오버레이 술어에 없어 함께 본다.
@@ -185,14 +184,14 @@ impl MainView {
         self.state.window_keys_to_overlay()
     }
 
-    /// 단계 6 의 plugin surface 편집 대상. host egui 가 막는지는 단계 4 수신자로 정한다
-    /// (`edit_target::host_egui_takes_edit`).
+    /// 단계 6 의 plugin surface 편집 대상. 대상 surface 는 단계 4 수신자로 정한다
+    /// (`edit_target::plugin_surface_edit_target`).
     fn surface_edit_target_now(&self, engine: &EngineRead<'_>) -> Option<SurfaceEditTarget> {
-        let overlay = crate::adapters::ui::input::edit_target::host_egui_takes_edit(
+        let sid = crate::adapters::ui::input::edit_target::plugin_surface_edit_target(
             self.key_decision,
-            self.host_egui_has_keys(),
+            || crate::adapters::ui::input::key_nodes::edit_key_surface(&self.state, engine),
         );
-        self.surface_edit_target_with(engine, overlay, self.state.focused_surface_id(engine))
+        self.surface_edit_target_with(engine, false, sid)
     }
 
     /// `sid` 가 이 판정의 대상(회신을 약속한 플러그인의 로컬 surface 또는 mirror)이면 그 대상이다.

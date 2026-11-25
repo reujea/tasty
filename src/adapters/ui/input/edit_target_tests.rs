@@ -272,19 +272,52 @@ fn a_replayed_edit_without_a_settings_change_edits() {
     assert!(host_target(&state, replayed));
 }
 
-/// 덮지 않는 `Keys` 팝업 아래 plugin surface 로 올라간 편집 키는 host egui 가 막지 않는다(그 surface 편집 요청으로
-/// 간다). 지금 오버레이 게이트는 막는다.
+/// Given Window 범위의 덮지 않는 `Keys` 팝업(알림 목록)이 포커스, When 경로에 받는 후보가 없는 편집 키(Alt+V)를
+/// 누르면, Then 그 팝업에서 시작한 경로는 surface 를 지나지 않고 버림으로 끝나므로 plugin surface 편집 대상이 없다.
+/// 보낼 때의 대상과 App 보류 정리가 읽는 대상(`edit_key_surface`)이 같은 경로라 둘 다 없다.
 #[test]
-fn an_edit_key_rising_from_a_keys_popup_reaches_the_plugin_surface() {
+fn an_edit_key_rising_from_a_window_keys_popup_ends_with_its_path() {
     let (mut state, mut session) = scene();
     let engine = session.borrow_mut();
     let read = engine.read();
     open_keys_popup(&mut state);
     let decision = decide(&state, &read, letter("v", KeyCode::KeyV), ALT);
-    assert!(!host_egui_takes_edit(
-        decision,
-        state.window_keys_to_overlay()
-    ));
+    assert!(
+        matches!(
+            receiver(decision),
+            KeyReceiver::Drop
+                | KeyReceiver::Shortcut {
+                    end: crate::adapters::ui::input::key_route::KeyEnd::Drop
+                }
+        ),
+        "{decision:?}"
+    );
+    assert_eq!(plugin_surface_edit_target(decision, || None), None);
+    assert_eq!(
+        crate::adapters::ui::input::key_nodes::edit_key_surface(&state, &read),
+        None
+    );
+}
+
+/// Given 포커스 surface 를 덮는 `Keys` 팝업(형식 변환)이 포커스, When 경로에 받는 후보가 없는 편집 키(Alt+V)를 누르면,
+/// Then 경로가 그 키를 버리므로 덮인 surface 는 plugin surface 편집 대상이 아니다.
+#[test]
+fn an_edit_key_a_covering_keys_popup_drops_does_not_reach_the_covered_surface() {
+    let (mut state, mut session) = scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let sid = state.focused_surface_id(&read).expect("포커스 surface");
+    state
+        .popups
+        .open_request(
+            &crate::intent::OpenRequest::new("convert_surface", PopupScope::Surface(sid)).focused(),
+            true,
+        )
+        .expect("형식 변환이 열린다");
+    state.normalize_focus(&read);
+    let decision = decide(&state, &read, letter("v", KeyCode::KeyV), ALT);
+    assert_eq!(receiver(decision), KeyReceiver::Drop, "{decision:?}");
+    assert_eq!(plugin_surface_edit_target(decision, || Some(sid)), None);
 }
 
 /// plugin surface 위 `Text` 팝업 포커스의 Ctrl+V 는 그 팝업이 받고, plugin surface 편집은 host egui 가 막는다.
@@ -296,10 +329,7 @@ fn ctrl_v_on_a_text_popup_over_a_plugin_surface_pastes_into_the_popup() {
     let iid = open_text_popup(&mut state, &read);
     let decision = decide(&state, &read, letter("v", KeyCode::KeyV), command());
     assert_eq!(receiver(decision), KeyReceiver::Popup(iid));
-    assert!(host_egui_takes_edit(
-        decision,
-        state.window_keys_to_overlay()
-    ));
+    assert_eq!(plugin_surface_edit_target(decision, || None), None);
     assert!(host_target(&state, decision));
 }
 
@@ -310,10 +340,10 @@ fn ctrl_v_on_a_plugin_surface_pastes_into_the_surface() {
     let engine = session.borrow_mut();
     let read = engine.read();
     let decision = decide(&state, &read, letter("v", KeyCode::KeyV), command());
-    assert!(!host_egui_takes_edit(
-        decision,
-        state.window_keys_to_overlay()
-    ));
+    assert_eq!(
+        plugin_surface_edit_target(decision, || None),
+        state.focused_surface_id(&read)
+    );
     assert!(!host_target(&state, decision));
 }
 
@@ -339,4 +369,34 @@ fn a_non_clipboard_edit_binding_rises_on_a_keys_popup() {
     let decision = decide(&state, &read, letter("x", KeyCode::KeyX), ALT);
     assert!(!receiver(decision).is_egui(), "{decision:?}");
     assert!(!host_target(&state, decision));
+}
+
+/// Given 팝업 없이 surface 가 포커스, When 편집 키가 지금 닿는 surface 를 물으면(App 의 plugin surface 편집 보류
+/// 정리), Then 경로 끝인 그 surface 이고 보낼 때의 대상도 같다.
+#[test]
+fn an_edit_key_reaches_the_focused_surface() {
+    let (state, mut session) = scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    let sid = state.focused_surface_id(&read);
+    assert!(sid.is_some(), "포커스 surface");
+    assert_eq!(
+        crate::adapters::ui::input::key_nodes::edit_key_surface(&state, &read),
+        sid
+    );
+    let decision = decide(&state, &read, letter("v", KeyCode::KeyV), ALT);
+    assert_eq!(plugin_surface_edit_target(decision, || None), sid);
+}
+
+/// Given `Text` 팝업(검색 띠)이 포커스, When 같은 것을 물으면, Then 그 팝업이 편집 키를 쓰므로 닿는 surface 가 없다.
+#[test]
+fn an_edit_key_does_not_reach_the_surface_under_a_text_popup() {
+    let (mut state, mut session) = scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    open_text_popup(&mut state, &read);
+    assert_eq!(
+        crate::adapters::ui::input::key_nodes::edit_key_surface(&state, &read),
+        None
+    );
 }

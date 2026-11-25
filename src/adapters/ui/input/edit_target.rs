@@ -56,12 +56,23 @@ pub(crate) fn plugin_popup_edit_target(
     }
 }
 
-/// plugin surface 편집 요청을 host egui 가 막는지. 경로 키는 수신자가 egui 노드일 때 막고, 경로를 올라가 surface
-/// 끝에 닿으면 막지 않는다. 지금 경로로 남는 사건은 `overlay`(오버레이 게이트)다.
-pub(crate) fn host_egui_takes_edit(decision: KeyDecision, overlay: bool) -> bool {
-    match path_receiver(decision) {
-        Some(receiver) => receiver.is_egui(),
-        None => overlay,
+/// plugin surface 편집 요청의 대상 surface. 경로 키는 수신자가 경로 끝 surface(`Surface`, 후보가 모두 거절하면 끝
+/// surface 로 가는 단축키 단계)일 때 그 surface 다. egui 노드·버림(덮는 팝업이 쓰지 않은 키)·래치·bare Esc 면 없다.
+/// 지금 경로로 남는 사건은 `current`(편집 키가 지금 닿는 surface, `key_nodes::edit_key_surface`)다.
+pub(crate) fn plugin_surface_edit_target(
+    decision: KeyDecision,
+    current: impl FnOnce() -> Option<u32>,
+) -> Option<u32> {
+    use super::key_route::KeyEnd;
+    match edit_receiver(decision) {
+        Some(
+            KeyReceiver::Surface(sid)
+            | KeyReceiver::Shortcut {
+                end: KeyEnd::Surface(sid),
+            },
+        ) => Some(sid),
+        Some(_) => None,
+        None => current(),
     }
 }
 
