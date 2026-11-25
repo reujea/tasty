@@ -41,13 +41,17 @@ pub fn all_defs() -> &'static [PopupDef] {
             th.modhint_min_height().value(),
         ));
         let modhint_grip = th.modhint_grip_size();
+        // sizer가 없는 정의의 선언 크기는 배율 전 값이고 register_def가 ui_zoom을 곱한다. 전역 Theme 값은
+        // 이미 배율을 탔으므로 창 크기 토큰은 배율 1의 Theme에서 읽는다. 색은 쓰지 않는다.
+        let unzoomed =
+            crate::theme::Theme::with_colors_and_zoom(crate::theme::mocha_fallback_colors(), false, 1.0);
         let ports_size = popup_size(egui::vec2(
-            th.ports_window_width().value(),
-            th.ports_window_height().value(),
+            unzoomed.ports_window_width().value(),
+            unzoomed.ports_window_height().value(),
         ));
         let remote_picker_size = popup_size(egui::vec2(
-            th.remote_picker_width().value(),
-            th.remote_picker_height().value(),
+            unzoomed.remote_picker_width().value(),
+            unzoomed.remote_picker_height().value(),
         ));
     let notice_width = th.notice_column_width().value();
         drop(th);
