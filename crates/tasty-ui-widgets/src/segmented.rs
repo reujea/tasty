@@ -1,89 +1,97 @@
-//! 서로 배타적인 선택지를 한 줄로 묶는다. 클릭한 새 인덱스를 반환하며 색과 치수는 Theme에서 읽는다.
+//! 서로 배타적인 선택지를 한 줄의 알약들로 묶는다. 클릭한 새 인덱스를 반환하며 색과 치수는 Theme에서 읽는다.
+//!
+//! 정본 배치(원격 연결 폼 Connection·Passkey Kind 토글, tasty-page overlay-frames.jsx `seg`): 칸마다 따로 그린
+//! 알약이 6 간격으로 놓인다. 알약은 높이 control-height, 좌우 padding space-md, radius, 글자 body다. 선택 칸은
+//! accent-primary 채움과 같은 색 테두리에 text-on-accent, 나머지는 surface-raised 채움과 border-default 테두리에
+//! text-secondary(surface-raised 위 대비 값 text-secondary-raised)다.
 
 use tasty_type_appearance::theme::Theme;
 
+/// 알약 사이 간격. 정본 `seg` 묶음의 `gap: 6`이며 대응 토큰이 없다.
+const SEGMENT_GAP: f32 = 6.0;
+
 /// 세그먼트 토글. `selected` 가 현재 활성 index, 새로 클릭된 세그먼트 index 를 반환
-/// (변경 없으면 `None`). 컨테이너는 자기 콘텐츠 폭만큼만 차지한다.
+/// (변경 없으면 `None`). 묶음은 자기 콘텐츠 폭만큼만 차지한다.
 pub fn segmented(
     ui: &mut egui::Ui,
     theme: &Theme,
     labels: &[&str],
     selected: usize,
 ) -> Option<usize> {
-    let h = theme.item_height_interactive.value();
-    let pad_x = theme.spacing_sm.value();
-    let radius = theme.corner_radius.value();
-    let radius_sm = theme.corner_radius_sm.value();
-    let font = egui::FontId::proportional(theme.font_size_body.value());
+    segment_row(ui, theme, labels, selected, egui::Sense::click())
+}
 
+/// [`segmented`]와 같은 묶음을 `sense`로 그린다. 고정 표본은 `Sense::hover()`를 넘겨 포커스 정지점을 만들지 않는다.
+pub fn segment_row(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    labels: &[&str],
+    selected: usize,
+    sense: egui::Sense,
+) -> Option<usize> {
     let mut clicked = None;
-    egui::Frame::new()
-        .fill(theme.surface_raised().to_egui())
-        .stroke(egui::Stroke::new(
-            theme.border_width.value(),
-            theme.border_strong().to_egui(),
-        ))
-        .corner_radius(radius)
-        .inner_margin(egui::Margin::ZERO)
-        .show(ui, |ui| {
-            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-            ui.horizontal(|ui| {
-                for (i, label) in labels.iter().enumerate() {
-                    let active = i == selected;
-                    let galley = ui.fonts(|f| {
-                        f.layout_no_wrap(
-                            (*label).to_string(),
-                            font.clone(),
-                            theme.text_primary().to_egui(),
-                        )
-                    });
-                    let seg_w = galley.size().x + pad_x * 2.0;
-                    let (rect, resp) =
-                        ui.allocate_exact_size(egui::vec2(seg_w, h), egui::Sense::click());
-
-                    if i > 0 && !active && i.checked_sub(1) != Some(selected) {
-                        ui.painter().vline(
-                            rect.left(),
-                            rect.y_range(),
-                            egui::Stroke::new(
-                                theme.border_width.value(),
-                                theme.separator.to_egui_premultiplied(),
-                            ),
-                        );
-                    }
-
-                    if active {
-                        ui.painter()
-                            .rect_filled(rect, radius_sm, theme.accent_primary().to_egui());
-                    } else if resp.hovered() {
-                        ui.painter().rect_filled(
-                            rect,
-                            radius_sm,
-                            theme.overlay_hover().to_egui_premultiplied(),
-                        );
-                    }
-
-                    let text_color = if active {
-                        theme.text_on_accent().to_egui()
-                    } else if resp.hovered() {
-                        theme.text_on_active().to_egui()
-                    } else {
-                        theme.text_secondary_raised().to_egui()
-                    };
-                    ui.painter().text(
-                        rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        label,
-                        font.clone(),
-                        text_color,
-                    );
-
-                    if resp.clicked() && !active {
-                        clicked = Some(i);
-                    }
-                }
-            });
-        });
-
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = SEGMENT_GAP;
+        for (i, label) in labels.iter().enumerate() {
+            let active = i == selected;
+            let resp = segment_chip(ui, theme, label, active, sense);
+            if resp.clicked() && !active {
+                clicked = Some(i);
+            }
+        }
+    });
     clicked
+}
+
+/// 알약 하나를 그린다.
+fn segment_chip(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    label: &str,
+    active: bool,
+    sense: egui::Sense,
+) -> egui::Response {
+    let font = egui::FontId::proportional(theme.font_size_body.value());
+    let galley = ui
+        .painter()
+        .layout_no_wrap(label.to_owned(), font, egui::Color32::PLACEHOLDER);
+    let w = galley.rect.width() + theme.spacing_md.value() * 2.0;
+    let h = theme.item_height_interactive.value();
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h), sense);
+    let (fill, border, fg) = if active {
+        (
+            theme.accent_primary(),
+            theme.accent_primary(),
+            theme.text_on_accent(),
+        )
+    } else {
+        (
+            theme.surface_raised(),
+            theme.border_default(),
+            theme.text_secondary_raised(),
+        )
+    };
+    let radius = theme.corner_radius.value();
+    ui.painter().rect(
+        rect,
+        radius,
+        fill.to_egui(),
+        egui::Stroke::new(theme.border_width.value(), border.to_egui()),
+        egui::StrokeKind::Inside,
+    );
+    if !active && resp.hovered() {
+        ui.painter()
+            .rect_filled(rect, radius, theme.overlay_hover().to_egui_premultiplied());
+    }
+    let fg = if !active && resp.hovered() {
+        theme.text_on_active()
+    } else {
+        fg
+    };
+    let pos = egui::pos2(
+        rect.center().x - galley.rect.width() * 0.5,
+        rect.center().y - galley.rect.height() * 0.5,
+    );
+    ui.painter().galley(pos, galley, fg.to_egui());
+    resp
 }

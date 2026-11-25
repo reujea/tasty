@@ -4,7 +4,7 @@ use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, IconButton, IconButtonVariant, select};
 
-use super::{FORM_WIDTH, LABEL_COL, attach_header, form_row, seg_chip, tab_bar};
+use super::{FORM_WIDTH, LABEL_COL, attach_header, form_row, seg_pair, tab_bar};
 use crate::catalog::icons;
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::catalog::widgets::dialog as kit;
@@ -251,9 +251,7 @@ fn form_card(ui: &mut egui::Ui, theme: &Theme, variant: Variant, width: LogicalP
                         kit::field(ui, theme, None, "id_ed25519", false, false);
                     });
                     form_row(ui, theme, "Kind", |ui| {
-                        ui.spacing_mut().item_spacing.x = theme.spacing_xs.value();
-                        seg_chip(ui, theme, "path", path);
-                        seg_chip(ui, theme, "inline", !path);
+                        seg_pair(ui, theme, ["path", "inline"], !path);
                     });
                     if path {
                         form_row(ui, theme, "Value", |ui| {

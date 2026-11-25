@@ -32,7 +32,7 @@
 Attach 갤러리 specimen 은 디자인 **gallery 미러**(`gallery/parts/overlay-frames.jsx` `RemoteFrame
 tab="attach"` / `RemoteFormFrame` variant `attach-ref`·`attach-inline`)를 전사한 것이다.
 
-탭 스트립과 세그먼트는 역할과 색이 다르다. 화면을 전환하는 탭은 2px `accent-primary` 밑줄과 weight 600을 사용한다. 값을 선택하는 세그먼트는 `accent-primary` 채움과 `text-on-accent` 글자를 쓴다. `surface-active`는 행 선택용이므로 두 컴포넌트에 대신 쓰지 않는다. 본체의 `tasty_ui_widgets::segmented`와 갤러리의 `seg_chip`, explorer 툴바의 view-mode 토글(본체 `seg_toggle`와 갤러리 미러, `segtoggle-on-bg`·`segtoggle-on-fg` 토큰)이 같은 규칙을 따른다.
+탭 스트립과 세그먼트는 역할과 색이 다르다. 화면을 전환하는 탭은 2px `accent-primary` 밑줄과 weight 600을 사용한다. 값을 선택하는 세그먼트는 `accent-primary` 채움과 `text-on-accent` 글자를 쓴다. `surface-active`는 행 선택용이므로 두 컴포넌트에 대신 쓰지 않는다. 본체의 `tasty_ui_widgets::segmented`와 갤러리의 `seg_pair`, explorer 툴바의 view-mode 토글(본체 `seg_toggle`와 갤러리 미러, `segtoggle-on-bg`·`segtoggle-on-fg` 토큰)이 같은 규칙을 따른다.
 
 로컬 SSH config는 카드 대신 섹션 헤더와 2줄 행으로 표시한다. 헤더는 11px 대문자 라벨·고정폭 경로·오른쪽 개수이며, 행은 alias와 `user@host:port`다. 행 아이콘 버튼 대신 ghost `Add profile`을 사용하고, 등록된 호스트에는 `in profiles` Tag를 표시한다. 호스트 없음·파일 없음·읽기 실패는 `text-muted` 한 줄로 알리며, 읽기 실패 문구는 권한·디렉터리·UTF-8 아님 같은 원인을 나누지 않는다. 본체와 갤러리 모두 `tasty_ui_widgets::draw_local_ssh_section`을 호출한다.
 

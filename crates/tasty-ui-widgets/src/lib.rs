@@ -379,7 +379,7 @@ pub use searchable_select::{
     SearchableSelectSpecimen, searchable_select_filter, searchable_select_popup_id,
     searchable_select_search_id,
 };
-pub use segmented::segmented;
+pub use segmented::{segment_row, segmented};
 pub use select::{
     SelectLook, select, select_list, select_list_width, select_on, select_or_placeholder,
     select_or_placeholder_on, select_pinned,

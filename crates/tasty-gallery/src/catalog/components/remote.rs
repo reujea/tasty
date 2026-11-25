@@ -556,9 +556,7 @@ fn attach_form_card(ui: &mut egui::Ui, theme: &Theme, inline: bool) {
                 }
             });
             form_row(ui, theme, "Connection", |ui| {
-                ui.spacing_mut().item_spacing.x = theme.spacing_sm.value() * 0.75; // gap 6 (raw)
-                seg_chip(ui, theme, "SSH profile", !inline);
-                seg_chip(ui, theme, "Direct (inline)", inline);
+                seg_pair(ui, theme, ["SSH profile", "Direct (inline)"], inline);
             });
             if inline {
                 form_row(ui, theme, "Host", |ui| {
@@ -706,41 +704,16 @@ fn form_row(ui: &mut egui::Ui, theme: &Theme, label: &str, add: impl FnOnce(&mut
     });
 }
 
-/// 연결 방식은 값을 고르는 항목이므로 밑줄 탭 대신 채운 세그먼트로 표시한다.
-fn seg_chip(ui: &mut egui::Ui, theme: &Theme, label: &str, active: bool) {
-    let h = theme.item_height_interactive.value();
-    let font = egui::FontId::proportional(theme.font_size_body.value());
-    let galley = ui
-        .painter()
-        .layout_no_wrap(label.to_owned(), font, egui::Color32::PLACEHOLDER);
-    let w = galley.rect.width() + theme.spacing_md.value() * 2.0; // padding 0 12
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::hover());
-    let (fill, border, fg) = if active {
-        (
-            theme.accent_primary(),
-            theme.border_strong(),
-            theme.text_on_accent(),
-        )
-    } else {
-        (
-            theme.surface_raised(),
-            theme.border_default(),
-            theme.text_secondary_raised(),
-        )
-    };
-    let radius = theme.corner_radius.value();
-    ui.painter().rect_filled(rect, radius, fill.to_egui());
-    ui.painter().rect_stroke(
-        rect,
-        radius,
-        egui::Stroke::new(theme.border_width.value(), border.to_egui()),
-        egui::StrokeKind::Inside,
+/// 연결 방식은 값을 고르는 항목이므로 밑줄 탭 대신 채운 세그먼트로 표시한다. 그림은 앱 위젯과 같고, 고정 표본이라
+/// 포커스 정지점을 만들지 않는다.
+fn seg_pair(ui: &mut egui::Ui, theme: &Theme, labels: [&str; 2], second: bool) {
+    tasty_ui_widgets::segment_row(
+        ui,
+        theme,
+        &labels,
+        usize::from(second),
+        egui::Sense::hover(),
     );
-    let pos = egui::pos2(
-        rect.center().x - galley.rect.width() * 0.5,
-        rect.center().y - galley.rect.height() * 0.5,
-    );
-    ui.painter().galley(pos, galley, fg.to_egui());
 }
 
 fn profile_row(ui: &mut egui::Ui, theme: &Theme, p: &Profile) {
