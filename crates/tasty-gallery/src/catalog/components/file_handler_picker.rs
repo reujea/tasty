@@ -769,8 +769,7 @@ pub fn draw_default_tag(ui: &mut egui::Ui, theme: &Theme) {
 mod tests {
     use super::*;
 
-    /// 모든 프레임 카드는 디자인 `FileHandlerFrame` 처럼 테두리를 포함해 420 이다(원격 경로 표본만 맞던 것을
-    /// 공용 본문 폭으로 맞춤).
+    /// 모든 프레임 카드는 디자인 `FileHandlerFrame` 처럼 테두리를 포함해 420 이다.
     #[test]
     fn every_frame_card_is_420_wide_with_its_border() {
         use frame::FrameState as S;

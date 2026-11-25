@@ -1014,8 +1014,8 @@ fn body(ui: &mut egui::Ui, theme: &Theme, v: Variant, body_h: LogicalPx) {
                 row(&mut col, theme, f, RowState {multi, checked, selected, focus, inert: matches!(v.mode, Mode::Folder {..}) && !f.folder, file_tooltip: folder::file_tooltip(v)});
             }
         }
-        // 로딩·연결 끊김은 정본(tasty-page fb1402a · 5c68af7)처럼 호스트가 있든 없든 앱 값을 그린다. 앱 키에는
-        // 호스트가 없어 프로필 이름이 없는 attach 도 같은 글자다.
+        // 로딩·연결 끊김은 디자인 정본 `gallery/parts/overlay-frames.jsx` 의 `FilePickerFrame` 처럼 호스트가
+        // 있든 없든 앱 값을 그린다. 앱 키에는 호스트가 없어 프로필 이름이 없는 attach 도 같은 글자다.
         FpState::Loading => center(
             ui,
             theme,
