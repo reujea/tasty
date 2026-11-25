@@ -124,7 +124,7 @@ impl WriterStats {
     }
 }
 
-/// writer 계측의 한 시점 읽기.
+/// writer 계측을 필드마다 따로 읽은 값. 필드 사이의 한 시점 일관성은 보장하지 않는다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct WriterStatsSnapshot {
     pub admitted_bytes: u64,
