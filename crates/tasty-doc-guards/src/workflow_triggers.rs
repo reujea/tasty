@@ -591,7 +591,7 @@ pub struct Step {
     pub has_if: bool,
     /// `continue-on-error: true` 인가. 붙으면 이 스텝의 실패가 잡 결론에 안 들어간다.
     pub continue_on_error: bool,
-    /// `name` 필드를 뺀 스텝 줄들(주석을 지웠다). 이름은 실행문이 아니므로 넣지 않는다.
+    /// `name`·`uses` 필드를 뺀 스텝 줄들(주석을 지웠다). 이름과 액션 지목은 실행문이 아니므로 넣지 않는다.
     pub body: String,
 }
 
@@ -625,16 +625,17 @@ pub fn job_steps(file: &str, yaml: &str) -> Result<Vec<Step>, Vec<String>> {
                     continue;
                 }
             };
-            let name_lines: Vec<usize> = s
+            // 이름과 액션 지목(uses)은 실행문이 아니므로 검증 판정 본문에서 뺀다. 옛 판독은 `- uses:` 머리 줄을 뺐다.
+            let label_lines: Vec<usize> = s
                 .fields
                 .iter()
-                .filter(|f| f.key == "name")
+                .filter(|f| f.key == "name" || f.key == "uses")
                 .flat_map(|f| std::iter::once(f.line).chain(f.children.iter().map(|(n, _)| *n)))
                 .collect();
             let kept: String = s
                 .lines
                 .iter()
-                .filter(|(n, _)| !name_lines.contains(n))
+                .filter(|(n, _)| !label_lines.contains(n))
                 .fold(String::new(), |mut acc, (_, l)| {
                     acc.push_str(l);
                     acc.push('\n');
@@ -833,6 +834,21 @@ mod shared_reader_tests {
             swallowable,
             vec![2, 3],
             "이름 없는 두 검증 스텝을 앞 스텝 뒤의 검증으로 세지 않았다"
+        );
+    }
+
+    /// `uses` 값에 `cargo test`가 있어도 실행문(run)이 없는 스텝은 검증 스텝이 아니다.
+    #[test]
+    fn a_uses_value_mentioning_cargo_test_is_not_a_verification_step() {
+        let yaml = "jobs:\n  j:\n    steps:\n      - name: first\n        run: echo\n      \
+                    - uses: ./tools cargo test\n      - name: named\n        uses: ./tools cargo clippy\n";
+        let steps = job_steps("fixture.yml", yaml).unwrap_or_else(|e| panic!("{e:?}"));
+        assert_eq!(steps.len(), 3, "스텝 수가 다르다: {steps:?}");
+        let swallowable =
+            swallowable_verification_steps("fixture.yml", yaml).unwrap_or_else(|e| panic!("{e:?}"));
+        assert!(
+            swallowable.is_empty(),
+            "uses 값의 글자를 검증 실행문으로 셌다: {swallowable:?}"
         );
     }
 
