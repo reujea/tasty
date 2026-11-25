@@ -841,6 +841,8 @@ pub(super) struct CompositeLayout {
     pub(super) content: egui::Vec2,
     /// 가로 스크롤 영역의 상태 ID.
     pub(super) scroll_id: egui::Id,
+    /// 무대 내용이 실제로 그려지는 클립 사각형.
+    pub(super) clip: egui::Rect,
 }
 
 pub(super) fn composite_specimen(ui: &mut egui::Ui, theme: &Theme) -> CompositeLayout {
@@ -870,16 +872,27 @@ fn composite_stage_w(available: LogicalPx, theme: &Theme) -> LogicalPx {
 /// 수 있는 가장자리에 페이드를 그린다(테마 가이드의 스크롤 표시 규칙).
 fn composite_scroll(ui: &mut egui::Ui, theme: &Theme, viewport_w: LogicalPx) -> CompositeLayout {
     let w = composite_stage_w(viewport_w, theme);
-    let out = egui::ScrollArea::horizontal()
-        .id_salt("tutorial-composite")
-        .max_width(viewport_w.value())
-        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
-        .drag_to_scroll(false)
-        .show(ui, |ui| composite_stage(ui, theme, w));
+    // ScrollArea는 스크롤하는 방향의 내용 클립을 보이는 영역보다 clip_rect_margin(기본 3pt)만큼 양쪽으로
+    // 넓힌다(egui 0.31.1 scroll_area.rs:603-608). 그러면 페이드 바깥에 스크롤된 무대 띠가 보이므로, 이 영역만
+    // 그 여백을 0으로 두어 내용 클립을 보이는 영역과 같게 한다.
+    let out = ui
+        .scope(|ui| {
+            ui.visuals_mut().clip_rect_margin = 0.0;
+            egui::ScrollArea::horizontal()
+                .id_salt("tutorial-composite")
+                .max_width(viewport_w.value())
+                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+                .drag_to_scroll(false)
+                .show(ui, |ui| {
+                    let (stage, bubble) = composite_stage(ui, theme, w);
+                    (stage, bubble, ui.clip_rect())
+                })
+        })
+        .inner;
     // ScrollAreaOutput의 inner_rect는 내용에 맞춰 줄이기 전의 높이, 곧 세로로 남은 가용 높이다. 그래서
     // 남은 높이가 크면 무대 아래까지, 갤러리 본문처럼 긴 페이지 안에서 남은 높이가 0이면 높이 0으로 잡힌다.
     // 보이는 영역의 세로 범위는 그려진 무대에서 가져온다.
-    let (stage, bubble) = out.inner;
+    let (stage, bubble, clip) = out.inner;
     let view = egui::Rect::from_x_y_ranges(out.inner_rect.x_range(), stage.y_range());
     let (left, right) = fade_edges(
         LogicalPx(out.state.offset.x),
@@ -898,6 +911,7 @@ fn composite_scroll(ui: &mut egui::Ui, theme: &Theme, viewport_w: LogicalPx) -> 
         viewport: view,
         content: out.content_size,
         scroll_id: out.id,
+        clip,
     }
 }
 

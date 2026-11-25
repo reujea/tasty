@@ -221,13 +221,13 @@ fn composite_draws_the_first_basics_step_callout() {
 
 /// 갤러리 본문 열과 같은 꼴로 합성 표본을 한 프레임 그린다. host_shell의 main_ui처럼 열 폭 `col_w`를
 /// 정하고 본문 열 폭으로 저장한 뒤, `widen`이면 그 앞에 주제 팝업 표본(고정 폭 무대)을 그려 열의 Ui를
-/// 넓힌다. (표본 결과, 보이는 열의 오른쪽 끝 x)를 돌려준다.
+/// 넓힌다. (표본 결과, 보이는 열의 오른쪽 끝 x, 그린 메시(페이드) 사각형들)을 돌려준다.
 fn composite_frame(
     ctx: &egui::Context,
     theme: &tasty_type_appearance::theme::Theme,
     col_w: f32,
     widen: bool,
-) -> (super::CompositeLayout, f32) {
+) -> (super::CompositeLayout, f32, Vec<egui::Rect>) {
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(
             egui::Pos2::ZERO,
@@ -236,7 +236,7 @@ fn composite_frame(
         ..Default::default()
     };
     let mut got = None;
-    let _frame = ctx.run(input, |ctx| {
+    let frame = ctx.run(input, |ctx| {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
                 ui.set_max_width(col_w);
@@ -249,11 +249,28 @@ fn composite_frame(
             });
         });
     });
-    got.expect("합성 표본을 그렸다")
+    let (layout, right) = got.expect("합성 표본을 그렸다");
+    (layout, right, mesh_bounds(&frame))
+}
+
+/// 한 프레임 출력에서 메시(페이드)의 사각형을 모은다.
+fn mesh_bounds(frame: &egui::FullOutput) -> Vec<egui::Rect> {
+    frame
+        .shapes
+        .iter()
+        .filter_map(|cs| match &cs.shape {
+            egui::epaint::Shape::Mesh(m) => Some(m.calc_bounds()),
+            _ => None,
+        })
+        .collect()
 }
 
 /// `composite_frame`을 그리고, `to_end`면 가로 스크롤을 끝으로 옮겨 한 번 더 그린다.
-fn composite_in_column(col_w: f32, widen: bool, to_end: bool) -> (super::CompositeLayout, f32) {
+fn composite_in_column(
+    col_w: f32,
+    widen: bool,
+    to_end: bool,
+) -> (super::CompositeLayout, f32, Vec<egui::Rect>) {
     let theme = tasty_themes::mocha_fallback();
     let ctx = egui::Context::default();
     let first = composite_frame(&ctx, &theme, col_w, widen);
@@ -277,7 +294,7 @@ fn floor() -> f32 {
 #[test]
 fn composite_stage_keeps_its_floor_and_holds_the_callout() {
     // 바닥보다 좁은 열: 무대는 바닥 폭이고 말풍선과 꼬리가 무대 안에 든다.
-    let (l, _) = composite_in_column(floor() / 2.0, false, false);
+    let (l, _, _) = composite_in_column(floor() / 2.0, false, false);
     assert_eq!(l.stage.width(), floor(), "{:?}", l.stage);
     assert!(
         l.stage.contains_rect(l.bubble),
@@ -286,7 +303,7 @@ fn composite_stage_keeps_its_floor_and_holds_the_callout() {
         l.bubble
     );
     // 넓은 열: 무대는 최대 폭에서 멈춘다.
-    let (l, _) = composite_in_column(2000.0, false, false);
+    let (l, _, _) = composite_in_column(2000.0, false, false);
     assert_eq!(
         l.stage.width(),
         super::COMPOSITE_STAGE_MAX_W.value(),
@@ -303,7 +320,7 @@ fn composite_stage_keeps_its_floor_and_holds_the_callout() {
 
 #[test]
 fn composite_stage_scrolls_horizontally_in_a_narrow_column() {
-    let (l, _) = composite_in_column(floor() / 2.0, false, false);
+    let (l, _, _) = composite_in_column(floor() / 2.0, false, false);
     assert!(
         l.stage.width() > l.viewport.width() + 0.5,
         "무대 {:?}가 보이는 영역 {:?}보다 넓어야 한다",
@@ -318,7 +335,7 @@ fn composite_tail_is_visible_after_scrolling_to_the_end_under_a_widening_specime
     // 주제 팝업 표본이 열의 Ui를 넓힌 뒤에도 보이는 영역은 열 안에 있고, 끝까지 스크롤하면 꼬리 끝이 보인다.
     let col_w = 300.0;
     assert!(col_w < floor());
-    let (l, right) = composite_in_column(col_w, true, true);
+    let (l, right, _) = composite_in_column(col_w, true, true);
     assert!(
         l.viewport.right() <= right + 0.5,
         "보이는 영역 {:?}가 열 끝 {right}을 넘는다",
@@ -330,6 +347,27 @@ fn composite_tail_is_visible_after_scrolling_to_the_end_under_a_widening_specime
         l.bubble,
         l.viewport
     );
+}
+
+#[test]
+fn composite_fades_reach_the_content_clip_edge() {
+    // 첫 화면은 오른쪽, 끝까지 스크롤한 화면은 왼쪽에만 페이드가 있다. 페이드의 불투명 끝은 무대 내용이
+    // 실제로 그려지는 클립 경계와 같거나 그 바깥이어서, 페이드 바깥에 스크롤된 무대 띠가 보이지 않는다.
+    for to_end in [false, true] {
+        let (l, _, fades) = composite_in_column(floor() / 2.0, false, to_end);
+        assert_eq!(fades.len(), 1, "끝={to_end}: 페이드 {fades:?}");
+        let f = fades[0];
+        let reaches = if to_end {
+            f.left() <= l.clip.left() + 0.01
+        } else {
+            f.right() >= l.clip.right() - 0.01
+        };
+        assert!(
+            reaches,
+            "끝={to_end}: 페이드 {f:?}가 내용 클립 {:?}의 가장자리까지 덮지 않는다",
+            l.clip
+        );
+    }
 }
 
 /// 진단 메시지의 `catalog.rs:<줄>:`을 꺼내 줄 번호를 돌려준다.
