@@ -139,8 +139,7 @@ const LOCAL_HOSTS: &[LocalSshHost<'static>] = &[
 pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
         kit::frame_card(ui, theme, WIDTH, kit::panel_fill(theme), |ui| {
-            // 본체 헤더 구역처럼 위아래 여백은 spacing_md 다.
-            kit::region_sym(ui, theme.spacing_md, theme.spacing_md, |ui| {
+            header_region(ui, theme, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
                     kit::icon(
@@ -162,7 +161,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             tab_bar(ui, theme, 0);
 
             // 서로 다른 프로토콜이 둘 이상인 예제이므로 필터 버튼을 표시한다.
-            kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
+            add_bar_region(ui, theme, |ui| {
                 ui.horizontal(|ui| {
                     Button::new("Add profile")
                         .variant(ButtonVariant::Secondary)
@@ -178,7 +177,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             });
 
             // 프로필과 SSH config 목록을 같은 스크롤 영역에 둔다.
-            kit::region_sym(ui, theme.spacing_md, LogicalPx(0.0), |ui| {
+            list_region(ui, theme, |ui| {
                 for p in PROFILES {
                     profile_row(ui, theme, p);
                 }
@@ -292,6 +291,36 @@ fn ssh_state_card(ui: &mut egui::Ui, theme: &Theme, label: &str, message: &str) 
     });
 }
 
+/// 본체 헤더 구역과 같은 여백: 왼쪽 `remote_pad_x`, 오른쪽·위아래 `spacing_md`.
+fn header_region(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
+    let md = theme.spacing_md.value() as i8;
+    let margin = egui::Margin {
+        left: theme.remote_pad_x().value() as i8,
+        right: md,
+        top: md,
+        bottom: md,
+    };
+    kit::region(ui, margin, add);
+}
+
+/// 본체 본문 구역의 위쪽(add-bar 줄): 좌우 `remote_pad_x`, 위 `remote_content_pad_top`, 아래 `spacing_sm`.
+fn add_bar_region(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
+    let x = theme.remote_pad_x().value() as i8;
+    let margin = egui::Margin {
+        left: x,
+        right: x,
+        top: theme.remote_content_pad_top().value() as i8,
+        bottom: theme.spacing_sm.value() as i8,
+    };
+    kit::region(ui, margin, add);
+}
+
+/// 본체 본문 구역의 목록 줄: 좌우 `remote_pad_x`.
+fn list_region(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)) {
+    let x = theme.remote_pad_x().value() as i8;
+    kit::region(ui, egui::Margin::symmetric(x, 0), add);
+}
+
 /// 공용 탭 바에 라벨과 활성 항목을 전달한다. 배경은 카드 전체 폭을 채운다.
 fn tab_bar(ui: &mut egui::Ui, theme: &Theme, active: usize) {
     #[cfg(test)]
@@ -358,7 +387,7 @@ pub(super) fn attach_frame(ui: &mut egui::Ui, theme: &Theme) {
         attach_header(ui, theme);
         tab_bar(ui, theme, 1);
 
-        kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
+        add_bar_region(ui, theme, |ui| {
             ui.horizontal(|ui| {
                 Button::new("Add attach")
                     .variant(ButtonVariant::Secondary)
@@ -370,7 +399,7 @@ pub(super) fn attach_frame(ui: &mut egui::Ui, theme: &Theme) {
             });
         });
 
-        kit::region_sym(ui, theme.spacing_md, LogicalPx(0.0), |ui| {
+        list_region(ui, theme, |ui| {
             for a in ATTACHES {
                 attach_row(ui, theme, a);
             }
@@ -414,8 +443,7 @@ pub fn draw_attach(ui: &mut egui::Ui, theme: &Theme) {
 }
 
 fn attach_header(ui: &mut egui::Ui, theme: &Theme) {
-    // 본체 헤더 구역처럼 위아래 여백은 spacing_md 다.
-    kit::region_sym(ui, theme.spacing_md, theme.spacing_md, |ui| {
+    header_region(ui, theme, |ui| {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
             kit::icon(

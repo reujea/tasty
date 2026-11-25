@@ -44,12 +44,10 @@ use tasty_ui_widgets::{
 
 pub const REMOTE_TOOL_POPUP_ID: &str = "remote_tool";
 
-/// 헤더·본문의 좌측 안쪽 여백. 디자인 전사값 14 로 4px 그리드 밖이다
-/// (`spacing_md`=12 와 2px 차). `egui::Margin` 필드가 `i8` 이라 타입을 맞춰 둔다.
-const PANEL_PAD_L: i8 = 14;
-/// 본문 상단 여백. 디자인 전사값 10 으로 그리드 밖이다(하단은 `spacing_sm`=8 로
-/// 비대칭 — 디자인 전사 그대로다).
-const CONTENT_PAD_TOP: i8 = 10;
+/// 헤더 왼쪽과 본문 좌우 안쪽 여백(정본 `--tasty-remote-pad-x`). `egui::Margin` 필드가 `i8` 이라 타입을 맞춘다.
+fn panel_pad_x(th: &Theme) -> i8 {
+    th.remote_pad_x().value() as i8
+}
 
 const KNOWN_TYPES: &[&str] = &["ssh", "smb", "http"];
 
@@ -347,9 +345,9 @@ pub fn draw_remote_tool_popup(
         egui::Margin::ZERO
     } else {
         egui::Margin {
-            left: PANEL_PAD_L,
-            right: PANEL_PAD_L,
-            top: CONTENT_PAD_TOP,
+            left: panel_pad_x(&th),
+            right: panel_pad_x(&th),
+            top: th.remote_content_pad_top().value() as i8,
             bottom: th.spacing_sm.value() as i8,
         }
     };
@@ -440,12 +438,12 @@ fn paint_edge_fade(ui: &egui::Ui, th: &Theme, rect: egui::Rect, edge: FadeEdge) 
     ui.painter().add(egui::Shape::mesh(mesh));
 }
 
-/// 헤더 구역: 위아래 `spacing_md`, 왼쪽 `PANEL_PAD_L`, 오른쪽 `spacing_md` 여백 안에 헤더 줄을 그린다.
+/// 헤더 구역: 위아래 `spacing_md`, 왼쪽 `remote_pad_x`, 오른쪽 `spacing_md` 여백 안에 헤더 줄을 그린다.
 /// 닫기를 눌렀으면 inner가 true다.
 fn draw_header_band(ui: &mut egui::Ui, th: &Theme) -> egui::InnerResponse<bool> {
     egui::Frame::NONE
         .inner_margin(egui::Margin {
-            left: PANEL_PAD_L,
+            left: panel_pad_x(th),
             right: th.spacing_md.value() as i8,
             top: th.spacing_md.value() as i8,
             bottom: th.spacing_md.value() as i8,
@@ -2959,7 +2957,7 @@ mod tests {
                 _ => None,
             })
             .expect("헤더 제목 글자 도형이 없다");
-        let icon_right = band.left() + f32::from(PANEL_PAD_L) + th.icon_glyph_size_md.value();
+        let icon_right = band.left() + th.remote_pad_x().value() + th.icon_glyph_size_md.value();
         let gap = title.pos.x + title.galley.rect.left() - icon_right;
         assert!(
             (gap - th.spacing_sm.value()).abs() < 0.5,

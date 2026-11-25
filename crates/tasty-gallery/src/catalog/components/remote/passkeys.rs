@@ -7,7 +7,7 @@ use tasty_ui_widgets::{
     remote_row_title, selectable_text,
 };
 
-use super::{WIDTH, attach_header, tab_bar};
+use super::{WIDTH, add_bar_region, attach_header, list_region, tab_bar};
 use crate::catalog::icons;
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::catalog::widgets::dialog as kit;
@@ -119,7 +119,7 @@ pub(in crate::catalog::components) fn passkeys_frame(ui: &mut egui::Ui, theme: &
         attach_header(ui, theme);
         tab_bar(ui, theme, 2);
 
-        kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
+        add_bar_region(ui, theme, |ui| {
             ui.horizontal(|ui| {
                 Button::new("Add passkey")
                     .variant(ButtonVariant::Secondary)
@@ -131,7 +131,7 @@ pub(in crate::catalog::components) fn passkeys_frame(ui: &mut egui::Ui, theme: &
             });
         });
 
-        kit::region_sym(ui, theme.spacing_md, LogicalPx(0.0), |ui| {
+        list_region(ui, theme, |ui| {
             for k in PASSKEYS {
                 passkey_row(ui, theme, k);
             }
