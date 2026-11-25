@@ -113,17 +113,35 @@ fn the_popup_bodies_are_decoded_before_the_edge_reads_them() {
     );
 }
 
-/// 소스의 `name` 표기 하나. 정의(`fn name(`)나 메서드 호출(`self.name(`)이다.
+/// 소스의 `name` 표기 하나. 정의(`fn name(`), `self.name(` 호출, 다른 수신자의 메서드 호출(`a.b.name(`)이다.
 #[derive(Debug, PartialEq, Eq)]
 enum Site {
     Def,
     Call { caller: String },
+    Method { caller: String, receiver: String },
 }
 
-/// `src` 아래(가드 폴더 제외) 모든 .rs 에서 `name` 의 표기를 찾는다. 주석은 뺀다. 정의·`self.` 호출이 아닌
-/// 표기(경로 호출, 함수 값 등)는 file:line 과 함께 '지원하지 않는 표기'로 실패한다. 호출은 감싼 가장 가까운
-/// `fn` 이름을 함께 돌려준다.
+/// [`sites_in`]이 찾은 표기 하나: 파일, 줄 번호, 그 줄(메서드 사슬을 이은 논리 줄), 표기.
+struct Found {
+    file: String,
+    line: usize,
+    text: String,
+    site: Site,
+}
+
+/// `src` 아래(가드 폴더 제외) 모든 .rs 에서 `name` 의 표기를 찾는다([`sites_in`]).
 fn sites_of(name: &str) -> Vec<(String, Site)> {
+    sites_in(name, |_| true)
+        .into_iter()
+        .map(|f| (f.file, f.site))
+        .collect()
+}
+
+/// `src` 아래(가드 폴더 제외) .rs 중 상대 경로가 `keep`을 만족하는 파일에서 `name` 의 표기를 찾는다. 주석은 뺀다.
+/// `.`으로 시작하는 줄은 앞 줄에 이어 읽는다(rustfmt가 나눈 메서드 사슬). 정의·메서드 호출이 아닌 표기(경로 호출,
+/// 함수 값 등)는 file:line 과 함께 '지원하지 않는 표기'로 실패한다. 호출은 감싼 가장 가까운 `fn` 이름을 함께
+/// 돌려준다.
+fn sites_in(name: &str, keep: impl Fn(&str) -> bool) -> Vec<Found> {
     fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
         for e in std::fs::read_dir(dir).expect("src 폴더").flatten() {
             let p = e.path();
@@ -151,8 +169,21 @@ fn sites_of(name: &str) -> Vec<(String, Site)> {
             tasty_doc_guards::source_text::repo_relative(path.strip_prefix(&root).unwrap_or(&path))
                 .display()
                 .to_string();
-        let mut caller = String::new();
+        if !keep(&rel) {
+            continue;
+        }
+        let mut lines: Vec<(usize, String)> = Vec::new();
         for (no, line) in masked.lines().enumerate() {
+            match lines.last_mut() {
+                Some((_, prev)) if line.trim_start().starts_with('.') => {
+                    prev.push_str(line.trim());
+                }
+                _ => lines.push((no + 1, line.to_string())),
+            }
+        }
+        let mut caller = String::new();
+        for (no, line) in &lines {
+            let line = line.as_str();
             if let Some(i) = line.find("fn ") {
                 let rest = &line[i + 3..];
                 let end = rest.find(|c: char| !is_word(c)).unwrap_or(rest.len());
@@ -169,16 +200,33 @@ fn sites_of(name: &str) -> Vec<(String, Site)> {
                 if before.ends_with(is_word) || line[end..].starts_with(is_word) {
                     continue;
                 }
-                let site = if before.ends_with("fn ") && line[end..].starts_with('(') {
-                    Site::Def
-                } else if before.ends_with("self.") && line[end..].starts_with('(') {
-                    Site::Call {
+                let call = line[end..].starts_with('(');
+                let receiver = before
+                    .strip_suffix('.')
+                    .map(|b| {
+                        let from = b
+                            .rfind(|c: char| !is_word(c) && c != '.')
+                            .map_or(0, |i| i + 1);
+                        &b[from..]
+                    })
+                    .filter(|r| !r.is_empty());
+                let site = match receiver {
+                    _ if before.ends_with("fn ") && call => Site::Def,
+                    Some("self") if call => Site::Call {
                         caller: caller.clone(),
-                    }
-                } else {
-                    panic!("{rel}:{}: 지원하지 않는 표기: {}", no + 1, line.trim());
+                    },
+                    Some(r) if call => Site::Method {
+                        caller: caller.clone(),
+                        receiver: r.to_string(),
+                    },
+                    _ => panic!("{rel}:{no}: 지원하지 않는 표기: {}", line.trim()),
                 };
-                out.push((rel.clone(), site));
+                out.push(Found {
+                    file: rel.clone(),
+                    line: *no,
+                    text: line.trim().to_string(),
+                    site,
+                });
             }
         }
     }
@@ -219,5 +267,65 @@ fn the_popup_body_decode_has_one_caller_chain() {
             (gpu, Site::Def),
         ],
         "prepare_mesh_popups 의 정의 하나와 run_egui_frame 안 호출 하나만 있어야 한다"
+    );
+}
+
+/// 제품 디코더(`decode_mesh_bytes_into_target`)는 디코드한 도형을 대상의 `target.shapes.adopt` 로 채운다. 시험
+/// `the_edge_hole_and_the_composite_clip_match_in_each_frame` 은 GPU 없이 `MeshShapes::adopt` 를 부르므로, 제품
+/// 디코더가 이 호출을 잃으면 그 시험은 보지 못한다. `adopt` 는 egui_mesh_prepare 안에서만 쓰인다.
+#[test]
+fn the_product_decoder_fills_the_target_shapes() {
+    let sites = sites_in("adopt", |f| f.starts_with("src/gfx/gpu/egui_mesh_prepare"));
+    let product = Site::Method {
+        caller: "decode_mesh_bytes_into_target".into(),
+        receiver: "target.shapes".into(),
+    };
+    assert_eq!(
+        sites.iter().filter(|f| f.site == product).count(),
+        1,
+        "제품 디코더가 target.shapes.adopt 를 한 번 불러야 한다"
+    );
+    assert_eq!(
+        sites.iter().filter(|f| f.site == Site::Def).count(),
+        1,
+        "MeshShapes::adopt 정의"
+    );
+}
+
+/// egui 패스 전 디코드 대상은 `bodies_to_decode` 가 고른 것이고, 그 결과가 그대로 `prepare_mesh_popups` 인자로
+/// 간다. 인자가 다른 표기(열린 팝업 전체 등)면 file:line 과 '지원하지 않는 표기'로 실패한다.
+#[test]
+fn the_chosen_bodies_are_what_the_frame_decodes() {
+    let squeezed: String = frame_body()
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect();
+    assert_eq!(
+        squeezed.matches("letbodies").count(),
+        1,
+        "bodies 를 한 번만 묶는다"
+    );
+    assert_eq!(
+        squeezed
+            .matches(
+                "letbodies=plugin_manager.map_or_else(Vec::new,|mgr|{crate::plugin_bridge::popup_scope::bodies_to_decode("
+            )
+            .count(),
+        1,
+        "bodies 는 bodies_to_decode 결과다"
+    );
+    let calls = sites_in("prepare_mesh_popups", |f| f == HOME);
+    assert_eq!(calls.len(), 1, "{HOME} 의 prepare_mesh_popups 호출 하나");
+    let call = &calls[0];
+    let args = call
+        .text
+        .split_once("prepare_mesh_popups(")
+        .map_or("", |(_, rest)| rest);
+    assert!(
+        args.starts_with("bodies.iter().copied(),"),
+        "{}:{}: 지원하지 않는 표기: {}",
+        call.file,
+        call.line,
+        call.text
     );
 }
