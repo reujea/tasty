@@ -706,7 +706,7 @@ fn a_diagnostic_step_with_a_block_scalar_if_is_rejected() {
         "        if: ${{ !cancelled() }}\n        continue-on-error: true\n",
         "        if: >-\n          ${{ !cancelled() }}\n        continue-on-error: true\n",
     );
-    assert_caught(&all, "crossplatform-check.yml:128 지원하지 않는 표기");
+    assert_caught(&all, "crossplatform-check.yml:136 지원하지 않는 표기");
 }
 
 /// R2: 대상 식의 문자열 리터럴 안 대괄호도 받지 않는다.

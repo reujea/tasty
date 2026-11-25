@@ -3249,10 +3249,10 @@ const SWALLOWABLE_STEPS: usize = 6;
 
 /// protected_verification_steps가 분류하는 스텝 수다. if가 있고 cargo test/clippy를 호출하는 스텝을 세며,
 /// continue-on-error: true인 관측용 스텝도 든다. 시험은 같은지 비교한다.
-/// aa47a379d9의 .github/workflows에서 9개를 셌다(2026-11-22). 세는 스텝 목록은 실패 메시지가 출력한다.
+/// 5c8c7452c6의 .github/workflows에서 10개를 셌다(2026-11-25). 세는 스텝 목록은 실패 메시지가 출력한다.
 /// 조건식을 계산하지 않아 앞선 실패 뒤 실행을 보장하지 않는다.
 /// 두 분류를 함께 대조하지만 수만으로 스텝 삭제와 조건 변경을 구별할 수는 없다.
-const PROTECTED_STEPS: usize = 9;
+const PROTECTED_STEPS: usize = 10;
 
 fn workflow_texts() -> Vec<(String, String)> {
     let root = repo_root();
