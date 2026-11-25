@@ -320,3 +320,55 @@ fn explorer_rename_popup_ground_specimen_은_id_충돌_없이_렌더된다() {
         .draw;
     assert_no_id_clash("explorer-rename-popup-ground", |ui| draw(ui, &theme));
 }
+
+/// File Picker 상태 표본의 로딩·연결 끊김은 호스트가 있어도 앱 키 값을 그린다(정본 tasty-page fb1402a ·
+/// 5c68af7). 호스트를 넣은 갤러리 전용 영어 문장(SSH 문장)은 그리지 않는다.
+#[test]
+fn file_picker_states_specimen_은_로딩과_연결_끊김에_앱_값을_그린다() {
+    use tasty_gallery::catalog::components::file_picker;
+    use tasty_gallery::i18n::t;
+    let theme = tasty_themes::mocha_fallback();
+    let ctx = egui::Context::default();
+    let mut texts: Vec<String> = Vec::new();
+    for _ in 0..2 {
+        let output = ctx.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| file_picker::draw_states(ui, &theme));
+        });
+        texts.clear();
+        for cs in &output.shapes {
+            collect_texts(&cs.shape, &mut texts);
+        }
+    }
+    for key in [
+        "filepicker.loading",
+        "filepicker.loading_body_remote",
+        "filepicker.error_conn.title",
+        "filepicker.error_conn.session_lost",
+        "filepicker.error_conn.reconnect",
+    ] {
+        assert!(
+            texts.iter().any(|s| s == t(key)),
+            "{key} = {:?} 가 없다: {texts:?}",
+            t(key)
+        );
+    }
+    let gallery_only: Vec<&String> = texts
+        .iter()
+        .filter(|s| {
+            s.contains("over SSH") || s.contains("SSH tunnel") || s.contains("Loading folder")
+        })
+        .collect();
+    assert!(gallery_only.is_empty(), "{gallery_only:?}");
+}
+
+fn collect_texts(shape: &egui::epaint::Shape, out: &mut Vec<String>) {
+    match shape {
+        egui::epaint::Shape::Text(t) => out.push(t.galley.text().to_owned()),
+        egui::epaint::Shape::Vec(v) => {
+            for s in v {
+                collect_texts(s, out);
+            }
+        }
+        _ => {}
+    }
+}

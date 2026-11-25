@@ -172,7 +172,6 @@ src/catalog/components/file_handler_picker/frame.rs	yesterday	file_handler.picke
 src/catalog/components/file_handler_picker/frame.rs	you	file_handler.picker.origin_user
 src/catalog/components/file_picker.rs	Open	button.open,explorer.props.open,file_handler.picker.open_button,filepicker.open_button
 src/catalog/components/file_picker.rs	Permission denied	explorer.state.no_permission,filepicker.error_perm.title
-src/catalog/components/file_picker.rs	Reconnect	child_graph.reconnect,filepicker.error_conn.reconnect
 src/catalog/components/file_picker.rs	Retry	explorer.properties.retry,explorer.state.read_error_retry,filepicker.error_perm.retry,remote.size_sync.retry,remote_attach.retry,transfer.error.retry
 src/catalog/components/file_picker.rs	disabled	settings.file_handler.common.disabled
 src/catalog/components/file_picker.rs	—	dag.detail.none,port_scanner.external_dash

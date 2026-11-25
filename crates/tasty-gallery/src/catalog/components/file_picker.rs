@@ -386,7 +386,10 @@ pub fn draw_states(ui: &mut egui::Ui, theme: &Theme) {
         ui,
         theme,
         &[
-            ("loading", "Spinner · reads dir (remote: over SSH)"),
+            (
+                "loading",
+                "Spinner · title filepicker.loading · body loading_body_remote (remote) or loading_body_local (local) · no host in either, so a host and no profile name read the same",
+            ),
             ("empty", "folderOpen glyph · CenterState"),
             (
                 "error",
@@ -395,7 +398,7 @@ pub fn draw_states(ui: &mut egui::Ui, theme: &Theme) {
             ("perm vs. conn", "Retry vs. Reconnect (resumes)"),
             (
                 "remote sentences",
-                "the host-naming loading and connection-lost sentences in these frames are gallery-only English, with no app key · the app's filepicker.loading_body_remote and filepicker.error_conn.title · session_lost · timeout carry no host · no profile name (--ssh, --target-port, a profile saved with an empty name) → those values unchanged, no new key: title filepicker.loading, body loading_body_remote · connection lost: error_conn.title with session_lost or timeout by cause · never 127.0.0.1:<port>",
+                "every frame draws the app's values: loading filepicker.loading + loading_body_remote · connection lost filepicker.error_conn.title with session_lost or timeout by cause · with or without a host, so no profile name (--ssh, --target-port, a profile saved with an empty name) needs no new key · never 127.0.0.1:<port>",
             ),
             ("multi", "checkbox col · joined names · N selected"),
             ("Open", "disabled while loading / error / empty"),
@@ -1000,40 +1003,21 @@ fn body(ui: &mut egui::Ui, theme: &Theme, v: Variant, body_h: LogicalPx) {
                 row(&mut col, theme, f, RowState {multi, checked, selected, focus, inert: matches!(v.mode, Mode::Folder {..}) && !f.folder, file_tooltip: folder::file_tooltip(v)});
             }
         }
-        // 프로필 이름이 없는 원격(빈 호스트)은 호스트를 넣은 갤러리 전용 문장 대신 앱의 호스트 없는 값을 그린다.
-        FpState::Loading if v.remote && v.host.is_empty() => center(
+        // 로딩·연결 끊김은 정본(tasty-page fb1402a · 5c68af7)처럼 호스트가 있든 없든 앱 값을 그린다. 앱 키에는
+        // 호스트가 없어 프로필 이름이 없는 attach 도 같은 글자다.
+        FpState::Loading => center(
             ui,
             theme,
             v.w,
             body_h,
-            CenterState::loading(crate::i18n::t("filepicker.loading"))
-                .sub_line(Some(crate::i18n::t("filepicker.loading_body_remote"))),
-        ),
-        FpState::ErrorConn | FpState::ErrorConnTimeout if v.host.is_empty() => center(
-            ui,
-            theme,
-            v.w,
-            body_h,
-            CenterState::error(crate::i18n::t("filepicker.error_conn.title"))
-                .sub_line(Some(crate::i18n::t(if v.state == FpState::ErrorConnTimeout {
-                    "filepicker.error_conn.timeout"
+            CenterState::loading(crate::i18n::t("filepicker.loading")).sub_line(Some(
+                crate::i18n::t(if v.remote {
+                    "filepicker.loading_body_remote"
                 } else {
-                    "filepicker.error_conn.session_lost"
-                })))
-                .action(crate::i18n::t("filepicker.error_conn.reconnect"), Some(icons::REFRESH)),
+                    "filepicker.loading_body_local"
+                }),
+            )),
         ),
-        // 이름 있는 원격의 로딩·연결 끊김 본문은 정본 b670109 overlay-frames.jsx 처럼 호스트 이름을 넣은 갤러리 전용
-        // 영어 문장이다(앱 키에는 호스트가 없다 — Meta 'remote sentences').
-        FpState::Loading => {
-            let remote_body = format!("Reading {} over SSH.", v.host);
-            center(
-                ui,
-                theme,
-                v.w,
-                body_h,
-                CenterState::loading("Loading folder…").sub_line(Some(if matches!(v.mode, Mode::Folder { .. }) { crate::i18n::t("filepicker.loading_body_local") } else if v.remote { &remote_body } else { crate::i18n::t("filepicker.loading_body_local") })),
-            )
-        }
         FpState::Empty => center(
             ui,
             theme,
@@ -1052,21 +1036,19 @@ fn body(ui: &mut egui::Ui, theme: &Theme, v: Variant, body_h: LogicalPx) {
                 ))
                 .action("Retry", Some(icons::REFRESH)),
         ),
-        FpState::ErrorConn | FpState::ErrorConnTimeout => {
-            let body = format!(
-                "The SSH tunnel to {} dropped. Reconnect to resume browsing from the last folder.",
-                v.host
-            );
-            center(
-                ui,
-                theme,
-                v.w,
-                body_h,
-                CenterState::error("Remote connection lost")
-                    .sub_line(Some(&body))
-                    .action("Reconnect", Some(icons::REFRESH)),
-            )
-        }
+        FpState::ErrorConn | FpState::ErrorConnTimeout => center(
+            ui,
+            theme,
+            v.w,
+            body_h,
+            CenterState::error(crate::i18n::t("filepicker.error_conn.title"))
+                .sub_line(Some(crate::i18n::t(if v.state == FpState::ErrorConnTimeout {
+                    "filepicker.error_conn.timeout"
+                } else {
+                    "filepicker.error_conn.session_lost"
+                })))
+                .action(crate::i18n::t("filepicker.error_conn.reconnect"), Some(icons::REFRESH)),
+        ),
     }
 }
 
