@@ -47,13 +47,9 @@ pub const REMOTE_TOOL_POPUP_ID: &str = "remote_tool";
 /// 헤더·본문의 좌측 안쪽 여백. 디자인 전사값 14 로 4px 그리드 밖이다
 /// (`spacing_md`=12 와 2px 차). `egui::Margin` 필드가 `i8` 이라 타입을 맞춰 둔다.
 const PANEL_PAD_L: i8 = 14;
-/// 헤더 상하 여백. 디자인 전사값 11 로 그리드 밖이다(`spacing_md`=12 와 1px 차).
-const HEADER_PAD_Y: i8 = 11;
 /// 본문 상단 여백. 디자인 전사값 10 으로 그리드 밖이다(하단은 `spacing_sm`=8 로
 /// 비대칭 — 디자인 전사 그대로다).
 const CONTENT_PAD_TOP: i8 = 10;
-/// 헤더 아이템 가로 간격. 디자인 전사값 9 로 그리드 밖이다(`spacing_sm`=8 과 1px 차).
-const HEADER_GAP_X: LogicalPx = LogicalPx(9.0);
 
 const KNOWN_TYPES: &[&str] = &["ssh", "smb", "http"];
 
@@ -320,14 +316,7 @@ pub fn draw_remote_tool_popup(
     ui.spacing_mut().item_spacing.y = 0.0;
     let sep = egui::Stroke::new(th.border_width.value(), th.border_strong());
 
-    let header_ir = egui::Frame::NONE
-        .inner_margin(egui::Margin {
-            left: PANEL_PAD_L,
-            right: th.spacing_md.value() as i8,
-            top: HEADER_PAD_Y,
-            bottom: HEADER_PAD_Y,
-        })
-        .show(ui, |ui| draw_header(ui, &th));
+    let header_ir = draw_header_band(ui, &th);
     if header_ir.inner {
         close = true;
     }
@@ -451,6 +440,19 @@ fn paint_edge_fade(ui: &egui::Ui, th: &Theme, rect: egui::Rect, edge: FadeEdge) 
     ui.painter().add(egui::Shape::mesh(mesh));
 }
 
+/// 헤더 구역: 위아래 `spacing_md`, 왼쪽 `PANEL_PAD_L`, 오른쪽 `spacing_md` 여백 안에 헤더 줄을 그린다.
+/// 닫기를 눌렀으면 inner가 true다.
+fn draw_header_band(ui: &mut egui::Ui, th: &Theme) -> egui::InnerResponse<bool> {
+    egui::Frame::NONE
+        .inner_margin(egui::Margin {
+            left: PANEL_PAD_L,
+            right: th.spacing_md.value() as i8,
+            top: th.spacing_md.value() as i8,
+            bottom: th.spacing_md.value() as i8,
+        })
+        .show(ui, |ui| draw_header(ui, th))
+}
+
 fn draw_header(ui: &mut egui::Ui, th: &Theme) -> bool {
     let mut close = false;
     // 헤더 글자 선택이 창 드래그를 가로채지 않도록 헤더 안에서만 텍스트 선택을 끈다.
@@ -458,7 +460,7 @@ fn draw_header(ui: &mut egui::Ui, th: &Theme) -> bool {
     ui.horizontal(|ui| {
         // 폰트의 실제 높이가 디자인 헤더보다 낮아 최소 높이와 보더 여유를 확보한다.
         ui.set_min_height(th.remote_tool_header_min_height().value());
-        ui.spacing_mut().item_spacing.x = HEADER_GAP_X.value();
+        ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
         ui.add(icons::TERMINAL_PROMPT.image(th.icon_glyph_size_md.value(), th.text_muted().into()));
         ui.label(
             egui::RichText::new(t("remote_tool.heading"))
@@ -2896,5 +2898,72 @@ mod tests {
         pass(&mut state, &mut st, events);
         assert!(!ctx.memory(|m| m.is_popup_open(filter)), "필터가 닫힌다");
         assert!(tool_open(&state, iid), "팝업은 열린 채다");
+    }
+
+    /// 헤더 구역과 헤더 줄만 따로 그려 둘의 사각형과 도형을 돌려준다. 두 번 그려 글자 배치를 확정한다.
+    fn painted_header() -> (egui::Rect, egui::Rect, Vec<egui::epaint::Shape>) {
+        let ctx = egui::Context::default();
+        let th = theme::theme();
+        let (mut band, mut row) = (egui::Rect::NOTHING, egui::Rect::NOTHING);
+        let mut shapes = Vec::new();
+        for _ in 0..2 {
+            let full = ctx.run(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE)
+                    .show(ctx, |ui| {
+                        band = draw_header_band(ui, &th).response.rect;
+                        row = ui.scope(|ui| draw_header(ui, &th)).response.rect;
+                    });
+            });
+            shapes.clear();
+            for clipped in full.shapes {
+                flatten(clipped.shape, &mut shapes);
+            }
+        }
+        (band, row, shapes)
+    }
+
+    fn flatten(shape: egui::epaint::Shape, out: &mut Vec<egui::epaint::Shape>) {
+        match shape {
+            egui::epaint::Shape::Vec(v) => {
+                for s in v {
+                    flatten(s, out);
+                }
+            }
+            other => out.push(other),
+        }
+    }
+
+    /// 헤더 구역은 헤더 줄 위아래에 `spacing_md` 를 둔다.
+    #[test]
+    fn the_header_band_pads_the_row_by_space_md_above_and_below() {
+        let th = theme::theme();
+        let (band, row, _) = painted_header();
+        let pad = th.spacing_md.value();
+        assert!(
+            (band.height() - row.height() - 2.0 * pad).abs() < 0.5,
+            "헤더 구역 {band:?} 높이가 헤더 줄 {row:?} 높이 + spacing_md {pad} × 2 가 아니다"
+        );
+    }
+
+    /// 헤더 아이콘과 제목 사이는 `spacing_sm` 이다. 아이콘은 `icon_glyph_size_md` 정사각형으로 자리를 잡는다.
+    #[test]
+    fn the_header_title_sits_space_sm_after_the_icon() {
+        let th = theme::theme();
+        let (band, _, shapes) = painted_header();
+        let heading = t("remote_tool.heading");
+        let title = shapes
+            .iter()
+            .find_map(|s| match s {
+                egui::epaint::Shape::Text(t) if t.galley.text() == heading => Some(t),
+                _ => None,
+            })
+            .expect("헤더 제목 글자 도형이 없다");
+        let icon_right = band.left() + f32::from(PANEL_PAD_L) + th.icon_glyph_size_md.value();
+        let gap = title.pos.x + title.galley.rect.left() - icon_right;
+        assert!(
+            (gap - th.spacing_sm.value()).abs() < 0.5,
+            "아이콘 오른쪽 {icon_right} 과 제목 사이 {gap} 가 spacing_sm 이 아니다"
+        );
     }
 }

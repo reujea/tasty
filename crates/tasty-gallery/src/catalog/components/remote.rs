@@ -139,7 +139,8 @@ const LOCAL_HOSTS: &[LocalSshHost<'static>] = &[
 pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
         kit::frame_card(ui, theme, WIDTH, kit::panel_fill(theme), |ui| {
-            kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
+            // 본체 헤더 구역처럼 위아래 여백은 spacing_md 다.
+            kit::region_sym(ui, theme.spacing_md, theme.spacing_md, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
                     kit::icon(
@@ -413,7 +414,8 @@ pub fn draw_attach(ui: &mut egui::Ui, theme: &Theme) {
 }
 
 fn attach_header(ui: &mut egui::Ui, theme: &Theme) {
-    kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
+    // 본체 헤더 구역처럼 위아래 여백은 spacing_md 다.
+    kit::region_sym(ui, theme.spacing_md, theme.spacing_md, |ui| {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
             kit::icon(
