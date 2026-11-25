@@ -13,6 +13,10 @@ pub(crate) fn attach_windows_console_if_needed() {
         use windows::Win32::System::Console::{ATTACH_PARENT_PROCESS, AttachConsole};
         // SAFETY: 유효한 ATTACH_PARENT_PROCESS 상수로 부모 콘솔 연결을 요청한다.
         unsafe {
+            #[expect(
+                clippy::let_underscore_must_use,
+                reason = "Launching without a parent console (for example from Explorer) makes this call fail, which is expected."
+            )]
             let _ = AttachConsole(ATTACH_PARENT_PROCESS); // 부모 콘솔이 없을 수 있어 연결 실패는 무시한다.
         }
     }
