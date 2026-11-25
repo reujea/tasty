@@ -348,8 +348,9 @@ impl PlatformWebView {
                     .AddWebResourceRequestedFilter(w!("*"), COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL)
                     .map_err(|e| transient(format!("AddWebResourceRequestedFilter failed: {e}")))?;
             }
-            // 예약 호스트 요청은 이 view에서 로컬로 응답한다. `SetResponse`가 실패한 요청만 이름 해석으로
-            // 넘어가 실패한다(entry·HTTP view는 자기 경로가 맡는다).
+            // 예약 호스트 요청은 이 view에서 로컬로 응답한다. 요청 정보 조회(Request·Uri·Method·
+            // ResourceContext)나 `SetResponse`가 실패하면 응답 없이 빠져나가 이름 해석으로 넘어가고, 그
+            // 해석은 실패한다(entry·HTTP view는 자기 경로가 맡는다).
             let host_responder = if http.is_none() && entry_source.is_none() {
                 match host_document::install(&webview, &env) {
                     Ok(responder) => Some(Rc::new(responder)),

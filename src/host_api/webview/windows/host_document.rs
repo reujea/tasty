@@ -1,6 +1,7 @@
 //! host 전용 주소(`super::super::host_document`)의 WebView2 배선: 예약 호스트 필터, 응답, 새 창 차단.
-//! 예약 호스트 요청은 여기서 로컬로 응답한다. 응답을 넘기는 `SetResponse`가 실패한 요청만 이름 해석으로
-//! 넘어갈 수 있고, `.invalid`라 해석은 실패한다. 판정과 본문 표는 OS 무관 모듈에 있다.
+//! 예약 호스트 요청은 여기서 로컬로 응답한다. 다만 요청 정보(`Request`·`Uri`·`Method`·`ResourceContext`)
+//! 조회나 `SetResponse`가 실패하면 응답을 설정하지 못한 채 빠져나가, 그 요청은 이름 해석으로 넘어갈 수
+//! 있고 `.invalid`라 해석은 실패한다. 판정과 본문 표는 OS 무관 모듈에 있다.
 
 use std::cell::{Cell, RefCell};
 use std::sync::Arc;
