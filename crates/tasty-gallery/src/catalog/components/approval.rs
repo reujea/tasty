@@ -24,10 +24,11 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         // 범위를 덮지 않아(scrim 없음) 떠 있는 표면의 popover 그림자를 쓴다. 테두리는 본체 팝업 공용
         // 셸과 같은 border-frame이다.
         let edge = theme.border_frame().to_egui();
+        // 바깥 폭이 approval-width다(border-box).
         kit::frame_card_popover_edge(
             ui,
             theme,
-            theme.approval_width(),
+            kit::border_box_inner(theme, theme.approval_width()),
             kit::panel_fill(theme),
             edge,
             |ui| {

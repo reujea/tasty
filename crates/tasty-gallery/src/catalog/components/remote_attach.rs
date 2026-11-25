@@ -456,10 +456,10 @@ fn ra_card(ui: &mut egui::Ui, theme: &Theme, state: RaState) {
         // 본체와 같은 중앙 팝업이므로 modal 그림자를 적용한다.
         .shadow(theme.shadow_modal().to_egui())
         .show(ui, |ui| {
-            ui.set_width(theme.remote_picker_width().value());
+            ui.set_width(inner_w(theme).value());
             ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
             ui.vertical(|ui| {
-                ui.set_width(theme.remote_picker_width().value());
+                ui.set_width(inner_w(theme).value());
                 ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
                 header(ui, theme);
                 body(ui, theme, state);
@@ -470,7 +470,7 @@ fn ra_card(ui: &mut egui::Ui, theme: &Theme, state: RaState) {
 
 fn header(ui: &mut egui::Ui, theme: &Theme) {
     let (rect, _) = ui.allocate_exact_size(
-        egui::vec2(theme.remote_picker_width().value(), HEADER_H.value()),
+        egui::vec2(inner_w(theme).value(), HEADER_H.value()),
         egui::Sense::hover(),
     );
     ui.painter().hline(
@@ -514,15 +514,20 @@ fn header(ui: &mut egui::Ui, theme: &Theme) {
     });
 }
 
-/// 창 높이에서 고정 헤더·푸터를 뺀 본문 높이.
+/// 카드 안쪽 폭. 바깥 폭이 remote-picker-width다(border-box).
+fn inner_w(theme: &Theme) -> LogicalPx {
+    kit::border_box_inner(theme, theme.remote_picker_width())
+}
+
+/// 카드 안쪽 높이에서 고정 헤더·푸터를 뺀 본문 높이. 바깥 높이가 remote-picker-height다(border-box).
 fn body_h(theme: &Theme) -> LogicalPx {
-    theme.remote_picker_height().minus(HEADER_H).minus(FOOTER_H)
+    kit::border_box_inner(theme, theme.remote_picker_height()) - HEADER_H - FOOTER_H
 }
 
 fn body(ui: &mut egui::Ui, theme: &Theme, state: RaState) {
     let body_h = body_h(theme);
     let (rect, _) = ui.allocate_exact_size(
-        egui::vec2(theme.remote_picker_width().value(), body_h.value()),
+        egui::vec2(inner_w(theme).value(), body_h.value()),
         egui::Sense::hover(),
     );
     let left = egui::Rect::from_min_size(rect.min, egui::vec2(LEFT_W.value(), body_h.value()));
@@ -546,7 +551,7 @@ fn body(ui: &mut egui::Ui, theme: &Theme, state: RaState) {
 
 fn footer(ui: &mut egui::Ui, theme: &Theme, state: RaState) {
     let (rect, _) = ui.allocate_exact_size(
-        egui::vec2(theme.remote_picker_width().value(), FOOTER_H.value()),
+        egui::vec2(inner_w(theme).value(), FOOTER_H.value()),
         egui::Sense::hover(),
     );
     ui.painter().hline(

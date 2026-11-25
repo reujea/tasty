@@ -106,13 +106,15 @@ const ROWS: &[PortRow] = &[
 
 pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
+        // 바깥 크기가 ports-window-width × ports-window-height다(border-box).
         kit::frame_card(
             ui,
             theme,
-            theme.ports_window_width(),
+            kit::border_box_inner(theme, theme.ports_window_width()),
             kit::panel_fill(theme),
             |ui| {
-                let bottom = ui.cursor().top() + theme.ports_window_height().value();
+                let bottom = LogicalPx(ui.cursor().top())
+                    + kit::border_box_inner(theme, theme.ports_window_height());
                 kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
@@ -189,7 +191,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 // 아래 패널로 먼저 잡고 남는 높이를 표에 준다.
                 let rest = egui::Rect::from_min_max(
                     ui.cursor().min,
-                    egui::pos2(ui.max_rect().right(), bottom),
+                    egui::pos2(ui.max_rect().right(), bottom.value()),
                 );
                 ui.scope_builder(egui::UiBuilder::new().max_rect(rest), |ui| {
                     egui::TopBottomPanel::bottom("gallery.ports.footer")

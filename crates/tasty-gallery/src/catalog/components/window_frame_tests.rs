@@ -1,6 +1,7 @@
 //! 승인·포트·원격 표본 창이 정본처럼 크기 토큰으로 그려지는지 잰다.
 
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 
 /// `draw`를 넓은 열에서 한 번 그리고 채움이 `fill`이고 테두리가 `edge`인 사각형 크기를 모은다.
 fn frame_sizes(
@@ -43,10 +44,9 @@ fn frame_sizes(
     sizes
 }
 
-/// 프레임 사각형은 내용 크기에 양쪽 테두리를 더한 크기다.
-fn framed(theme: &Theme, w: f32, h: Option<f32>) -> (f32, Option<f32>) {
-    let b = 2.0 * theme.border_width.value();
-    (w + b, h.map(|h| h + b))
+/// 프레임 사각형은 테두리를 포함한 바깥 크기다. 정본은 border-box라 창 토큰이 곧 바깥 크기다.
+fn outer(w: LogicalPx, h: Option<LogicalPx>) -> (f32, Option<f32>) {
+    (w.value(), h.map(LogicalPx::value))
 }
 
 fn assert_has_frame(sizes: &[egui::Vec2], (w, h): (f32, Option<f32>), what: &str) {
@@ -65,11 +65,7 @@ fn the_approval_sample_is_approval_width_wide() {
         th.bg_panel().to_egui(),
         th.border_frame().to_egui(),
     );
-    assert_has_frame(
-        &sizes,
-        framed(&th, th.approval_width().value(), None),
-        "approval",
-    );
+    assert_has_frame(&sizes, outer(th.approval_width(), None), "approval");
 }
 
 /// 포트 표본 창은 정본 PortsFrame처럼 ports-window-width × ports-window-height다.
@@ -81,11 +77,7 @@ fn the_ports_sample_window_is_the_ports_window_size() {
         th.bg_panel().to_egui(),
         th.border_strong().to_egui(),
     );
-    let want = framed(
-        &th,
-        th.ports_window_width().value(),
-        Some(th.ports_window_height().value()),
-    );
+    let want = outer(th.ports_window_width(), Some(th.ports_window_height()));
     assert_has_frame(&sizes, want, "ports");
 }
 
@@ -98,10 +90,6 @@ fn the_remote_attach_sample_window_is_the_remote_picker_size() {
         th.bg_panel().to_egui(),
         th.border_strong().to_egui(),
     );
-    let want = framed(
-        &th,
-        th.remote_picker_width().value(),
-        Some(th.remote_picker_height().value()),
-    );
+    let want = outer(th.remote_picker_width(), Some(th.remote_picker_height()));
     assert_has_frame(&sizes, want, "remote attach");
 }

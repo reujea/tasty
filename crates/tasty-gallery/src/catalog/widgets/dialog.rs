@@ -154,6 +154,12 @@ fn frame_card_with_shadow(
 
 /// 카드 프레임 안에 `width` 폭의 세로 본문을 그린다. 콘텐츠 영역이 각자 여백을 가지므로
 /// item_spacing 은 0이다.
+/// 정본은 border-box라 창 크기 토큰이 테두리를 포함한 바깥 길이다. 프레임 카드는 받은 폭을 안쪽에
+/// 쓰므로 바깥 길이 `outer`에서 양쪽 테두리를 뺀 안쪽 길이를 넘긴다.
+pub fn border_box_inner(theme: &Theme, outer: LogicalPx) -> LogicalPx {
+    outer - theme.border_width * 2.0
+}
+
 fn show_card(
     ui: &mut egui::Ui,
     frame: egui::Frame,
