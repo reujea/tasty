@@ -340,6 +340,7 @@ fn list_region(ui: &mut egui::Ui, theme: &Theme, add: impl FnOnce(&mut egui::Ui)
     let x = theme.remote_pad_x().value() as i8;
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
+        .drag_to_scroll(false)
         .show(ui, |ui| kit::region(ui, egui::Margin::symmetric(x, 0), add));
 }
 
