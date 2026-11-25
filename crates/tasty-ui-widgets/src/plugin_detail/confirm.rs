@@ -277,14 +277,13 @@ fn buttons(
         busy_caption(ui, theme, word, theme.icon_glyph_size_sm.value());
     }
     let enabled = view.busy.is_none();
+    // 초기 포커스는 할당 직후 요청해 첫 표시 패스에 링이 있다.
     let cancel = Button::new(view.cancel)
         .variant(ButtonVariant::Ghost)
         .enabled(enabled)
-        .show(ui, theme);
-    if focus {
-        cancel.request_focus();
-    }
-    let cancel = cancel.clicked();
+        .request_focus(focus)
+        .show(ui, theme)
+        .clicked();
     let uninstall = Button::new(view.uninstall)
         .variant(ButtonVariant::Danger)
         .enabled(enabled)

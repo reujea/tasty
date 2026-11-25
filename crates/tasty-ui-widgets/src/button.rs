@@ -75,6 +75,10 @@ pub struct Button<'a> {
     danger_ink: bool,
     /// 놓인 바탕. raised 위 ghost는 글자가 button-ghost-raised-fg다. 다른 variant는 같다.
     ground: crate::Ground,
+    /// 키보드 포커스 링을 버튼이 직접 그린다(기본). 링을 다른 조건으로 그리는 호출자는 끈다.
+    focus_ring: bool,
+    /// 할당 직후 이 버튼에 egui 포커스를 요청한다(초기 포커스). 같은 패스에 링이 그려진다.
+    request_focus: bool,
 }
 
 impl<'a> Button<'a> {
@@ -90,7 +94,21 @@ impl<'a> Button<'a> {
             trailing_icon: None,
             danger_ink: false,
             ground: crate::Ground::Panel,
+            focus_ring: true,
+            request_focus: false,
         }
+    }
+
+    /// 키보드 포커스 링을 그릴지(기본 참). 접힌 팝업처럼 링 조건이 다른 호출자가 끈다.
+    pub fn focus_ring(mut self, focus_ring: bool) -> Self {
+        self.focus_ring = focus_ring;
+        self
+    }
+
+    /// 참이면 이번 패스에 버튼을 할당하자마자 egui 포커스를 요청한다. 링 판정보다 앞이라 첫 표시 패스에 링이 있다.
+    pub fn request_focus(mut self, request: bool) -> Self {
+        self.request_focus = request;
+        self
     }
 
     /// 놓인 바탕(시안 `ground`). surface-raised 카드 위 ghost는 `Ground::Raised`.
@@ -229,6 +247,9 @@ impl<'a> Button<'a> {
             egui::Sense::hover()
         };
         let (rect, resp) = ui.allocate_exact_size(egui::vec2(desired_w, height), sense);
+        if self.request_focus && self.enabled {
+            resp.request_focus();
+        }
 
         // 포커스된 버튼에서 Space·Enter를 누르고 있는 동안도 포인터 누름과 같은 눌림 상태다.
         let pressed = resp.is_pointer_button_down_on()
@@ -364,6 +385,18 @@ impl<'a> Button<'a> {
                 egui::vec2(icon_glyph, icon_glyph),
             );
             paint(ui, irect, icon_col);
+        }
+
+        // 키보드 포커스: 상자에서 focus-ring-offset 띄운 컨트롤 링(정본 base.css `:focus-visible`), 색은 바탕으로 정한다.
+        if self.focus_ring && crate::focus_ring::shows_focus(ui, &resp, self.enabled) {
+            crate::focus_ring::paint_control_ring(
+                ui.painter(),
+                theme,
+                rect,
+                radius,
+                crate::focus_ring::control_ring_gap(theme),
+                crate::focus_ring::control_ring_color(theme, self.ground),
+            );
         }
 
         resp

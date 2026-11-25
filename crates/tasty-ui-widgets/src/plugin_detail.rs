@@ -199,11 +199,13 @@ fn meta_unit(
         .interact(item_rect, link_id, egui::Sense::click())
         .on_hover_cursor(egui::CursorIcon::PointingHand);
     if resp.has_focus() {
-        ui.painter().rect_stroke(
+        crate::focus_ring::paint_control_ring(
+            ui.painter(),
+            theme,
             item_rect,
             theme.corner_radius_sm.value(),
-            egui::Stroke::new(theme.focus_ring_width.value(), theme.border_focus()),
-            egui::StrokeKind::Outside,
+            crate::focus_ring::control_ring_gap(theme),
+            theme.border_focus().to_egui(),
         );
     }
     resp.clicked()

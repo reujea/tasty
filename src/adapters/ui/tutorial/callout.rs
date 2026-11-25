@@ -305,14 +305,15 @@ pub fn draw_callout(
                         } else {
                             t("tutorial.btn_next")
                         };
+                        // 초기 포커스는 할당 직후 요청해 첫 표시 패스에 링이 있다.
+                        let focus_next =
+                            props.keyboard_focus && ui.memory(|m| m.focused().is_none());
                         let next = Button::new(label)
                             .variant(ButtonVariant::Primary)
                             .size(ControlSize::Sm)
                             .enabled(props.ready)
+                            .request_focus(focus_next)
                             .show(ui, theme);
-                        if props.keyboard_focus && ui.memory(|m| m.focused().is_none()) {
-                            next.request_focus();
-                        }
                         if next.clicked() {
                             action = CalloutClick::Next;
                         }

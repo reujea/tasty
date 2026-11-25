@@ -218,10 +218,14 @@ pub fn paint_collapsed_popup(
         .scope_builder(egui::UiBuilder::new().max_rect(inner), |ui| {
             ui.set_clip_rect(clip.intersect(ui.clip_rect()));
             match placed.form {
-                CollapsedForm::Label => label_button(look.label, theme, &icon).show(ui, theme),
+                // 링은 아래에서 `look.ring`(사용자가 연 팝업의 키 포커스)일 때만 그린다.
+                CollapsedForm::Label => label_button(look.label, theme, &icon)
+                    .focus_ring(false)
+                    .show(ui, theme),
                 _ => IconButton::new()
                     .variant(IconButtonVariant::Solid)
                     .size(ControlSize::Md)
+                    .focus_ring(false)
                     .show(ui, theme, &icon),
             }
         })

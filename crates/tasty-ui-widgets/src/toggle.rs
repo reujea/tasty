@@ -194,6 +194,17 @@ fn draw_checkbox(
         rect.center().y - galley.rect.height() * 0.5,
     );
     ui.painter().galley(label_pos, galley, ink(label_fg));
+    // 키보드 포커스: 상자에서 focus-ring-offset 띄운 컨트롤 링(정본 Checkbox.jsx:24·27), 색은 바탕으로 정한다.
+    if crate::focus_ring::shows_focus(ui, &resp, enabled) {
+        crate::focus_ring::paint_control_ring(
+            ui.painter(),
+            theme,
+            box_rect,
+            radius,
+            crate::focus_ring::control_ring_gap(theme),
+            crate::focus_ring::control_ring_color(theme, ground),
+        );
+    }
     resp
 }
 
@@ -332,6 +343,17 @@ fn draw_switch(
     if let Some(g) = galley {
         let pos = egui::pos2(track.right() + gap, rect.center().y - g.rect.height() * 0.5);
         ui.painter().galley(pos, g, ink(label_color));
+    }
+    // 키보드 포커스: 트랙에서 2px 띄운 링(정본 Switch.jsx:28). 트랙은 panel·raised 바탕이라 border-focus다.
+    if crate::focus_ring::shows_focus(ui, &resp, enabled) {
+        crate::focus_ring::paint_control_ring(
+            ui.painter(),
+            theme,
+            track,
+            track_h * 0.5,
+            crate::focus_ring::switch_ring_gap(theme),
+            theme.border_focus().to_egui(),
+        );
     }
     resp
 }

@@ -23,6 +23,8 @@ pub struct IconButton {
     active: bool,
     enabled: bool,
     ground: crate::Ground,
+    /// 키보드 포커스 링을 버튼이 직접 그린다(기본). 링을 다른 조건으로 그리는 호출자는 끈다.
+    focus_ring: bool,
 }
 
 impl Default for IconButton {
@@ -33,6 +35,7 @@ impl Default for IconButton {
             active: false,
             enabled: true,
             ground: crate::Ground::Panel,
+            focus_ring: true,
         }
     }
 }
@@ -66,6 +69,12 @@ impl IconButton {
     /// 놓인 바탕. 선택 행 위에서는 `Ground::Active`를 넘긴다.
     pub fn ground(mut self, ground: crate::Ground) -> Self {
         self.ground = ground;
+        self
+    }
+
+    /// 키보드 포커스 링을 그릴지(기본 참). 접힌 팝업처럼 링 조건이 다른 호출자가 끈다.
+    pub fn focus_ring(mut self, focus_ring: bool) -> Self {
+        self.focus_ring = focus_ring;
         self
     }
 
@@ -119,6 +128,17 @@ impl IconButton {
         let glyph = self.size.icon_glyph(theme);
         let icon_rect = egui::Rect::from_center_size(rect.center(), egui::vec2(glyph, glyph));
         paint_icon(ui, icon_rect, color);
+        // 키보드 포커스: 상자에서 focus-ring-offset 띄운 컨트롤 링, 색은 바탕으로 정한다(정본 IconButton.jsx:32).
+        if self.focus_ring && crate::focus_ring::shows_focus(ui, &resp, self.enabled) {
+            crate::focus_ring::paint_control_ring(
+                ui.painter(),
+                theme,
+                rect,
+                radius,
+                crate::focus_ring::control_ring_gap(theme),
+                crate::focus_ring::control_ring_color(theme, self.ground),
+            );
+        }
         resp
     }
 }

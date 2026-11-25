@@ -294,11 +294,13 @@ fn homepage_link(ui: &mut egui::Ui, theme: &Theme, url: &str) -> egui::Response 
     ui.painter()
         .galley(rect.min, layout(color.to_egui()), color.to_egui());
     if resp.has_focus() {
-        ui.painter().rect_stroke(
+        crate::focus_ring::paint_control_ring(
+            ui.painter(),
+            theme,
             rect,
             theme.corner_radius_sm.value(),
-            egui::Stroke::new(theme.focus_ring_width.value(), theme.border_focus()),
-            egui::StrokeKind::Outside,
+            crate::focus_ring::control_ring_gap(theme),
+            theme.border_focus().to_egui(),
         );
     }
     resp
@@ -472,14 +474,13 @@ pub fn plugin_add_bar(
                                 .show(ui, theme)
                                 .clicked();
                         }
-                        let cancel = Button::new(view.cancel)
+                        // 초기 포커스는 할당 직후 요청해 첫 표시 패스에 링이 있다.
+                        clicks.cancel = Button::new(view.cancel)
                             .variant(ButtonVariant::Ghost)
                             .enabled(!view.busy)
-                            .show(ui, theme);
-                        if view.focus_cancel && !view.busy {
-                            cancel.request_focus();
-                        }
-                        clicks.cancel = cancel.clicked();
+                            .request_focus(view.focus_cancel && !view.busy)
+                            .show(ui, theme)
+                            .clicked();
                         if view.busy {
                             ui.with_layout(
                                 egui::Layout::left_to_right(egui::Align::Center),

@@ -141,14 +141,6 @@ fn nav(
         .show(ui, theme, &|ui, rect, color| {
             icon.image(rect.height(), color).paint_at(ui, rect);
         });
-    if resp.has_focus() {
-        ui.painter().rect_stroke(
-            resp.rect,
-            theme.icon_button_radius().value(),
-            egui::Stroke::new(theme.focus_ring_width.value(), theme.border_focus()),
-            egui::StrokeKind::Outside,
-        );
-    }
     if tooltip_hover_delay_elapsed(ui.ctx(), theme, resp.id, resp.hovered()) {
         Tooltip::new(label)
             .placement(TooltipPlacement::Top)

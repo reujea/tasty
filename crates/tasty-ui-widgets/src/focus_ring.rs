@@ -98,6 +98,17 @@ pub fn pinned_focus<R>(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui) ->
     out
 }
 
+/// 컨트롤이 포커스 링을 그릴지. 활성 컨트롤이 실제 egui 포커스를 가졌거나 [`pinned_focus`] 안이다.
+pub(crate) fn shows_focus(ui: &egui::Ui, resp: &egui::Response, enabled: bool) -> bool {
+    enabled
+        && (resp.has_focus()
+            || ui
+                .ctx()
+                .data(|d| d.get_temp::<u32>(pinned_focus_id()))
+                .unwrap_or(0)
+                > 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

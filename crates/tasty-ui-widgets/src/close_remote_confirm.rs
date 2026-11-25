@@ -104,12 +104,11 @@ pub fn close_remote_confirm(
                 {
                     out.confirm = true;
                 }
+                // 초기 포커스는 할당 직후 요청해 첫 표시 패스에 링이 있다.
                 let cancel = Button::new(view.cancel)
                     .variant(ButtonVariant::Ghost)
+                    .request_focus(view.focus_cancel)
                     .show(ui, theme);
-                if view.focus_cancel {
-                    cancel.request_focus();
-                }
                 if cancel.clicked() {
                     out.cancel = true;
                 }
