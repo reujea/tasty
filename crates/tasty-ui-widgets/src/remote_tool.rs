@@ -69,7 +69,28 @@ pub fn ghost_button(ui: &mut egui::Ui, th: &Theme, label: &str) -> egui::Respons
 /// 경고 배지 — 시안 `WarnBadge`. 경고 글리프(icon-glyph-xs)와 font-label micro 글자를 담은 pill이며
 /// 높이·좌우 여백·간격·모서리는 Tag 토큰, 채움은 accent-warning × `tint-fill-alpha`,
 /// 테두리는 Tag 상태 테두리와 같은 40%다. `text`·`tooltip` 은 호출자가 번역해 넘긴다.
+/// base 바탕(목록 행)용이다. raised 프로토콜 필터 메뉴 안은 글리프 잉크만 다르다.
 pub fn warn_badge(ui: &mut egui::Ui, th: &Theme, text: &str, tooltip: &str) -> egui::Response {
+    warn_badge_on(ui, th, text, tooltip, false)
+}
+
+/// 경고 배지 글리프 잉크 — 시안 `WarnBadge`의 glyph-warning 칸. base 바탕은 accent-warning-glyph,
+/// raised 메뉴는 accent-warning-raised다. 글자는 바탕과 관계없이 text-warning 칸(tag-warning-fg)이다.
+fn warn_badge_glyph_ink(th: &Theme, raised: bool) -> tasty_type_appearance::color::HexColor {
+    if raised {
+        th.accent_warning_raised()
+    } else {
+        th.accent_warning_glyph()
+    }
+}
+
+fn warn_badge_on(
+    ui: &mut egui::Ui,
+    th: &Theme,
+    text: &str,
+    tooltip: &str,
+    raised: bool,
+) -> egui::Response {
     let warn = th.accent_warning().to_egui();
     let galley = warn_badge_galley(ui, th, text);
     let (pad_x, glyph, gap) = warn_badge_metrics(th);
@@ -94,7 +115,7 @@ pub fn warn_badge(ui: &mut egui::Ui, th: &Theme, text: &str, tooltip: &str) -> e
     );
     let ink = th.tag_warning_fg().to_egui();
     tasty_icons::ALERT_TRIANGLE
-        .image(glyph, ink)
+        .image(glyph, warn_badge_glyph_ink(th, raised).to_egui())
         .paint_at(ui, glyph_rect);
     let pos = egui::pos2(
         glyph_rect.right() + gap,
@@ -687,7 +708,7 @@ pub fn draw_protocol_filter_body(
                             }
                         }
                         if item.unknown {
-                            warn_badge(ui, th, labels.unknown, labels.unknown_hint);
+                            warn_badge_on(ui, th, labels.unknown, labels.unknown_hint, true);
                         }
                     });
                 }
@@ -768,4 +789,41 @@ fn filter_link(ui: &mut egui::Ui, th: &Theme, label: &str) -> egui::Response {
         .sense(egui::Sense::click()),
     )
     .on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn latte() -> Theme {
+        let file = tasty_themes::ThemeFile::parse(tasty_themes::LATTE_TOML_TEXT).expect("latte");
+        let (partial, is_light) = file.to_partial();
+        let mut colors = tasty_themes::mocha_fallback_colors();
+        colors.apply_partial(&partial);
+        Theme::with_colors(colors, is_light.unwrap_or(true))
+    }
+
+    /// 경고 배지 글리프는 base 행에서 accent-warning-glyph, raised 필터 메뉴에서 accent-warning-raised다.
+    /// Mocha는 두 값이 같아 Latte에서 갈리는지 먼저 본다.
+    #[test]
+    fn warn_badge_glyph_ink_follows_its_host() {
+        let latte = latte();
+        assert_ne!(
+            latte.accent_warning_glyph(),
+            latte.accent_warning_raised(),
+            "Latte must separate the two glyph inks"
+        );
+        for th in [tasty_themes::mocha_fallback(), latte] {
+            assert_eq!(
+                warn_badge_glyph_ink(&th, false),
+                th.accent_warning_glyph(),
+                "base row glyph"
+            );
+            assert_eq!(
+                warn_badge_glyph_ink(&th, true),
+                th.accent_warning_raised(),
+                "raised menu glyph"
+            );
+        }
+    }
 }
