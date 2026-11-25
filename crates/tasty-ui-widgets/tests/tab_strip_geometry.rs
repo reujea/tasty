@@ -7,7 +7,11 @@ use tasty_ui_widgets::{TabStripData, draw_tab_strip};
 const LABELS: [&str; 3] = ["Remote profiles", "Attach", "Passkeys"];
 
 fn theme() -> Theme {
-    Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0)
+    theme_at(1.0)
+}
+
+fn theme_at(zoom: f32) -> Theme {
+    Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, zoom)
 }
 
 /// 탭 줄을 두 번 그리고(첫 프레임은 글자 배치가 비어 있을 수 있다) 마지막 프레임의 도형을 평탄화한다.
@@ -114,6 +118,47 @@ fn neighbouring_tabs_are_remote_tab_gap_apart() {
             "탭 {:?} 와 {:?} 사이 {gap} 가 remote_tab_gap 이 아니다",
             pair[0],
             pair[1]
+        );
+    }
+}
+
+/// 탭 줄 바탕(bg_sidebar 채움) 사각형.
+fn bar(shapes: &[egui::Shape], th: &Theme) -> Rect {
+    let fill: egui::Color32 = th.bg_sidebar().into();
+    shapes
+        .iter()
+        .find_map(|s| match s {
+            egui::Shape::Rect(r) if r.fill == fill => Some(r.rect),
+            _ => None,
+        })
+        .expect("탭 줄 바탕이 없다")
+}
+
+/// 탭 줄 높이는 탭 높이 `remote_tab_height` 에 아래 구분선 `border_width` 를 더한 값이다(배율 1에서 36).
+#[test]
+fn the_tab_bar_is_remote_tab_height_plus_the_border_tall() {
+    for zoom in [0.85, 1.0, 1.2] {
+        let th = theme_at(zoom);
+        let height = bar(&painted(&th, 0), &th).height();
+        let want = (th.remote_tab_height() + th.border_width).value();
+        assert!(
+            (height - want).abs() < 0.5,
+            "배율 {zoom}: 탭 줄 높이 {height} 가 remote_tab_height + border_width = {want} 가 아니다"
+        );
+    }
+}
+
+/// 첫 탭은 탭 줄 왼쪽에서 `spacing_sm` 안쪽에서 시작한다(배율 1에서 8).
+#[test]
+fn the_first_tab_starts_space_sm_inside_the_bar() {
+    for zoom in [0.85, 1.0, 1.2] {
+        let th = theme_at(zoom);
+        let shapes = painted(&th, 0);
+        let left = underline(&shapes, &th).min - bar(&shapes, &th).left();
+        assert!(
+            (left - th.spacing_sm.value()).abs() < 0.5,
+            "배율 {zoom}: 첫 탭 왼쪽 여백 {left} 가 spacing_sm {} 가 아니다",
+            th.spacing_sm.value()
         );
     }
 }
