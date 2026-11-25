@@ -76,7 +76,11 @@ pub(crate) const COMPOSITE_NOTE: &str = "Popup closed: marker (glow ring) + spot
      pointer-events:none.";
 
 /// 합성 표본 무대 왼쪽 위에서 첫 단계 말풍선까지의 거리. tasty-page 합성 표본의 말풍선 위치(left 150, top 120)다.
-const COMPOSITE_CALLOUT_OFFSET: egui::Vec2 = egui::vec2(150.0, 120.0);
+const COMPOSITE_CALLOUT_X: LogicalPx = LogicalPx(150.0);
+const COMPOSITE_CALLOUT_Y: LogicalPx = LogicalPx(120.0);
+/// 합성 표본 무대의 최대 폭과 높이. 폭의 바닥은 토큰 tutorial-step-specimen-min-width다.
+const COMPOSITE_STAGE_MAX_W: LogicalPx = LogicalPx(520.0);
+const COMPOSITE_STAGE_H: LogicalPx = LogicalPx(340.0);
 
 /// 사이드바와 마커가 같은 경계를 쓰도록 예제의 폭 제한을 한 곳에서 계산한다.
 fn faux_sidebar_w(r: egui::Rect) -> f32 {
@@ -229,7 +233,7 @@ enum Tail {
     Right,
 }
 
-/// 안내 말풍선 프레임을 그린 뒤 지정한 방향에 꼬리 삼각형을 덧붙인다.
+/// 안내 말풍선 프레임을 그린 뒤 지정한 방향에 꼬리 삼각형을 덧붙인다. 꼬리까지 덮는 사각형을 돌려준다.
 #[allow(clippy::too_many_arguments)]
 fn callout(
     ui: &mut egui::Ui,
@@ -240,7 +244,7 @@ fn callout(
     title: &str,
     body: &str,
     first: bool,
-) {
+) -> egui::Rect {
     let resp = egui::Frame::new()
         .fill(theme.surface_raised().to_egui())
         .stroke(egui::Stroke::new(
@@ -312,11 +316,12 @@ fn callout(
             });
         });
 
-    paint_tail(ui.painter(), resp.response.rect, theme, tail);
+    let tail_rect = paint_tail(ui.painter(), resp.response.rect, theme, tail);
+    resp.response.rect.union(tail_rect)
 }
 
-/// 말풍선 꼬리. 본체와 맞닿는 변을 빼고 나머지 두 변에 테두리를 그린다.
-fn paint_tail(p: &egui::Painter, bubble: egui::Rect, theme: &Theme, tail: Tail) {
+/// 말풍선 꼬리. 본체와 맞닿는 변을 빼고 나머지 두 변에 테두리를 그린다. 꼬리 삼각형을 덮는 사각형을 돌려준다.
+fn paint_tail(p: &egui::Painter, bubble: egui::Rect, theme: &Theme, tail: Tail) -> egui::Rect {
     let fill = theme.surface_raised().to_egui();
     let stroke = egui::Stroke::new(theme.border_width.value(), theme.border_strong().to_egui());
     let h = TAIL / 2.0; // 삼각 높이 (돌출 길이).
@@ -362,6 +367,7 @@ fn paint_tail(p: &egui::Painter, bubble: egui::Rect, theme: &Theme, tail: Tail) 
     // 외곽 2변만 stroke (base 는 bubble 이 덮음).
     p.line_segment([a, apex], stroke);
     p.line_segment([apex, b], stroke);
+    egui::Rect::from_points(&[a, apex, b])
 }
 
 fn topic_row(
@@ -682,7 +688,7 @@ pub fn draw_marker(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 /// basics 주제의 `id` 단계를 본체 순서의 번호와 본체 문구로 그린다.
-fn basics_callout(ui: &mut egui::Ui, theme: &Theme, tail: Tail, id: &str) {
+fn basics_callout(ui: &mut egui::Ui, theme: &Theme, tail: Tail, id: &str) -> egui::Rect {
     let (i, step) = BASICS_STEPS
         .iter()
         .enumerate()
@@ -697,7 +703,7 @@ fn basics_callout(ui: &mut egui::Ui, theme: &Theme, tail: Tail, id: &str) {
         crate::i18n::t(step.title_key),
         crate::i18n::t(step.body_key),
         i == 0,
-    );
+    )
 }
 pub fn draw_callout(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
@@ -707,7 +713,9 @@ pub fn draw_callout(ui: &mut egui::Ui, theme: &Theme) {
             ("tail left", Tail::Left, "surface"),
             ("tail right · first step", Tail::Right, "workspace"),
         ] {
-            spec::cluster(ui, theme, label, |ui| basics_callout(ui, theme, tail, id));
+            spec::cluster(ui, theme, label, |ui| {
+                basics_callout(ui, theme, tail, id);
+            });
         }
     });
 
@@ -817,27 +825,48 @@ pub fn draw_topics(ui: &mut egui::Ui, theme: &Theme) {
 }
 pub fn draw_composite(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Solo, |ui| {
-        let w = LogicalPx(ui.available_width()).min(LogicalPx(520.0));
-        let stage = demo_box(ui, theme, w, LogicalPx(340.0), |p, r| {
-            paint_faux_app(p, r, theme);
-            paint_scrim(p, r, theme);
-            // 사이드바 폭이 줄어들어도 마커가 콘텐츠 경계에 맞도록 같은 계산을 쓴다.
-            let inset = theme.spacing_sm.value();
-            let m = egui::Rect::from_min_max(
-                egui::pos2(r.min.x + faux_sidebar_w(r) + inset, r.min.y + inset),
-                // 오른쪽 10px은 그림자가 잘리지 않도록 남기는 여백이다.
-                egui::pos2(r.max.x - 10.0, r.max.y - inset),
-            );
-            paint_marker(p, m, theme, true);
-        });
-        // 본체처럼 현재 단계(첫 단계) 번호와 basics 전체 단계 수를 말풍선에 넘긴다.
-        let at = stage.min + COMPOSITE_CALLOUT_OFFSET;
-        let mut child = ui.new_child(
-            egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(at, stage.max - at)),
-        );
-        basics_callout(&mut child, theme, Tail::Right, BASICS_STEPS[0].id);
+        composite_scroll(ui, theme);
     });
     spec::note(ui, theme, COMPOSITE_NOTE);
+}
+
+/// 합성 표본 무대 폭. 열 폭을 따르되 최대 폭을 넘지 않고, 말풍선과 꼬리가 들어가는 토큰 바닥 아래로
+/// 줄지 않는다.
+fn composite_stage_w(available: LogicalPx, theme: &Theme) -> LogicalPx {
+    available
+        .min(COMPOSITE_STAGE_MAX_W)
+        .max(theme.tutorial_step_specimen_min_width())
+}
+
+/// 열이 무대 바닥보다 좁으면 무대를 가로로 스크롤한다. (무대, 꼬리까지 덮는 말풍선) 사각형을 돌려준다.
+fn composite_scroll(ui: &mut egui::Ui, theme: &Theme) -> (egui::Rect, egui::Rect) {
+    // 가로 스크롤 안에서는 가용 폭이 무한이므로 열 폭을 스크롤 밖에서 읽는다.
+    let w = composite_stage_w(LogicalPx(ui.available_width()), theme);
+    egui::ScrollArea::horizontal()
+        .id_salt("tutorial-composite")
+        .show(ui, |ui| composite_stage(ui, theme, w))
+        .inner
+}
+
+fn composite_stage(ui: &mut egui::Ui, theme: &Theme, w: LogicalPx) -> (egui::Rect, egui::Rect) {
+    let stage = demo_box(ui, theme, w, COMPOSITE_STAGE_H, |p, r| {
+        paint_faux_app(p, r, theme);
+        paint_scrim(p, r, theme);
+        // 사이드바 폭이 줄어들어도 마커가 콘텐츠 경계에 맞도록 같은 계산을 쓴다.
+        let inset = theme.spacing_sm.value();
+        let m = egui::Rect::from_min_max(
+            egui::pos2(r.min.x + faux_sidebar_w(r) + inset, r.min.y + inset),
+            // 오른쪽 10px은 그림자가 잘리지 않도록 남기는 여백이다.
+            egui::pos2(r.max.x - 10.0, r.max.y - inset),
+        );
+        paint_marker(p, m, theme, true);
+    });
+    // 본체처럼 현재 단계(첫 단계) 번호와 basics 전체 단계 수를 말풍선에 넘긴다.
+    let at = stage.min + egui::vec2(COMPOSITE_CALLOUT_X.value(), COMPOSITE_CALLOUT_Y.value());
+    let mut child = ui
+        .new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(at, stage.max - at)));
+    let bubble = basics_callout(&mut child, theme, Tail::Right, BASICS_STEPS[0].id);
+    (stage, bubble)
 }
 
 #[cfg(test)]

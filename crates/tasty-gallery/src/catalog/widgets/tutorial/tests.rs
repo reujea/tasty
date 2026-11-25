@@ -192,3 +192,42 @@ fn composite_draws_the_first_basics_step_callout() {
     let title = crate::i18n::t(BASICS_STEPS[0].title_key);
     assert!(texts.iter().any(|t| t == title), "{title} 없음: {texts:?}");
 }
+
+/// 열 폭 `width`인 화면에서 합성 표본을 한 프레임 그려 (무대, 꼬리까지 덮는 말풍선) 사각형을 돌려준다.
+fn composite_rects(width: f32) -> (egui::Rect, egui::Rect) {
+    let theme = tasty_themes::mocha_fallback();
+    let ctx = egui::Context::default();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(width, 800.0),
+        )),
+        ..Default::default()
+    };
+    let mut rects = None;
+    let _frame = ctx.run(input, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            rects = Some(super::composite_scroll(ui, &theme));
+        });
+    });
+    rects.expect("합성 표본을 그렸다")
+}
+
+#[test]
+fn composite_stage_keeps_its_floor_and_holds_the_callout() {
+    let floor = tasty_themes::mocha_fallback()
+        .tutorial_step_specimen_min_width()
+        .value();
+    // 바닥보다 좁은 열: 무대는 바닥 폭이고(나머지는 가로 스크롤) 말풍선과 꼬리가 무대 안에 든다.
+    let (stage, bubble) = composite_rects(floor / 2.0);
+    assert_eq!(stage.width(), floor, "{stage:?}");
+    assert!(stage.contains_rect(bubble), "{stage:?} ⊅ {bubble:?}");
+    // 넓은 열: 무대는 최대 폭에서 멈춘다.
+    let (stage, bubble) = composite_rects(2000.0);
+    assert_eq!(
+        stage.width(),
+        super::COMPOSITE_STAGE_MAX_W.value(),
+        "{stage:?}"
+    );
+    assert!(stage.contains_rect(bubble), "{stage:?} ⊅ {bubble:?}");
+}
