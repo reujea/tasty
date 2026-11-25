@@ -844,6 +844,7 @@ fn composite_scroll(ui: &mut egui::Ui, theme: &Theme) -> (egui::Rect, egui::Rect
     let w = composite_stage_w(LogicalPx(ui.available_width()), theme);
     egui::ScrollArea::horizontal()
         .id_salt("tutorial-composite")
+        .drag_to_scroll(false)
         .show(ui, |ui| composite_stage(ui, theme, w))
         .inner
 }
