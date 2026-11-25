@@ -210,20 +210,20 @@ impl App {
                     Ok(v) => v,
                     Err(msg) => return Some(reject_bad_params(cmd, &msg)),
                 };
-                DebugInput::Pointer {
+                Some(DebugInput::Pointer {
                     fx,
                     fy,
                     surface_id,
                     action,
                     modifiers,
-                }
+                })
             }
             // TextEdit의 문자 입력은 키 이벤트와 별도의 Text 이벤트다.
             "debug.inject_egui_text" => {
                 let Some(text) = params.get("text").and_then(|v| v.as_str()) else {
                     return Some(reject_bad_params(cmd, "missing or non-string 'text'"));
                 };
-                DebugInput::Text(text.to_string())
+                Some(DebugInput::Text(text.to_string()))
             }
             // 메인 창의 키 주입은 창의 키처럼 입력 몫을 끊고 넣는다(`inject_key`).
             "debug.inject_egui_key" => match super::debug_egui_key::key_input(params) {
@@ -232,7 +232,11 @@ impl App {
             },
             _ => return None,
         };
-        let entered = self.enter_debug_input(focused_id, input)?;
+        let entered = match input {
+            Some(input) => self.enter_debug_input(focused_id, input)?,
+            // 매핑할 수 없는 키 이름(`debug_egui_key::key_input`)은 입구에 닿지 않는다.
+            None => crate::view::main::debug_input::DebugEntered::Done(false),
+        };
         let response = host_ipc::protocol::JsonRpcResponse::success(
             cmd.request.id.clone().unwrap_or(serde_json::Value::Null),
             echo(entered.body()),

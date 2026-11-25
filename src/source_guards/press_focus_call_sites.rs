@@ -268,14 +268,14 @@ fn a_debug_key_injection_cuts_the_segment_before_the_key() {
     );
     at(
         &code,
-        "letentered=self.enter_debug_input(focused_id,input)?;",
+        "Some(input)=>self.enter_debug_input(focused_id,input)?,",
         "App 주입 입구",
     );
     let input = read("src/view/main/debug_input.rs");
     let entry = squeeze(&fn_body(&input, "fn enter_debug_input(").expect("메인 창 주입 입구"));
     at(
         &entry,
-        "DebugEntered::Key(inject_key(&mutself.state,engine,&mutself.base.gpu,&name,pressed,modifiers,))",
+        "DebugEntered::Key(inject_key(&mutself.state,engine,&mutself.base.gpu,key,pressed,modifiers,))",
         "끊고 넣는 주입",
     );
     let input = read("src/view/main/debug_input.rs");
@@ -287,7 +287,7 @@ fn a_debug_key_injection_cuts_the_segment_before_the_key() {
     );
     let push = at(
         &inject,
-        "push_egui_key(sink,key_name,pressed,modifiers)",
+        "push_egui_key(sink,key,pressed,modifiers)",
         "키 넣기",
     );
     assert!(cut < push, "끊기 → 넣기 순서가 아니다");

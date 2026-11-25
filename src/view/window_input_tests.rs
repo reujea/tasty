@@ -805,7 +805,10 @@ impl crate::view::main::debug_input::EguiKeySink for Injection<'_> {
 /// 창 위젯 w 가 받은 Esc 누름이 아직 그리지 않은 egui 입력에 있고 같은 묶음의 누름이 노드를 팝업 B 로 옮긴 뒤 debug
 /// 키 하나(`key`, `modifiers`)를 주입한다. 주입 전 큐 길이와 끊은 자리 수, 주입 뒤 하네스를 돌려준다.
 #[cfg(debug_assertions)]
-fn inject_after_a_press(key: &str, modifiers: Option<egui::Modifiers>) -> (usize, usize, Harness) {
+fn inject_after_a_press(
+    key: egui::Key,
+    modifiers: Option<egui::Modifiers>,
+) -> (usize, usize, Harness) {
     let (mut h, mut w) = two_popups();
     focus_field(&mut h, &mut w, "w");
     h.key(&mut w, egui::Key::Escape, None);
@@ -814,7 +817,7 @@ fn inject_after_a_press(key: &str, modifiers: Option<egui::Modifiers>) -> (usize
     let ctx = h.ctx.clone();
     let before = h.queue.len();
     let cuts = h.cuts.len();
-    let pushed = inject_window_key(
+    inject_window_key(
         &ctx,
         &mut w.popups,
         &mut Injection {
@@ -825,7 +828,6 @@ fn inject_after_a_press(key: &str, modifiers: Option<egui::Modifiers>) -> (usize
         true,
         modifiers,
     );
-    assert!(pushed.is_some());
     (before, cuts, h)
 }
 
@@ -843,7 +845,7 @@ fn queued_escapes(h: &Harness) -> usize {
 #[cfg(debug_assertions)]
 #[test]
 fn a_debug_key_that_loads_nothing_does_not_cut_or_bind() {
-    let (before, cuts, h) = inject_after_a_press("V", Some(egui::Modifiers::COMMAND));
+    let (before, cuts, h) = inject_after_a_press(egui::Key::V, Some(egui::Modifiers::COMMAND));
     assert_eq!(h.queue.len(), before, "nothing is loaded");
     assert_eq!(h.cuts.len(), cuts, "no segment is cut for it");
     assert_eq!(
@@ -858,7 +860,7 @@ fn a_debug_key_that_loads_nothing_does_not_cut_or_bind() {
 #[cfg(debug_assertions)]
 #[test]
 fn a_loaded_debug_escape_goes_to_its_own_node() {
-    let (before, _, h) = inject_after_a_press("Escape", None);
+    let (before, _, h) = inject_after_a_press(egui::Key::Escape, None);
     assert_eq!(h.queue.len(), before, "the injected Escape is handed to B");
     assert_eq!(
         queued_escapes(&h),

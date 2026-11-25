@@ -47,8 +47,8 @@ fn an_injected_escape_closes_the_focused_palette() {
     let read = engine.read();
     let mut input = WindowInput::default();
     assert_eq!(
-        inject_key(&mut state, &read, &mut input, "Escape", true, None),
-        Some(PushedKey::Key)
+        inject_key(&mut state, &read, &mut input, egui::Key::Escape, true, None),
+        PushedKey::Key
     );
     let events = std::mem::take(input.queue_mut());
     assert!(
@@ -75,11 +75,11 @@ fn an_injected_shift_escape_stays_in_the_egui_input() {
             &mut state,
             &read,
             &mut input,
-            "Escape",
+            egui::Key::Escape,
             true,
             Some(egui::Modifiers::SHIFT)
         ),
-        Some(PushedKey::Key)
+        PushedKey::Key
     );
     let events = std::mem::take(input.queue_mut());
     assert!(events.iter().any(is_escape_press), "{events:?}");
@@ -99,8 +99,8 @@ fn an_injected_escape_with_the_real_super_held_is_not_a_bare_escape() {
     let mut input = WindowInput::default();
     input.hold_super(true);
     assert_eq!(
-        inject_key(&mut state, &read, &mut input, "Escape", true, None),
-        Some(PushedKey::Key)
+        inject_key(&mut state, &read, &mut input, egui::Key::Escape, true, None),
+        PushedKey::Key
     );
     let events = std::mem::take(input.queue_mut());
     assert!(
@@ -151,8 +151,8 @@ fn a_debug_escape_runs_no_host_shortcut() {
     );
     let mut input = WindowInput::default();
     assert_eq!(
-        inject_key(&mut state, &read, &mut input, "Escape", true, None),
-        Some(PushedKey::Key)
+        inject_key(&mut state, &read, &mut input, egui::Key::Escape, true, None),
+        PushedKey::Key
     );
     assert!(
         state.take_pending_intents().is_empty(),

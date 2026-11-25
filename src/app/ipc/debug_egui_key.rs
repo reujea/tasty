@@ -5,8 +5,9 @@ use crate::view::main::debug_input::DebugInput;
 
 /// 요청의 `key`(기본 `Escape`)·`pressed`(기본 누름)·`modifiers`로 만든 키 주입 하나. 넣는 일은 그 창의 주입 입구가
 /// 한다(`App::enter_debug_input`). `modifiers`를 주면 그 창의 유지 수식 키를 바꾸고, 생략하면 유지 상태를 그대로
-/// 싣는다.
-pub(super) fn key_input(params: &serde_json::Value) -> Result<DebugInput, String> {
+/// 싣는다. 키 이름은 창 상태와 관계없이 여기서 한 번 매핑한다. 매핑할 수 없는 이름은 `None` 이라 입구(보류 줄 포함)에
+/// 닿지 않고 응답은 `injected: false` 다(`DebugEntered::Done(false)`).
+pub(super) fn key_input(params: &serde_json::Value) -> Result<Option<DebugInput>, String> {
     let key = params
         .get("key")
         .and_then(|v| v.as_str())
@@ -16,11 +17,11 @@ pub(super) fn key_input(params: &serde_json::Value) -> Result<DebugInput, String
         .and_then(|v| v.as_bool())
         .unwrap_or(true);
     let modifiers = super::window_required::read_egui_modifiers(params)?;
-    Ok(DebugInput::Key {
-        name: key.to_string(),
+    Ok(egui::Key::from_name(key).map(|key| DebugInput::Key {
+        key,
         pressed,
         modifiers,
-    })
+    }))
 }
 
 /// 시험용: 요청의 키 하나를 그 창에 바로 넣고(`push_egui_key`) 응답 본문을 만든다. 매핑 불가 키는
@@ -31,21 +32,23 @@ fn egui_key_body(
     params: &serde_json::Value,
 ) -> Result<serde_json::Value, String> {
     use crate::view::main::debug_input::{DebugEntered, push_egui_key};
-    let DebugInput::Key {
-        name,
-        pressed,
-        modifiers,
-    } = key_input(params)?
-    else {
-        unreachable!("key_input makes a key");
-    };
-    Ok(DebugEntered::Key(push_egui_key(sink, &name, pressed, modifiers)).body())
+    Ok(match key_input(params)? {
+        Some(DebugInput::Key {
+            key,
+            pressed,
+            modifiers,
+        }) => DebugEntered::Key(push_egui_key(sink, key, pressed, modifiers)),
+        Some(_) => unreachable!("key_input makes a key"),
+        None => DebugEntered::Done(false),
+    }
+    .body())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::egui_key_body;
+    use super::{egui_key_body, key_input};
     use crate::app::ipc::window_required::read_egui_modifiers;
+    use crate::view::main::debug_input::DebugInput;
     use crate::view::main::debug_input::EguiKeySink;
     use serde_json::json;
 
@@ -169,6 +172,36 @@ mod tests {
         assert_eq!(body, json!({ "injected": false }));
         assert!(w.events.is_empty());
         assert_eq!(w.held, egui::Modifiers::NONE);
+    }
+
+    /// Given 창의 보류 줄이 열려 있어 입구가 주입을 줄에 세우는 창, When 매핑할 수 없는 키 이름을 주입하면, Then 키
+    /// 주입이 만들어지지 않아 줄이 늘지 않고 응답은 `injected: false` 다.
+    #[test]
+    fn an_unmapped_key_name_on_an_open_line_is_not_injected() {
+        let params = json!({ "key": "NoSuchKey" });
+        let mut line = Vec::new();
+        line.extend(key_input(&params).unwrap());
+        assert!(line.is_empty());
+        let mut w = FakeWindow::default();
+        assert_eq!(
+            egui_key_body(&mut w, &params).unwrap(),
+            json!({ "injected": false })
+        );
+    }
+
+    /// Given 같은 창, When 매핑되는 키 이름을 주입하면, Then 그 키 하나가 입구로 가 줄에 선다.
+    #[test]
+    fn a_mapped_key_name_on_an_open_line_takes_its_place_in_the_line() {
+        let mut line = Vec::new();
+        line.extend(key_input(&json!({ "key": "A" })).unwrap());
+        assert!(matches!(
+            line[..],
+            [DebugInput::Key {
+                key: egui::Key::A,
+                pressed: true,
+                ..
+            }]
+        ));
     }
 
     #[test]

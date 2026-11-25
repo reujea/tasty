@@ -206,20 +206,19 @@ pub(crate) fn bind_window_input(
 /// 사건을 정하고(`debug_input::egui_key_load`) → 끊기(`settle_window_input`) → egui 큐 적재 → 결속과 bare Esc 적용
 /// (`bind_window_input`). 실을 사건이 없으면(빈 클립보드의 붙여넣기) 끊지도 결속하지도 않는다. bare Esc 인지는 메인 창
 /// debug 주입과 같이 주입이 쥔 egui 수식키와 창이 지금 누른 것으로 보는 실물 Win·Super 로 정한다
-/// (`RouteKey::bare_escape`). 매핑 불가 키면 끊지도 넣지도 않고 `None`.
+/// (`RouteKey::bare_escape`).
 #[cfg(debug_assertions)]
 pub(crate) fn inject_window_key<S>(
     ctx: &egui::Context,
     popups: &mut PopupManager,
     sink: &mut S,
-    key_name: &str,
+    key: egui::Key,
     pressed: bool,
     modifiers: Option<egui::Modifiers>,
-) -> Option<crate::view::main::debug_input::PushedKey>
+) -> crate::view::main::debug_input::PushedKey
 where
     S: EguiPressSink + crate::view::main::debug_input::EguiKeySink,
 {
-    let key = egui::Key::from_name(key_name)?;
     let route = crate::adapters::ui::input::key_route::RouteKey {
         key: Some(key),
         modifiers: modifiers.unwrap_or_else(|| sink.held_modifiers()),
@@ -240,18 +239,18 @@ where
         WindowKey::Current
     };
     let (events, pushed) =
-        crate::view::main::debug_input::egui_key_load(sink, key_name, pressed, modifiers)?;
+        crate::view::main::debug_input::egui_key_load(sink, key, pressed, modifiers);
     if events.is_empty() {
-        return Some(pushed);
+        return pushed;
     }
     let receiver = settle_window_input(sink, ctx, popups, incoming, Some(window_key));
     if receiver.is_some_and(|r| r.egui_node().is_none()) {
-        return Some(pushed);
+        return pushed;
     }
     sink.push_events(events);
     let held = sink.escape_held();
     bind_window_input(ctx, popups, incoming, sink.queued_events(), held);
-    Some(pushed)
+    pushed
 }
 
 /// 별도 창 debug 주입 하나의 입구. 맨 앞은 winit 사건과 같은 보류 줄 검사다(`GpuState::hold_debug_input`). 줄이 열려
@@ -272,15 +271,15 @@ pub(crate) fn enter_window_debug<V: crate::view::ui::View + ?Sized>(
     };
     let entered = match input {
         DebugInput::Key {
-            name,
+            key,
             pressed,
             modifiers,
         } => DebugEntered::Key(match view.window_input() {
             Some((gpu, popups)) => {
                 let ctx = gpu.egui_ctx.clone();
-                inject_window_key(&ctx, popups, gpu, &name, pressed, modifiers)
+                inject_window_key(&ctx, popups, gpu, key, pressed, modifiers)
             }
-            None => push_egui_key(&mut view.base_mut().gpu, &name, pressed, modifiers),
+            None => push_egui_key(&mut view.base_mut().gpu, key, pressed, modifiers),
         }),
         DebugInput::Pointer {
             fx,

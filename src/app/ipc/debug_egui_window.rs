@@ -7,7 +7,7 @@ use crate::app::App;
 use crate::app::ipc::IpcStep;
 use crate::ipc::protocol::JsonRpcResponse;
 use crate::ipc::server::{IpcCommand, send_response};
-use crate::view::main::debug_input::{DebugInput, ScrollUnit};
+use crate::view::main::debug_input::{DebugEntered, DebugInput, ScrollUnit};
 use crate::view::ui::View;
 
 /// `window_id` 를 지정한 포인터 주입에 `surface_id` 가 함께 왔다. 창 종류와 관계없이 `-32602` 로 거절한다.
@@ -59,19 +59,23 @@ impl App {
         let Some(text) = params.get("text").and_then(|v| v.as_str()) else {
             return Err((-32602, "missing or non-string 'text'".to_string()));
         };
-        self.debug_input_to_window(params, DebugInput::Text(text.to_string()))
+        self.debug_input_to_window(params, Some(DebugInput::Text(text.to_string())))
     }
 
     /// 지목한 창의 debug 주입 입구(`enter_debug_input`)로 넣고 응답 본문에 `window_id` 를 더한다.
     fn debug_input_to_window(
         &mut self,
         params: &serde_json::Value,
-        input: DebugInput,
+        input: Option<DebugInput>,
     ) -> Result<serde_json::Value, (i32, String)> {
         let (wid, window) = self.debug_egui_window(params)?;
-        let entered = self
-            .enter_debug_input(window, input)
-            .ok_or_else(|| (-32602, format!("Window id {wid} not found")))?;
+        let entered = match input {
+            Some(input) => self
+                .enter_debug_input(window, input)
+                .ok_or_else(|| (-32602, format!("Window id {wid} not found")))?,
+            // 매핑할 수 없는 키 이름(`debug_egui_key::key_input`)은 입구에 닿지 않는다.
+            None => DebugEntered::Done(false),
+        };
         let mut body = entered.body();
         body["window_id"] = serde_json::json!(wid);
         Ok(body)
@@ -131,7 +135,7 @@ impl App {
             action,
             modifiers,
         };
-        self.debug_input_to_window(params, input)
+        self.debug_input_to_window(params, Some(input))
     }
 
     /// `window_id` 가 메인 창이면 그 창과 ID. egui 주입 라우터가 메인 창을 ID 생략 경로와 같은 진입으로 보낸다.

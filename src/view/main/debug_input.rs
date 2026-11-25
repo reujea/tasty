@@ -24,9 +24,10 @@ pub(crate) enum InjectPointer {
 /// `window_input::enter_window_debug`)를 다시 지난다. 끊기·수신자·결속·Esc 적용은 egui 입력에 싣는 그때 정한다.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum DebugInput {
-    /// egui 키 하나(`push_egui_key`). 수식키를 주면 그 창의 유지 수식키를 바꾼다.
+    /// egui 키 하나(`push_egui_key`). 이름은 줄 입구 전에 창 상태와 관계없이 한 번 매핑한다
+    /// (`debug_egui_key::key_input`). 수식키를 주면 그 창의 유지 수식키를 바꾼다.
     Key {
-        name: String,
+        key: egui::Key,
         pressed: bool,
         modifiers: Option<egui::Modifiers>,
     },
@@ -49,9 +50,9 @@ pub(crate) enum DebugInput {
 pub(crate) enum DebugEntered {
     /// 창의 보류 줄에 섰다. 줄이 풀리면 같은 입구를 다시 지난다.
     Held,
-    /// 키를 넣었다. `None` 은 매핑 불가 키라 아무것도 넣지 않았다.
-    Key(Option<PushedKey>),
-    /// 포인터·글자·붙여넣기를 넣었는지.
+    /// 키를 넣었다.
+    Key(PushedKey),
+    /// 포인터·글자·붙여넣기를 넣었는지. 매핑할 수 없는 키 이름도 줄 입구 전에 `false` 로 끝난다.
     Done(bool),
 }
 
@@ -60,17 +61,16 @@ impl DebugEntered {
     pub(crate) fn body(self) -> serde_json::Value {
         match self {
             Self::Held => serde_json::json!({ "injected": true, "held": true }),
-            Self::Key(Some(pushed)) => {
+            Self::Key(pushed) => {
                 serde_json::json!({ "injected": true, "pushed": pushed.name() })
             }
-            Self::Key(None) => serde_json::json!({ "injected": false }),
             Self::Done(injected) => serde_json::json!({ "injected": injected }),
         }
     }
 
     /// 창에 무언가 실었거나 줄에 세웠다(창을 다시 그린다).
     pub(crate) fn changed(self) -> bool {
-        !matches!(self, Self::Key(None) | Self::Done(false))
+        !matches!(self, Self::Done(false))
     }
 }
 
@@ -252,14 +252,14 @@ impl MainView {
     ) -> DebugEntered {
         match input {
             DebugInput::Key {
-                name,
+                key,
                 pressed,
                 modifiers,
             } => DebugEntered::Key(inject_key(
                 &mut self.state,
                 engine,
                 &mut self.base.gpu,
-                &name,
+                key,
                 pressed,
                 modifiers,
             )),
@@ -424,8 +424,7 @@ impl PushedKey {
 }
 
 /// 메인 창에 주입한 키 하나. 창의 키와 같은 순서로 지금 입력 몫을 끊은 뒤(`key_focus`) 키를 egui 입력 큐에 넣는다
-/// (`push_egui_key`). 포인터(`press_focus`)·글자(`debug_inject_egui_text`) 주입과 진입 순서가 같다. 매핑 불가 키면
-/// 끊지도 넣지도 않고 `None`. 넣은 사건이 수식키 없는 Esc 누름이면(`RouteKey::bare_escape`, 수식키는 주입이 쥔 egui
+/// (`push_egui_key`). 포인터(`press_focus`)·글자(`debug_inject_egui_text`) 주입과 진입 순서가 같다. 넣은 사건이 수식키 없는 Esc 누름이면(`RouteKey::bare_escape`, 수식키는 주입이 쥔 egui
 /// 수식키와 창이 지금 누른 것으로 보는 실물 Win·Super `EguiKeySink::super_held`) 실제 키처럼 메인 경로의 Esc 수신자
 /// (`key_nodes::bare_escape_decision`)를 정해 그 몫에 묶고(`window_feeds_key`) 단계 11 적용(`apply_escape_decision`)을 거친다.
 /// 처리한 누름은 egui 큐에서 빠지고 키 주인 몫으로 넘어간다. egui 전용 입구라 단축키·끝 목적지 단계는 돌지 않는다.
@@ -433,11 +432,10 @@ pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
     state: &mut crate::state::MainViewState,
     core: &crate::runtime::engine_read::EngineRead<'_>,
     sink: &mut S,
-    key_name: &str,
+    key: egui::Key,
     pressed: bool,
     modifiers: Option<egui::Modifiers>,
-) -> Option<PushedKey> {
-    let key = egui::Key::from_name(key_name)?;
+) -> PushedKey {
     let bare_escape = pressed
         && crate::adapters::ui::input::key_route::RouteKey {
             key: Some(key),
@@ -452,7 +450,7 @@ pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
     };
     segment_focus(state, core, sink, incoming);
     let from = sink.queued_events().len();
-    let pushed = push_egui_key(sink, key_name, pressed, modifiers)?;
+    let pushed = push_egui_key(sink, key, pressed, modifiers);
     let loaded = sink.queued_events().get(from..).is_some_and(|e| {
         e.iter()
             .any(crate::adapters::ui::popup::body_keys::is_escape_press)
@@ -473,7 +471,7 @@ pub(crate) fn inject_key<S: super::input_segment::EguiPressSink + EguiKeySink>(
             );
         }
     }
-    Some(pushed)
+    pushed
 }
 
 /// 메인 창에 주입한 붙여넣기·복사·잘라내기 사건 하나. 키 주입과 같이 지금 입력 몫을 끊은 뒤(`key_focus`) egui 입력
@@ -489,34 +487,33 @@ pub(crate) fn inject_clipboard<S: super::input_segment::EguiPressSink + EguiKeyS
 }
 
 /// 창 종류와 관계없이 그 창의 egui 입력 큐에 키 하나를 실제 키가 egui에 닿는 모양으로 넣는다
-/// ([`egui_key_load`] 의 사건을 넣는다). 매핑 불가 키면 아무것도 바꾸지 않고 `None`.
+/// ([`egui_key_load`] 의 사건을 넣는다).
 pub(crate) fn push_egui_key(
     sink: &mut dyn EguiKeySink,
-    key_name: &str,
+    key: egui::Key,
     pressed: bool,
     modifiers: Option<egui::Modifiers>,
-) -> Option<PushedKey> {
-    let (events, pushed) = egui_key_load(sink, key_name, pressed, modifiers)?;
+) -> PushedKey {
+    let (events, pushed) = egui_key_load(sink, key, pressed, modifiers);
     if !events.is_empty() {
         sink.push_events(events);
     }
-    Some(pushed)
+    pushed
 }
 
 /// 키 하나가 그 창의 egui 입력 큐에 실을 사건. `modifiers`를 주면 그 창의 유지 수식 키를 먼저 바꾸고, 이벤트에는 유지
-/// 수식 키를 싣는다. 빈 클립보드의 붙여넣기는 실을 사건이 없다. 매핑 불가 키면 아무것도 바꾸지 않고 `None`.
+/// 수식 키를 싣는다. 빈 클립보드의 붙여넣기는 실을 사건이 없다.
 pub(crate) fn egui_key_load(
     sink: &mut dyn EguiKeySink,
-    key_name: &str,
+    key: egui::Key,
     pressed: bool,
     modifiers: Option<egui::Modifiers>,
-) -> Option<(Vec<egui::Event>, PushedKey)> {
-    let key = egui::Key::from_name(key_name)?;
+) -> (Vec<egui::Event>, PushedKey) {
     if let Some(m) = modifiers {
         sink.hold_modifiers(m);
     }
     let held = sink.held_modifiers();
-    Some(key_events(key, pressed, held, || sink.clipboard_text()))
+    key_events(key, pressed, held, || sink.clipboard_text())
 }
 
 /// egui-winit 0.31.1 `State::on_keyboard_input`의 변환을 옮겨 적은 것. 눌린 편집 명령은

@@ -120,7 +120,7 @@ fn a_debug_injection_takes_the_window_hold_lines_first() {
     );
     let key = at(
         &separate,
-        "inject_window_key(&ctx, popups, gpu, &name, pressed, modifiers)",
+        "inject_window_key(&ctx, popups, gpu, key, pressed, modifiers)",
         "별도 창 키",
     );
     assert!(hold < key, "별도 창 보류 검사가 주입보다 뒤다");

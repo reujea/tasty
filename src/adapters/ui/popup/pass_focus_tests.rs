@@ -378,11 +378,11 @@ fn an_injected_key_after_an_injected_press_is_the_next_pass() {
                 &mut s.state,
                 &engine.read(),
                 &mut input,
-                "Enter",
+                egui::Key::Enter,
                 true,
                 None
             ),
-            Some(PushedKey::Key)
+            PushedKey::Key
         );
     }
     let is_key = |e: &Event| matches!(e, Event::Key { .. });
@@ -412,19 +412,6 @@ fn an_injected_key_after_an_injected_press_is_the_next_pass() {
     );
     s.state.close_input_pass(&s.ctx);
     assert!(input.is_empty());
-    let engine = s.session.borrow_mut();
-    assert_eq!(
-        inject_key(
-            &mut s.state,
-            &engine.read(),
-            &mut input,
-            "NoSuchKey",
-            true,
-            None
-        ),
-        None
-    );
-    assert!(input.is_empty(), "매핑 불가 키는 끊지도 넣지도 않는다");
 }
 
 /// L·R 탐색기를 그린 화면에서 `name` 항목 줄의 가운데.
