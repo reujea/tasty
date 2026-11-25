@@ -12,7 +12,7 @@ use super::preset_editor::{
     Kind, Scope, Surf, cell, draw_scope_body, leaf_with, pleaf, psplit, ssplit, tab,
 };
 use crate::catalog::icons::{self, MockGlyph};
-use crate::catalog::spec::{StageVariant, TokenChip, meta, note, stage};
+use crate::catalog::spec::{self, StageVariant, TokenChip, meta, note, stage};
 
 // 시안 창의 전시 치수. 대응 토큰이 없다.
 /// 무대 안쪽 여백 — `padding: 20`.
@@ -280,24 +280,13 @@ thread_local! {
 }
 
 pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
-    stage(ui, theme, StageVariant::Tight, |ui| {
-        egui::Frame::new()
-            .fill(theme.bg_app().to_egui())
-            .corner_radius(theme.corner_radius.value())
-            .inner_margin(egui::Margin::same(STAGE_PAD.value() as i8))
-            .show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.vertical_centered(|ui| {
-                    STATE.with(|s| window(ui, theme, &mut s.borrow_mut()));
-                });
-            });
-    });
+    window_stage(ui, theme);
 
     meta(
         ui,
         theme,
         &[
-            ("frame width", "preset-window-width (adaptive)"),
+            ("frame width", "preset-window-width"),
             ("frame height", "preset-window-height"),
             ("L1 tabs", "40px, accent underline"),
             ("list", "196px, fill + 2px bar"),
@@ -329,13 +318,47 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
-fn window(ui: &mut egui::Ui, theme: &Theme, st: &mut WinState) {
+/// 정본 창은 고정 폭(flex: none)이라 무대가 좁으면 창을 줄이지 않고 무대를 가로로 스크롤한다.
+/// 앞선 넓은 예제가 열의 Ui를 넓혀도 보이는 폭은 갤러리 본문 열 폭에서 무대 틀(여백·테두리)을 뺀 값이다.
+/// 그린 창의 사각형과, 가로로 스크롤했으면 그 보이는 영역을 돌려준다.
+fn window_stage(ui: &mut egui::Ui, theme: &Theme) -> (egui::Rect, Option<egui::Rect>) {
+    let column = spec::body_column_width(ui);
+    let outer = ui.available_width();
+    let mut layout = None;
+    stage(ui, theme, StageVariant::Tight, |ui| {
+        egui::Frame::new()
+            .fill(theme.bg_app().to_egui())
+            .corner_radius(theme.corner_radius.value())
+            .inner_margin(egui::Margin::same(STAGE_PAD.value() as i8))
+            .show(ui, |ui| {
+                let viewport = (column - (outer - ui.available_width())).max(0.0);
+                ui.set_width(viewport);
+                layout = Some(if viewport >= theme.preset_window_width().value() {
+                    let window = ui
+                        .vertical_centered(|ui| {
+                            STATE.with(|s| window(ui, theme, &mut s.borrow_mut()))
+                        })
+                        .inner;
+                    (window, None)
+                } else {
+                    let out = egui::ScrollArea::horizontal()
+                        .id_salt("preset-view-window")
+                        .max_width(viewport)
+                        .drag_to_scroll(false)
+                        .show(ui, |ui| {
+                            STATE.with(|s| window(ui, theme, &mut s.borrow_mut()))
+                        });
+                    (out.inner, Some(out.inner_rect))
+                });
+            });
+    });
+    layout.expect("stage는 내용을 한 번 그린다")
+}
+
+fn window(ui: &mut egui::Ui, theme: &Theme, st: &mut WinState) -> egui::Rect {
     let bw = theme.border_width.value();
-    // 창 크기는 앱 PresetView의 처음 크기(preset-window-width × preset-window-height)다. 무대가 좁으면 무대 폭을 따른다.
-    let win_w = theme
-        .preset_window_width()
-        .value()
-        .min(ui.available_width());
+    // 창 크기는 앱 PresetView의 처음 크기(preset-window-width × preset-window-height)이고 줄이지 않는다.
+    let win_w = theme.preset_window_width().value();
     egui::Frame::new()
         .fill(theme.bg_panel().to_egui())
         .stroke(egui::Stroke::new(bw, theme.border_strong().to_egui()))
@@ -355,7 +378,10 @@ fn window(ui: &mut egui::Ui, theme: &Theme, st: &mut WinState) {
             preset_list(ui, theme, list, st);
             let detail = egui::Rect::from_min_max(list.right_top(), body.max);
             detail_column(ui, theme, detail, st);
-        });
+            rect
+        })
+        .inner
+        .expand(bw)
 }
 
 /// 아래 테두리 hairline 을 그린다.
@@ -672,4 +698,62 @@ fn name_input(ui: &mut egui::Ui, theme: &Theme, buf: &mut String) {
             .font(egui::FontId::proportional(theme.font_size_body.value()))
             .text_color(theme.text_primary().to_egui()),
     );
+}
+
+#[cfg(test)]
+mod tests {
+    /// 본문 열 폭 `col_w`에서 표본 무대를 한 번 그린다.
+    fn layout_in_column(col_w: f32) -> (egui::Rect, Option<egui::Rect>) {
+        let theme = tasty_themes::mocha_fallback();
+        let ctx = egui::Context::default();
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(col_w + 400.0, 3000.0),
+            )),
+            ..Default::default()
+        };
+        let mut got = None;
+        // 배치만 재고 그린 출력(도형·플랫폼 출력)은 쓰지 않는다.
+        let _ = ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.vertical(|ui| {
+                    ui.set_max_width(col_w);
+                    ui.data_mut(|d| {
+                        d.insert_temp(crate::catalog::spec::body_column_width_id(), col_w)
+                    });
+                    got = Some(super::window_stage(ui, &theme));
+                });
+            });
+        });
+        got.expect("표본을 그렸다")
+    }
+
+    fn window_size() -> egui::Vec2 {
+        let theme = tasty_themes::mocha_fallback();
+        egui::vec2(
+            theme.preset_window_width().value(),
+            theme.preset_window_height().value(),
+        )
+    }
+
+    /// 넓은 열에서는 창이 preset-window-width × preset-window-height이고 스크롤하지 않는다.
+    #[test]
+    fn a_wide_column_draws_the_window_at_the_token_size() {
+        let (window, scrolled) = layout_in_column(2000.0);
+        assert_eq!(window.size(), window_size(), "{window:?}");
+        assert!(scrolled.is_none(), "넓은 열에서 스크롤했다: {scrolled:?}");
+    }
+
+    /// 좁은 열에서는 창을 줄이지 않고 무대가 가로로 스크롤한다.
+    #[test]
+    fn a_narrow_column_scrolls_the_stage_instead_of_shrinking_the_window() {
+        let (window, scrolled) = layout_in_column(700.0);
+        assert_eq!(window.size(), window_size(), "{window:?}");
+        let view = scrolled.expect("좁은 열에서는 가로 스크롤한다");
+        assert!(
+            view.width() < window.width(),
+            "보이는 영역 {view:?}가 창 {window:?}보다 좁아야 한다"
+        );
+    }
 }
