@@ -131,7 +131,19 @@ mod tests {
 
     #[test]
     fn the_overflow_notation_follows_the_design_maximum() {
-        let max = tasty_design_tokens::generated::component::workspace::RUNNING_COUNT_MAX as usize;
+        // 소수 토큰이 정수로 잘려 통과하지 않게 f32 그대로 위젯 상한과 대조한 뒤 자른다.
+        let token = tasty_design_tokens::generated::component::workspace::RUNNING_COUNT_MAX;
+        assert_eq!(
+            token,
+            crate::tokens::COUNT_DISPLAY_MAX as f32,
+            "the running count cap must equal the widget cap"
+        );
+        assert_eq!(
+            token.fract(),
+            0.0,
+            "workspace-running-count-max must be a whole number"
+        );
+        let max = token as usize;
         assert_eq!(running_count_label(max), Some(max.to_string()));
         assert_eq!(running_count_label(max + 1).as_deref(), Some("99+"));
     }

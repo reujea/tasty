@@ -192,12 +192,20 @@ mod tests {
 
     #[test]
     fn every_count_notation_follows_the_design_maximum() {
-        let max = tasty_design_tokens::generated::semantic::COUNT_DISPLAY_MAX as usize;
+        // 생성기는 number 토큰에 소수를 허용한다. 정수로 자르기 전에 f32 그대로 대조해야
+        // 99.5 같은 값이 99로 잘려 통과하지 않는다.
+        let token = tasty_design_tokens::generated::semantic::COUNT_DISPLAY_MAX;
         assert_eq!(
-            crate::tokens::COUNT_DISPLAY_MAX,
-            max,
+            token,
+            crate::tokens::COUNT_DISPLAY_MAX as f32,
             "the widget cap must equal the count-display-max token"
         );
+        assert_eq!(
+            token.fract(),
+            0.0,
+            "count-display-max must be a whole number"
+        );
+        let max = token as usize;
         let over = format!("{max}+");
         assert_eq!(attention_count_label(max), max.to_string());
         assert_eq!(attention_count_label(max + 1), over);
