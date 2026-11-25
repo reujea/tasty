@@ -1132,7 +1132,7 @@ fn draw_header_row(ui: &mut egui::Ui, props: &PortScannerProps<'_>) -> Option<Po
         ui.label(
             egui::RichText::new(props.label_heading)
                 .color(th.text_primary())
-                .size(th.font_size_heading.value())
+                .size(th.font_size_max.value())
                 .strong(),
         );
         if let Some(tag) = header_tag_text(props) {
@@ -3125,6 +3125,20 @@ mod tests {
         assert!(
             (button.top() - separator - pad).abs() < 0.5,
             "푸터 구분선 {separator} 과 Close {button:?} 위 사이가 spacing_sm {pad} 가 아니다"
+        );
+    }
+
+    /// 헤더 제목은 font_size_max 로 그린다.
+    #[test]
+    fn the_heading_is_drawn_at_font_size_max() {
+        let theme = test_theme();
+        let (_, shapes) = painted_chrome(&theme);
+        let title = text_shape(&shapes, "Listening ports");
+        let size = title.galley.job.sections[0].format.font_id.size;
+        assert_eq!(
+            size,
+            theme.font_size_max.value(),
+            "제목 글자 크기 {size} 가 font_size_max 가 아니다"
         );
     }
 }
