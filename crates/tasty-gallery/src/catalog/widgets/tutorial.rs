@@ -873,8 +873,8 @@ fn composite_stage_w(available: LogicalPx, theme: &Theme) -> LogicalPx {
 fn composite_scroll(ui: &mut egui::Ui, theme: &Theme, viewport_w: LogicalPx) -> CompositeLayout {
     let w = composite_stage_w(viewport_w, theme);
     // ScrollArea는 스크롤하는 방향의 내용 클립을 보이는 영역보다 clip_rect_margin(기본 3pt)만큼 양쪽으로
-    // 넓힌다(egui 0.31.1 scroll_area.rs:603-608). 그러면 페이드 바깥에 스크롤된 무대 띠가 보이므로, 이 영역만
-    // 그 여백을 0으로 두어 내용 클립을 보이는 영역과 같게 한다.
+    // 넓힌다(egui 0.31.1 scroll_area.rs, Prepared를 만드는 begin의 content_clip_rect). 그러면 페이드
+    // 바깥에 스크롤된 무대 띠가 보이므로, 이 영역만 그 여백을 0으로 두어 내용 클립을 보이는 영역과 같게 한다.
     let out = ui
         .scope(|ui| {
             ui.visuals_mut().clip_rect_margin = 0.0;
