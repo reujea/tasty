@@ -368,3 +368,45 @@ fn a_rejected_step_under_a_block_comment_reports_its_own_line() {
     );
     assert_eq!(rejected_line(&src), 6);
 }
+
+#[test]
+fn composite_edge_fades_stay_on_the_stage() {
+    // 바닥보다 좁은 열의 첫 프레임: 오른쪽으로 더 스크롤할 수 있어 오른쪽 페이드가 있다. 페이드(메시)는
+    // 무대 높이 안에만 그린다.
+    let theme = tasty_themes::mocha_fallback();
+    let ctx = egui::Context::default();
+    let col_w = floor() / 2.0;
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(col_w + 400.0, 3000.0),
+        )),
+        ..Default::default()
+    };
+    let mut stage = None;
+    let output = ctx.run(input, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.vertical(|ui| {
+                ui.set_max_width(col_w);
+                ui.data_mut(|d| d.insert_temp(crate::catalog::spec::body_column_width_id(), col_w));
+                stage = Some(super::composite_specimen(ui, &theme).stage);
+            });
+        });
+    });
+    let stage = stage.expect("합성 표본을 그렸다");
+    let meshes: Vec<egui::Rect> = output
+        .shapes
+        .iter()
+        .filter_map(|cs| match &cs.shape {
+            egui::epaint::Shape::Mesh(m) => Some(m.calc_bounds()),
+            _ => None,
+        })
+        .collect();
+    assert!(!meshes.is_empty(), "오른쪽 페이드가 없다");
+    for m in meshes {
+        assert!(
+            m.top() >= stage.top() - 0.5 && m.bottom() <= stage.bottom() + 0.5,
+            "페이드 {m:?}가 무대 {stage:?} 높이 밖으로 나간다"
+        );
+    }
+}
