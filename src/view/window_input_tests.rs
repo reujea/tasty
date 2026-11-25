@@ -25,6 +25,8 @@ struct TestWindow {
     saw_x: Vec<&'static str>,
     /// 다음 그리기 중에 포커스를 주며 열 팝업(설정 충돌 질문처럼 그리기 중에 연다).
     open_while_drawing: Option<PopupId>,
+    /// 참이면 팝업 A 가 상자 밖 `CHILD_MENU_POS` 에 등록 자식 메뉴(egui Foreground Area)를 그린다.
+    child_menu: bool,
 }
 
 impl WindowPopups for TestWindow {
@@ -50,6 +52,7 @@ impl TestWindow {
             rects: Default::default(),
             saw_x: Vec::new(),
             open_while_drawing: None,
+            child_menu: false,
         }
     }
 
@@ -97,6 +100,29 @@ fn field(
     rects.insert(name, response.rect);
 }
 
+/// 팝업 A 의 등록 자식 메뉴 자리. 두 팝업(`two_popups`)의 상자 밖이다.
+const CHILD_MENU_POS: egui::Pos2 = egui::pos2(40.0, 420.0);
+
+/// `open` 이면 상자 밖으로 나오는 자식 메뉴(파일 선택기 숨은 경로 메뉴처럼)를 그리고 `instance` 의 자식 팝업 id 로
+/// 보고한다. 아니면 그 보고를 지운다.
+fn child_menu(ui: &egui::Ui, instance: crate::adapters::ui::popup::PopupInstanceId, open: bool) {
+    let id = egui::Id::new("window_input_child_menu");
+    if open {
+        egui::Area::new(id)
+            .order(egui::Order::Foreground)
+            .fixed_pos(CHILD_MENU_POS)
+            .show(ui.ctx(), |ui| {
+                ui.allocate_exact_size(egui::vec2(120.0, 40.0), egui::Sense::click());
+            });
+    }
+    crate::adapters::ui::popup::report_child_popup_id(
+        ui.ctx(),
+        instance,
+        "window_input_child_menu",
+        open.then_some(id),
+    );
+}
+
 /// 설정 창 그리기와 같은 순서: 패스 키 값 넣기 → 창 위젯(차단 값) → 그리기 중 열기 → 팝업.
 fn draw(ctx: &egui::Context, pass: &mut WindowPass<'_, TestWindow>) {
     let window = &mut *pass.state;
@@ -112,6 +138,7 @@ fn draw(ctx: &egui::Context, pass: &mut WindowPass<'_, TestWindow>) {
     if let Some(id) = window.open_while_drawing.take() {
         window.open(id, egui::pos2(300.0, 300.0));
     }
+    let child = window.child_menu;
     let (text, rects, saw) = (&mut window.text, &mut window.rects, &mut window.saw_x);
     window.popups.draw_view_local(ctx, &mut |cx, ui, _| {
         if sees_x(ui) {
@@ -124,6 +151,7 @@ fn draw(ctx: &egui::Context, pass: &mut WindowPass<'_, TestWindow>) {
         if cx.id == A {
             field(ui, "a1", text, rects);
             field(ui, "a2", text, rects);
+            child_menu(ui, cx.instance, child);
         } else if cx.id == B {
             field(ui, "b", text, rects);
         }
@@ -505,6 +533,27 @@ fn a_key_bound_in_the_feed_step_reaches_the_same_popup_when_drawing() {
     h.key(&mut w, egui::Key::Y, Some("y"));
     h.drain(&mut w);
     assert_eq!((w.text("a1"), w.text("w")), ("x", "y"));
+}
+
+/// Given 팝업 A 의 a1 이 키 주인이고 A 가 상자 밖에 등록 자식 메뉴를 열었다, When 그 메뉴를 누르고 다음 묶음에 x 를
+/// 치면, Then 사건 입구가 그 누름을 A 의 누름으로 정했고 그 누름을 그리는 패스는 포커스를 다시 정하지 않으므로 x 는 A 가
+/// 받는다. 창 위젯 w 는 그 키를 보지 않는다.
+#[test]
+fn a_press_on_a_child_menu_outside_the_popup_box_keeps_that_popup_the_node() {
+    let (mut h, mut w) = two_popups();
+    focus_field(&mut h, &mut w, "a1");
+    w.child_menu = true;
+    h.drain(&mut w);
+    let menu = CHILD_MENU_POS + egui::vec2(20.0, 20.0);
+    h.click(&mut w, menu);
+    h.drain(&mut w);
+    h.type_x(&mut w);
+    let seen = h.drain(&mut w);
+    assert!(
+        seen.iter().flatten().all(|n| *n == "A") && seen.iter().flatten().count() > 0,
+        "only popup A sees the key: {seen:?}"
+    );
+    assert_eq!(w.text("w"), "", "the window widget gets no text");
 }
 
 /// 덮는 팝업 C(설정 창 단축키 충돌 확인 선언)를 등록한 창. 창 위젯 w 에 egui 포커스를 준 뒤 C 를 포커스를 주며 연다.
