@@ -42,9 +42,7 @@ impl App {
         // Includes parked, pending and retiring owners; delivery never depends on a live View.
         for session in self.engines.all_sessions_mut() {
             let mut engine = session.borrow_mut();
-            let events = take_current_host_events(&mut engine);
-            resolve_hook_fired_task_waits(&self.services, &engine.as_ref(), &events);
-            drained.extend(events);
+            drained.extend(drain_session_host_events(&self.services, &mut engine));
         }
         if drained.is_empty() {
             return;
@@ -229,6 +227,17 @@ pub(crate) fn observe_window_focus(
     observed.extend(state.detect_workspace_activation(engine.core));
     observed.extend(state.detect_tab_focus_change(engine.core));
     engine.runtime.pending_host_events.extend(observed);
+}
+
+/// 세션 하나의 대기 이벤트를 꺼낸다. 낡은 제목·새로고침 요청을 거르고 그 engine으로 훅 대기를 완료한다. 키 포커스
+/// 진입(`surface.focused`)이 있어도 탭 제목을 다시 읽지 않는다. 제목 갱신은 `observe_window_focus`의 선택 변경 하나다.
+pub(crate) fn drain_session_host_events(
+    services: &crate::app::services::AppServices,
+    engine: &mut EngineMut<'_>,
+) -> Vec<PendingHostEvent> {
+    let events = take_current_host_events(engine);
+    resolve_hook_fired_task_waits(services, &engine.as_ref(), &events);
+    events
 }
 
 /// 이벤트를 다른 창의 이벤트와 합치기 전에 해당 engine으로 대기 작업을 완료한다.
