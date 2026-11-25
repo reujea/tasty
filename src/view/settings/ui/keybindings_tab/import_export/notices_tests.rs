@@ -113,19 +113,21 @@ fn export_failure_title_and_glyph_read_separate_inks() {
 }
 
 /// 그려진 블록의 제목은 strong, 본문과 OS 줄은 text-on-active다. 버튼은 tint 아래 raised 카드에
-/// 놓이고 ghost 라벨은 raised 바탕의 잉크다.
+/// 놓이고 ghost 라벨은 raised 바탕의 잉크다. Mocha는 panel·raised ghost 잉크가 같은 값이라
+/// 바탕의 차이는 두 값이 갈리는 Latte가 가른다.
 #[test]
 fn export_failure_paints_canon_inks_and_puts_actions_on_the_raised_card() {
+    let latte = latte();
+    assert_ne!(
+        latte.button_ghost_raised_fg(),
+        latte.button_ghost_fg(),
+        "Latte must separate the raised ghost ink from the panel one"
+    );
     for th in themes() {
         assert_ne!(
             th.text_on_active(),
             th.text_secondary(),
             "body ink must be distinguishable from the old one"
-        );
-        assert_ne!(
-            th.button_ghost_raised_fg(),
-            th.button_ghost_fg(),
-            "raised ghost ink must be distinguishable from the panel one"
         );
         let shapes = draw_export_failure(&th);
         let painted = texts(&shapes);
