@@ -203,9 +203,10 @@ pub(crate) struct Release<E> {
 }
 
 impl<E> Release<E> {
-    /// 줄 선 창 사건 가운데 가장 먼저 창에 도착한 시각(X11 관찰 정리, `explorer_ime`).
-    pub(crate) fn first_queued_at(&self) -> Option<Instant> {
-        self.queued.iter().find_map(LineItem::arrived_at)
+    /// 줄 선 창 사건 가운데 가장 이른 도착 시각(X11 관찰 정리, `explorer_ime`). 줄 순서와 도착 순서는 다를 수 있다(앞에
+    /// 다시 넣은 재판정 키, 재생이 다시 세운 사건).
+    pub(crate) fn oldest_queued_at(&self) -> Option<Instant> {
+        self.queued.iter().filter_map(LineItem::arrived_at).min()
     }
 
     /// 줄 선 창 사건 하나를 그 도착 시각과 함께 끝에 더한다.
@@ -287,9 +288,10 @@ impl<E> EditKeyHold<E> {
         self.queued.push(item);
     }
 
-    /// 줄 선 창 사건 가운데 가장 먼저 창에 도착한 시각(X11 관찰 정리, `explorer_ime`).
-    pub(crate) fn first_queued_at(&self) -> Option<Instant> {
-        self.queued.iter().find_map(LineItem::arrived_at)
+    /// 줄 선 창 사건 가운데 가장 이른 도착 시각(X11 관찰 정리, `explorer_ime`). 줄 순서와 도착 순서는 다를 수 있다(앞에
+    /// 다시 넣은 재판정 키, 재생이 다시 세운 사건).
+    pub(crate) fn oldest_queued_at(&self) -> Option<Instant> {
+        self.queued.iter().filter_map(LineItem::arrived_at).min()
     }
 
     /// 붙잡은 이벤트가 있다. 뒤에 온 이벤트가 이들을 앞지르지 않게 줄을 세울 때 본다.

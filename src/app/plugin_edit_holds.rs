@@ -111,11 +111,11 @@ impl PluginEditHolds {
         let hold = self
             .holds
             .get(&window)
-            .and_then(|h| h.hold.first_queued_at());
+            .and_then(|h| h.hold.oldest_queued_at());
         let waiting = self
             .awaits
             .get(&window)
-            .and_then(paste_await::PasteAwait::first_queued_at);
+            .and_then(paste_await::PasteAwait::oldest_queued_at);
         [hold, waiting].into_iter().flatten().min()
     }
 

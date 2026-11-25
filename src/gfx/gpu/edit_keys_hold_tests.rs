@@ -738,3 +738,83 @@ fn a_debug_key_with_no_pending_input_runs_now() {
     assert!(!front(&mut state, &debug_key(), &[], false));
     assert!(!state.busy());
 }
+
+/// Given a settle line whose first key reached the window at t4 and a key behind it that reached it
+/// earlier, at t2 (a replay put back ahead of newer input), When the X11 cleanup reads the wait,
+/// Then the earliest arrival is the boundary, not the first in line.
+#[test]
+fn the_earliest_arrival_in_a_line_bounds_the_wait() {
+    let t0 = Instant::now();
+    let ms = Duration::from_millis;
+    let mut state = EditKeyState::<Ev>::default();
+    let pending = vec![egui::Event::Text("z".into())];
+    state.replace_arrival(Some(t0 + ms(4)));
+    assert!(front(&mut state, &press("a"), &pending, false));
+    state.replace_arrival(Some(t0 + ms(2)));
+    assert!(front(&mut state, &press("b"), &pending, false));
+    state.replace_arrival(None);
+    assert_eq!(state.oldest_waiting(), Some(t0 + ms(2)));
+}
+
+/// Given a line whose keys came in order, When the cleanup reads the wait, Then it is the first
+/// key's arrival.
+#[test]
+fn an_ordered_line_is_bounded_by_its_first_arrival() {
+    let t0 = Instant::now();
+    let ms = Duration::from_millis;
+    let mut state = EditKeyState::<Ev>::default();
+    let pending = vec![egui::Event::Text("z".into())];
+    state.replace_arrival(Some(t0 + ms(2)));
+    assert!(front(&mut state, &press("a"), &pending, false));
+    state.replace_arrival(Some(t0 + ms(4)));
+    assert!(front(&mut state, &press("b"), &pending, false));
+    state.replace_arrival(None);
+    assert_eq!(state.oldest_waiting(), Some(t0 + ms(2)));
+}
+
+/// Given a bound key the owner could not place yet, held for a recheck at its arrival t0 with a key
+/// queued behind it at t1, When the earlier input's pass hands it back first in line, Then it keeps
+/// t0: the wait is bounded by t0 and its replay reads when it came.
+#[test]
+fn a_rechecked_key_keeps_its_first_arrival() {
+    let mut ui = Ui::new();
+    ui.frame(Vec::new());
+    let mut state = bound();
+    let t0 = Instant::now();
+    let t1 = t0 + Duration::from_millis(1);
+    let mut pending = vec![egui::Event::Text("z".into())];
+    for (event, at) in [(press("v"), t0), (press("q"), t1)] {
+        state.replace_arrival(Some(at));
+        let clip = ui.clipboard.clone();
+        let mut read = |_tag: u64| clip.clone();
+        let judged = state.judge_unsettled(
+            &event,
+            EditKeyOwner::Window,
+            at,
+            KeyCx {
+                ctx: &ui.ctx,
+                events: &mut pending,
+                clipboard: &mut read,
+            },
+        );
+        assert_eq!(judged, EguiKey::Taken);
+    }
+    state.replace_arrival(None);
+    assert_eq!(state.oldest_waiting(), Some(t0), "the held key waits");
+    ui.pass(&mut state, pending);
+    assert_eq!(
+        state.oldest_waiting(),
+        Some(t0),
+        "the handed back key keeps its arrival"
+    );
+    let release = state
+        .take_release(EditKeyOwner::Window)
+        .expect("the key goes back");
+    let arrivals: Vec<_> = release
+        .split()
+        .1
+        .iter()
+        .filter_map(LineItem::arrived_at)
+        .collect();
+    assert_eq!(arrivals, vec![t0, t1]);
+}

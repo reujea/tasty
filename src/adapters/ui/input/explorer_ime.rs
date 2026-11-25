@@ -62,9 +62,11 @@ impl ExplorerImeKeys {
 
     /// A raw press observed at `at`. Every new physical press stands for itself, even if XIM never
     /// forwarded the prior one: a later genuine key pairs with its own observation, not an older one.
-    /// `waiting` is when the earliest window event still waiting in the window's lines arrived. An
-    /// event yet to come pairs with this press or a later one, and a waiting event with the last
-    /// press observed by its arrival, so older observations of the key are dropped here.
+    /// `waiting` is the earliest arrival among the window events still waiting in the window's lines
+    /// (the minimum of the times they keep, `EditKeyState::oldest_waiting`). An event yet to come
+    /// pairs with a press observed from now on or the last one before it, and a waiting event with
+    /// the last press observed by its arrival, so every key drops the observations before the one
+    /// the earliest waiting event pairs with; with nothing waiting, each key keeps only its last one.
     fn press(
         &mut self,
         key: PhysicalKey,
@@ -76,13 +78,18 @@ impl ExplorerImeKeys {
             InputOwner::Rename { .. } => self.rename_composing == Some(*owner),
             _ => self.composing == Some(owner.surface()),
         });
+        for observed in self.presses.values_mut() {
+            let kept = match waiting {
+                Some(oldest) => observed.iter().rposition(|(seen, _)| *seen <= oldest),
+                None => observed.len().checked_sub(1),
+            };
+            if let Some(first) = kept {
+                drop(observed.drain(..first));
+            }
+        }
         let observed = self.presses.entry(key).or_default();
-        let kept =
-            waiting.and_then(|oldest| observed.iter().rposition(|(seen, _)| *seen <= oldest));
-        match kept {
-            Some(first) => drop(observed.drain(..first)),
-            None if waiting.is_none() => observed.clear(),
-            None => {}
+        if waiting.is_none() {
+            observed.clear();
         }
         observed.push((at, owner));
     }
@@ -376,14 +383,67 @@ mod tests {
         let key = PhysicalKey::Code(KeyCode::ArrowDown);
         let t0 = Instant::now();
         keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
-        keys.press(key, None, t0, None);
-        keys.press(key, Some(InputOwner::List(7)), t0 + ms(1), None);
         let first = t0 + ms(2);
+        keys.press(key, None, t0, Some(first));
+        keys.press(key, Some(InputOwner::List(7)), t0 + ms(1), Some(first));
         keys.press(key, None, t0 + ms(3), Some(first));
         keys.press(key, None, t0 + ms(4), Some(first));
         let seen: Vec<Instant> = keys.presses[&key].iter().map(|(at, _)| *at).collect();
         assert_eq!(seen, [t0 + ms(1), t0 + ms(3), t0 + ms(4)]);
         assert_eq!(keys.take(key, first, Some(7)), Some(InputOwner::List(7)));
+    }
+
+    /// Given 보류 중에 A 키 관찰이 쌓였고(줄의 가장 이른 사건보다 뒤), When 보류가 풀린 뒤 다른 키 B 를 누르면, Then A 도
+    /// 마지막 관찰 하나만 남는다(경계가 진행하면 모든 키를 정리한다).
+    #[test]
+    fn a_boundary_advance_trims_the_observations_of_every_key() {
+        let ms = std::time::Duration::from_millis;
+        let mut keys = ExplorerImeKeys::default();
+        let a = PhysicalKey::Code(KeyCode::ArrowDown);
+        let b = PhysicalKey::Code(KeyCode::ArrowUp);
+        let t0 = Instant::now();
+        for n in 1..=3 {
+            keys.press(a, None, t0 + ms(n), Some(t0));
+        }
+        assert_eq!(
+            keys.presses[&a].len(),
+            3,
+            "보류 중에는 줄 선 사건 뒤 관찰을 남긴다"
+        );
+        keys.press(b, None, t0 + ms(4), None);
+        let seen: Vec<Instant> = keys.presses[&a].iter().map(|(at, _)| *at).collect();
+        assert_eq!(seen, [t0 + ms(3)]);
+    }
+
+    /// Given 같은 보류 중 관찰, When 보류 중에 B 를 누르면, Then A 의 관찰은 줄 선 사건이 짝 지을 수 있어 남는다.
+    #[test]
+    fn observations_a_waiting_event_can_pair_with_stay_while_another_key_is_pressed() {
+        let ms = std::time::Duration::from_millis;
+        let mut keys = ExplorerImeKeys::default();
+        let a = PhysicalKey::Code(KeyCode::ArrowDown);
+        let b = PhysicalKey::Code(KeyCode::ArrowUp);
+        let t0 = Instant::now();
+        for n in 1..=3 {
+            keys.press(a, None, t0 + ms(n), Some(t0));
+        }
+        keys.press(b, None, t0 + ms(4), Some(t0));
+        assert_eq!(keys.presses[&a].len(), 3);
+    }
+
+    /// Given 줄에서 앞에 선 사건이 t4 에, 그 뒤에 선 사건이 더 이른 t2 에 도착했다(경계는 가장 이른 t2), When 그 뒤 관찰이
+    /// 더 오면, Then t2 사건은 자기 관찰(t1)과 짝을 짓는다.
+    #[test]
+    fn a_later_queued_event_that_arrived_earlier_keeps_its_own_observation() {
+        let ms = std::time::Duration::from_millis;
+        let mut keys = ExplorerImeKeys::default();
+        let key = PhysicalKey::Code(KeyCode::ArrowDown);
+        let t0 = Instant::now();
+        keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
+        let earliest = t0 + ms(2);
+        keys.press(key, Some(InputOwner::List(7)), t0 + ms(1), Some(earliest));
+        keys.press(key, None, t0 + ms(3), Some(earliest));
+        keys.press(key, None, t0 + ms(5), Some(earliest));
+        assert_eq!(keys.take(key, earliest, Some(7)), Some(InputOwner::List(7)));
     }
 
     #[test]

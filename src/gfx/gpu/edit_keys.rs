@@ -214,6 +214,9 @@ struct HostHold<E> {
     recheck: bool,
     /// Where an injected paste starts, to tell an applied paste from an ignored one.
     paste_at: Option<PasteMark>,
+    /// When the held key first reached the window. A recheck that hands it back keeps this time, so
+    /// the X11 observation cleanup and its replay still read when it came.
+    arrival: Instant,
     /// A Wayland read that finished while input it let through was still unprocessed. It is
     /// applied once that input's pass has settled the focus.
     arrived: Option<Arrived>,
@@ -319,10 +322,14 @@ impl<E: HeldEvent> EditKeyState<E> {
     /// or a settle line) reached the window. `None` when no event waits. Read by the X11 observation
     /// cleanup (`explorer_ime`).
     pub(crate) fn oldest_waiting(&self) -> Option<Instant> {
-        let hold = self.hold.as_ref().and_then(|h| h.hold.first_queued_at());
-        let release = self.release.as_ref().and_then(|(_, r)| r.first_queued_at());
-        let settle = self.settle.as_ref().and_then(|s| s.line.first_queued_at());
-        [hold, release, settle].into_iter().flatten().min()
+        let held = self.hold.as_ref().map(|h| h.arrival);
+        let hold = self.hold.as_ref().and_then(|h| h.hold.oldest_queued_at());
+        let release = self
+            .release
+            .as_ref()
+            .and_then(|(_, r)| r.oldest_queued_at());
+        let settle = self.settle.as_ref().and_then(|s| s.line.oldest_queued_at());
+        [held, hold, release, settle].into_iter().flatten().min()
     }
 
     /// A key is held, or its release still waits for the owner.
@@ -469,6 +476,7 @@ impl<E: HeldEvent> EditKeyState<E> {
             recheck,
             paste_at: None,
             arrived: None,
+            arrival: self.arrival(),
             cuts_ahead: self.cuts,
         });
     }
@@ -506,11 +514,10 @@ impl<E: HeldEvent> EditKeyState<E> {
         }
         if held.recheck {
             if let Some(held) = self.hold.take() {
+                let arrival = held.arrival;
                 let mut release = held.hold.resolve(Outcome::NotActed);
                 if let Some((event, _)) = release.replay.take() {
-                    release
-                        .queued
-                        .insert(0, LineItem::Event(event, Instant::now()));
+                    release.queued.insert(0, LineItem::Event(event, arrival));
                 }
                 self.add_release(held.owner, release);
             }
