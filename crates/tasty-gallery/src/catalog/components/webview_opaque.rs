@@ -1,6 +1,8 @@
 //! 불투명 모드 native WebView 페이지 위에 뜬 팝업 예제. 장면마다 투명(현재 그대로)·불투명·
 //! 숨김(현재 대체 동작) 세 열을 Mocha·Latte 두 줄로 놓는다. 불투명 열의 점선 사각형은 host 가
-//! 페이지 위에 칠할 수 있는 상자(팝업·드롭다운)를 가리키며 상자 바깥 2px 에 그린다.
+//! 페이지 위에 칠할 수 있는 상자(팝업·드롭다운)를 가리키며 상자 바깥 2px 에
+//! specimen-annotation-border 로 그린다. B 장면의 기각 열은 상자를 불투명으로 두지만 점선은
+//! 그리지 않는다(점선 절반이 scrim 위에 놓인다).
 
 use tasty_egui_theme::overlay_edge::BoxEdge;
 use tasty_type_appearance::theme::Theme;
@@ -231,7 +233,10 @@ fn scrim(ui: &egui::Ui, th: &Theme, rect: egui::Rect) {
 /// host 가 칠할 수 있는 상자 표시 — 불투명 열에서만 그린다.
 fn host_outline(ui: &egui::Ui, th: &Theme, boxed: egui::Rect) {
     let r = boxed.expand((z(HOST_OUTLINE_OFFSET) + th.border_width).value());
-    let stroke = egui::Stroke::new(th.border_width.value(), th.accent_warning().to_egui());
+    let stroke = egui::Stroke::new(
+        th.border_width.value(),
+        th.specimen_annotation_border().to_egui(),
+    );
     let dash = th.spacing_xs.value();
     let p = ui.ctx().layer_painter(ui.layer_id());
     for (a, b) in [
@@ -321,7 +326,7 @@ fn scene_b(ui: &mut egui::Ui, th: &Theme, mode: Mode) {
         let boxed = place(ui, pos, |ui| {
             command_palette::palette_card(ui, th, mode.edge())
         });
-        if mode.edge().opaque {
+        if mode == Mode::Opaque {
             host_outline(ui, th, boxed);
         }
     });
@@ -533,4 +538,77 @@ pub fn draw_file_picker(ui: &mut egui::Ui, theme: &Theme) {
         "A dropdown opened from an opaque-mode shell is opaque-mode even if its own rect ends over \
          a terminal, so the parent and child never disagree.",
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use tasty_type_appearance::theme::Theme;
+
+    use super::{Mode, scene_a, scene_b, scene_c, scene_d, zoomed};
+    use crate::catalog::components::painted::{Painted, paint};
+
+    type Scene = fn(&mut egui::Ui, &Theme, Mode);
+
+    fn themes() -> [(&'static str, Theme); 2] {
+        [
+            ("Mocha", zoomed(&tasty_themes::mocha_fallback())),
+            ("Latte", zoomed(&crate::host_shell::latte_theme())),
+        ]
+    }
+
+    /// `color` 로 그은 선분 수.
+    fn segments(p: &Painted, color: egui::Color32) -> usize {
+        p.shapes
+            .iter()
+            .filter(
+                |s| matches!(s, egui::Shape::LineSegment { stroke, .. } if stroke.color == color),
+            )
+            .count()
+    }
+
+    /// 불투명 열의 상자 표시는 specimen-annotation-border 점선이고, 다른 열과 B 장면의 기각 열에는
+    /// 그 표시가 없다.
+    #[test]
+    fn host_outline_is_annotation_ink_only_in_the_opaque_column() {
+        let scenes: [(&str, Scene, &[Mode]); 4] = [
+            ("A", scene_a, &[Mode::Transparent, Mode::Hidden]),
+            (
+                "B",
+                scene_b,
+                &[Mode::Transparent, Mode::Hidden, Mode::Blotch],
+            ),
+            ("C", scene_c, &[Mode::Transparent, Mode::Hidden]),
+            ("D", scene_d, &[Mode::Transparent, Mode::Hidden]),
+        ];
+        for (name, th) in themes() {
+            let ink = th.specimen_annotation_border().to_egui();
+            let warning = th.accent_warning().to_egui();
+            assert_ne!(
+                ink, warning,
+                "{name}: the tokens must differ to tell them apart"
+            );
+            for (scene_name, scene, unmarked) in scenes {
+                let opaque = paint(|ui| scene(ui, &th, Mode::Opaque));
+                assert!(
+                    segments(&opaque, ink) >= 4,
+                    "{name} {scene_name}: the opaque column draws the dashed host rect in \
+                     specimen-annotation-border"
+                );
+                assert_eq!(
+                    segments(&opaque, warning),
+                    0,
+                    "{name} {scene_name}: no accent-warning mark"
+                );
+                for mode in unmarked {
+                    let p = paint(|ui| scene(ui, &th, *mode));
+                    assert_eq!(
+                        segments(&p, ink),
+                        0,
+                        "{name} {scene_name} {}: no host rect mark",
+                        mode.label()
+                    );
+                }
+            }
+        }
+    }
 }
