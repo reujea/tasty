@@ -119,15 +119,19 @@ impl PopupManager {
         cuts
     }
 
-    /// 누름을 사건 시점에 적용한다. `pos` 의 레이어가 열린 인스턴스(등록 자식 포함)면 그 인스턴스로, 아니면 창 위젯으로
-    /// 포커스를 옮긴다(`focus_on_press`). 그 누름을 그리기 전까지 노드는 그 값이다.
+    /// 누름을 사건 시점에 적용한다. `pos` 의 레이어가 열린 인스턴스(등록 자식 포함)나 그 덮음 막이면 그 인스턴스로,
+    /// 아니면 창 위젯으로 포커스를 옮긴다(`focus_on_press`, 메인 창 포인터 대상 `popup_pointer_target` 이 덮는 사각형을
+    /// 보는 것과 같다). 그 누름을 그리기 전까지 노드는 그 값이고, 그 누름을 그리는 패스는 포커스를 다시 정하지 않는다
+    /// (`window_press_decided`).
     pub(crate) fn press_window_at(&mut self, ctx: &egui::Context, pos: egui::Pos2) {
         let hit = ctx.layer_id_at(pos).and_then(|layer| {
             self.popups
                 .iter()
                 .filter(|p| p.open)
                 .find(|p| {
-                    super::draw::area_id_of(p.id, p.instance) == layer.id
+                    let area = super::draw::area_id_of(p.id, p.instance);
+                    area == layer.id
+                        || area.with(super::draw::COVER_BLOCK) == layer.id
                         || super::child_popup_ids::child_layer_ids(ctx, p.instance)
                             .contains(&layer.id)
                 })
@@ -136,6 +140,12 @@ impl PopupManager {
         self.focus_on_press(hit.map(PopupNode::Host));
         let node = hit.map_or(WindowNode::Widget, WindowNode::Popup);
         self.window.press = Some((node, self.window.after.len()));
+    }
+
+    /// 지금 그리는 몫의 누름이 사건 입구에서 포커스를 정했는지(`press_window_at`). 그리기는 그 누름의 포커스를 다시
+    /// 정하지 않는다.
+    pub(crate) fn window_press_decided(&self) -> bool {
+        matches!(self.window.press, Some((_, 0)))
     }
 
     /// egui 에 실은 키 사건의 몫을 그 사건 시점 노드로 묶는다. 팝업이면 그 팝업, 창 위젯이면 팝업이 아닌 노드다.

@@ -204,7 +204,11 @@ impl PopupManager {
         draw_ctx: Option<&LayoutContext>,
         plugin_occluders: &[Occluder],
     ) -> PopupDrawResult {
-        let press = RoutedPress::from_frame_at_press(ctx, draw_ctx);
+        let mut press = RoutedPress::from_frame_at_press(ctx, draw_ctx);
+        if let Some(press) = press.as_mut() {
+            // 별도 창 누름은 사건 입구가 포커스를 정했다(`press_window_at`).
+            press.focus_decided = self.window_press_decided();
+        }
         self.draw_routed(
             ctx,
             &mut |cx, ui| {
@@ -564,11 +568,8 @@ impl PopupManager {
                         area_id_of(popup.id, popup.instance),
                     );
                     if let Some(cover) = popup.cover_rect(draw_ctx, screen_rect) {
-                        let block = super::press::block_pointer(
-                            ctx,
-                            layer_id.id.with("cover_block"),
-                            cover,
-                        );
+                        let block =
+                            super::press::block_pointer(ctx, layer_id.id.with(COVER_BLOCK), cover);
                         layers.push(block);
                         focus_layers.push(block);
                     }
@@ -650,8 +651,7 @@ impl PopupManager {
                 egui::LayerId::new(egui::Order::Foreground, area_id_of(popup_id, popup_iid));
             // 덮는 범위의 아래 위젯 입력은 팝업 바로 아래 막는 레이어가 받는다.
             if let Some(cover) = popup.cover_rect(draw_ctx, screen_rect) {
-                let block =
-                    super::press::block_pointer(ctx, layer_id.id.with("cover_block"), cover);
+                let block = super::press::block_pointer(ctx, layer_id.id.with(COVER_BLOCK), cover);
                 layers.push(block);
                 if popup.arrange.takes_focus {
                     focus_layers.push(block);
@@ -1136,6 +1136,9 @@ impl PopupManager {
         paints
     }
 }
+
+/// 덮는 팝업의 덮음 막이 레이어 id 꼬리(`area_id_of(..).with(COVER_BLOCK)`). 그 아래 위젯 누름을 막는다.
+pub(crate) const COVER_BLOCK: &str = "cover_block";
 
 /// 팝업 인스턴스의 egui 레이어·Area ID.
 pub(super) fn area_id_of(popup_id: PopupId, instance: PopupInstanceId) -> egui::Id {

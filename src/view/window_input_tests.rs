@@ -115,12 +115,16 @@ fn draw(ctx: &egui::Context, pass: &mut WindowPass<'_, TestWindow>) {
     let (text, rects, saw) = (&mut window.text, &mut window.rects, &mut window.saw_x);
     window.popups.draw_view_local(ctx, &mut |cx, ui, _| {
         if sees_x(ui) {
-            saw.push(if cx.id == A { "A" } else { "B" });
+            saw.push(match cx.id {
+                A => "A",
+                B => "B",
+                _ => "C",
+            });
         }
         if cx.id == A {
             field(ui, "a1", text, rects);
             field(ui, "a2", text, rects);
-        } else {
+        } else if cx.id == B {
             field(ui, "b", text, rects);
         }
         false
@@ -501,4 +505,40 @@ fn a_key_bound_in_the_feed_step_reaches_the_same_popup_when_drawing() {
     h.key(&mut w, egui::Key::Y, Some("y"));
     h.drain(&mut w);
     assert_eq!((w.text("a1"), w.text("w")), ("x", "y"));
+}
+
+/// 덮는 팝업 C(설정 창 단축키 충돌 확인 선언)를 등록한 창. 창 위젯 w 에 egui 포커스를 준 뒤 C 를 포커스를 주며 연다.
+fn covered_widget() -> (Harness, TestWindow) {
+    let mut h = Harness::new();
+    let mut w = TestWindow::new();
+    w.popups
+        .register_def(&crate::view::settings::ui::keybinding_conflict_def(), 1.0);
+    h.drain(&mut w);
+    focus_field(&mut h, &mut w, "w");
+    let request = OpenRequest::new(
+        crate::view::settings::ui::KEYBINDING_CONFLICT_POPUP_ID,
+        PopupScope::Window,
+    )
+    .at(egui::pos2(500.0, 400.0))
+    .focused();
+    assert!(w.popups.open_request(&request, true).is_some());
+    h.drain(&mut w);
+    h.drain(&mut w);
+    (h, w)
+}
+
+/// Given 창 위젯 w 위를 덮는 팝업 C 가 포커스를 가지고 열려 있다, When 한 묶음에 덮인 w 자리를 누르고 x 를 치면, Then
+/// 그 누름은 C 의 덮음 막이를 누른 것이라 사건 시점 노드는 C 이고 w 는 그 키를 보지 않는다.
+#[test]
+fn a_press_on_the_cover_of_a_separate_window_popup_keeps_that_popup_the_node() {
+    let (mut h, mut w) = covered_widget();
+    let field = w.center("w");
+    h.click(&mut w, field);
+    h.type_x(&mut w);
+    let seen = h.drain(&mut w);
+    assert_eq!(w.text("w"), "", "the covered widget gets no text");
+    assert!(
+        seen.iter().flatten().all(|n| *n == "C"),
+        "only the covering popup sees the key: {seen:?}"
+    );
 }
