@@ -192,8 +192,7 @@ impl PluginsView {
             event,
             judged,
             to_egui,
-            Self::own_event,
-            |_, _| false,
+            crate::view::judged_event::WindowOwn::plain(Self::own_event),
             Self::window_input,
         )
     }

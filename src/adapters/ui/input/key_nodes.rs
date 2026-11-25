@@ -464,7 +464,7 @@ pub(crate) fn separate_window_receiver(
     path.extend(
         popup.map(|p| KeyNode::Popup(host_popup_key_node(p, key, None, p.expanded(), p.covers()))),
     );
-    if popup.is_none_or(|p| !p.covers()) {
+    if separate_window_levels(popup).contains(KeyLevel::Window) {
         path.push(KeyNode::Scope(ScopeKeyNode {
             level: KeyLevel::Window,
             content: ScopeContent::Window,
@@ -473,6 +473,20 @@ pub(crate) fn separate_window_receiver(
     }
     let matching: &[KeyLevel] = if own { &[KeyLevel::Engine] } else { &[] };
     route_key(&path, key, &EditBindings::default(), matching).receiver
+}
+
+/// 별도 창 키 경로의 level 집합: engine 과, 사건 시점 노드(`popup`, None 이면 창 위젯)가 창을 덮는 팝업이 아니면 창
+/// 범위(Window). 수신자(`separate_window_receiver`)의 창 범위 노드와 단계 11 더블탭 동작 거르기
+/// (`judged_event::window_tap_front`)가 이 한 값을 읽는다.
+pub(crate) fn separate_window_levels(
+    popup: Option<&crate::adapters::ui::popup::PopupState>,
+) -> super::key_level::PathLevels {
+    let levels = super::key_level::PathLevels::engine_only();
+    if popup.is_none_or(|p| !p.covers()) {
+        levels.with(KeyLevel::Window)
+    } else {
+        levels
+    }
 }
 
 /// 별도 창 관리자의 창 범위 노드에 붙는 팝업(`separate_window_receiver`): 보이는 비덮음 host 인스턴스를 z 최상단

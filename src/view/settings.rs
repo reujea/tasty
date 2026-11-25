@@ -386,6 +386,40 @@ fn close_outcome(panel: Option<bool>, titlebar_close: bool) -> Option<bool> {
     }
 }
 
+/// 설정 창 더블탭 하나의 처리.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum SettingsTap {
+    /// 설정 열기 더블탭이라 창을 닫는다.
+    Close,
+    /// 녹화가 읽을 캡처로 둔다(창 내용, `double_tap_capture::take_capture`).
+    Capture,
+    Nothing,
+}
+
+/// 설정 창이 검출한 더블탭 `dt` 의 처리. 동작은 메인 창과 같은 거르기(`double_tap_actions`)로 그 사건 경로의
+/// level(`levels`)에 있는 후보만 본다: 메인 창에서 설정을 여는 더블탭(toggle_settings, engine level)은 녹화 중이 아니면
+/// 창을 덮는 팝업 아래에서도 창을 닫는다. 녹화 캡처는 창 내용이라 단계 4 수신 노드가 창 노드일 때(`receives`)만 둔다.
+pub(crate) fn settings_double_tap(
+    kb: &crate::settings::KeybindingSettings,
+    recording: bool,
+    dt: crate::double_tap::DoubleTapKey,
+    levels: crate::adapters::ui::input::key_level::PathLevels,
+    receives: bool,
+) -> SettingsTap {
+    let actions = crate::adapters::ui::input::shortcuts::double_tap::double_tap_actions(
+        kb,
+        Some(levels),
+        dt.binding_str(),
+    );
+    if !recording && actions.contains(&"toggle_settings") {
+        SettingsTap::Close
+    } else if receives {
+        SettingsTap::Capture
+    } else {
+        SettingsTap::Nothing
+    }
+}
+
 impl SettingsView {
     /// 편집 키 보류가 풀려 다시 온 사건. 재생된 좌버튼 누름은 OS 창 이동을 시작하지 않도록 출처를 적는다.
     fn handle_replayed_edit_event(
@@ -419,8 +453,14 @@ impl SettingsView {
             event,
             judged,
             !skip_egui && !is_redraw,
-            Self::own_event,
-            Self::own_shortcut,
+            crate::view::judged_event::WindowOwn {
+                event: Self::own_event,
+                keys: Self::own_shortcut,
+                taps: Some(crate::view::judged_event::WindowTaps {
+                    detector: |view| &mut view.double_tap,
+                    run: Self::run_double_tap,
+                }),
+            },
             Self::window_input,
         )
     }
@@ -435,6 +475,28 @@ impl SettingsView {
                 &event.logical_key,
                 self.base.state.modifiers,
             )
+    }
+
+    /// 단계 11 맨 앞에서 검출한 더블탭 하나(`judged_event::window_tap_front`). 처리가 창을 닫으면 그 결과다.
+    fn run_double_tap(
+        &mut self,
+        dt: crate::double_tap::DoubleTapKey,
+        levels: crate::adapters::ui::input::key_level::PathLevels,
+        receives: bool,
+    ) -> Option<ViewAction> {
+        let recording = self.settings_ui_state.is_recording();
+        match settings_double_tap(&self.settings.keybindings, recording, dt, levels, receives) {
+            SettingsTap::Close => {
+                self.should_close = true;
+                Some(ViewAction::Close)
+            }
+            SettingsTap::Capture => {
+                self.captured_double_tap = Some(dt.binding_str().to_string());
+                self.mark_dirty();
+                None
+            }
+            SettingsTap::Nothing => None,
+        }
     }
 
     /// 편집 키 판정과 egui를 지난 이벤트의 창 자체 처리.
@@ -492,30 +554,6 @@ impl SettingsView {
                 {
                     self.should_close = true;
                     return ViewAction::Close;
-                }
-
-                self.double_tap.on_key_event(
-                    &event.logical_key,
-                    event.state == ElementState::Pressed,
-                    self.base.gpu.event_arrival(),
-                );
-                if event.state == ElementState::Pressed
-                    && let Some(dt) = self.double_tap.take()
-                {
-                    // 메인 창에서 설정을 여는 더블탭은 설정 창 안에서 같은 입력으로 닫는다.
-                    if !is_recording
-                        && self
-                            .settings
-                            .keybindings
-                            .toggle_settings
-                            .iter()
-                            .any(|b| b == dt.binding_str())
-                    {
-                        self.should_close = true;
-                        return ViewAction::Close;
-                    }
-                    self.captured_double_tap = Some(dt.binding_str().to_string());
-                    self.mark_dirty();
                 }
 
                 // 녹화 중이면 winit에서 직접 키 조합 캡처. quick-switch bare-key 슬롯은

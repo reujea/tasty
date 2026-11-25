@@ -317,7 +317,11 @@ debug egui 주입(키·포인터·글자·클립보드, 메인 창과 별도 창
 키는 아무도 받지 않는다(창 자체 처리의 Engine level 후보만 받는다). 결과는 `window_input_tests.rs`의
 `a_key_a_covering_popup_does_not_use_reaches_no_window_node`·`an_engine_key_under_a_covering_popup_reaches_the_window_s_own_handling`
 이 정본이다. egui 에 실은 키의 몫은 출발 노드로 묶고, 창 자체 처리(단계 11, 설정 창의 toggle_settings 등)는 창 노드가 받은
-키만 본다. egui 에 실은 bare Esc 는 그 몫을 끝내고, 수신자가 팝업이면 메인 창과 같은
+키만 본다. 더블탭 검출기는 단계 11 맨 앞에서 메인 창과 같은 자리(`view::key_event::key_ends_at_latch`,
+`judged_event::window_tap_front`)로 수신 노드와 관계없이 모든 키를 받고, 검출한 동작은 그 사건 경로의 level
+(`key_nodes::separate_window_levels`)로 거른다. 그래서 engine level 인 toggle_settings 더블탭은 덮는 팝업 아래에서도 돌고,
+창 내용인 녹화 캡처는 창 노드가 받을 때만 둔다(`judged_event.rs`의
+`a_toggle_settings_double_tap_under_a_covering_popup_closes_the_window`·`a_double_tap_under_a_covering_popup_leaves_the_window_capture_alone`). egui 에 실은 bare Esc 는 그 몫을 끝내고, 수신자가 팝업이면 메인 창과 같은
 넘김 기록으로 그 Esc 를 키 주인에 넘기고 같은 규칙으로 포커스를 푼다(`PopupManager::apply_window_escape`,
 `PopupState::receive_escape`). debug 키 주입은 보류 줄 검사(`enter_window_debug`)를 지난 뒤 같은 입구를 지나고, 실을 사건이
 없으면(빈 클립보드의 붙여넣기) 끊지도 묶지도 않는다(`view::window_input::inject_window_key`). 패스는 메인 창과 같은 순서 함수로 열고 닫으며
@@ -359,7 +363,7 @@ App plugin 게이트와 WebView 전달 게이트도 같은 경로 결과를 읽�
 (`key_nodes::settle_key`, 수신자 `KeyReceiver::SettingsRequest`). 뗌은 지금 경로다. App plugin 게이트는 닫히고,
 단계 6 편집 판정은 그 키를 판정하지 않으며(`key_nodes::settings_latch_receives`), egui 에도 싣지 않는다. 단계 11 은 맨 앞
 `MainViewState::end_key_at_settings_latch`에서 그 누름을 끝내 무대·더블탭·단축키·vi·끝 목적지로 보내지 않고, bare Esc 면
-적용 함수가 래치를 취소한다. 더블탭 감지기는 래치가 끝낸 누름을 세지 않고 비운다(`view::main::keyboard::key_ends_at_latch`). 넘김과 그리기는
+적용 함수가 래치를 취소한다. 더블탭 감지기는 래치가 끝낸 누름을 세지 않고 비운다(`view::key_event::key_ends_at_latch`). 넘김과 그리기는
 [popup.md의 Esc 소유권](../design/systems/popup.md#plugin-popup--host-popup-부모-자식)을 따른다.
 
 ### 키 경로와 수신자

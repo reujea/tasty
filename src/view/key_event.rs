@@ -48,3 +48,23 @@ pub(crate) fn run_key_event<E>(steps: &mut impl KeyEventSteps<E>, event: E) -> V
     };
     steps.run_receiver(event, judged, egui)
 }
+
+/// 단계 11 맨 앞의 키 사건 하나: 설정 열기 요청 래치 끝(`latch`, 누름만 본다)과 더블탭 검출기 공급. 메인 창과 별도 창
+/// (`judged_event::window_tap_front`)이 이 한 자리로 검출기를 공급하고, 단계 4 수신 노드와 관계없이 모든 키 사건이
+/// 온다. 검출한 더블탭의 동작은 그 사건의 경로 level 로 거른다. 뗌이거나 래치 노드가 받은 누름이면 참이고 그 사건은
+/// 뒤 단계로 가지 않는다. 래치 노드가 받은 누름은 검출기에 가지 않고 진행 중인 탭을 버린다: 래치 안의 탭이 래치
+/// 밖에서 더블탭이 되지 않는다. 래치 노드는 메인 창에만 있다. `at` 은 그 사건이 창에 도착한 시각이다.
+pub(crate) fn key_ends_at_latch(
+    detector: &mut crate::double_tap::DoubleTapDetector,
+    key: &winit::keyboard::Key,
+    pressed: bool,
+    at: std::time::Instant,
+    latch: impl FnOnce() -> bool,
+) -> bool {
+    if pressed && latch() {
+        detector.reset();
+        return true;
+    }
+    detector.on_key_event(key, pressed, at);
+    !pressed
+}

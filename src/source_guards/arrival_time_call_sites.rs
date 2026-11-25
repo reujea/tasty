@@ -68,14 +68,27 @@ fn a_held_shortcut_resets_the_hint_timer_at_its_arrival() {
     );
 }
 
-/// 설정 창의 두 번째 검출기도 그 창의 사건 도착 시각을 쓴다.
+/// 별도 창(설정 창)의 검출기도 메인 창과 같은 자리(`key_ends_at_latch`)로 그 창의 사건 도착 시각을 받는다.
 #[test]
 fn a_held_settings_double_tap_is_judged_by_its_arrival_interval() {
-    let judged = body("src/view/settings.rs", "fn own_event(");
+    let judged = body(
+        "src/view/judged_event.rs",
+        "pub(crate) fn judged_window_event<",
+    );
     has(
         &judged,
-        "self.double_tap.on_key_event( &event.logical_key, event.state == ElementState::Pressed, self.base.gpu.event_arrival(), );",
-        "설정 창 더블탭 공급",
+        "let at = view.base_mut().gpu.event_arrival();
+         window_tap_front(view, taps, &key.logical_key, pressed, at, levels, receives)",
+        "별도 창 더블탭 도착 시각",
+    );
+    let front = body(
+        "src/view/judged_event.rs",
+        "pub(crate) fn window_tap_front<",
+    );
+    has(
+        &front,
+        "key_ends_at_latch((taps.detector)(view), key, pressed, at, || false)",
+        "별도 창 더블탭 공급",
     );
 }
 

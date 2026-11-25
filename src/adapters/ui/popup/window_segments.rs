@@ -68,6 +68,8 @@ pub(crate) struct WindowSegments {
     /// 마지막 키 사건의 출발 노드와 단계 4 수신 결과(`settle_window_key`). 그 사건의 결속(`bind_window_key`·
     /// `apply_window_escape`)이 꺼내 쓴다.
     key_receiver: Option<(WindowNode, WindowReceiver)>,
+    /// 마지막 키 사건 경로의 level 집합(`settle_window_key`). 단계 11 더블탭 동작 거르기가 읽는다.
+    key_levels: Option<crate::adapters::ui::input::key_level::PathLevels>,
 }
 
 impl WindowSegments {
@@ -214,6 +216,11 @@ impl PopupManager {
             Some(node) => node,
             None => self.window_key_node(ctx),
         };
+        self.window.key_levels = Some(
+            crate::adapters::ui::input::key_nodes::separate_window_levels(
+                node.popup().and_then(|iid| self.instance(iid)),
+            ),
+        );
         let receiver = match key {
             WindowKey::Current => match node {
                 WindowNode::Popup(iid) => WindowReceiver::Popup(iid),
@@ -234,6 +241,13 @@ impl PopupManager {
         };
         self.window.key_receiver = Some((node, receiver));
         receiver == WindowReceiver::Window
+    }
+
+    /// 마지막 키 사건 경로의 level 집합(단계 4, `settle_window_key`). 키 사건이 아직 없으면 None 이다.
+    pub(crate) fn window_key_levels(
+        &self,
+    ) -> Option<crate::adapters::ui::input::key_level::PathLevels> {
+        self.window.key_levels
     }
 
     /// 단계 8·11(별도 창): egui 에 실은 bare Esc 누름 하나를 그 수신 결과(`settle_window_key`)로 묶고 적용한다.

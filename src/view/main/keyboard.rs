@@ -5,6 +5,7 @@ use winit::keyboard::{Key, ModifiersState, NamedKey};
 
 use super::MainView;
 use crate::app::command::{DomainIntent, SendPayload};
+use crate::view::key_event::key_ends_at_latch;
 use crate::view::ui::View;
 
 /// `decide_key_to_terminal` 의 입력 — 현재 focused terminal 의 read-only 상태.
@@ -37,25 +38,6 @@ struct KeyboardSendOutcome {
     scroll_action: KeyboardScrollAction,
     dirty: bool,
     sent: bool,
-}
-
-/// 단계 11 맨 앞의 키 사건 하나: 설정 열기 요청 래치 끝(`latch`, 누름만 본다)과 더블탭 검출기 공급. 뗌이거나 래치
-/// 노드가 받은 누름이면 참이고 그 사건은 뒤 단계(무대·더블탭·Esc·단축키·끝 목적지)로 가지 않는다. 래치 노드가 받은
-/// 누름은 검출기에 가지 않고 진행 중인 탭을 버린다: 래치 안의 탭이 래치 밖에서 더블탭이 되지 않는다. `at` 은 그
-/// 사건이 창에 도착한 시각이다.
-pub(crate) fn key_ends_at_latch(
-    detector: &mut crate::double_tap::DoubleTapDetector,
-    key: &Key,
-    pressed: bool,
-    at: std::time::Instant,
-    latch: impl FnOnce() -> bool,
-) -> bool {
-    if pressed && latch() {
-        detector.reset();
-        return true;
-    }
-    detector.on_key_event(key, pressed, at);
-    !pressed
 }
 
 impl MainView {
@@ -1301,7 +1283,13 @@ mod tests {
         pressed: bool,
         latched: bool,
     ) -> bool {
-        super::key_ends_at_latch(d, key, pressed, std::time::Instant::now(), || latched)
+        crate::view::key_event::key_ends_at_latch(
+            d,
+            key,
+            pressed,
+            std::time::Instant::now(),
+            || latched,
+        )
     }
 
     /// Given 설정 열기 요청 래치 중, When Ctrl 을 두 번 탭하고(래치 노드가 누름을 받는다) 래치가 풀린 뒤 다른 키를
