@@ -285,10 +285,10 @@ Spec 하나가 갤러리 예제 둘이거나, 둘이 하나이거나, 경계가 
 | `gallery/overlays-popups/index.jsx` "Tab switch overlay — modifier held" | `switch-tab` | [switch_overlay](#switch_overlay-overlays) |
 | `gallery/overlays-popups/index.jsx` "Workspace switch overlay — modifier held" | `switch-ws` | [switch_overlay](#switch_overlay-overlays) |
 | `gallery/overlays-popups/index.jsx` "Category switch overlay — Ctrl+Shift held" | `switch-cat` | [switch_overlay](#switch_overlay-overlays) |
-| `gallery/overlays-popups/opaque-over-page.jsx` "Contract — popup over a page in opaque mode" | `webview-opaque` (`components/webview_opaque.rs`) | 여섯 결정·토큰·입력 경로 Note. 상자 가장자리 판정은 본체와 같은 `tasty_egui_theme::overlay_edge::BoxEdge` 다 |
+| `gallery/overlays-popups/opaque-over-page.jsx` "Contract — popup over a page in opaque mode" | `webview-opaque` (`components/webview_opaque.rs`) | 여섯 결정·토큰·입력 경로 Note. 상자 가장자리 판정은 본체와 같은 `tasty_egui_theme::overlay_edge::BoxEdge` 다. 장면의 host 상자 점선은 `specimen-annotation-border` 로 그린다 |
 | `gallery/overlays-popups/opaque-over-page.jsx` "A — convert_surface over a full-pane markdown page" | `webview-opaque-convert` | 셸은 `convert` 예제와 같은 그리기 함수(`convert::card`)에 가장자리만 바꿔 그린다. Mocha·Latte 줄은 툴바 테마와 관계없이 고정이다 |
-| `gallery/overlays-popups/opaque-over-page.jsx` "B — command palette across markdown page \| terminal" | `webview-opaque-palette` | 네 번째 열이 기각안(페이지 밖에만 scrim)이다 |
-| `gallery/overlays-popups/opaque-over-page.jsx` "C — Tools menu straddling sidebar \| page" | `webview-opaque-tools` | 메뉴는 `tools-menu` 예제와 같은 `tools_card` 다 |
+| `gallery/overlays-popups/opaque-over-page.jsx` "B — command palette across markdown page \| terminal" | `webview-opaque-palette` | 네 번째 열이 기각안(페이지 밖에만 scrim)이다. 기각 열은 상자를 불투명으로 두지만 host 상자 점선을 그리지 않는다 |
+| `gallery/overlays-popups/opaque-over-page.jsx` "C — Tools menu straddling sidebar \| page" | `webview-opaque-tools` | 메뉴는 `tools-menu` 예제와 같은 `tools_card` 다. 메뉴 위치는 시안 storyboard 좌표를 따라 점선이 surface-active Tools 버튼 위를 지나지 않는다 |
 | `gallery/overlays-popups/opaque-over-page.jsx` "D — file picker with the path-bar dropdown hanging over the page" | `webview-opaque-file-picker` | 카드와 `…` 메뉴는 `filepicker` 예제와 같은 함수다. 메뉴 항목은 갤러리 경로 데이터가 숨긴 조상(3개)이라 시안(6개)과 달리 카드 아래로 늘어지지 않는다. 두 상자의 점선은 따로 그린다 |
 | `gallery/overlays-tutorial/index.jsx` "Step 1 / 4 — 워크스페이스" | `tutorial-composite` | `widgets/tutorial.rs` |
 | `gallery/overlays-windows/index.jsx` "Two-pane remote-workspace picker — 4 states" | `remote-workspace-attach` · `remote-workspace-attach-states` | 아래 remote_attach 절(디자인 한 Spec ↔ 갤러리 둘) |
