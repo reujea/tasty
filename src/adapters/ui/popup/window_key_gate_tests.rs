@@ -1307,8 +1307,48 @@ fn focus_bars(ctx: &egui::Context, state: &mut RequestContext) -> usize {
     super::focus_bar_count(&out)
 }
 
-/// 좁은 범위 키 주인은 자기 막대 하나를 켠다. 창 위로 펼친 팝업과 그 팝업이 연 자식이 키를 가지면 어느 팝업도
-/// 막대를 그리지 않고 키 포커스 surface도 없어 창 안에 켜진 표지가 없다(정본 RULES 4절 "Shown over the window").
+/// 켜진 surface 표지 수: focused 띠 leaf와 바탕 값이 focus인 surface. 창 범위 시험
+/// (`surface_focus_edge::scene_tests`)과 같은 계수이고, 프레임 값을 지금 키 포커스로 채운 뒤 센다.
+fn lit_surfaces(
+    state: &mut RequestContext,
+    session: &mut crate::runtime::engine_session::EngineSession,
+) -> usize {
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    state.refresh_frame_key_focus(&read);
+    let ws = read
+        .workspace_at(state.active_workspace_index(&read))
+        .expect("workspace");
+    let screen = crate::model::PhysicalRect {
+        x: crate::model::PhysicalPx(0.0),
+        y: crate::model::PhysicalPx(0.0),
+        width: crate::model::PhysicalPx(1200.0),
+        height: crate::model::PhysicalPx(700.0),
+    };
+    let panes = state.pane_rects(&read, ws, screen, 1.0);
+    crate::adapters::ui::surface_focus_edge::collect(state, &read, &panes, 1.0);
+    let edges = state
+        .surface_focus_edges
+        .iter()
+        .filter(|e| e.focused)
+        .count();
+    let beds = ws
+        .all_surface_ids()
+        .into_iter()
+        .filter(|&sid| {
+            crate::state::surface_focus::bed_focused(
+                state.frame_key_focus(),
+                sid,
+                &read.live.occupancy,
+            )
+        })
+        .count();
+    edges + beds
+}
+
+/// 좁은 범위 키 주인은 자기 막대 하나를 켠다. 창 위로 펼친 팝업이 키를 가진 프레임과 그 팝업이 연 자식이 키를 가진
+/// 프레임에는 어느 팝업도 막대를 그리지 않고 키 포커스 surface도 없어 창 안에 켜진 표지가 없다(정본 RULES 4절
+/// "Shown over the window"). 둘을 닫아 키가 surface로 돌아오면 표지 하나가 켜진다.
 #[test]
 fn a_popup_shown_over_the_window_and_its_child_light_nothing() {
     const CHILD: PopupId = "window_key_gate_test_child";
@@ -1331,6 +1371,24 @@ fn a_popup_shown_over_the_window_and_its_child_light_nothing() {
 
     state.popups.close_instance(x, PopupCloseReason::Command);
     state.popups.expand(g);
+    focus_bars(&ctx, &mut state);
+    assert!(state.popups.instance(g).unwrap().expanded());
+    assert_eq!(
+        state.popups.instance(g).unwrap().placement_scope(),
+        PopupScope::Window
+    );
+    assert_eq!(
+        state.popups.focused_dismissal_target().map(|t| t.1),
+        Some(g),
+        "the expanded G holds the keys"
+    );
+    assert_eq!(focus_bars(&ctx, &mut state), 0, "G draws no bar");
+    assert_eq!(
+        lit_surfaces(&mut state, &mut session),
+        0,
+        "G: no surface lit"
+    );
+
     let mut request = OpenRequest::new(CHILD, PopupScope::Surface(2)).focused();
     request.parent = Some(g);
     let child = state.popups.open_request(&request, true).expect("child");
@@ -1345,6 +1403,21 @@ fn a_popup_shown_over_the_window_and_its_child_light_nothing() {
         state.popups.focused_dismissal_target().map(|t| t.1),
         Some(child)
     );
-    assert_eq!(focus_bars(&ctx, &mut state), 0, "nothing lit");
-    assert_eq!(state.key_focus_surface(&session.borrow_mut().read()), None);
+    assert_eq!(focus_bars(&ctx, &mut state), 0, "the child draws no bar");
+    assert_eq!(
+        lit_surfaces(&mut state, &mut session),
+        0,
+        "the child: no surface lit"
+    );
+
+    state
+        .popups
+        .close_instance(child, PopupCloseReason::Command);
+    state.popups.close_instance(g, PopupCloseReason::Command);
+    focus_bars(&ctx, &mut state);
+    assert_eq!(
+        lit_surfaces(&mut state, &mut session),
+        1,
+        "keys back on the surface"
+    );
 }

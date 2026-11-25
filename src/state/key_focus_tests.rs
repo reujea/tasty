@@ -568,15 +568,23 @@ fn the_fullscreen_stage_leaves_no_surface_with_key_focus() {
     assert_eq!(key_focus(&state, &mut session), Some(sid));
 }
 
-/// 창의 포커스 감지(`observe_window_focus`, App이 창마다 부른다): 키를 가진 팝업 아래에서 선택을 바꾸면 탭의 OSC
-/// 제목을 새 선택 surface의 것으로 다시 읽고, 팝업이 키를 돌려줄 때(선택 변경 없음)는 다시 읽지 않는다. 키 포커스
-/// 진입은 `surface.focused`로 plugin 이벤트 큐에 들어간다. 시험 surface에는 터미널이 없어 다시 읽으면 제목이 없어진다.
+/// App이 창마다 도는 두 단계(`observe_window_focus`, 세션별 `drain_session_host_events`): 키를 가진 팝업 아래에서
+/// 선택을 바꾸면 탭의 OSC 제목을 새 선택 surface 터미널의 실제 제목으로 다시 읽고, 팝업이 키를 돌려줄 때(선택 변경
+/// 없음)는 drain까지 마친 뒤에도 다시 읽지 않는다. 키 포커스 진입은 `surface.focused`로 drain 결과에 나온다. 두 터미널은
+/// 서로 다른 OSC 제목을 가지고, 캐시에 남긴 다른 값으로 다시 읽었는지 가린다.
 #[test]
 fn the_window_focus_pass_refreshes_titles_on_selection_and_queues_key_focus_entries() {
-    use crate::app::dispatch::host_events::observe_window_focus;
+    use crate::app::dispatch::host_events::{drain_session_host_events, observe_window_focus};
     use crate::state::PendingHostEvent;
     crate::i18n::init("en");
+    let services = crate::adapters::ipc::handler::cli_entry_tests::test_core();
     let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+    for sid in [101, 201] {
+        let mut engine = session.borrow_mut();
+        let terminal = engine.find_terminal_by_id_mut(sid).expect("a terminal");
+        terminal.feed_bytes(format!("\x1b]2;osc {sid}\x07").as_bytes());
+        assert_eq!(terminal.current_title(), Some(format!("osc {sid}")));
+    }
     let set_title = |session: &mut EngineSession, sid: u32| {
         session
             .borrow_mut()
@@ -595,9 +603,7 @@ fn the_window_focus_pass_refreshes_titles_on_selection_and_queues_key_focus_entr
             .and_then(|t| t.osc_title.clone())
     };
     let focused = |session: &mut EngineSession| -> Vec<(u32, Option<u32>)> {
-        session
-            .borrow_mut()
-            .take_pending_host_events()
+        drain_session_host_events(&services, &mut session.borrow_mut())
             .into_iter()
             .filter_map(|e| match e {
                 PendingHostEvent::SurfaceFocused {
@@ -619,8 +625,8 @@ fn the_window_focus_pass_refreshes_titles_on_selection_and_queues_key_focus_entr
     observe_window_focus(&mut state, &mut session.borrow_mut());
     assert_eq!(
         title(&mut session, 101),
-        None,
-        "read again for the new selection"
+        Some("osc 101".into()),
+        "the new selection's own OSC title"
     );
     assert!(focused(&mut session).is_empty(), "no entry under the popup");
 
@@ -628,10 +634,10 @@ fn the_window_focus_pass_refreshes_titles_on_selection_and_queues_key_focus_entr
     state.popups.close("notifications");
     state.show_key_focus_frame(&session.borrow_mut().read());
     observe_window_focus(&mut state, &mut session.borrow_mut());
+    assert_eq!(focused(&mut session), vec![(101, None)], "keys came back");
     assert_eq!(
         title(&mut session, 101),
         Some("stale 101".into()),
-        "keys came back without a selection change"
+        "keys came back without a selection change, drain included"
     );
-    assert_eq!(focused(&mut session), vec![(101, None)], "keys came back");
 }
