@@ -26,7 +26,6 @@ use tasty_type_appearance::theme::Theme;
 use crate::button::{Button, ButtonVariant};
 use crate::chip::{KbdKey, TagVariant, kbd_parts, kbd_parts_width, split_keys, tag};
 use crate::control::ControlSize;
-use crate::plugin_add::PLUGIN_ADD_INSET;
 use crate::toggle::switch_with_label_color;
 
 /// 상세 이름 줄. 이름(font-size-max · text-primary · 보통 굵기), 버전 Tag, built-in 이면 기본 Tag 를
@@ -392,7 +391,7 @@ pub fn plugin_detail_bar_frame(
 ) {
     let response = egui::Frame::new()
         .inner_margin(egui::Margin::symmetric(
-            PLUGIN_ADD_INSET.value() as i8,
+            theme.plugins_inset().value() as i8,
             theme.spacing_md.value() as i8,
         ))
         .show(ui, |ui| {

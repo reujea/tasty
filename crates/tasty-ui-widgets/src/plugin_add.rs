@@ -6,7 +6,6 @@
 
 use tasty_type_appearance::color::HexColor;
 use tasty_type_appearance::theme::Theme;
-use tasty_type_geometry::length::LogicalPx;
 
 use std::borrow::Cow;
 
@@ -18,10 +17,6 @@ use crate::input::Input;
 use crate::plugin_avatar::{PluginAvatarSize, plugin_avatar};
 use crate::tokens::STRUCT_GAP_3;
 use crate::tooltip::{Tooltip, tooltip_hover_delay_elapsed};
-
-/// 신뢰 상자와 액션 바의 가로 여백, 카드와 신뢰 상자 사이 간격.
-/// 디자인 `plugins_window.jsx`의 `--tasty-size-14`·`gap: 14`이며 역할 토큰이 없다.
-pub const PLUGIN_ADD_INSET: LogicalPx = LogicalPx(14.0);
 
 /// 신뢰 판정 다섯 가지. 상자 톤은 추가가 무엇을 하는지를 나타낸다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -98,7 +93,7 @@ pub fn plugin_trust_box(
         ))
         .corner_radius(theme.corner_radius.value())
         .inner_margin(egui::Margin::symmetric(
-            PLUGIN_ADD_INSET.value() as i8,
+            theme.plugins_inset().value() as i8,
             theme.spacing_md.value() as i8,
         ))
         .show(ui, |ui| {
@@ -445,7 +440,7 @@ pub fn plugin_add_bar(
     let mut clicks = PluginAddBarClicks::default();
     let response = egui::Frame::new()
         .inner_margin(egui::Margin::symmetric(
-            PLUGIN_ADD_INSET.value() as i8,
+            theme.plugins_inset().value() as i8,
             theme.spacing_md.value() as i8,
         ))
         .show(ui, |ui| {
@@ -840,7 +835,7 @@ fn hint_slot_frame(
         .corner_radius(theme.corner_radius.value())
         .inner_margin(egui::Margin::symmetric(
             theme.spacing_lg.value() as i8,
-            PLUGIN_ADD_INSET.value() as i8,
+            theme.plugins_inset().value() as i8,
         ))
         .show(ui, |ui| {
             // 바깥 폭이 `width`가 되도록 안쪽 여백과 테두리를 뺀다.

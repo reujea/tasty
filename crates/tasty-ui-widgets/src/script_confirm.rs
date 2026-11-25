@@ -12,7 +12,7 @@ use crate::chip::{TagVariant, tag};
 use crate::spacing::margin_sym;
 
 /// 시안 좌우 여백(`Padding 12/14` 의 14). Theme 역할에 연결하지 않은 화면 전용 고정 치수다(docs/design/systems/theme.md).
-/// 같은 14인 `PLUGIN_ADD_INSET` 은 플러그인 추가 막대의 안쪽 여백이라 함께 바뀔 이유가 없어 쓰지 않는다.
+/// 같은 14인 `plugins_inset()` 은 플러그인 추가 막대의 안쪽 여백이라 함께 바뀔 이유가 없어 쓰지 않는다.
 pub const SCRIPT_CONFIRM_PAD_X: LogicalPx = LogicalPx(14.0);
 
 /// 확인 콘텐츠의 입력값. 본체는 번역 문자열을, 갤러리는 영어 문자열을 넣는다.

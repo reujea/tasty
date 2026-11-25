@@ -143,7 +143,7 @@ fn the_action_buttons_end_at_the_bar_inset_and_follow_screen_order() {
     assert!(configure.right() < uninstall.left());
     let pad_x = ControlSize::Md.pad_x(&theme);
     // 응답 rect 는 내용 폭으로 줄어들 수 있어 바에 준 폭을 기준으로 잰다.
-    let expected_right = bar_rect.left() + width - PLUGIN_ADD_INSET.value();
+    let expected_right = bar_rect.left() + width - theme.plugins_inset().value();
     assert!(
         (uninstall.right() + pad_x - expected_right).abs() <= 1.0,
         "uninstall button ends at {} but the bar inset is at {expected_right}",

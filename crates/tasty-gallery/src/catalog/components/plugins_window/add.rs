@@ -3,9 +3,9 @@
 
 use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::{
-    ControlSize, PLUGIN_ADD_INSET, PluginAddBarView, PluginAddPickerView, PluginManifestCardView,
-    PluginTrustKind, plugin_add_bar, plugin_add_empty_hint, plugin_add_path_picker,
-    plugin_add_read_error, plugin_manifest_card, plugin_trust_box,
+    ControlSize, PluginAddBarView, PluginAddPickerView, PluginManifestCardView, PluginTrustKind,
+    plugin_add_bar, plugin_add_empty_hint, plugin_add_path_picker, plugin_add_read_error,
+    plugin_manifest_card, plugin_trust_box,
 };
 
 /// 디자인 `SAMPLE_MANIFEST`. 미신뢰 · 공개키 있음.
@@ -52,7 +52,7 @@ pub(super) fn form_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, veri
     );
     if verified {
         child.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = PLUGIN_ADD_INSET.value();
+            ui.spacing_mut().item_spacing.y = theme.plugins_inset().value();
             manifest_card(ui, theme, false);
             trust_box(ui, theme, PluginTrustKind::UnknownKey, SAMPLE_FINGERPRINT);
         });
@@ -158,7 +158,7 @@ pub(super) fn hint_slot(ui: &mut egui::Ui, theme: &Theme, width: f32) {
 pub(super) fn open_values(ui: &mut egui::Ui, theme: &Theme, width: f32) {
     ui.vertical(|ui| {
         ui.set_width(width);
-        ui.spacing_mut().item_spacing.y = PLUGIN_ADD_INSET.value();
+        ui.spacing_mut().item_spacing.y = theme.plugins_inset().value();
         manifest_card(ui, theme, true);
         trust_box(ui, theme, PluginTrustKind::UnknownKey, LONG_FINGERPRINT);
     });

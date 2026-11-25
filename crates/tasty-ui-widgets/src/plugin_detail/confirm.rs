@@ -7,7 +7,6 @@ use tasty_type_appearance::theme::Theme;
 use super::plugin_detail_bar_frame;
 use crate::button::{Button, ButtonVariant};
 use crate::control::ControlSize;
-use crate::plugin_add::PLUGIN_ADD_INSET;
 use crate::spinner::busy_caption;
 
 /// 확인 바 문구. 본체는 번역 문자열을, 갤러리는 영어 문자열을 넣는다.
@@ -141,7 +140,7 @@ impl BarPlan {
         let gap = theme.spacing_sm.value();
         let icon = theme.icon_glyph_size_md.value();
         let control = ControlSize::Md.height(theme);
-        let inner = (width - 2.0 * PLUGIN_ADD_INSET.value()).max(0.0);
+        let inner = (width - 2.0 * theme.plugins_inset().value()).max(0.0);
         let actions_width = buttons_width(ui, theme, view);
         let inline_w = inner - icon - actions_width - 2.0 * gap;
         if !view.wrap {

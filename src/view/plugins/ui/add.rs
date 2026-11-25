@@ -2,9 +2,9 @@ use crate::i18n::t;
 use crate::theme;
 
 use tasty_ui_widgets::{
-    PLUGIN_ADD_INSET, PluginAddBarClicks, PluginAddBarView, PluginAddPickerView,
-    PluginManifestCardView, PluginTrustKind, plugin_add_bar, plugin_add_empty_hint,
-    plugin_add_path_picker, plugin_add_read_error, plugin_manifest_card, plugin_trust_box, vspace,
+    PluginAddBarClicks, PluginAddBarView, PluginAddPickerView, PluginManifestCardView,
+    PluginTrustKind, plugin_add_bar, plugin_add_empty_hint, plugin_add_path_picker,
+    plugin_add_read_error, plugin_manifest_card, plugin_trust_box, vspace,
 };
 
 use super::attention::{fingerprint_line, unverified_cause_key};
@@ -167,7 +167,7 @@ fn draw_preview(
     actions: &mut Vec<PluginsAction>,
 ) {
     ui.vertical(|ui| {
-        ui.spacing_mut().item_spacing.y = PLUGIN_ADD_INSET.value();
+        ui.spacing_mut().item_spacing.y = th.plugins_inset().value();
         let card = plugin_manifest_card(
             ui,
             th,
