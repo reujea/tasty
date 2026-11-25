@@ -448,12 +448,15 @@ fn host_popup_key_node(
     }
 }
 
-/// 별도 창(설정·Preset·Plugins) 키 하나의 단계 4 수신자. 노드 목록은 사건 시점 노드가 팝업이면 그 팝업(`popup`), 그
-/// 위에 창 범위 노드(창 위젯과 창 자체 처리)다. 메인 창과 같은 `route_key` 가 정한다: 팝업이 쓰지 않는 키와 Esc 선언이
-/// 넘긴 Esc 는 창 노드가 받는다. `own` 은 이 키가 창 자체 처리의 바인딩(설정 창의 toggle_settings, engine level)에
-/// 맞는지다. 별도 창은 편집 바인딩 없이 팝업을 그린다(`EditBindings::default`).
+/// 별도 창(설정·Preset·Plugins) 키 하나의 단계 4 수신자. 메인 창과 같은 `route_key` 가 정한다. 노드 목록은 사건 시점
+/// 노드가 팝업이면 그 팝업(`popup`)이고, 그 위에 창 범위 노드가 온다. 창 범위 노드의 내용은 창 위젯
+/// (`ScopeContent::Window`)이고 붙은 팝업은 그 창의 보이는 비덮음 인스턴스다(`attached`, z 최상단 먼저). 창을 덮는
+/// 팝업이 노드면 창 범위 노드는 경로에 없다(메인 창의 덮은 범위와 같다): 덮인 창 위젯과 창 범위 후보는 받지 않고
+/// engine level 후보만 받는다. `own` 은 이 키가 창 자체 처리의 바인딩(설정 창의 toggle_settings, engine level)에 맞는지다.
+/// 별도 창은 편집 바인딩 없이 팝업을 그린다(`EditBindings::default`).
 pub(crate) fn separate_window_receiver(
     popup: Option<&crate::adapters::ui::popup::PopupState>,
+    attached: Vec<AttachedPopup>,
     key: RouteKey,
     own: bool,
 ) -> KeyReceiver {
@@ -461,13 +464,34 @@ pub(crate) fn separate_window_receiver(
     path.extend(
         popup.map(|p| KeyNode::Popup(host_popup_key_node(p, key, None, p.expanded(), p.covers()))),
     );
-    path.push(KeyNode::Scope(ScopeKeyNode {
-        level: KeyLevel::Window,
-        content: ScopeContent::None,
-        attached: Vec::new(),
-    }));
+    if popup.is_none_or(|p| !p.covers()) {
+        path.push(KeyNode::Scope(ScopeKeyNode {
+            level: KeyLevel::Window,
+            content: ScopeContent::Window,
+            attached,
+        }));
+    }
     let matching: &[KeyLevel] = if own { &[KeyLevel::Engine] } else { &[] };
     route_key(&path, key, &EditBindings::default(), matching).receiver
+}
+
+/// 별도 창 관리자의 창 범위 노드에 붙는 팝업(`separate_window_receiver`): 보이는 비덮음 host 인스턴스를 z 최상단
+/// 먼저(`PopupManager::attached_nodes`, 별도 창의 팝업은 모두 Window 범위다).
+pub(crate) fn separate_window_attached(
+    popups: &crate::adapters::ui::popup::PopupManager,
+) -> Vec<AttachedPopup> {
+    let mut found = popups
+        .attached_nodes()
+        .map(|(iid, _, z, escape)| (z, iid, escape))
+        .collect::<Vec<_>>();
+    found.sort_by_key(|(z, _, _)| std::cmp::Reverse(*z));
+    found
+        .into_iter()
+        .map(|(_, iid, escape)| AttachedPopup {
+            node: PopupNode::Host(iid),
+            escape,
+        })
+        .collect()
 }
 
 /// host 팝업의 활성 노드 키맵에 이 키가 맞는지. 사건 시점에 정해지는 조건(폴더 모드, find 바인딩)만 본다.

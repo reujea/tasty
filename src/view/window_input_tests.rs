@@ -321,6 +321,28 @@ impl Harness {
         window_receives
     }
 
+    /// 창 자체 처리의 바인딩(engine level)에 맞는 키 하나. 창 노드가 그 키를 받으면 참이다(단계 4).
+    fn own_key(
+        &mut self,
+        window: &mut impl WindowPopups,
+        key: egui::Key,
+        modifiers: egui::Modifiers,
+    ) -> bool {
+        let route = crate::adapters::ui::input::key_route::RouteKey {
+            key: Some(key),
+            modifiers,
+            super_held: false,
+        };
+        self.settle(
+            window,
+            Incoming::Key,
+            Some(WindowKey::Path {
+                key: route,
+                own: true,
+            }),
+        )
+    }
+
     fn type_x(&mut self, window: &mut TestWindow) {
         self.key(window, egui::Key::X, Some("x"));
     }
@@ -601,6 +623,46 @@ fn a_key_over_a_covering_popup_does_not_reach_the_widget_holding_the_old_focus()
         seen.iter().flatten().all(|n| *n == "C") && seen.iter().flatten().count() > 0,
         "only the covering popup sees the key: {seen:?}"
     );
+}
+
+/// Given 창을 덮는 팝업 C(선언 Keys)가 노드, When C 의 소비 집합 밖 키 Ctrl+X 를 치면, Then 창 노드(덮인 창 위젯과
+/// 창 자체 처리)는 그 키를 받지 않는다. 덮음 막이를 먼저 눌러 노드를 C 로 둔다.
+#[test]
+fn a_key_a_covering_popup_does_not_use_reaches_no_window_node() {
+    let (mut h, mut w) = covered_widget();
+    let field = w.center("w");
+    h.click(&mut w, field);
+    h.drain(&mut w);
+    assert!(!h.key_with(&mut w, egui::Key::X, egui::Modifiers::CTRL, None));
+}
+
+/// Given 창을 덮는 팝업 C 가 노드, When 창 자체 처리의 바인딩(engine level)에 맞는 키를 치면, Then 창 자체 처리가
+/// 그 키를 받는다(덮인 창에서도 engine level 후보는 받는다).
+#[test]
+fn an_engine_key_under_a_covering_popup_reaches_the_window_s_own_handling() {
+    let (mut h, mut w) = covered_widget();
+    let field = w.center("w");
+    h.click(&mut w, field);
+    h.drain(&mut w);
+    assert!(h.own_key(&mut w, egui::Key::F7, egui::Modifiers::CTRL));
+}
+
+/// Given 덮지 않는 팝업 A(선언 Keys)의 a1 이 키 주인, When A 의 소비 집합 밖 키 Ctrl+X 를 치면, Then 메인 창의 덮지
+/// 않는 팝업처럼 그 키는 위로 올라가 받는 노드가 없다. 창 노드는 받지 않는다.
+#[test]
+fn a_key_a_non_covering_popup_does_not_use_reaches_no_window_node() {
+    let (mut h, mut w) = two_popups();
+    focus_field(&mut h, &mut w, "a1");
+    assert!(!h.key_with(&mut w, egui::Key::X, egui::Modifiers::CTRL, None));
+}
+
+/// Given 팝업 노드가 없는 창, When Ctrl+X 를 치면, Then 창 노드(창 위젯 내용)가 받는다.
+#[test]
+fn a_key_without_a_popup_node_reaches_the_window_node() {
+    let mut h = Harness::new();
+    let mut w = TestWindow::new();
+    h.drain(&mut w);
+    assert!(h.key_with(&mut w, egui::Key::X, egui::Modifiers::CTRL, None));
 }
 
 /// Given 창 위젯 w 위를 덮는 팝업 C 가 포커스를 가지고 열려 있다, When 한 묶음에 덮인 w 자리를 누르고 x 를 치면, Then

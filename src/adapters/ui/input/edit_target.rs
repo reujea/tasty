@@ -30,7 +30,8 @@ pub(crate) fn host_edit_target(
             | KeyReceiver::Notice(_)
             | KeyReceiver::Tutorial
             | KeyReceiver::HtmlAddress(_)
-            | KeyReceiver::Stage,
+            | KeyReceiver::Stage
+            | KeyReceiver::Window,
         ) => true,
         Some(KeyReceiver::EguiSurface(_)) => typing(),
         Some(

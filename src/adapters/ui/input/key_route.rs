@@ -96,6 +96,9 @@ pub(crate) enum ScopeContent {
         sid: u32,
         takes: bool,
     },
+    /// 별도 창(설정·Preset·Plugins)의 창 위젯. egui 가 그 창에 주는 키를 모두 받는다. 그 창 자체 처리의 바인딩은
+    /// engine level 후보다(`key_nodes::separate_window_receiver`).
+    Window,
 }
 
 /// 범위 노드에 붙은 비덮음 팝업. 노드의 하위에서 올라온 Esc만 받는다.
@@ -150,6 +153,8 @@ pub(crate) enum KeyReceiver {
     HtmlAddress(u32),
     EguiSurface(u32),
     Stage,
+    /// 별도 창의 창 노드(창 위젯과 창 자체 처리).
+    Window,
     /// 경로의 단축키 단계. 후보는 경로 level의 후보를 실행 순서대로 시도하고 모두 거절하면 `end`로 간다.
     Shortcut {
         end: KeyEnd,
@@ -173,6 +178,7 @@ impl KeyReceiver {
                 | KeyReceiver::HtmlAddress(_)
                 | KeyReceiver::EguiSurface(_)
                 | KeyReceiver::Stage
+                | KeyReceiver::Window
         )
     }
 
@@ -258,6 +264,7 @@ pub(crate) fn route_key(
                     }
                     KeyNode::Scope(scope) => match scope.content {
                         ScopeContent::None | ScopeContent::Yielding(_) => up(),
+                        ScopeContent::Window => KeyReceiver::Window,
                         ScopeContent::Egui { sid, .. } => {
                             if content && !EGUI_SURFACE_YIELDS_TO_ANCESTOR_BINDINGS {
                                 KeyReceiver::EguiSurface(sid)
@@ -396,6 +403,7 @@ fn route_escape(
                                 return KeyReceiver::EguiSurface(sid);
                             }
                         }
+                        ScopeContent::Window => return KeyReceiver::Window,
                     }
                 }
                 if shortcut(Some(scope.level)) {
