@@ -53,7 +53,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "idle",
-                "surface-raised fill · 1px border-default border · text-secondary",
+                "surface-raised fill · 1px border-default border · text-secondary-raised",
             ),
         ],
         &[
@@ -78,7 +78,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 egui::Color32::from(theme.text_on_accent()),
             ),
             TokenChip::new(
-                "text-secondary",
+                "text-secondary-raised",
                 "idle label",
                 egui::Color32::from(theme.text_secondary_raised()),
             ),
