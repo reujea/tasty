@@ -377,12 +377,11 @@ impl HostDocuments {
     }
 }
 
-/// 두 `NavigationId`가 같은 탐색인지. 한쪽을 모르면 같다고 본다(`load_generation::is_current_load`와 같다).
+/// 두 `NavigationId`가 같은 탐색인지. 한쪽을 모르면 어느 탐색과도 같다고 보지 않는다. ID를 읽지 못한
+/// commit·완료가 지금 main 탐색의 기록·본문·취소 기록을 바꾸지 않게 하는 닫힌 쪽이다
+/// (`load_generation::chrome_state_after_end`와 같다).
 fn same_nav(a: Option<u64>, b: Option<u64>) -> bool {
-    match (a, b) {
-        (Some(a), Some(b)) => a == b,
-        _ => true,
-    }
+    matches!((a, b), (Some(a), Some(b)) if a == b)
 }
 
 #[cfg(test)]

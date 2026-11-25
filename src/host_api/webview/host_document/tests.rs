@@ -563,3 +563,24 @@ fn a_reload_without_a_navigation_id_gets_no_body() {
     assert_eq!(reload(&mut docs, &b, 16), StartDecision::Reload);
     assert_eq!(serve(&mut docs, &b).as_deref(), Some("b"));
 }
+
+/// 받은 다시 싣기 15 뒤에 취소한 탐색 16의 완료가 ID 없이 실패로 와도, 15의 기록과 본문은 남고 15의
+/// 문서 요청은 본문을 받으며 15의 성공은 보통처럼 그 문서를 보이게 한다.
+#[test]
+fn an_end_without_an_id_leaves_the_admitted_retry_alone() {
+    let mut docs = HostDocuments::default();
+    let b = host_document_url(1, 1, 2);
+    docs.sent(2, b.clone(), body("b"));
+    assert_eq!(start(&mut docs, &b, 15), StartDecision::HostLoad);
+    assert_eq!(page(&mut docs, &b, 16), StartDecision::Cancel);
+    docs.cancelled(Some(16));
+    assert!(!docs.take_cancelled(None));
+    assert!(!docs.navigation_completed(None, false));
+    docs.committed(None, false);
+    assert_eq!(docs.loads(), vec![(2, false)]);
+    assert_eq!(serve(&mut docs, &b).as_deref(), Some("b"));
+    docs.committed(Some(15), false);
+    assert!(!docs.navigation_completed(Some(15), true));
+    assert_eq!(docs.loads(), vec![(2, true)]);
+    assert!(docs.take_cancelled(Some(16)), "취소 기록도 남는다");
+}
