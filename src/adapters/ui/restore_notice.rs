@@ -115,6 +115,7 @@ pub(crate) fn open_for_test(
     entry: RestoreNoticeEntry,
     focused_inside: bool,
 ) {
+    // intent-exempt: a test-only helper that sets up an open notice before drawing; it is not a user input path.
     state
         .popups
         .open_request(
