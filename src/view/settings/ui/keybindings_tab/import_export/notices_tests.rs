@@ -200,7 +200,7 @@ fn danger_tint(th: &Theme) -> egui::Color32 {
 #[test]
 fn export_failure_title_and_glyph_read_separate_inks() {
     for th in themes() {
-        let ink = tasty_ui_widgets::kb_ie_notice::export_failure_ink(&th);
+        let ink = tasty_ui_widgets::export_failure_ink(&th);
         assert_eq!(ink.title, th.accent_danger_strong().to_egui(), "title ink");
         assert_eq!(ink.glyph, th.accent_danger_raised().to_egui(), "glyph ink");
         assert_eq!(ink.tint, th.accent_danger().to_egui(), "tint");

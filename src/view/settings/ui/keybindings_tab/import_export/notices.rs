@@ -2,11 +2,11 @@
 //! 공통 알림 형식을 사용해 제목·본문·버튼 배치를 맞춘다.
 
 use tasty_type_appearance::theme::Theme;
-use tasty_ui_widgets::kb_ie_notice::{
+use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, Ground};
+use tasty_ui_widgets::{
     NoticeInk, bundle_notice_line_ink, bundle_notices_ink, export_failure_ink, notice_body_ink,
     parse_failure_body_ink, parse_failure_ink,
 };
-use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, Ground};
 
 use crate::adapters::ui::icons;
 use crate::i18n::{t, t_count, t_fmt, t_fmt2};

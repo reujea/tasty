@@ -1,11 +1,11 @@
 //! 가져오기·내보내기의 정보, 경고, 오류 안내. 공통 블록에 색과 동작을 지정한다.
 
 use tasty_type_appearance::theme::Theme;
-pub(super) use tasty_ui_widgets::kb_ie_notice::{
+use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, Ground};
+pub(super) use tasty_ui_widgets::{
     NoticeInk, bundle_notice_line_ink, bundle_notices_ink, export_failure_ink, notice_body_ink,
     parse_failure_body_ink, parse_failure_ink,
 };
-use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, Ground};
 
 use crate::catalog::icons::{self, MockGlyph};
 

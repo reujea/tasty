@@ -59,7 +59,7 @@ mod html_size_banner;
 mod icon_button;
 mod info_modal;
 mod input;
-pub mod kb_ie_notice;
+mod kb_ie_notice;
 mod kb_plugins;
 mod kb_record;
 mod keyboard_cursor;
@@ -263,6 +263,10 @@ pub use info_modal::{
     parse_emphasis as info_modal_parse, shell_height as info_modal_shell_height,
 };
 pub use input::Input;
+pub use kb_ie_notice::{
+    NoticeInk, bundle_notice_line_ink, bundle_notices_ink, export_failure_ink, notice_body_ink,
+    parse_failure_body_ink, parse_failure_ink,
+};
 pub use kb_plugins::{
     KB_PLUGIN_MODE_CUSTOM, KB_PLUGIN_MODE_INHERIT, KB_PLUGIN_MODE_NONE, KbPluginKeyProblem,
     KbPluginLabels, KbPluginRowOutput, KbPluginRowRects, KbPluginRowView, KbPluginSlot,
