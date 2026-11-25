@@ -29,8 +29,6 @@ use tasty_ui_widgets::{
 
 /// popup 좌우 안쪽 여백. 갤러리 예제와 같은 값을 쓰도록 공용 위젯 크레이트에 둔다.
 const PANEL_PAD_X: i8 = PORTS_PANEL_PAD_X;
-/// 푸터 상하 여백. 디자인 전사값 9 로 그리드 밖이다(`spacing_sm`=8 과 1px 차).
-const FOOTER_PAD_Y: i8 = 9;
 
 pub const PORT_SCANNER_POPUP_ID: &str = "port_scanner";
 
@@ -991,8 +989,8 @@ pub fn draw_port_scanner_view(
         .frame(egui::Frame::NONE.inner_margin(egui::Margin {
             left: PANEL_PAD_X,
             right: PANEL_PAD_X,
-            top: FOOTER_PAD_Y,
-            bottom: FOOTER_PAD_Y,
+            top: props.theme.spacing_sm.value() as i8,
+            bottom: props.theme.spacing_sm.value() as i8,
         }))
         .show_inside(ui, |ui| {
             ui.spacing_mut().item_spacing = saved_spacing;
@@ -3028,6 +3026,105 @@ mod tests {
         assert!(
             matches!(state.port_favorites_scan, PortScanState::Idle),
             "즐겨찾기 스캔도 Idle"
+        );
+    }
+
+    /// 창 크기 화면에 popup 본문을 두 번 그리고(첫 프레임은 글자 배치가 비어 있을 수 있다) 마지막 프레임의
+    /// 도형을 평탄화해 돌려준다. 바깥 여백이 없는 패널에 그려 화면 아래 변이 본문 아래 변이다.
+    fn painted_chrome(theme: &Theme) -> (egui::Rect, Vec<egui::epaint::Shape>) {
+        let ctx = egui::Context::default();
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(720.0, 480.0));
+        let rows = [dummy_row(8080)];
+        let mut shapes = Vec::new();
+        for _ in 0..2 {
+            let full = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(screen),
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default()
+                        .frame(egui::Frame::NONE)
+                        .show(ctx, |ui| {
+                            let view_state = PortScannerViewState::Ready {
+                                rows: &rows,
+                                total: rows.len(),
+                                listening: rows.len(),
+                            };
+                            let props = default_props(theme, view_state, "", false);
+                            draw_port_scanner_view(ui, &props);
+                        });
+                },
+            );
+            shapes.clear();
+            for clipped in full.shapes {
+                flatten_shape(clipped.shape, &mut shapes);
+            }
+        }
+        (screen, shapes)
+    }
+
+    fn flatten_shape(shape: egui::epaint::Shape, out: &mut Vec<egui::epaint::Shape>) {
+        match shape {
+            egui::epaint::Shape::Vec(v) => {
+                for s in v {
+                    flatten_shape(s, out);
+                }
+            }
+            other => out.push(other),
+        }
+    }
+
+    /// `text` 를 그린 글자 도형. 없으면 실패한다.
+    fn text_shape<'a>(
+        shapes: &'a [egui::epaint::Shape],
+        text: &str,
+    ) -> &'a egui::epaint::TextShape {
+        shapes
+            .iter()
+            .find_map(|s| match s {
+                egui::epaint::Shape::Text(t) if t.galley.text() == text => Some(t),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("`{text}` 글자 도형이 없다"))
+    }
+
+    /// 푸터 Close 버튼은 푸터 위 구분선과 화면 아래 변에서 각각 `spacing_sm` 만큼 떨어져 있다.
+    #[test]
+    fn the_footer_pads_its_row_by_space_sm() {
+        let theme = test_theme();
+        let (screen, shapes) = painted_chrome(&theme);
+        let label = text_shape(&shapes, "Close");
+        let at = label.pos + label.galley.rect.center().to_vec2();
+        let button = shapes
+            .iter()
+            .filter_map(|s| match s {
+                egui::epaint::Shape::Rect(r) if r.rect.contains(at) => Some(r.rect),
+                _ => None,
+            })
+            .min_by(|a, b| a.area().total_cmp(&b.area()))
+            .expect("Close 버튼 사각형이 없다");
+        let pad = theme.spacing_sm.value();
+        assert!(
+            (screen.bottom() - button.bottom() - pad).abs() < 0.5,
+            "Close {button:?} 아래와 화면 아래 {} 사이가 spacing_sm {pad} 가 아니다",
+            screen.bottom()
+        );
+        let separator = shapes
+            .iter()
+            .filter_map(|s| match s {
+                egui::epaint::Shape::LineSegment { points, .. }
+                    if (points[0].y - points[1].y).abs() < 0.01 && points[0].y <= button.top() =>
+                {
+                    Some(points[0].y)
+                }
+                _ => None,
+            })
+            .max_by(f32::total_cmp)
+            .expect("푸터 위 구분선이 없다");
+        assert!(
+            (button.top() - separator - pad).abs() < 0.5,
+            "푸터 구분선 {separator} 과 Close {button:?} 위 사이가 spacing_sm {pad} 가 아니다"
         );
     }
 }
