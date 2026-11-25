@@ -13,9 +13,19 @@ impl App {
 
         use winit::window::WindowAttributes;
 
+        // 창 기본 크기는 정본 plugins-window-width·height다. OS 창 크기라 UI 배율을 곱하지 않으므로
+        // 배율 1의 Theme에서 읽는다. 색은 쓰지 않는다.
+        let unzoomed = crate::theme::Theme::with_colors_and_zoom(
+            crate::theme::mocha_fallback_colors(),
+            false,
+            1.0,
+        );
         let mut attrs = WindowAttributes::default()
             .with_title("Tasty Plugins")
-            .with_inner_size(winit::dpi::LogicalSize::new(880, 560))
+            .with_inner_size(winit::dpi::LogicalSize::new(
+                f64::from(unzoomed.plugins_window_width().value()),
+                f64::from(unzoomed.plugins_window_height().value()),
+            ))
             .with_min_inner_size(winit::dpi::LogicalSize::new(720, 480))
             .with_visible(false);
         if let Some(icon) = crate::app_icon::winit_window_icon() {
