@@ -247,9 +247,8 @@ impl<'a> Button<'a> {
             egui::Sense::hover()
         };
         let (rect, resp) = ui.allocate_exact_size(egui::vec2(desired_w, height), sense);
-        if self.request_focus && self.enabled {
-            resp.request_focus();
-        }
+        // 초기 포커스는 할당 직후 요청한다(즉시 반영되어 이 패스의 링 판정에 든다).
+        request_initial_focus(&resp, self.request_focus && self.enabled);
 
         // 포커스된 버튼에서 Space·Enter를 누르고 있는 동안도 포인터 누름과 같은 눌림 상태다.
         let pressed = resp.is_pointer_button_down_on()
@@ -388,18 +387,38 @@ impl<'a> Button<'a> {
         }
 
         // 키보드 포커스: 상자에서 focus-ring-offset 띄운 컨트롤 링(정본 base.css `:focus-visible`), 색은 바탕으로 정한다.
-        if self.focus_ring && crate::focus_ring::shows_focus(ui, &resp, self.enabled) {
-            crate::focus_ring::paint_control_ring(
-                ui.painter(),
-                theme,
-                rect,
-                radius,
-                crate::focus_ring::control_ring_gap(theme),
-                crate::focus_ring::control_ring_color(theme, self.ground),
-            );
-        }
+        let ring = self.focus_ring && crate::focus_ring::shows_focus(ui, &resp, self.enabled);
+        paint_ring_if(ui, theme, ring, rect, radius, self.ground);
 
         resp
+    }
+}
+
+/// `request`이면 이 버튼에 키보드 포커스를 요청한다.
+fn request_initial_focus(resp: &egui::Response, request: bool) {
+    if request {
+        resp.request_focus();
+    }
+}
+
+/// `ring`이면 버튼 상자에 컨트롤 포커스 링을 그린다.
+fn paint_ring_if(
+    ui: &egui::Ui,
+    theme: &Theme,
+    ring: bool,
+    rect: egui::Rect,
+    radius: f32,
+    ground: crate::Ground,
+) {
+    if ring {
+        crate::focus_ring::paint_control_ring(
+            ui.painter(),
+            theme,
+            rect,
+            radius,
+            crate::focus_ring::control_ring_gap(theme),
+            crate::focus_ring::control_ring_color(theme, ground),
+        );
     }
 }
 
