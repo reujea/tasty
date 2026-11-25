@@ -772,6 +772,59 @@ mod tests {
         }
     }
 
+    /// 리다이렉트 조회가 실패한 호스트 Reload 첫 시작의 취소도 지목을 지운다. 본문·세대 판정은 그
+    /// 시작을 리다이렉트로 본다.
+    #[test]
+    fn a_cancelled_host_reload_with_an_unreadable_redirect_flag_drops_its_designation() {
+        use super::super::host_document::{
+            HostDocuments, HostLoadHeader, StartDecision, host_document_url,
+        };
+        use tasty_model::html_script::top_level::StartKind;
+        let mut docs = HostDocuments::default();
+        let a = host_document_url(1, 1, 1);
+        docs.sent(1, a.clone(), std::sync::Arc::from("a"));
+        let a_load = HostLoadHeader::Load(1);
+        let started = docs.navigation_started(&a, Some(15), StartKind::Other, false, a_load);
+        assert_eq!(started, StartDecision::HostLoad);
+        assert!(docs.respond(&a, true, true, false).is_some());
+        docs.served();
+        docs.committed(Some(15), false);
+        assert!(!docs.navigation_completed(Some(15), true));
+        let nav = Cell::new(NavState::Done);
+        let generation = Cell::new(Some(15));
+        let top = RefCell::new(TopLevelAdmission::default());
+        docs.host_reload(true);
+        top.borrow_mut().designate(Designation::Next);
+        // 조회 실패(None)는 본문 판정에서 리다이렉트다. 시작은 취소된다.
+        let redirect = None;
+        let redirected = redirect.unwrap_or(true);
+        let absent = HostLoadHeader::Absent;
+        let start = docs.navigation_started(&a, Some(16), StartKind::Reload, redirected, absent);
+        assert_eq!(start, StartDecision::Cancel);
+        let host_reload = docs.take_cancelled_host_reload(StartKind::Reload, redirect);
+        assert!(host_reload);
+        assert!(end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(16),
+            redirected,
+            false,
+            host_reload
+        ));
+        assert_eq!(nav.get(), NavState::Done);
+        assert_eq!(generation.get(), Some(15));
+        assert!(
+            !next_start_admitted(&top),
+            "다음 main 탐색은 예외를 받지 않는다"
+        );
+        // 실제 리다이렉트와 Reload가 아닌 취소는 기록을 꺼내지 않는다.
+        docs.host_reload(true);
+        assert!(!docs.take_cancelled_host_reload(StartKind::Reload, Some(true)));
+        assert!(!docs.take_cancelled_host_reload(StartKind::History, None));
+        assert!(docs.take_cancelled_host_reload(StartKind::Reload, Some(false)));
+    }
+
     #[test]
     fn a_cancelled_history_start_with_an_earlier_load_number_keeps_the_new_load() {
         use super::super::host_document::{HostLoadHeader, sent_for_current_load};

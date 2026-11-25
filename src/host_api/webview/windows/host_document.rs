@@ -242,9 +242,13 @@ pub(super) fn start(
     let mut id = 0u64;
     // SAFETY: live args on the apartment thread.
     let nav = unsafe { args.NavigationId(&mut id) }.ok().map(|()| id);
-    let mut redirected = BOOL(0);
-    // SAFETY: live args on the apartment thread. A failed query counts as a redirect (closed side).
-    let redirected = unsafe { args.IsRedirected(&mut redirected) }.is_err() || redirected.as_bool();
+    let mut flag = BOOL(0);
+    // SAFETY: live args on the apartment thread; the BOOL is a local.
+    let redirect = unsafe { args.IsRedirected(&mut flag) }
+        .ok()
+        .map(|()| flag.as_bool());
+    // 본문·세대 판정은 조회 실패를 리다이렉트로 본다(닫힌 쪽).
+    let redirected = redirect.unwrap_or(true);
     let header = host_load(args);
     let kind = start_kind(args);
     let decision = documents
@@ -263,9 +267,11 @@ pub(super) fn start(
     unsafe { args.SetCancel(true)? };
     let awaiting = documents.borrow().awaiting_start(latest, &text);
     let host_sent = sent_for_current_load(header, latest, awaiting);
-    // 호스트 `reload()`가 보낸 Reload를 취소하면 그 지목을 지운다(`end_cancelled_navigation`).
-    let host_reload =
-        kind == StartKind::Reload && !redirected && documents.borrow_mut().take_host_reload();
+    // 호스트 `reload()`가 보낸 Reload를 취소하면 그 지목을 지운다(`end_cancelled_navigation`). 리다이렉트
+    // 조회 실패는 여기서 리다이렉트가 아니다(`take_cancelled_host_reload`).
+    let host_reload = documents
+        .borrow_mut()
+        .take_cancelled_host_reload(kind, redirect);
     if end_cancelled_navigation(
         chrome.0,
         chrome.1,
