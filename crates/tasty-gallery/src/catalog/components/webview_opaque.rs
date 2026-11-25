@@ -567,6 +567,21 @@ mod tests {
     }
 
     /// `color` 로 그은 선분 수.
+    /// 선분 끝점 쌍. `color` 가 있으면 그 색 선분만.
+    fn segment_points(p: &Painted, color: Option<egui::Color32>) -> Vec<[egui::Pos2; 2]> {
+        p.shapes
+            .iter()
+            .filter_map(|s| match s {
+                egui::Shape::LineSegment { points, stroke }
+                    if color.is_none_or(|c| stroke.color == c) =>
+                {
+                    Some(*points)
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
     fn segments(p: &Painted, color: egui::Color32) -> usize {
         p.shapes
             .iter()
@@ -609,12 +624,32 @@ mod tests {
                     0,
                     "{name} {scene_name}: no accent-warning mark"
                 );
+                let mark = segment_points(&opaque, Some(ink));
                 for mode in unmarked {
                     let p = paint(|ui| scene(ui, &th, *mode));
                     assert_eq!(
                         segments(&p, ink),
                         0,
                         "{name} {scene_name} {}: no host rect mark",
+                        mode.label()
+                    );
+                    assert_eq!(
+                        segments(&p, warning),
+                        0,
+                        "{name} {scene_name} {}: no accent-warning mark",
+                        mode.label()
+                    );
+                    // 색과 무관하게, 불투명 열 점선 조각과 같은 자리의 선분이 없다.
+                    let near = |a: egui::Pos2, b: egui::Pos2| a.distance(b) < 0.5;
+                    let redrawn = segment_points(&p, None).into_iter().filter(|[a, b]| {
+                        mark.iter().any(|[c, d]| {
+                            (near(*a, *c) && near(*b, *d)) || (near(*a, *d) && near(*b, *c))
+                        })
+                    });
+                    assert_eq!(
+                        redrawn.count(),
+                        0,
+                        "{name} {scene_name} {}: no host rect mark in any colour",
                         mode.label()
                     );
                 }
