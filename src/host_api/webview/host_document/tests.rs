@@ -105,6 +105,28 @@ fn reserved_addresses_are_recognised_by_host_only() {
     ));
 }
 
+/// URL 파서로 해석하면 예약 호스트인 주소도 예약 주소다(시작 처리기가 보는 정규화된 URI와 같은 판정).
+#[test]
+fn reserved_addresses_are_recognised_after_url_normalisation() {
+    for url in [
+        "http://v1-1%2Etasty-host-document.invalid/1",
+        "http://v1-1.tasty-host-document%2einvalid/1",
+        "HTTP://V1-1.TASTY-HOST-DOCUMENT.INVALID/1",
+        "http://v1-1.tasty-host-document.invalid./1",
+        "http://v1-1%2Etasty-host-document.invalid.:8080/1",
+    ] {
+        assert!(is_reserved(url), "{url}");
+        assert!(!host_may_load_url(url), "{url}");
+    }
+    // 해석에 실패한 주소는 풀어 쓴 원문에 예약 접미사가 있으면 예약으로 본다.
+    assert!(url::Url::parse("http://v1-1%2Etasty-host-document.invalid:99999/1").is_err());
+    assert!(is_reserved(
+        "http://v1-1%2Etasty-host-document.invalid:99999/1"
+    ));
+    assert!(!is_reserved("http://example%2Ecom/1"));
+    assert!(host_may_load_url("http://example%2Ecom/1"));
+}
+
 /// host가 보낸 문서는 그 main 탐색의 문서 요청에만 응답하고, 성공하면 보이는 문서가 된다.
 #[test]
 fn a_sent_document_answers_its_main_navigation_and_becomes_shown() {

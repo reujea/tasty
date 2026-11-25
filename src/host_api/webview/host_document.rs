@@ -58,10 +58,26 @@ pub(super) fn parse_host_load(value: &str) -> Option<u64> {
 }
 
 /// 호스트가 `load_url`로 이 주소를 보낼지. 예약 주소는 다시 싣기(머리글을 단 요청)만 여는 주소라
-/// `load_url`로는 보내지 않는다. 호출자는 그 로드를 거절된 로드로 끝낸다. 그래서 주소만 같은 페이지
-/// 탐색이 호스트 요청으로 읽힐 구간(바탕 포커스 장벽을 기다리는 `Navigate`)이 생기지 않는다.
+/// `load_url`로는 보내지 않는다. 판정은 시작 처리기와 같은 `is_reserved`다(URL 파서로 해석한 호스트).
+/// 그래서 주소만 같은 페이지 탐색이 호스트 요청으로 읽힐 구간(바탕 포커스 장벽을 기다리는 `Navigate`)이
+/// 생기지 않는다.
 pub(super) fn host_may_load_url(url: &str) -> bool {
     !is_reserved(url)
+}
+
+/// `load_url`의 첫 판정. 예약 주소면 탐색을 보내지 않고 그 로드를 거절된 로드로 끝내며(Failed, 자기
+/// 세대) true를 돌려준다. 호출자는 지목을 세우지 않고 돌아간다.
+pub(super) fn refuse_load_url(
+    url: &str,
+    nav_state: &std::cell::Cell<super::NavState>,
+    chrome_generation: &std::cell::Cell<Option<u64>>,
+    load: u64,
+) -> bool {
+    if host_may_load_url(url) {
+        return false;
+    }
+    super::load_generation::end_rejected_load(nav_state, chrome_generation, load, load);
+    true
 }
 
 /// 시작 전에 취소한 예약 주소 탐색이 지금 호스트 로드가 보낸 것인지. `header`는 그 시작 요청의
@@ -94,7 +110,56 @@ pub(super) fn host_document_url(surface: u32, view: u64, load: u64) -> String {
 }
 
 /// 주소의 호스트가 예약 호스트인지. scheme은 http·https 모두 본다(로컬 종결 대상을 넓게 잡는다).
+/// 호스트는 URL 파서(WHATWG)로 해석한 뒤 본다. WebView2가 시작 URI를 정규화하듯 백분율 부호화한 점·대문자·
+/// 끝 점은 해석 뒤 같은 호스트다. 원문의 호스트도 따로 보고, 어느 쪽이든 예약이면 예약이다. 해석에 실패한
+/// 주소는 백분율 부호를 풀고 소문자로 바꾼 원문에 예약 접미사가 있으면 예약으로 본다(닫힌 쪽).
 pub(super) fn is_reserved(uri: &str) -> bool {
+    if raw_host_reserved(uri) {
+        return true;
+    }
+    match url::Url::parse(uri) {
+        Ok(parsed) => {
+            matches!(parsed.scheme(), "http" | "https")
+                && parsed.host_str().is_some_and(reserved_host)
+        }
+        Err(_) => percent_decoded_lower(uri).contains(RESERVED_HOST_SUFFIX),
+    }
+}
+
+fn reserved_host(host: &str) -> bool {
+    host.trim_end_matches('.')
+        .to_ascii_lowercase()
+        .ends_with(RESERVED_HOST_SUFFIX)
+}
+
+/// 백분율 부호(`%XX`)를 바이트로 풀고 ASCII 소문자로 바꾼 원문. 풀 수 없는 부호는 그대로 둔다.
+fn percent_decoded_lower(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let hex = |b: u8| char::from(b).to_digit(16);
+        let pair = bytes
+            .get(i + 1)
+            .copied()
+            .and_then(hex)
+            .zip(bytes.get(i + 2).copied().and_then(hex));
+        match (bytes[i], pair) {
+            (b'%', Some((hi, lo))) => {
+                out.push((hi * 16 + lo) as u8);
+                i += 3;
+            }
+            (b, _) => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).to_ascii_lowercase()
+}
+
+/// 원문 그대로의 호스트가 예약 호스트인지(해석 전 판정).
+fn raw_host_reserved(uri: &str) -> bool {
     let Some(rest) = uri
         .strip_prefix("http://")
         .or_else(|| uri.strip_prefix("https://"))
@@ -103,9 +168,7 @@ pub(super) fn is_reserved(uri: &str) -> bool {
     };
     let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
     let host = authority.rsplit('@').next().unwrap_or_default();
-    let host = host.split(':').next().unwrap_or_default();
-    let host = host.trim_end_matches('.').to_ascii_lowercase();
-    host.ends_with(RESERVED_HOST_SUFFIX)
+    reserved_host(host.split(':').next().unwrap_or_default())
 }
 
 /// 거절된 `NavigateToString`을 host 전용 주소로 다시 실을지. 상한을 넘는 문서의 `E_INVALIDARG`이고,

@@ -545,6 +545,37 @@ mod tests {
     }
 
     #[test]
+    fn load_url_refuses_a_reserved_address_after_url_normalisation() {
+        use super::super::host_document::refuse_load_url;
+        for url in [
+            "http://v1-1%2Etasty-host-document.invalid/1",
+            "http://V1-1.Tasty-Host-Document.INVALID/1",
+            "http://v1-1.tasty-host-document.invalid./1",
+        ] {
+            // load_url은 begin_load 뒤 이 판정을 먼저 하고, 거절하면 지목을 세우지 않고 돌아간다.
+            let nav = Cell::new(NavState::Loading);
+            let generation = Cell::new(None);
+            let top = RefCell::new(TopLevelAdmission::default());
+            if !refuse_load_url(url, &nav, &generation, 4) {
+                top.borrow_mut().designate(Designation::Next);
+            }
+            assert_eq!(nav.get(), NavState::Failed, "{url}");
+            assert_eq!(generation.get(), Some(REJECTED_LOAD), "{url}");
+            assert!(!next_start_admitted(&top), "{url}: 지목 없음");
+        }
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(None);
+        assert!(!refuse_load_url(
+            "https://example.com/1",
+            &nav,
+            &generation,
+            4
+        ));
+        assert_eq!(nav.get(), NavState::Loading);
+        assert_eq!(generation.get(), None);
+    }
+
+    #[test]
     fn a_cancelled_history_start_with_an_earlier_load_number_keeps_the_new_load() {
         use super::super::host_document::{HostLoadHeader, sent_for_current_load};
         // 로드 3이 요청돼 세대가 빈 구간에, 로드 2의 머리글을 다시 보낸 이력 이동이 취소된다.

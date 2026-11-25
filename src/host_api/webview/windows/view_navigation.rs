@@ -1,6 +1,6 @@
 //! 탐색 요청·이력 이동과 탐색 상태 조회. 이벤트 처리기는 `PlatformWebView::create`에 있다.
 use super::super::entry_response::windows as entry_adapter;
-use super::super::host_document::{host_may_load_url, may_exceed_limit};
+use super::super::host_document::{may_exceed_limit, refuse_load_url};
 use super::super::load_generation::end_rejected_load;
 use super::super::scan_resume::HistoryStep;
 use super::super::{NavState, PendingNavigation};
@@ -84,13 +84,12 @@ impl PlatformWebView {
             return;
         }
         let load = self.begin_load();
-        if !host_may_load_url(url) {
-            // 예약 주소는 다시 싣기만 연다. 탐색을 보내지 않고 이 로드를 거절된 로드로 끝낸다.
+        // 예약 주소는 다시 싣기만 연다. 탐색을 보내지 않고 이 로드를 거절된 로드로 끝낸다.
+        if refuse_load_url(url, &self.nav_state, &self.chrome_generation, load) {
             tracing::warn!(
                 "WebView surface {}: refused to load a host document address by URL",
                 self.surface_id
             );
-            end_rejected_load(&self.nav_state, &self.chrome_generation, load, load);
             return;
         }
         self.top_level.borrow_mut().designate(Designation::Next);
