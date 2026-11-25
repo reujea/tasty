@@ -13,8 +13,6 @@ use crate::catalog::icons;
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::catalog::widgets::dialog as kit;
 
-const WIDTH: LogicalPx = LogicalPx(660.0);
-
 struct PortRow {
     port: &'static str,
     proto: &'static str,
@@ -108,110 +106,145 @@ const ROWS: &[PortRow] = &[
 
 pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
-        kit::frame_card(ui, theme, WIDTH, kit::panel_fill(theme), |ui| {
-            kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
-                    kit::icon(
-                        ui,
-                        icons::PORT,
-                        theme.icon_glyph_size_md,
-                        theme.text_secondary().to_egui(),
-                    );
-                    kit::title(ui, theme, "Listening ports");
-                    tag(ui, theme, "5 listening", TagVariant::Accent, false);
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        IconButton::new().variant(IconButtonVariant::Ghost).show(
+        kit::frame_card(
+            ui,
+            theme,
+            theme.ports_window_width(),
+            kit::panel_fill(theme),
+            |ui| {
+                let bottom = ui.cursor().top() + theme.ports_window_height().value();
+                kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
+                        kit::icon(
                             ui,
-                            theme,
-                            &|ui, rect, c| icons::CLOSE.image(rect.height(), c).paint_at(ui, rect),
+                            icons::PORT,
+                            theme.icon_glyph_size_md,
+                            theme.text_secondary().to_egui(),
                         );
-                        IconButton::new().variant(IconButtonVariant::Ghost).show(
-                            ui,
-                            theme,
-                            &|ui, rect, c| {
-                                icons::COLUMNS.image(rect.height(), c).paint_at(ui, rect)
-                            },
-                        );
-                        IconButton::new().variant(IconButtonVariant::Ghost).show(
-                            ui,
-                            theme,
-                            &|ui, rect, c| {
-                                icons::REFRESH.image(rect.height(), c).paint_at(ui, rect)
-                            },
-                        );
-                        kit::field(
-                            ui,
-                            theme,
-                            Some(theme.field_width_md),
-                            "Filter…",
-                            true,
-                            false,
-                        );
+                        kit::title(ui, theme, "Listening ports");
+                        tag(ui, theme, "5 listening", TagVariant::Accent, false);
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            IconButton::new().variant(IconButtonVariant::Ghost).show(
+                                ui,
+                                theme,
+                                &|ui, rect, c| {
+                                    icons::CLOSE.image(rect.height(), c).paint_at(ui, rect)
+                                },
+                            );
+                            IconButton::new().variant(IconButtonVariant::Ghost).show(
+                                ui,
+                                theme,
+                                &|ui, rect, c| {
+                                    icons::COLUMNS.image(rect.height(), c).paint_at(ui, rect)
+                                },
+                            );
+                            IconButton::new().variant(IconButtonVariant::Ghost).show(
+                                ui,
+                                theme,
+                                &|ui, rect, c| {
+                                    icons::REFRESH.image(rect.height(), c).paint_at(ui, rect)
+                                },
+                            );
+                            kit::field(
+                                ui,
+                                theme,
+                                Some(theme.field_width_md),
+                                "Filter…",
+                                true,
+                                false,
+                            );
+                        });
                     });
                 });
-            });
-            kit::hsep(ui, theme);
+                kit::hsep(ui, theme);
 
-            kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
-                    let s = theme.icon_glyph_size_md.value();
-                    let (r, _) = ui.allocate_exact_size(egui::vec2(s, s), egui::Sense::hover());
-                    ui.painter().rect_filled(
-                        r,
-                        theme.corner_radius_sm.value(),
-                        theme.accent_primary().to_egui(),
-                    );
-                    icons::SHIELD_CHECK
-                        .image(s, theme.text_on_accent().to_egui())
-                        .paint_at(ui, r);
-                    kit::body(
-                        ui,
-                        theme,
-                        crate::i18n::t("port_scanner.filter_show_all_system"),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        funnel_button(ui, theme, "State · 1/3", true);
+                kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
+                        let s = theme.icon_glyph_size_md.value();
+                        let (r, _) = ui.allocate_exact_size(egui::vec2(s, s), egui::Sense::hover());
+                        ui.painter().rect_filled(
+                            r,
+                            theme.corner_radius_sm.value(),
+                            theme.accent_primary().to_egui(),
+                        );
+                        icons::SHIELD_CHECK
+                            .image(s, theme.text_on_accent().to_egui())
+                            .paint_at(ui, r);
+                        kit::body(
+                            ui,
+                            theme,
+                            crate::i18n::t("port_scanner.filter_show_all_system"),
+                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            funnel_button(ui, theme, "State · 1/3", true);
+                        });
                     });
                 });
-            });
 
-            draw_favorites_section(ui, theme, FAVORITE_ROWS);
+                draw_favorites_section(ui, theme, FAVORITE_ROWS);
 
-            // 본체 popup 과 같은 열 정의(공용 PortsColumn)와 표 꾸밈을 쓴다. 열 하한의 합이 넘치면
-            // 가로로 스크롤한다. Workspace·Tab 은 열 선택에서 숨긴 예제다.
-            // 디자인 표는 popup 가장자리에서 별 열(28)부터 시작한다. 즐겨찾기 행도 같다.
-            ports_table(columns(theme, FRAME_COLUMNS), theme)
-                .id_salt("ports_table")
-                .max_scroll_height(theme.measure_md * 0.7)
-                .show(
-                    ui,
-                    theme,
-                    ROWS,
-                    |r| r.selected,
-                    |ui, theme, row, c| cell(ui, theme, row, column_at(FRAME_COLUMNS, c)),
+                // 정본 PortsFrame처럼 창 높이를 ports-window-height로 고정한다. 본체 popup처럼 푸터를
+                // 아래 패널로 먼저 잡고 남는 높이를 표에 준다.
+                let rest = egui::Rect::from_min_max(
+                    ui.cursor().min,
+                    egui::pos2(ui.max_rect().right(), bottom),
                 );
-            kit::hsep(ui, theme);
-
-            kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new("5 of 5 ports")
-                            .size(theme.font_size_caption.value())
-                            .color(theme.text_disabled().to_egui()),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        Button::new("Close")
-                            .variant(ButtonVariant::Secondary)
-                            .show(ui, theme);
-                        Button::new("Copy address")
-                            .variant(ButtonVariant::Ghost)
-                            .show(ui, theme);
-                    });
+                ui.scope_builder(egui::UiBuilder::new().max_rect(rest), |ui| {
+                    egui::TopBottomPanel::bottom("gallery.ports.footer")
+                        .resizable(false)
+                        .show_separator_line(false)
+                        .frame(egui::Frame::NONE)
+                        .show_inside(ui, |ui| {
+                            kit::hsep(ui, theme);
+                            kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        egui::RichText::new("5 of 5 ports")
+                                            .size(theme.font_size_caption.value())
+                                            .color(theme.text_disabled().to_egui()),
+                                    );
+                                    ui.with_layout(
+                                        egui::Layout::right_to_left(egui::Align::Center),
+                                        |ui| {
+                                            Button::new("Close")
+                                                .variant(ButtonVariant::Secondary)
+                                                .show(ui, theme);
+                                            Button::new("Copy address")
+                                                .variant(ButtonVariant::Ghost)
+                                                .show(ui, theme);
+                                        },
+                                    );
+                                });
+                            });
+                        });
+                    egui::CentralPanel::default()
+                        .frame(egui::Frame::NONE)
+                        .show_inside(ui, |ui| {
+                            // 본체 popup 과 같은 열 정의(공용 PortsColumn)와 표 꾸밈을 쓴다. 열 하한의 합이
+                            // 넘치면 가로로 스크롤한다. Workspace·Tab 은 열 선택에서 숨긴 예제다.
+                            // 디자인 표는 popup 가장자리에서 별 열(28)부터 시작한다. 즐겨찾기 행도 같다.
+                            let cell_h = theme.table_cell_height();
+                            let max_scroll =
+                                (LogicalPx(ui.available_height()) - cell_h).max(cell_h);
+                            ports_table(columns(theme, FRAME_COLUMNS), theme)
+                                .id_salt("ports_table")
+                                .max_scroll_height(max_scroll)
+                                .show(
+                                    ui,
+                                    theme,
+                                    ROWS,
+                                    |r| r.selected,
+                                    |ui, theme, row, c| {
+                                        cell(ui, theme, row, column_at(FRAME_COLUMNS, c))
+                                    },
+                                );
+                        });
                 });
-            });
-        });
+                ui.advance_cursor_after_rect(rest);
+            },
+        );
     });
 
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
@@ -251,16 +284,24 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
 
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
         // 팝업 전체가 아닌 내부 섹션 예제이므로 그림자를 추가하지 않는다.
-        kit::frame_card_flat(ui, theme, WIDTH, kit::panel_fill(theme), |ui| {
-            draw_favorites_section(ui, theme, &[]);
-        });
+        kit::frame_card_flat(
+            ui,
+            theme,
+            theme.ports_window_width(),
+            kit::panel_fill(theme),
+            |ui| {
+                draw_favorites_section(ui, theme, &[]);
+            },
+        );
     });
 
     spec::meta(
         ui,
         theme,
         &[
-            ("frame", "660×520 · bg-panel"),
+            ("frame width", "ports-window-width"),
+            ("frame height", "ports-window-height"),
+            ("frame", "bg-panel"),
             (
                 "header",
                 "icon · title · count · filter · columns · refresh · close",

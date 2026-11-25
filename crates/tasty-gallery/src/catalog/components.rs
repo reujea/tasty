@@ -132,3 +132,6 @@ pub mod transfer;
 pub mod attach_loading;
 pub mod webview_opaque;
 pub mod window_tab_focus;
+
+#[cfg(test)]
+mod window_frame_tests;

@@ -9,8 +9,6 @@ use tasty_ui_widgets::{
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::catalog::widgets::dialog as kit;
 
-const WIDTH: LogicalPx = LogicalPx(440.0);
-
 /// 시안 "Danger choice" 의 테마별 열 폭.
 const DANGER_COLUMN_WIDTH: LogicalPx = LogicalPx(300.0);
 
@@ -26,71 +24,79 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         // 범위를 덮지 않아(scrim 없음) 떠 있는 표면의 popover 그림자를 쓴다. 테두리는 본체 팝업 공용
         // 셸과 같은 border-frame이다.
         let edge = theme.border_frame().to_egui();
-        kit::frame_card_popover_edge(ui, theme, WIDTH, kit::panel_fill(theme), edge, |ui| {
-            kit::region_sym(ui, theme.spacing_md, theme.spacing_md, |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
-                    badge_dot(ui, theme, BadgeVariant::Agent);
-                    kit::title(ui, theme, "Approve agent action");
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        tag(ui, theme, "agent", TagVariant::Agent, false);
+        kit::frame_card_popover_edge(
+            ui,
+            theme,
+            theme.approval_width(),
+            kit::panel_fill(theme),
+            edge,
+            |ui| {
+                kit::region_sym(ui, theme.spacing_md, theme.spacing_md, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
+                        badge_dot(ui, theme, BadgeVariant::Agent);
+                        kit::title(ui, theme, "Approve agent action");
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            tag(ui, theme, "agent", TagVariant::Agent, false);
+                        });
                     });
                 });
-            });
-            kit::hsep(ui, theme);
+                kit::hsep(ui, theme);
 
-            kit::region_sym(ui, theme.spacing_md, theme.spacing_md, |ui| {
-                ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
-                kit::body(
-                    ui,
-                    theme,
-                    "The agent ai-review wants to run a command in s_01HXK9:",
-                );
-                egui::Frame::new()
-                    .fill(theme.bg_app().to_egui())
-                    .corner_radius(theme.corner_radius_sm.value())
-                    .inner_margin(egui::Margin::same(theme.spacing_md.value() as i8))
-                    .show(ui, |ui| {
-                        ui.set_min_width(ui.available_width());
-                        ui.label(
-                            egui::RichText::new("git push --force origin main")
-                                .monospace()
-                                .size(theme.font_size_term_sm.value())
-                                .color(theme.text_primary().to_egui()),
-                        );
+                kit::region_sym(ui, theme.spacing_md, theme.spacing_md, |ui| {
+                    ui.spacing_mut().item_spacing.y = theme.spacing_sm.value();
+                    kit::body(
+                        ui,
+                        theme,
+                        "The agent ai-review wants to run a command in s_01HXK9:",
+                    );
+                    egui::Frame::new()
+                        .fill(theme.bg_app().to_egui())
+                        .corner_radius(theme.corner_radius_sm.value())
+                        .inner_margin(egui::Margin::same(theme.spacing_md.value() as i8))
+                        .show(ui, |ui| {
+                            ui.set_min_width(ui.available_width());
+                            ui.label(
+                                egui::RichText::new("git push --force origin main")
+                                    .monospace()
+                                    .size(theme.font_size_term_sm.value())
+                                    .color(theme.text_primary().to_egui()),
+                            );
+                        });
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
+                        tag(ui, theme, "destructive", TagVariant::Danger, true);
+                        tag_mono(ui, theme, "fs:write", TagVariant::Default, false);
+                        tag_mono(ui, theme, "net", TagVariant::Default, false);
                     });
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
-                    tag(ui, theme, "destructive", TagVariant::Danger, true);
-                    tag_mono(ui, theme, "fs:write", TagVariant::Default, false);
-                    tag_mono(ui, theme, "net", TagVariant::Default, false);
                 });
-            });
-            kit::hsep(ui, theme);
+                kit::hsep(ui, theme);
 
-            kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
-                ui.horizontal(|ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        Button::new("Always allow")
-                            .variant(ButtonVariant::Agent)
-                            .show(ui, theme);
-                        Button::new("Allow once")
-                            .variant(ButtonVariant::Secondary)
-                            .show(ui, theme);
-                        Button::new("Deny")
-                            .variant(ButtonVariant::Ghost)
-                            .show(ui, theme);
+                kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            Button::new("Always allow")
+                                .variant(ButtonVariant::Agent)
+                                .show(ui, theme);
+                            Button::new("Allow once")
+                                .variant(ButtonVariant::Secondary)
+                                .show(ui, theme);
+                            Button::new("Deny")
+                                .variant(ButtonVariant::Ghost)
+                                .show(ui, theme);
+                        });
                     });
                 });
-            });
-        });
+            },
+        );
     });
 
     spec::meta(
         ui,
         theme,
         &[
-            ("frame", "440px · bg-panel"),
+            ("width", "approval-width"),
+            ("frame", "bg-panel"),
             ("header", "agent dot · title · agent Tag"),
             ("body", "prose · pre on bg-app · permission Tags"),
             ("footer", "Deny · Allow once · Always"),

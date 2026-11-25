@@ -16,14 +16,12 @@ use crate::catalog::icons;
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::catalog::widgets::dialog as kit;
 
-// ── 프레임 고정 치수 (디자인 raw px — 화면 전용 고정값) ──
-const FRAME_W: LogicalPx = LogicalPx(680.0);
-const FRAME_H: LogicalPx = LogicalPx(460.0);
+// ── 프레임 고정 치수 (디자인 raw px — 화면 전용 고정값). 창 폭·높이는 정본 RemoteAttachFrame처럼
+// remote-picker-width·remote-picker-height 토큰이다. ──
 const LEFT_W: LogicalPx = LogicalPx(240.0);
 const HEADER_H: LogicalPx = LogicalPx(47.0); // padding 10/10 + content 27
 const HEADER_PAD_L: LogicalPx = LogicalPx(14.0); // 디자인 L14 (size-14)
 const FOOTER_H: LogicalPx = LogicalPx(49.0);
-const BODY_H: LogicalPx = FRAME_H.minus(HEADER_H).minus(FOOTER_H);
 const PROFILE_ROW_H: LogicalPx = LogicalPx(50.0); // name(2 lines) + padding sm
 const WS_ROW_H: LogicalPx = LogicalPx(34.0);
 const STRIP_W: LogicalPx = LogicalPx(440.0); // 새 행 상태 specimen 의 pane 폭
@@ -166,7 +164,9 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         ui,
         theme,
         &[
-            ("frame", "680×460 · bg-panel · headless header"),
+            ("frame width", "remote-picker-width"),
+            ("frame height", "remote-picker-height"),
+            ("frame", "bg-panel · headless header"),
             ("shadow", "shadow-modal — occupies the viewport (centered)"),
             ("left", "240px bg-sidebar · attach profiles (single select)"),
             ("right", "flex · 4 states off left selection"),
@@ -444,7 +444,7 @@ fn plan_cluster(
     });
 }
 
-/// 680×460 카드 한 장.
+/// remote-picker-width × remote-picker-height 카드 한 장.
 fn ra_card(ui: &mut egui::Ui, theme: &Theme, state: RaState) {
     egui::Frame::new()
         .fill(theme.bg_panel().to_egui())
@@ -456,10 +456,10 @@ fn ra_card(ui: &mut egui::Ui, theme: &Theme, state: RaState) {
         // 본체와 같은 중앙 팝업이므로 modal 그림자를 적용한다.
         .shadow(theme.shadow_modal().to_egui())
         .show(ui, |ui| {
-            ui.set_width(FRAME_W.value());
+            ui.set_width(theme.remote_picker_width().value());
             ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
             ui.vertical(|ui| {
-                ui.set_width(FRAME_W.value());
+                ui.set_width(theme.remote_picker_width().value());
                 ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
                 header(ui, theme);
                 body(ui, theme, state);
@@ -470,7 +470,7 @@ fn ra_card(ui: &mut egui::Ui, theme: &Theme, state: RaState) {
 
 fn header(ui: &mut egui::Ui, theme: &Theme) {
     let (rect, _) = ui.allocate_exact_size(
-        egui::vec2(FRAME_W.value(), HEADER_H.value()),
+        egui::vec2(theme.remote_picker_width().value(), HEADER_H.value()),
         egui::Sense::hover(),
     );
     ui.painter().hline(
@@ -514,12 +514,18 @@ fn header(ui: &mut egui::Ui, theme: &Theme) {
     });
 }
 
+/// 창 높이에서 고정 헤더·푸터를 뺀 본문 높이.
+fn body_h(theme: &Theme) -> LogicalPx {
+    theme.remote_picker_height().minus(HEADER_H).minus(FOOTER_H)
+}
+
 fn body(ui: &mut egui::Ui, theme: &Theme, state: RaState) {
+    let body_h = body_h(theme);
     let (rect, _) = ui.allocate_exact_size(
-        egui::vec2(FRAME_W.value(), BODY_H.value()),
+        egui::vec2(theme.remote_picker_width().value(), body_h.value()),
         egui::Sense::hover(),
     );
-    let left = egui::Rect::from_min_size(rect.min, egui::vec2(LEFT_W.value(), BODY_H.value()));
+    let left = egui::Rect::from_min_size(rect.min, egui::vec2(LEFT_W.value(), body_h.value()));
     let right = egui::Rect::from_min_max(
         egui::pos2(rect.left() + LEFT_W.value(), rect.top()),
         rect.max,
@@ -540,7 +546,7 @@ fn body(ui: &mut egui::Ui, theme: &Theme, state: RaState) {
 
 fn footer(ui: &mut egui::Ui, theme: &Theme, state: RaState) {
     let (rect, _) = ui.allocate_exact_size(
-        egui::vec2(FRAME_W.value(), FOOTER_H.value()),
+        egui::vec2(theme.remote_picker_width().value(), FOOTER_H.value()),
         egui::Sense::hover(),
     );
     ui.painter().hline(
