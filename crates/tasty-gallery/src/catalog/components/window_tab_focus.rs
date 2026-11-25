@@ -120,6 +120,19 @@ fn frames() -> [(&'static str, FocusLook, Frame); 8] {
     ]
 }
 
+/// 칸 하나: 캡션과 그 아래 창 그림. `look`을 고정해 그린다.
+fn cell(ui: &mut egui::Ui, theme: &Theme, caption: &str, look: FocusLook, frame: Frame) {
+    showing(ui, look, |ui| {
+        ui.spacing_mut().item_spacing.y = theme.spacing_xs.value();
+        ui.label(
+            egui::RichText::new(caption)
+                .size(theme.font_size_caption.value())
+                .color(theme.text_muted().to_egui()),
+        );
+        frame(ui, theme);
+    });
+}
+
 fn draw(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
         ui.spacing_mut().item_spacing = egui::vec2(STAGE_GAP.value(), STAGE_GAP.value());
@@ -127,17 +140,7 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
             egui::Layout::left_to_right(egui::Align::Min).with_main_wrap(true),
             |ui| {
                 for (caption, look, frame) in frames() {
-                    spec::wrap_item(ui, |ui| {
-                        showing(ui, look, |ui| {
-                            ui.spacing_mut().item_spacing.y = theme.spacing_xs.value();
-                            ui.label(
-                                egui::RichText::new(caption)
-                                    .size(theme.font_size_caption.value())
-                                    .color(theme.text_muted().to_egui()),
-                            );
-                            frame(ui, theme);
-                        });
-                    });
+                    spec::wrap_item(ui, |ui| cell(ui, theme, caption, look, frame));
                 }
             },
         );
@@ -176,6 +179,7 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::catalog::components::painted::PaintedText;
 
     /// 원격 창 탭 줄의 탭 수(Remote profiles·Attach·Passkeys).
     const REMOTE_TABS: usize = 3;
@@ -273,5 +277,68 @@ mod tests {
             got.push((open, focus));
         }
         assert_eq!(got, vec![(2, 0), (1, 2), (1, 1)]);
+    }
+
+    /// 원격 탭 세 칸의 정본 캡션과 그 아래 창의 목록 표지: (캡션, add-bar 버튼 글자, 목록 행 이름).
+    /// 정본 tasty-page develop 80fa994 overlays-windows/window-tab-focus.jsx의 세 View가 그리는
+    /// `RemoteFrame tab="passkeys"`·`tab="attach"`·`tab="attach"`다.
+    const CANON_REMOTE_TAB_CELLS: [(&str, &str, &[&str]); 3] = [
+        (
+            "remote · tab strip",
+            "Add passkey",
+            &["ed25519-main", "vault-token", "legacy"],
+        ),
+        (
+            "remote · tab next to the open one",
+            "Add attach",
+            &["host", "edge-direct", "legacy-attach"],
+        ),
+        (
+            "remote · selected tab",
+            "Add attach",
+            &["host", "edge-direct", "legacy-attach"],
+        ),
+    ];
+
+    /// 원격 탭 세 칸은 정본 캡션을 그리고, 그 아래에 정본 탭의 목록 창(add-bar 버튼과 목록 행 이름)을
+    /// 그린다. Attach 폼 창은 Add attach 버튼과 목록 행을 그리지 않는다. 칸은 예제가 그리는 칸 그리기
+    /// (`cell`)로 하나씩 그린다(예제 전체는 시험 화면보다 길어 아래 칸 글자가 그려지지 않는다).
+    #[test]
+    fn the_remote_tab_cells_draw_the_canon_captions_over_the_list_frames() {
+        let theme = tasty_themes::mocha_fallback();
+        let remote: Vec<(&str, FocusLook, Frame)> = frames()
+            .into_iter()
+            .filter(|(_, look, _)| matches!(look, FocusLook::RemoteTab(_)))
+            .collect();
+        assert_eq!(remote.len(), CANON_REMOTE_TAB_CELLS.len());
+        for ((caption, look, frame), (canon, add_bar, rows)) in
+            remote.into_iter().zip(CANON_REMOTE_TAB_CELLS)
+        {
+            let p = crate::catalog::components::painted::paint(|ui| {
+                cell(ui, &theme, caption, look, frame)
+            });
+            let cap = p
+                .texts
+                .iter()
+                .find(|t| t.text == canon)
+                .unwrap_or_else(|| panic!("canon caption {canon:?} was not painted"));
+            let below: Vec<&PaintedText> = p
+                .texts
+                .iter()
+                .filter(|t| t.rect.top() > cap.rect.bottom())
+                .collect();
+            assert!(
+                below.iter().any(|t| t.text == add_bar),
+                "{canon}: the cell draws the {add_bar:?} list frame"
+            );
+            for name in rows {
+                assert!(
+                    below
+                        .iter()
+                        .any(|t| t.text.split("  (").next() == Some(name)),
+                    "{canon}: list row {name:?} is drawn"
+                );
+            }
+        }
     }
 }
