@@ -409,6 +409,8 @@ impl RequestContext {
             #[cfg(feature = "gui")]
             plugin_mesh_popup_forward: std::collections::HashMap::new(),
             #[cfg(feature = "gui")]
+            plugin_key_bindings: Default::default(),
+            #[cfg(feature = "gui")]
             plugin_popup_user_activated: std::collections::HashMap::new(),
             #[cfg(feature = "gui")]
             webview_identity: std::sync::Weak::new(),

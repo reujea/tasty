@@ -403,6 +403,10 @@ pub struct MainViewState {
     pub(crate) plugin_mesh_popup_forward:
         std::collections::HashMap<u64, crate::plugin_bridge::MeshForwardCommon>,
 
+    /// 플러그인 팝업 키 결속(키마다 첫 누름을 받은 인스턴스). wire 수집이 egui 입력 순서대로 읽고 고친다.
+    #[cfg(feature = "gui")]
+    pub(crate) plugin_key_bindings: crate::plugin_bridge::PluginKeyBindings,
+
     /// 버튼·키 누름을 전달한 플러그인 팝업과 소유자. 팝업을 닫을 때 지운다.
     /// file_handler.dispatch가 사용자 요청으로 분류할 때 사용하는 기록이다.
     #[cfg(feature = "gui")]

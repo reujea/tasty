@@ -466,18 +466,26 @@ const ROOTS: [(&str, Floor); 3] = [
 ];
 
 /// 폴더 뿌리 대신 하나씩 읽는 파일. 그 폴더의 다른 파일은 이 가드의 범위가 아니다.
-const FILES: [&str; 3] = [
+const FILES: [&str; 4] = [
     "src/plugin_bridge/popup_render.rs",
+    "src/plugin_bridge/popup_render/plugin_keys.rs",
     "src/view/file_chooser.rs",
     "src/view/settings/ui.rs",
 ];
 
 /// 본문을 가린 뒤 판정하는 함수(파일, 함수 이름, 이유). 모든 시험이 가린 본문을 본다.
-const KEY_READ_FNS: [(&str, &str, &str); 1] = [(
-    "src/plugin_bridge/popup_render.rs",
-    "collect_mesh_popup_input",
-    "plugin mesh 팝업 입력을 직렬화하는 경계다. 키 주인일 때(has_key_focus) 키·글자·IME·편집 사건을 plugin 에 넘긴다",
-)];
+const KEY_READ_FNS: [(&str, &str, &str); 2] = [
+    (
+        "src/plugin_bridge/popup_render.rs",
+        "collect_mesh_popup_input",
+        "plugin mesh 팝업 입력을 직렬화하는 경계다. 키 주인일 때(has_key_focus) 키·글자·IME·편집 사건을 plugin 에 넘긴다",
+    ),
+    (
+        "src/plugin_bridge/popup_render/plugin_keys.rs",
+        "pass_keys",
+        "plugin 키 결속(PluginKeyBindings)이 읽는 이 패스 키 사건 목록이다. 결속 판정과 그리지 않는 인스턴스의 뗌 전송이 이 한 목록을 읽는다",
+    ),
+];
 
 /// `code` 에서 `fn name` 본문(`{ … }`)의 줄바꿈 아닌 글자를 공백으로 가린다. 줄 번호는 그대로다.
 fn blank_fn_body(code: &str, rel: &str, name: &str) -> String {

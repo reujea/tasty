@@ -25,6 +25,10 @@ use crate::plugin_bridge::wire_scroll;
 use crate::state::RequestContext;
 use tasty_ui_widgets::CollapsedPlacement;
 
+mod plugin_keys;
+
+use plugin_keys::{KeyRoutes, pass_keys, send_undrawn_releases};
+
 /// `size_hint`를 생략한 팝업의 크기. 실행 중 선언과 같은 값을 쓰도록 매니페스트 크레이트의 상수를 읽는다.
 fn default_popup_size() -> Vec2 {
     let s = tasty_plugin_manifest::DEFAULT_POPUP_SIZE;
@@ -100,9 +104,15 @@ fn draw_plugin_popups_with_keys(
     }));
 
     let live_mesh: HashSet<u64> = mesh_snaps.iter().map(|s| s.instance_id).collect();
+    // 그리지 않는 인스턴스에도 이미 받은 누름의 뗌을 보내도록 살아 있는 인스턴스의 플러그인을 남긴다.
+    let live_plugins: std::collections::BTreeMap<u64, String> = mesh_snaps
+        .iter()
+        .map(|s| (s.instance_id, s.plugin_id.clone()))
+        .collect();
     state
         .plugin_mesh_popup_forward
         .retain(|k, _| live_mesh.contains(k));
+    state.plugin_key_bindings.retain(|k| live_mesh.contains(&k));
     // 사용자 활성화 기록은 조회로 소비하지 않고 팝업이 닫힐 때 제거한다.
     // 열린 동안 같은 팝업을 근거로 여러 번 사용자 요청을 보낼 수 있다(docs/features/file-handler/index.md).
     state
@@ -153,7 +163,31 @@ fn draw_plugin_popups_with_keys(
             .map(|(snap, _)| snap.instance_id),
     );
 
+    // host/plugin 전체에서 최상단 팝업만 키·Escape를 받는다. 창의 키 처리도 같은 판정을 쓴다.
+    let key_target = state.frame_plugin_key_target(decided_key_owner);
+    // 이 패스 키 사건마다 받는 인스턴스(`PluginKeyBindings::route`). 키 주인은 내용을 그리는(접히지 않은) 팝업이다.
+    let key_focus = placed
+        .iter()
+        .find(|(s, _)| {
+            !matches!(s.display, SnapDisplay::Collapsed(_))
+                && crate::adapters::ui::popup::frame_keys::receives_frame_keys(
+                    key_target,
+                    s.instance_id,
+                )
+        })
+        .map(|(s, _)| s.instance_id);
+    let keys = pass_keys(ctx);
+    let key_routes = state.plugin_key_bindings.route(
+        keys.iter().map(|k| crate::plugin_bridge::PassKey {
+            key: k.key,
+            pressed: k.pressed,
+        }),
+        key_focus,
+    );
+    let mut collected: HashSet<u64> = HashSet::new();
+
     if placed.is_empty() {
+        send_undrawn_releases(ctx, state, &live_plugins, &collected, &keys, &key_routes);
         state.webview_overlay.prev_plugin_rects.clear();
         return;
     }
@@ -189,9 +223,6 @@ fn draw_plugin_popups_with_keys(
         }));
 
     state.plugin_popup_open = true;
-
-    // host/plugin 전체에서 최상단 팝업만 키·Escape를 받는다. 창의 키 처리도 같은 판정을 쓴다.
-    let key_target = state.frame_plugin_key_target(decided_key_owner);
 
     let (scrim_rects, scrim_paints) = scrim_plan(&placed, layout, screen_rect);
     // 덮는 팝업의 덮는 사각형(배치 범위)도 가림으로 본다.
@@ -415,7 +446,7 @@ fn draw_plugin_popups_with_keys(
         // 아래 팝업에 키가 전달되면 Escape 하나로 여러 팝업이 닫힐 수 있다.
         let forward = state.plugin_mesh_popup_forward.get(&snap.instance_id);
         let mut route = forward.map(|f| f.pointer.clone()).unwrap_or_default();
-        let mut keys = forward.map(|f| f.keys.clone()).unwrap_or_default();
+        collected.insert(snap.instance_id);
         let mut raw_input = collect_mesh_popup_input(
             ctx,
             content_rect,
@@ -424,7 +455,10 @@ fn draw_plugin_popups_with_keys(
             has_key_focus,
             MeshRoutes {
                 pointer: &mut route,
-                keys: &mut keys,
+                keys: KeyRoutes {
+                    routes: &key_routes,
+                    instance: snap.instance_id,
+                },
             },
             skip,
         );
@@ -457,7 +491,6 @@ fn draw_plugin_popups_with_keys(
             .entry(snap.instance_id)
             .or_default();
         fwd.pointer = route;
-        fwd.keys = keys;
         let need_bootstrap = fwd.need_bootstrap(has_frame);
         fwd.watch_blank(
             has_frame,
@@ -529,6 +562,8 @@ fn draw_plugin_popups_with_keys(
         );
         apply_escape(state, snap.instance_id, escape);
     }
+
+    send_undrawn_releases(ctx, state, &live_plugins, &collected, &keys, &key_routes);
 
     // egui는 누른 영역(덮는 범위를 막는 레이어)을 맨 위로 올린다. 모든 레이어를 함께 올려 막는 레이어가 팝업
     // 아래에 남게 한다. 함께 올린 레이어끼리는 egui가 기존 순서를 유지한다.
@@ -840,10 +875,11 @@ fn apply_escape(state: &mut RequestContext, instance: u64, escape: EscapeAction)
     }
 }
 
-/// mesh 팝업 하나의 포인터 기록과 키 기록(`MeshForwardCommon` 의 `pointer`·`keys`). 입력을 모으는 동안 함께 갱신한다.
+/// mesh 팝업 하나의 포인터 기록(`MeshForwardCommon::pointer`, 입력을 모으는 동안 갱신한다)과 이 패스 키 사건의 수신
+/// 인스턴스(`keys`).
 struct MeshRoutes<'a> {
     pointer: &'a mut crate::plugin_bridge::MeshPointerRoute,
-    keys: &'a mut crate::plugin_bridge::MeshKeyRoute,
+    keys: KeyRoutes<'a>,
 }
 
 /// 포인터는 가리지 않은 콘텐츠 영역의 입력만 전달하며 좌표는 콘텐츠 기준 논리 포인트다. 뗌은 이 팝업에서
@@ -868,12 +904,24 @@ fn collect_mesh_popup_input(
     let accepts_pointer = |p: Pos2| !pointer_occluded && content_rect.contains(p);
     // ctx.input 안에서 같은 컨텍스트의 다른 잠금을 잡지 않도록 먼저 읽는다.
     let line = wire_scroll::line_scroll(ctx);
+    // 사건마다 그 앞에 온 키 사건 수, 곧 키 사건일 때의 이 패스 키 사건 순번(`KeyRoutes`, `pass_keys`와 같은 순서).
+    // 건너뛰는 Esc 누름도 센다.
+    let key_numbers: Vec<usize> = ctx.input(|i| {
+        i.events
+            .iter()
+            .scan(0, |seen, ev| {
+                let at = *seen;
+                *seen += usize::from(matches!(ev, Event::Key { .. }));
+                Some(at)
+            })
+            .collect()
+    });
     ctx.input(|i| {
         let modifiers = map_modifiers(&i.modifiers);
         let mut events: Vec<RawInputEventWire> = Vec::new();
         // `skip` 은 넘긴 Esc 누름의 순번이다. 사건 값으로 고르지 않는다(같은 값의 다른 누름을 남긴다).
         let mut presses = 0;
-        for ev in &i.events {
+        for (ev, &key_event) in i.events.iter().zip(&key_numbers) {
             if crate::adapters::ui::popup::body_keys::is_escape_press(ev) {
                 presses += 1;
                 if let Some((_, put)) = skip.iter().find(|(n, _)| *n == presses - 1) {
@@ -928,7 +976,7 @@ fn collect_mesh_popup_input(
                     repeat,
                     modifiers: m,
                     ..
-                } if keys.takes(*key, *pressed, has_key_focus) => {
+                } if keys.takes(key_event) => {
                     events.push(RawInputEventWire::Key {
                         key: key.name().to_string(),
                         pressed: *pressed,
@@ -1553,7 +1601,10 @@ mod tests {
                 true,
                 MeshRoutes {
                     pointer: &mut Default::default(),
-                    keys: &mut Default::default(),
+                    keys: KeyRoutes {
+                        routes: &[],
+                        instance: 1,
+                    },
                 },
                 &[],
             ));
@@ -1567,17 +1618,43 @@ mod tests {
     // Page 단위를 환산할 화면 높이.
     const PAGE_HEIGHT: f32 = 800.0;
 
-    /// plugin 팝업 하나의 키 기록과 이번 패스 키 주인 여부.
-    struct KeyPopup {
-        keys: crate::plugin_bridge::MeshKeyRoute,
-        focused: bool,
+    /// 두 plugin 팝업(42, 43)을 가진 창의 키 결속과 이번 패스 키 주인.
+    struct KeyScene {
+        bindings: crate::plugin_bridge::PluginKeyBindings,
+        focus: Option<u64>,
     }
 
-    /// egui 패스 하나에 `events` 를 싣고 팝업마다 wire 키 사건(키 이름, 눌림, 반복)을 모은다.
+    impl KeyScene {
+        fn focused(focus: u64) -> Self {
+            Self {
+                bindings: Default::default(),
+                focus: Some(focus),
+            }
+        }
+    }
+
+    /// 이 패스 키 사건.
+    fn plain_keys(ctx: &Context) -> Vec<crate::plugin_bridge::PassKey> {
+        ctx.input(|i| {
+            i.events
+                .iter()
+                .filter_map(|e| match e {
+                    Event::Key { key, pressed, .. } => Some(crate::plugin_bridge::PassKey {
+                        key: *key,
+                        pressed: *pressed,
+                    }),
+                    _ => None,
+                })
+                .collect()
+        })
+    }
+
+    /// egui 패스 하나에 `events` 를 싣고 창의 결속(`PluginKeyBindings::route`)으로 팝업 42·43 마다 wire 키 사건(키 이름,
+    /// 눌림, 반복)을 모은다.
     fn key_pass(
         ctx: &Context,
         events: Vec<Event>,
-        popups: &mut [&mut KeyPopup],
+        scene: &mut KeyScene,
     ) -> Vec<Vec<(String, bool, bool)>> {
         let content_rect = Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(300.0, 200.0));
         let input = egui::RawInput {
@@ -1587,18 +1664,22 @@ mod tests {
         };
         let mut wires = Vec::new();
         let _full_output = ctx.run(input, |ctx| {
-            wires = popups
-                .iter_mut()
-                .map(|p| {
+            let routes = scene.bindings.route(plain_keys(ctx), scene.focus);
+            wires = [42, 43]
+                .into_iter()
+                .map(|instance| {
                     collect_mesh_popup_input(
                         ctx,
                         content_rect,
                         None,
                         false,
-                        p.focused,
+                        scene.focus == Some(instance),
                         MeshRoutes {
                             pointer: &mut Default::default(),
-                            keys: &mut p.keys,
+                            keys: KeyRoutes {
+                                routes: &routes,
+                                instance,
+                            },
                         },
                         &[],
                     )
@@ -1639,29 +1720,17 @@ mod tests {
     #[test]
     fn a_key_release_goes_to_the_popup_that_took_its_press_in_order() {
         let ctx = Context::default();
-        let mut a = KeyPopup {
-            keys: Default::default(),
-            focused: true,
-        };
-        let mut b = KeyPopup {
-            keys: Default::default(),
-            focused: false,
-        };
-        let first = key_pass(
-            &ctx,
-            vec![key_event(egui::Key::A, true)],
-            &mut [&mut a, &mut b],
-        );
+        let mut scene = KeyScene::focused(42);
+        let first = key_pass(&ctx, vec![key_event(egui::Key::A, true)], &mut scene);
         assert_eq!(first, vec![vec![wire_key("A", true, false)], vec![]]);
-        a.focused = false;
-        b.focused = true;
+        scene.focus = Some(43);
         let second = key_pass(
             &ctx,
             vec![
                 key_event(egui::Key::B, true),
                 key_event(egui::Key::A, false),
             ],
-            &mut [&mut a, &mut b],
+            &mut scene,
         );
         assert_eq!(
             second,
@@ -1679,50 +1748,29 @@ mod tests {
     fn a_new_press_after_a_release_on_another_popup_is_not_a_repeat() {
         let (mut state, _session) = crate::state::tests::test_state();
         let ctx = Context::default();
-        let mut a = KeyPopup {
-            keys: Default::default(),
-            focused: true,
-        };
-        let mut b = KeyPopup {
-            keys: Default::default(),
-            focused: false,
-        };
+        let mut scene = KeyScene::focused(42);
         let feed = |state: &mut crate::state::MainViewState, key, pressed, fed| {
             state
                 .pair_key_release(Some((key, pressed)), fed)
                 .map(|_| key_event(key, pressed))
         };
         let press = feed(&mut state, egui::Key::A, true, Some(true));
-        drop(key_pass(
-            &ctx,
-            press.into_iter().collect(),
-            &mut [&mut a, &mut b],
-        ));
-        a.focused = false;
-        b.focused = true;
+        drop(key_pass(&ctx, press.into_iter().collect(), &mut scene));
+        scene.focus = Some(43);
         // 키 주인이 바뀐 뒤의 뗌은 지금 게이트가 egui 로 보내지 않는 자리다.
         let release = feed(&mut state, egui::Key::A, false, None);
-        let moved = key_pass(&ctx, release.into_iter().collect(), &mut [&mut a, &mut b]);
+        let moved = key_pass(&ctx, release.into_iter().collect(), &mut scene);
         assert_eq!(moved, vec![vec![wire_key("A", false, false)], vec![]]);
         let again = feed(&mut state, egui::Key::A, true, Some(true));
-        let pressed = key_pass(&ctx, again.into_iter().collect(), &mut [&mut a, &mut b]);
+        let pressed = key_pass(&ctx, again.into_iter().collect(), &mut scene);
         assert_eq!(pressed, vec![vec![], vec![wire_key("A", true, false)]]);
         let up = feed(&mut state, egui::Key::A, false, Some(true));
-        drop(key_pass(
-            &ctx,
-            up.into_iter().collect(),
-            &mut [&mut a, &mut b],
-        ));
-        a.focused = true;
-        b.focused = false;
+        drop(key_pass(&ctx, up.into_iter().collect(), &mut scene));
+        scene.focus = Some(42);
         let mut seen = Vec::new();
         for pressed in [true, false] {
             let event = feed(&mut state, egui::Key::A, pressed, Some(true));
-            seen.extend(key_pass(
-                &ctx,
-                event.into_iter().collect(),
-                &mut [&mut a, &mut b],
-            ));
+            seen.extend(key_pass(&ctx, event.into_iter().collect(), &mut scene));
         }
         assert_eq!(
             seen,
@@ -1742,14 +1790,7 @@ mod tests {
     fn a_focus_loss_release_reaches_the_popup_that_took_the_press_once() {
         let (mut state, _session) = crate::state::tests::test_state();
         let ctx = Context::default();
-        let mut a = KeyPopup {
-            keys: Default::default(),
-            focused: true,
-        };
-        let mut b = KeyPopup {
-            keys: Default::default(),
-            focused: false,
-        };
+        let mut scene = KeyScene::focused(42);
         assert_eq!(
             state.pair_key_release(Some((egui::Key::A, true)), Some(true)),
             Some(true)
@@ -1757,12 +1798,11 @@ mod tests {
         drop(key_pass(
             &ctx,
             vec![key_event(egui::Key::A, true)],
-            &mut [&mut a, &mut b],
+            &mut scene,
         ));
-        a.focused = false;
-        b.focused = true;
+        scene.focus = Some(43);
         let releases = state.release_on_window_focus(false);
-        let wires = key_pass(&ctx, releases, &mut [&mut a, &mut b]);
+        let wires = key_pass(&ctx, releases, &mut scene);
         assert_eq!(wires, vec![vec![wire_key("A", false, false)], vec![]]);
     }
 
@@ -1831,7 +1871,11 @@ mod tests {
                 has_key_focus,
                 MeshRoutes {
                     pointer: &mut Default::default(),
-                    keys: &mut Default::default(),
+                    keys: KeyRoutes {
+                        routes: &crate::plugin_bridge::PluginKeyBindings::default()
+                            .route(plain_keys(ctx), has_key_focus.then_some(1)),
+                        instance: 1,
+                    },
                 },
                 skip,
             ));
@@ -2436,9 +2480,11 @@ mod tests {
     }
 
     /// T-4b-5: Given Ignore 선언 plugin 키 주인, When 한 패스 [Esc 누름, Esc 뗌, Shift+Esc 누름] 이 오면, Then 그 누름은
-    /// 부모 경로로 가 wire 에 없고 뗌과 Shift+Esc 는 wire 에 간다.
+    /// 부모 경로로 가 wire 에 없고, 팝업이 받지 않은 그 누름의 뗌도 wire 에 없다(`PluginKeyBindings`: 뗌은 누름을 받은
+    /// 인스턴스에만 간다). Shift+Esc 는 보통 키로 wire 에 간다.
     #[test]
-    fn an_ignore_plugin_popup_keeps_the_release_and_other_escapes_on_the_wire() {
+    fn an_ignore_plugin_popup_keeps_a_modified_escape_on_the_wire_without_the_release_of_a_passed_up_press()
+     {
         use tasty_plugin_protocol::popup_decl::PopupEscape;
         let mut scene = plugin_scene(PopupEscape::Ignore, false);
         let at = scene.center();
@@ -2451,8 +2497,8 @@ mod tests {
         let escapes: Vec<_> = events.iter().filter_map(wire_escape).collect();
         assert_eq!(
             escapes.iter().map(|(p, _, s)| (*p, *s)).collect::<Vec<_>>(),
-            vec![(false, false), (true, true)],
-            "뗌과 Shift+Esc 누름만 남는다: {events:?}"
+            vec![(true, true)],
+            "Shift+Esc 누름만 남는다: {events:?}"
         );
     }
 
@@ -2678,6 +2724,230 @@ mod tests {
             got.contains(&RawInputEventWire::Text { text: "a".into() }),
             "영문 텍스트가 전달되지 않았다: {got:?}"
         );
+    }
+
+    /// plugin 팝업 여럿을 연 창의 키 wire 장면. 사건은 창을 거치지 않고 egui 입력으로 그린다(제품 그리기
+    /// `draw_plugin_popups`).
+    struct KeyWireScene {
+        state: crate::state::RequestContext,
+        session: crate::runtime::engine_session::EngineSession,
+        mgr: crate::plugin::PluginManager,
+        ctx: Context,
+        layout: LayoutContext,
+    }
+
+    /// 창 범위 plugin 팝업 1 을 연 장면. 첫 프레임을 그린 뒤 그때까지의 요청은 비운다.
+    fn window_key_wire_scene() -> KeyWireScene {
+        let (state, session) = crate::state::tests::test_state();
+        let mgr = crate::plugin::PluginManager::with_registries(
+            std::sync::Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
+            std::sync::Arc::new(crate::file::format::FileFormatRegistry::new()),
+            std::sync::Arc::new(crate::file::handler::FileHandlerRegistry::new()),
+        );
+        let mut scene = key_wire_scene(state, session, mgr, layout_with_surface_7(true));
+        scene.open_window_popup(1);
+        scene
+    }
+
+    /// 포커스 surface 범위 plugin 팝업 1 을 연 장면(그 surface 가 보이는 레이아웃).
+    fn surface_key_wire_scene() -> KeyWireScene {
+        let (state, mut session) = crate::state::tests::test_state();
+        let sid = state
+            .focused_surface_id(&session.borrow_mut().read())
+            .expect("surface");
+        let mut mgr = crate::plugin::PluginManager::with_registries(
+            std::sync::Arc::new(tasty_terminal::waker_factory::NoopWakerFactory),
+            std::sync::Arc::new(crate::file::format::FileFormatRegistry::new()),
+            std::sync::Arc::new(crate::file::handler::FileHandlerRegistry::new()),
+        );
+        let inst = instance(
+            PopupScopeDecl::Surface,
+            Some(sid),
+            PopupAnchor::ScreenCenter,
+        );
+        mgr.insert_popup_instance_for_test(1, inst);
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1200.0, 780.0));
+        key_wire_scene(state, session, mgr, layout_with_surface(sid, rect))
+    }
+
+    fn key_wire_scene(
+        state: crate::state::RequestContext,
+        session: crate::runtime::engine_session::EngineSession,
+        mgr: crate::plugin::PluginManager,
+        layout: LayoutContext,
+    ) -> KeyWireScene {
+        let mut scene = KeyWireScene {
+            state,
+            session,
+            mgr,
+            ctx: Context::default(),
+            layout,
+        };
+        scene.pass(Vec::new());
+        drop(scene.state.take_pending_intents());
+        scene
+    }
+
+    impl KeyWireScene {
+        fn pass(&mut self, events: Vec<Event>) {
+            let engine = self.session.borrow_mut();
+            pass_in(
+                &self.ctx,
+                &mut self.state,
+                &engine.read(),
+                &self.mgr,
+                events,
+                Modifiers::NONE,
+                &self.layout,
+            );
+        }
+
+        /// 창 범위 plugin 팝업 `id` 를 지금 연 팝업들 위(순번 `id`)에 열고 키 사건 없는 패스로 한 번 그린다. 창 범위 plugin
+        /// 팝업은 창을 덮으므로 연 뒤로 아래 팝업은 키 주인이 될 수 없다(`RequestContext::normalize_focus`).
+        fn open_window_popup(&mut self, id: u64) {
+            self.state.plugin_window_popups.insert(id);
+            let mut inst = instance(PopupScopeDecl::Window, None, PopupAnchor::ScreenCenter);
+            inst.z_seq = id;
+            self.mgr.insert_popup_instance_for_test(id, inst);
+            self.pass(Vec::new());
+        }
+
+        /// plugin 팝업 `id` 를 창의 포커스 노드로 둔다.
+        fn focus(&mut self, id: u64) {
+            self.state.popups.set_focus(Some(
+                crate::adapters::ui::popup::focus::PopupNode::Plugin(id),
+            ));
+        }
+
+        /// 지금까지 쌓인 wire 요청에서 팝업 `id` 가 받은 키 사건(키 이름, 눌림, 반복). 다른 팝업의 요청도 비운다.
+        fn keys(&mut self) -> std::collections::BTreeMap<u64, Vec<(String, bool, bool)>> {
+            use crate::app::frame_effect::{DrawEffect, FrameEffect};
+            use crate::app::plugin_display::PluginDisplayRequest;
+            let mut keys: std::collections::BTreeMap<u64, Vec<(String, bool, bool)>> =
+                Default::default();
+            for d in self.state.take_pending_intents() {
+                if let crate::intent::Intent::Frame(FrameEffect::Draw(DrawEffect::PluginDisplay(
+                    PluginDisplayRequest::Popup { params, .. },
+                ))) = d.body
+                {
+                    keys.entry(params.instance_id).or_default().extend(
+                        params.raw_input.events.into_iter().filter_map(|e| match e {
+                            RawInputEventWire::Key {
+                                key,
+                                pressed,
+                                repeat,
+                                ..
+                            } => Some((key, pressed, repeat)),
+                            _ => None,
+                        }),
+                    );
+                }
+            }
+            keys.retain(|_, k| !k.is_empty());
+            keys
+        }
+    }
+
+    fn a_key(pressed: bool, repeat: bool) -> Event {
+        Event::Key {
+            key: egui::Key::A,
+            physical_key: Some(egui::Key::A),
+            pressed,
+            repeat,
+            modifiers: Modifiers::NONE,
+        }
+    }
+
+    /// Given 팝업 1 이 A 누름을 받은 뒤 그 위에 팝업 2 가 열려 키 주인이 2 로 옮겼다, When A 의 repeat 누름과 뗌이
+    /// 오면, Then 둘 다 누름을 받은 1 에만 가고 2 는 A 를 받지 않는다. 한 뗌을 두 팝업이 받지 않는다.
+    #[test]
+    fn a_repeat_after_a_focus_move_stays_with_the_popup_that_took_the_press() {
+        let mut scene = window_key_wire_scene();
+        scene.focus(1);
+        scene.pass(vec![a_key(true, false)]);
+        scene.open_window_popup(2);
+        scene.focus(2);
+        assert_eq!(scene.state.plugin_popup_key_target(), Some(2));
+        scene.pass(vec![a_key(true, true)]);
+        scene.pass(vec![a_key(false, false)]);
+        let keys = scene.keys();
+        assert_eq!(
+            keys.get(&1),
+            Some(&vec![
+                wire_key("A", true, false),
+                wire_key("A", true, true),
+                wire_key("A", false, false)
+            ])
+        );
+        assert_eq!(keys.get(&2), None, "{keys:?}");
+    }
+
+    /// Given 팝업 1 이 A 누름을 받은 창, When 키 주인을 옮기지 않고 repeat 와 뗌이 오면, Then 1 이 셋 다 받는다.
+    #[test]
+    fn a_repeat_without_a_focus_move_reaches_the_popup_that_took_the_press() {
+        let mut scene = window_key_wire_scene();
+        scene.focus(1);
+        scene.pass(vec![a_key(true, false)]);
+        scene.pass(vec![a_key(true, true)]);
+        scene.pass(vec![a_key(false, false)]);
+        let keys = scene.keys();
+        assert_eq!(keys.get(&1).map(Vec::len), Some(3), "{keys:?}");
+    }
+
+    /// Given 포커스 surface 범위 팝업 1 이 A 누름을 받았다, When 그 surface 가 안 보이는 동안(작업 공간 전환) A 를 떼면,
+    /// Then 그리지 않는 1 에도 그 뗌이 간다.
+    #[test]
+    fn a_release_while_the_scope_is_hidden_reaches_the_popup_that_took_the_press() {
+        let mut scene = surface_key_wire_scene();
+        scene.focus(1);
+        scene.pass(vec![a_key(true, false)]);
+        assert_eq!(scene.keys().get(&1).map(Vec::len), Some(1));
+        scene.layout = layout_with_surface_7(false);
+        scene.pass(vec![a_key(false, false)]);
+        assert_eq!(
+            scene.keys().get(&1),
+            Some(&vec![wire_key("A", false, false)])
+        );
+    }
+
+    /// Given 같은 장면, When surface 가 보이는 채 A 를 떼면, Then 1 이 그 뗌을 받는다.
+    #[test]
+    fn a_release_while_the_scope_is_shown_reaches_the_popup_that_took_the_press() {
+        let mut scene = surface_key_wire_scene();
+        scene.focus(1);
+        scene.pass(vec![a_key(true, false)]);
+        drop(scene.keys());
+        scene.pass(vec![a_key(false, false)]);
+        assert_eq!(
+            scene.keys().get(&1),
+            Some(&vec![wire_key("A", false, false)])
+        );
+    }
+
+    /// Given 팝업 1 이 Shift+Esc 누름(창이 넘기지 않은 수식키 Esc, 다른 키와 같다)을 받은 뒤 그 위에 팝업 2 가 열려
+    /// 키 주인이 2 로 옮겼다, When 그 뗌이 오면, Then 누름을 받은 1 에만 가고 2 는 짝 없는 Esc 뗌을 받지 않는다.
+    #[test]
+    fn a_shift_escape_release_after_a_focus_move_reaches_only_the_popup_that_took_the_press() {
+        let mut scene = window_key_wire_scene();
+        scene.focus(1);
+        scene.pass(vec![shift_esc_press()]);
+        scene.open_window_popup(2);
+        scene.focus(2);
+        assert_eq!(scene.state.plugin_popup_key_target(), Some(2));
+        let mut release = esc_release();
+        if let Event::Key { modifiers, .. } = &mut release {
+            *modifiers = Modifiers::SHIFT;
+        }
+        scene.pass(vec![release]);
+        let keys = scene.keys();
+        assert_eq!(
+            keys.get(&1),
+            Some(&vec![
+                wire_key("Escape", true, false),
+                wire_key("Escape", false, false)
+            ])
+        );
+        assert_eq!(keys.get(&2), None, "{keys:?}");
     }
 }
 

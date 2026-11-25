@@ -1,7 +1,7 @@
 //! 창이 egui 에 실은 누름 가운데 뗌이 오지 않은 키(남는 눌림). 뗌은 짝 누름의 수신자에게 간다: 누름을 egui 에
 //! 실었으면 지금 게이트와 관계없이 egui 입력 순서대로 싣는다(egui 의 눌림 기록이 풀린다). 그 누름을 받은 plugin 팝업이
-//! 지금 수신자가 아니어도 뗌은 그 팝업에만 간다: plugin wire 수집이 누름을 받은 팝업에 보낸다
-//! (`plugin_bridge::MeshKeyRoute`). 누름을 egui 에 싣지 않았으면(터미널·egui-mesh 는 누름만 받는다) 뗌도 egui 로
+//! 지금 수신자가 아니거나 그려지지 않아도 뗌은 그 팝업에만 간다: plugin wire 수집이 창의 키 결속으로 보낸다
+//! (`plugin_bridge::PluginKeyBindings`). 누름을 egui 에 싣지 않았으면(터미널·egui-mesh 는 누름만 받는다) 뗌도 egui 로
 //! 보내지 않는다. OS 포커스 상실과 모달 진입은 뗌 사건을 기다리지 않고 그 자리에서 남은 눌림을 모두 푸는 뗌을 egui
 //! 입력 끝에 싣는다. Escape 는 Esc 몫의 기록(`PopupManager::note_unfed_escape_release`)이 맡는다.
 

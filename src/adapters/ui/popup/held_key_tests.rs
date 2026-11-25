@@ -165,7 +165,7 @@ fn the_first_press_after_the_modal_closes_is_handled() {
 
 /// Given egui 에 실은 A 누름(plugin 팝업이 받았든 아니든), When 게이트가 egui 로 보내지 않는 자리에서 A 를 떼면, Then 그
 /// 뗌은 egui 입력에 실려 egui 의 눌림 기록을 푼다. 누름을 받은 plugin 팝업에 뗌을 보내는 일은 wire 수집이 한다
-/// (`plugin_bridge::MeshKeyRoute`). 포커스 상실은 남은 눌림 하나를 푸는 뗌 하나다.
+/// (`plugin_bridge::PluginKeyBindings`). 포커스 상실은 남은 눌림 하나를 푸는 뗌 하나다.
 #[test]
 fn a_release_of_a_loaded_press_is_loaded_in_order() {
     let mut s = open_scene(|_| {});

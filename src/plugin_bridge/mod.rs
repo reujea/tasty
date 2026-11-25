@@ -85,36 +85,57 @@ pub(crate) struct MeshForwardCommon {
     blank_warned: bool,
     /// 포인터 hover·누름 기록. popup·banner 채널이 입력을 모을 때 쓴다.
     pub(crate) pointer: MeshPointerRoute,
-    /// 키 누름 기록. popup 채널이 입력을 모을 때 쓴다.
-    pub(crate) keys: MeshKeyRoute,
 }
 
-/// mesh 팝업 하나가 받은 키 누름 기록. 누름은 이 팝업이 키 주인일 때만 보내고 기록한다. 뗌은 egui 입력 순서 그대로
-/// 이 팝업에서 누른 키일 때만 보낸다(지금 키 주인과 무관하게). 그래서 누름을 받은 팝업이 뗌을 한 번 받고 지금 키 주인은
-/// 남의 누름의 뗌을 받지 않는다. Escape 는 Esc 몫의 기록(`PopupManager::note_unfed_escape_release`)이 맡으므로 키
-/// 주인 여부만 본다.
+/// 창 하나의 plugin 팝업 키 결속. egui 입력 순서(패스가 받는 사건 순서)에서 키마다 첫 누름을 받은 인스턴스를 남기고,
+/// 그 키의 repeat·다시 누름·뗌은 지금 키 주인과 관계없이 그 인스턴스로 간다. 뗌이 결속을 푼다. 그래서 한 뗌은 누름을
+/// 받은 인스턴스 하나에만 가고, 그 인스턴스가 지금 그려지지 않아도(범위 숨김·접힘) 간다. Esc 도 다른 키와 같다. 창이 넘긴
+/// bare Esc 누름은 Esc 몫(`PopupManager::take_handed_escape`)으로 키 주인에게 가고, 그 키 주인에 결속해 뗌도 그리로 간다.
+/// 정상 뗌과 모달 진입·OS 포커스 상실의 합성 뗌(`MainViewState::pair_key_release`·`release_on_window_focus`·
+/// `release_on_modal_entry`)이 모두 egui 입력에 실려 이 한 결속을 지난다.
 #[cfg(feature = "gui")]
 #[derive(Clone, Debug, Default)]
-pub(crate) struct MeshKeyRoute {
-    pressed: Vec<egui::Key>,
+pub(crate) struct PluginKeyBindings {
+    bound: Vec<(egui::Key, u64)>,
+}
+
+/// 패스 하나의 키 사건 하나: 키와 눌림.
+#[cfg(feature = "gui")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct PassKey {
+    pub(crate) key: egui::Key,
+    pub(crate) pressed: bool,
 }
 
 #[cfg(feature = "gui")]
-impl MeshKeyRoute {
-    /// 키 사건이 이 팝업에 가는지. `has_key_focus` 는 이 팝업이 지금 키 주인인지다.
-    pub(crate) fn takes(&mut self, key: egui::Key, pressed: bool, has_key_focus: bool) -> bool {
-        if key == egui::Key::Escape {
-            return has_key_focus;
-        }
-        if pressed {
-            if has_key_focus && !self.pressed.contains(&key) {
-                self.pressed.push(key);
-            }
-            return has_key_focus;
-        }
-        let before = self.pressed.len();
-        self.pressed.retain(|k| *k != key);
-        self.pressed.len() != before
+impl PluginKeyBindings {
+    /// 패스의 키 사건마다(사건 순서) 받는 인스턴스를 정한다. `focus` 는 이 패스의 키 주인 plugin 인스턴스다.
+    pub(crate) fn route(
+        &mut self,
+        keys: impl IntoIterator<Item = PassKey>,
+        focus: Option<u64>,
+    ) -> Vec<Option<u64>> {
+        keys.into_iter()
+            .map(|k| {
+                let at = self.bound.iter().position(|(key, _)| *key == k.key);
+                match at {
+                    Some(i) if k.pressed => Some(self.bound[i].1),
+                    Some(i) => Some(self.bound.swap_remove(i).1),
+                    None if k.pressed => {
+                        if let Some(instance) = focus {
+                            self.bound.push((k.key, instance));
+                        }
+                        focus
+                    }
+                    None => None,
+                }
+            })
+            .collect()
+    }
+
+    /// 닫힌 인스턴스의 결속을 지운다.
+    pub(crate) fn retain(&mut self, live: impl Fn(u64) -> bool) {
+        self.bound.retain(|(_, instance)| live(*instance));
     }
 }
 
