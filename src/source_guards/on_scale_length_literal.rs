@@ -202,7 +202,8 @@ const AREAS: &[(&str, Option<usize>, &str)] = &[
         // 탐색기 상세 표의 크기·날짜·종류 열 폭 80·132·92는 디자인 `DetailRow` 열 폭이며 같은 역할의
         // 토큰 접근자가 있지만, 접근자는 ui_zoom을 따라 열 폭이 배율에 따라 달라지므로 리터럴로 둔다.
         // +1: ja·zh-Hans 재연결 상태어 글자당 폭 12(FH_STATUS_WORD_EM_UNMEASURED), 정본 Meta 출처, 대응 역할 토큰 없음.
-        Some(38),
+        // segmented 알약 간격 6(SEGMENT_GAP)은 정본 `seg` 묶음의 `gap: 6`이며 역할 토큰이 없다. 배율은 곱해 따른다.
+        Some(39),
         "공용 위젯",
     ),
     (
