@@ -237,14 +237,15 @@ pub fn paint_collapsed_popup(
     resp.on_hover_text(look.tooltip)
 }
 
-/// `:focus-visible` 짝: 버튼 바깥 border_width 만큼 띄운 focus_ring_width 링.
+/// `:focus-visible` 짝: 버튼 바깥 focus_ring_offset 만큼 띄운 focus_ring_width 컨트롤 링.
 fn paint_focus_ring(painter: &egui::Painter, theme: &Theme, button: egui::Rect) {
-    let offset = theme.border_width.value();
-    painter.rect_stroke(
-        button.expand(offset),
-        theme.corner_radius.value() + offset,
-        egui::Stroke::new(theme.focus_ring_width.value(), theme.border_focus()),
-        egui::StrokeKind::Outside,
+    crate::focus_ring::paint_control_ring(
+        painter,
+        theme,
+        button,
+        theme.corner_radius.value(),
+        crate::focus_ring::control_ring_gap(theme),
+        theme.border_focus().to_egui(),
     );
 }
 

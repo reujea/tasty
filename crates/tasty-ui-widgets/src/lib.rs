@@ -46,6 +46,7 @@ mod file_drop_overlay;
 pub mod file_handler;
 mod file_handler_form;
 mod filter_readout;
+mod focus_ring;
 mod folder_picker;
 mod graph_view;
 mod help_hint;
@@ -209,6 +210,10 @@ pub use file_handler_form::{
     fh_list_head, fh_row, fh_summary_text,
 };
 pub use filter_readout::{filter_readout, filter_readout_label, filter_readout_width};
+pub use focus_ring::{
+    control_ring_color, control_ring_gap, paint_control_ring, paint_field_ring, paint_inset_ring,
+    pinned_focus, switch_ring_gap,
+};
 pub use folder_picker::FolderPickerFooter;
 pub use graph_view::{
     DagCardView, DagStatus, EdgeInk, EdgeLink, GRAPH_NARROW_DETAIL_SHEET, GraphCanvasProps,
