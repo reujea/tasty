@@ -54,7 +54,8 @@ pub struct TitlebarProps<'a> {
     pub maximized: bool,
     /// 창 버튼이 키보드 포커스 표시를 갖는 창이다(Linux 설정창). 참이면 포커스를 받은 버튼에 포커스 링을 그리고,
     /// 이름 툴팁을 디자인 시스템 Tooltip으로 버튼 아래 오른쪽 끝 맞춤에 hover와 포커스 때 띄운다.
-    /// 메인 창은 키 입력이 터미널로 가서 거짓이고, 그때 창 버튼과 드래그 영역은 포인터만 받아 Tab 순회에 들지 않는다.
+    /// 메인 창은 키 입력이 터미널로 가서 거짓이고, 그때 창 버튼은 포인터만 받아 Tab 순회에 들지 않는다. 드래그 영역은
+    /// 두 창 모두 포인터만 받는다(설정창 정본도 Tab 정지점은 닫기 버튼뿐이다).
     pub keyboard_focus: bool,
     /// 빈 영역 드래그가 시작된 패스에 왼쪽 버튼만 눌려 있을 때만 창 이동으로 보고한다(Linux 설정창, 디자인 정본은
     /// 왼쪽 드래그만 이동이다). 거짓이면 어느 버튼의 드래그든 이동이다(메인 창).
@@ -166,11 +167,7 @@ pub fn draw_titlebar_view(ctx: &egui::Context, props: &TitlebarProps) -> Titleba
                 let resp = ui.interact(
                     drag_rect,
                     egui::Id::new(DRAG_AREA_ID),
-                    if props.keyboard_focus {
-                        egui::Sense::click_and_drag()
-                    } else {
-                        egui::Sense::CLICK.union(egui::Sense::DRAG)
-                    },
+                    egui::Sense::CLICK.union(egui::Sense::DRAG),
                 );
                 let drag_started = if props.primary_drag_only {
                     resp.drag_started() && only_primary_down(ui)
@@ -390,6 +387,41 @@ fn draw_button_glyph(
 mod tests {
     use super::*;
 
+    /// `props` 타이틀바만 그린 패스를 12번 돌리며 첫 패스 뒤마다 Tab을 넣고, 패스마다 egui 포커스를 모은다.
+    fn focus_per_tab(props: &TitlebarProps) -> Vec<Option<egui::Id>> {
+        let ctx = egui::Context::default();
+        (0..12)
+            .map(|k| {
+                let events = if k == 0 {
+                    Vec::new()
+                } else {
+                    vec![egui::Event::Key {
+                        key: egui::Key::Tab,
+                        physical_key: None,
+                        pressed: true,
+                        repeat: false,
+                        modifiers: egui::Modifiers::default(),
+                    }]
+                };
+                drop(ctx.run(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(800.0, 400.0),
+                        )),
+                        focused: true,
+                        events,
+                        ..Default::default()
+                    },
+                    |ctx| {
+                        drop(draw_titlebar_view(ctx, props));
+                    },
+                ));
+                ctx.memory(|m| m.focused())
+            })
+            .collect()
+    }
+
     /// 메인 창 타이틀바(keyboard_focus 거짓)는 키보드 정지점이 아니다. 드래그 영역과 창 버튼이 모두 그려진 줄에 Tab을
     /// 여러 번 넣어도 egui 포커스가 생기지 않는다. 키 입력은 터미널로 간다.
     #[test]
@@ -413,34 +445,36 @@ mod tests {
             primary_drag_only: false,
             popup_owns_keys: false,
         };
-        let ctx = egui::Context::default();
-        for k in 0..12 {
-            let events = if k == 0 {
-                Vec::new()
-            } else {
-                vec![egui::Event::Key {
-                    key: egui::Key::Tab,
-                    physical_key: None,
-                    pressed: true,
-                    repeat: false,
-                    modifiers: egui::Modifiers::default(),
-                }]
-            };
-            drop(ctx.run(
-                egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(
-                        egui::Pos2::ZERO,
-                        egui::vec2(800.0, 400.0),
-                    )),
-                    focused: true,
-                    events,
-                    ..Default::default()
-                },
-                |ctx| {
-                    drop(draw_titlebar_view(ctx, &props));
-                },
-            ));
-            assert_eq!(ctx.memory(|m| m.focused()), None, "pass {k}");
+        for (k, focused) in focus_per_tab(&props).into_iter().enumerate() {
+            assert_eq!(focused, None, "pass {k}");
         }
+    }
+
+    /// 설정창 타이틀바(keyboard_focus 참, 닫기 버튼 하나)에서 Tab이 멈추는 곳은 닫기 버튼뿐이다. 링이 없는 드래그
+    /// 영역에는 멈추지 않는다(정본 settings-titlebar-linux).
+    #[test]
+    fn tab_stops_only_on_the_settings_titlebar_close_button() {
+        let theme = tasty_themes::mocha_fallback();
+        let props = TitlebarProps {
+            theme: &theme,
+            active: true,
+            height: theme.titlebar_height.value(),
+            left_inset: 0.0,
+            controls: Some(super::super::close_only_controls()),
+            maximized: false,
+            keyboard_focus: true,
+            primary_drag_only: true,
+            popup_owns_keys: false,
+        };
+        let stops = focus_per_tab(&props);
+        let drag = egui::Id::new(DRAG_AREA_ID);
+        assert!(!stops.contains(&Some(drag)), "{stops:?}");
+        // 정지점이 하나뿐이면 egui Tab은 그 버튼과 포커스 없음을 번갈아 오간다.
+        let held: Vec<_> = stops.iter().flatten().collect();
+        assert!(!held.is_empty(), "Tab reaches the close button: {stops:?}");
+        assert!(
+            held.windows(2).all(|w| w[0] == w[1]),
+            "one stop only: {stops:?}"
+        );
     }
 }
