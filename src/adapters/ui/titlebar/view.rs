@@ -451,7 +451,8 @@ mod tests {
     }
 
     /// 설정창 타이틀바(keyboard_focus 참, 닫기 버튼 하나)에서 Tab이 멈추는 곳은 닫기 버튼뿐이다. 링이 없는 드래그
-    /// 영역에는 멈추지 않는다(정본 settings-titlebar-linux).
+    /// 영역에는 멈추지 않는다(정본 settings-titlebar-linux). 설정창 제목 줄은 Linux에만 있다.
+    #[cfg(target_os = "linux")]
     #[test]
     fn tab_stops_only_on_the_settings_titlebar_close_button() {
         let theme = tasty_themes::mocha_fallback();
