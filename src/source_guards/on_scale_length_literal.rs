@@ -688,10 +688,9 @@ fn the_gallery_share_splits_into_four_kinds() {
     // Attach prelayout의 560×180은 원격 디자인 storyboard 액자다. 역할별 Theme 토큰이 없으며
     // attach_loading.rs의 이름 있는 LogicalPx 상수 두 개로만 사용한다. 본체 치수가 아니다.
     // 검색 막대 견본의 입력 칸 하한 80은 견본 액자 안의 최소 폭이며 역할 토큰이 없다.
-    // 튜토리얼 합성 견본의 무대 폭 상한 520은 포트 창 높이 토큰(ports-window-height)과 숫자만 같다.
     assert!(
-        named_value <= 23 && displayed <= roster,
-        "갤러리의 같은 Theme 값 자리 {named_value}(상한 23) 또는 전시 후보 {displayed}(전시 명부 {roster})가 상한을 넘었다. 줄어든 것은 실패가 아니다"
+        named_value <= 22 && displayed <= roster,
+        "갤러리의 같은 Theme 값 자리 {named_value}(상한 22) 또는 전시 후보 {displayed}(전시 명부 {roster})가 상한을 넘었다. 줄어든 것은 실패가 아니다"
     );
 }
 
