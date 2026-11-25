@@ -625,7 +625,6 @@ pub fn job_steps(file: &str, yaml: &str) -> Result<Vec<Step>, Vec<String>> {
                     continue;
                 }
             };
-            // 이름과 액션 지목(uses)은 실행문이 아니므로 검증 판정 본문에서 뺀다. 옛 판독은 `- uses:` 머리 줄을 뺐다.
             let label_lines: Vec<usize> = s
                 .fields
                 .iter()
