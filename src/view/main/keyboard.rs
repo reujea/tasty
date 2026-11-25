@@ -39,9 +39,10 @@ struct KeyboardSendOutcome {
     sent: bool,
 }
 
-/// 단계 11 맨 앞의 키 사건 하나: 더블탭 검출기 공급과 설정 열기 요청 래치 끝(`latch`, 누름만 본다). 뗌이거나 래치
-/// 노드가 받은 누름이면 참이고 그 사건은 뒤 단계(무대·더블탭·Esc·단축키·끝 목적지)로 가지 않는다. `at` 은 그 사건이
-/// 창에 도착한 시각이다.
+/// 단계 11 맨 앞의 키 사건 하나: 설정 열기 요청 래치 끝(`latch`, 누름만 본다)과 더블탭 검출기 공급. 뗌이거나 래치
+/// 노드가 받은 누름이면 참이고 그 사건은 뒤 단계(무대·더블탭·Esc·단축키·끝 목적지)로 가지 않는다. 래치 노드가 받은
+/// 누름은 검출기에 가지 않고 진행 중인 탭을 버린다: 래치 안의 탭이 래치 밖에서 더블탭이 되지 않는다. `at` 은 그
+/// 사건이 창에 도착한 시각이다.
 pub(crate) fn key_ends_at_latch(
     detector: &mut crate::double_tap::DoubleTapDetector,
     key: &Key,
@@ -49,8 +50,12 @@ pub(crate) fn key_ends_at_latch(
     at: std::time::Instant,
     latch: impl FnOnce() -> bool,
 ) -> bool {
+    if pressed && latch() {
+        detector.reset();
+        return true;
+    }
     detector.on_key_event(key, pressed, at);
-    !pressed || latch()
+    !pressed
 }
 
 impl MainView {
@@ -1287,5 +1292,45 @@ mod tests {
         assert!(should_forward_text(",", false, true));
         // IME 비활성이면 non-ASCII 도 통과(합성 문자 직접 입력).
         assert!(should_forward_text("한", false, false));
+    }
+
+    /// 단계 11 맨 앞에 키 사건 하나를 넣는다. `latched` 면 래치 노드가 그 누름을 받는다. 끝났으면 참이다.
+    fn latch_step(
+        d: &mut crate::double_tap::DoubleTapDetector,
+        key: &Key,
+        pressed: bool,
+        latched: bool,
+    ) -> bool {
+        super::key_ends_at_latch(d, key, pressed, std::time::Instant::now(), || latched)
+    }
+
+    /// Given 설정 열기 요청 래치 중, When Ctrl 을 두 번 탭하고(래치 노드가 누름을 받는다) 래치가 풀린 뒤 다른 키를
+    /// 누르면, Then 래치 안의 탭은 더블탭이 되지 않아 그 키에서 꺼낼 더블탭이 없다.
+    #[test]
+    fn modifier_taps_under_the_settings_latch_make_no_double_tap() {
+        let mut d = crate::double_tap::DoubleTapDetector::new();
+        let ctrl = Key::Named(NamedKey::Control);
+        assert!(latch_step(&mut d, &ctrl, true, true));
+        assert!(latch_step(&mut d, &ctrl, false, false));
+        assert!(latch_step(&mut d, &ctrl, true, true));
+        assert!(latch_step(&mut d, &ctrl, false, false));
+        assert!(!latch_step(
+            &mut d,
+            &Key::Character("a".into()),
+            true,
+            false
+        ));
+        assert_eq!(d.take(), None);
+    }
+
+    /// Given 래치가 없다, When Ctrl 을 두 번 탭하면, Then 둘째 누름에서 더블탭을 꺼낸다.
+    #[test]
+    fn modifier_taps_without_the_latch_make_a_double_tap() {
+        let mut d = crate::double_tap::DoubleTapDetector::new();
+        let ctrl = Key::Named(NamedKey::Control);
+        assert!(!latch_step(&mut d, &ctrl, true, false));
+        assert!(latch_step(&mut d, &ctrl, false, false));
+        assert!(!latch_step(&mut d, &ctrl, true, false));
+        assert_eq!(d.take(), Some(crate::double_tap::DoubleTapKey::Ctrl));
     }
 }
