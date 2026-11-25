@@ -34,13 +34,13 @@ fn rename_raw_enter_is_owned_through_commit_but_next_genuine_press_is_not() {
     for code in [KeyCode::Enter, KeyCode::NumpadEnter] {
         let key = PhysicalKey::Code(code);
         let mut keys = composing();
-        keys.press(key, Some(RENAME));
+        keys.press(key, Some(RENAME), Instant::now());
         // XIM can deliver a native release before clear/Commit and replay the press later.
         // Only native presses replace ownership; releasing is not evidence of replay delivery.
         end(&mut keys);
-        assert_eq!(keys.take(key, Some(7)), Some(RENAME));
-        keys.press(key, Some(RENAME));
-        assert_eq!(keys.take(key, Some(7)), None);
+        assert_eq!(keys.take(key, Instant::now(), Some(7)), Some(RENAME));
+        keys.press(key, Some(RENAME), Instant::now());
+        assert_eq!(keys.take(key, Instant::now(), Some(7)), None);
     }
 }
 
@@ -51,7 +51,7 @@ fn rename_unforwarded_end_never_claims_distinct_genuine_press_even_in_same_batch
         for repeated in [0, 1, 3] {
             let mut keys = composing();
             if captured_ending_press {
-                keys.press(key, Some(RENAME));
+                keys.press(key, Some(RENAME), Instant::now());
             }
             end(&mut keys);
             for _ in 0..repeated {
@@ -59,8 +59,8 @@ fn rename_unforwarded_end_never_claims_distinct_genuine_press_even_in_same_batch
             }
             // No ending KeyboardInput was forwarded. No batch boundary or delay is needed:
             // the distinct native press itself replaces ownership before its own replay.
-            keys.press(key, Some(RENAME));
-            assert_eq!(keys.take(key, Some(7)), None);
+            keys.press(key, Some(RENAME), Instant::now());
+            assert_eq!(keys.take(key, Instant::now(), Some(7)), None);
         }
     }
 }
@@ -75,14 +75,14 @@ fn rename_requires_its_own_nonempty_preedit_not_enabled_mode_or_background_compo
     ] {
         let mut keys = ExplorerImeKeys::default();
         update(&mut keys, event, Some(RENAME));
-        keys.press(key, Some(RENAME));
-        assert_eq!(keys.take(key, Some(7)), None);
+        keys.press(key, Some(RENAME), Instant::now());
+        assert_eq!(keys.take(key, Instant::now(), Some(7)), None);
     }
     let mut keys = ExplorerImeKeys::default();
     update(&mut keys, Ime::Preedit("간".into(), Some((3, 3))), None);
-    keys.press(key, Some(RENAME));
+    keys.press(key, Some(RENAME), Instant::now());
     assert_eq!(
-        keys.take(key, Some(7)),
+        keys.take(key, Instant::now(), Some(7)),
         None,
         "opening Rename must not inherit background preedit"
     );
@@ -93,9 +93,10 @@ fn rename_requires_its_own_nonempty_preedit_not_enabled_mode_or_background_compo
             surface: 7,
             popup: 12,
         }),
+        Instant::now(),
     );
     assert_eq!(
-        keys.take(key, Some(7)),
+        keys.take(key, Instant::now(), Some(7)),
         None,
         "reopened popup needs its own composition"
     );
@@ -105,8 +106,9 @@ fn rename_requires_its_own_nonempty_preedit_not_enabled_mode_or_background_compo
             surface: 8,
             popup: 11,
         }),
+        Instant::now(),
     );
-    assert_eq!(keys.take(key, Some(8)), None);
+    assert_eq!(keys.take(key, Instant::now(), Some(8)), None);
 }
 
 #[test]
@@ -114,16 +116,16 @@ fn rename_reset_disabled_and_window_focus_reset_discard_late_ownership() {
     let key = PhysicalKey::Code(KeyCode::Enter);
     for reset in 0..3 {
         let mut keys = composing();
-        keys.press(key, Some(RENAME));
+        keys.press(key, Some(RENAME), Instant::now());
         match reset {
             0 => keys.reset_rename(),
             1 => update(&mut keys, Ime::Disabled, Some(RENAME)),
             _ => keys = ExplorerImeKeys::default(),
         }
         end(&mut keys);
-        assert_eq!(keys.take(key, Some(7)), None);
-        keys.press(key, Some(RENAME));
-        assert_eq!(keys.take(key, Some(7)), None);
+        assert_eq!(keys.take(key, Instant::now(), Some(7)), None);
+        keys.press(key, Some(RENAME), Instant::now());
+        assert_eq!(keys.take(key, Instant::now(), Some(7)), None);
     }
 }
 

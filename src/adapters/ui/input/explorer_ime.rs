@@ -1,7 +1,10 @@
 //! X11 XIM can commit a composition and replay its ending physical key afterward.
 //! Remember ownership at the raw press, before XFilterEvent clears the preedit.
+//! A window key event pairs with the last raw press of its physical key observed before it
+//! arrived, so presses held behind earlier input and replayed later keep their own pairs.
 
 use std::collections::HashMap;
+use std::time::Instant;
 use winit::event::{ElementState, Ime, RawKeyEvent, WindowEvent};
 use winit::keyboard::{Key, NamedKey, PhysicalKey};
 
@@ -40,7 +43,9 @@ impl InputOwner {
 pub(crate) struct ExplorerImeKeys {
     composing: Option<u32>,
     rename_composing: Option<InputOwner>,
-    presses: HashMap<PhysicalKey, InputOwner>,
+    /// Raw presses per physical key, oldest first: when each was observed and the owner it had
+    /// (`None` when no explorer input owned it).
+    presses: HashMap<PhysicalKey, Vec<(Instant, Option<InputOwner>)>>,
 }
 
 impl ExplorerImeKeys {
@@ -52,16 +57,14 @@ impl ExplorerImeKeys {
         }
     }
 
-    fn press(&mut self, key: PhysicalKey, input: Option<InputOwner>) {
-        // Every new physical press replaces the prior ownership, even if XIM never
-        // forwarded that prior key. A later genuine key must not inherit it.
-        self.presses.remove(&key);
-        if let Some(owner) = input.filter(|owner| match owner {
+    /// A raw press observed at `at`. Every new physical press stands for itself, even if XIM never
+    /// forwarded the prior one: a later genuine key pairs with its own observation, not an older one.
+    fn press(&mut self, key: PhysicalKey, input: Option<InputOwner>, at: Instant) {
+        let owner = input.filter(|owner| match owner {
             InputOwner::Rename { .. } => self.rename_composing == Some(*owner),
             _ => self.composing == Some(owner.surface()),
-        }) {
-            self.presses.insert(key, owner);
-        }
+        });
+        self.presses.entry(key).or_default().push((at, owner));
     }
 
     fn rename_ime(&mut self, event: &Ime, owner: Option<InputOwner>) {
@@ -77,14 +80,28 @@ impl ExplorerImeKeys {
 
     fn reset_rename(&mut self) {
         self.rename_composing = None;
-        self.presses
-            .retain(|_, owner| !matches!(owner, InputOwner::Rename { .. }));
+        for (_, owner) in self.presses.values_mut().flatten() {
+            if matches!(owner, Some(InputOwner::Rename { .. })) {
+                *owner = None;
+            }
+        }
     }
 
-    fn take(&mut self, key: PhysicalKey, surface: Option<u32>) -> Option<InputOwner> {
-        self.presses
-            .remove(&key)
-            .filter(|owner| Some(owner.surface()) == surface)
+    /// The owner of the window press of `key` that arrived at `arrived`: the last raw press of that
+    /// key observed by then. That observation and the older ones are used up.
+    fn take(
+        &mut self,
+        key: PhysicalKey,
+        arrived: Instant,
+        surface: Option<u32>,
+    ) -> Option<InputOwner> {
+        let observed = self.presses.get_mut(&key)?;
+        let paired = observed.iter().rposition(|(at, _)| *at <= arrived)?;
+        let (_, owner) = observed.drain(..=paired).last()?;
+        if observed.is_empty() {
+            self.presses.remove(&key);
+        }
+        owner.filter(|owner| Some(owner.surface()) == surface)
     }
 }
 
@@ -182,7 +199,8 @@ impl crate::view::main::MainView {
                     }
                 })
             });
-            self.explorer_ime_keys.press(event.physical_key, input);
+            self.explorer_ime_keys
+                .press(event.physical_key, input, Instant::now());
         }
     }
 
@@ -207,7 +225,10 @@ impl crate::view::main::MainView {
                 let surface = rename
                     .map(InputOwner::surface)
                     .or_else(|| self.ime_explorer_surface(engine));
-                if let Some(owner) = self.explorer_ime_keys.take(event.physical_key, surface)
+                let arrived = self.base.gpu.event_arrival();
+                if let Some(owner) =
+                    self.explorer_ime_keys
+                        .take(event.physical_key, arrived, surface)
                     && match owner {
                         InputOwner::Rename { .. } => Some(owner) == rename,
                         _ => true,
@@ -259,13 +280,16 @@ mod tests {
             let mut keys = ExplorerImeKeys::default();
             let key = PhysicalKey::Code(code);
             keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
-            keys.press(key, Some(InputOwner::List(7)));
+            keys.press(key, Some(InputOwner::List(7)), Instant::now());
             keys.ime(&Ime::Preedit(String::new(), None), Some(7));
             keys.ime(&Ime::Commit("간".into()), Some(7));
-            assert_eq!(keys.take(key, Some(7)), Some(InputOwner::List(7)));
-            keys.press(key, Some(InputOwner::List(7)));
+            assert_eq!(
+                keys.take(key, Instant::now(), Some(7)),
+                Some(InputOwner::List(7))
+            );
+            keys.press(key, Some(InputOwner::List(7)), Instant::now());
             assert!(
-                keys.take(key, Some(7)).is_none(),
+                keys.take(key, Instant::now(), Some(7)).is_none(),
                 "next genuine key must work"
             );
         }
@@ -276,10 +300,28 @@ mod tests {
         let mut keys = ExplorerImeKeys::default();
         let key = PhysicalKey::Code(KeyCode::ArrowDown);
         keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
-        keys.press(key, Some(InputOwner::List(7)));
+        keys.press(key, Some(InputOwner::List(7)), Instant::now());
         keys.ime(&Ime::Commit("간".into()), Some(7));
-        keys.press(key, Some(InputOwner::List(7)));
-        assert!(keys.take(key, Some(7)).is_none());
+        keys.press(key, Some(InputOwner::List(7)), Instant::now());
+        assert!(keys.take(key, Instant::now(), Some(7)).is_none());
+    }
+
+    /// Given 조합 중 explorer 가 같은 물리 키의 누름 둘을 받았고 두 창 사건이 앞 입력 뒤에 줄을 섰다(첫 사건 도착 뒤 둘째
+    /// raw 관찰), When 두 사건을 도착 시각으로 차례로 재생하면, Then 각 사건이 자기 관찰과 짝을 지어 둘 다 그 explorer 가
+    /// 가진다.
+    #[test]
+    fn two_held_presses_of_one_key_each_keep_their_observation() {
+        let ms = std::time::Duration::from_millis;
+        let mut keys = ExplorerImeKeys::default();
+        let key = PhysicalKey::Code(KeyCode::ArrowDown);
+        let t0 = Instant::now();
+        keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
+        keys.press(key, Some(InputOwner::List(7)), t0);
+        let first = t0 + ms(1);
+        keys.press(key, Some(InputOwner::List(7)), t0 + ms(2));
+        let second = t0 + ms(3);
+        assert_eq!(keys.take(key, first, Some(7)), Some(InputOwner::List(7)));
+        assert_eq!(keys.take(key, second, Some(7)), Some(InputOwner::List(7)));
     }
 
     #[test]
@@ -287,15 +329,15 @@ mod tests {
         let key = PhysicalKey::Code(KeyCode::Delete);
         let mut keys = ExplorerImeKeys::default();
         keys.ime(&Ime::Enabled, Some(7));
-        keys.press(key, Some(InputOwner::List(7)));
-        assert!(keys.take(key, Some(7)).is_none());
+        keys.press(key, Some(InputOwner::List(7)), Instant::now());
+        assert!(keys.take(key, Instant::now(), Some(7)).is_none());
         keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
-        keys.press(key, None);
-        assert!(keys.take(key, Some(7)).is_none());
-        keys.press(key, Some(InputOwner::List(8)));
-        assert!(keys.take(key, Some(8)).is_none());
-        keys.press(key, Some(InputOwner::List(7)));
-        assert!(keys.take(key, Some(8)).is_none());
+        keys.press(key, None, Instant::now());
+        assert!(keys.take(key, Instant::now(), Some(7)).is_none());
+        keys.press(key, Some(InputOwner::List(8)), Instant::now());
+        assert!(keys.take(key, Instant::now(), Some(8)).is_none());
+        keys.press(key, Some(InputOwner::List(7)), Instant::now());
+        assert!(keys.take(key, Instant::now(), Some(8)).is_none());
     }
 
     #[test]
@@ -330,12 +372,12 @@ mod tests {
         let escape = PhysicalKey::Code(KeyCode::Escape);
         let find = InputOwner::Find(7);
         keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
-        keys.press(escape, Some(find));
+        keys.press(escape, Some(find), Instant::now());
         keys.ime(&Ime::Preedit(String::new(), None), Some(7));
         keys.ime(&Ime::Commit("간".into()), Some(7));
-        assert_eq!(keys.take(escape, Some(7)), Some(find));
-        keys.press(escape, Some(find));
-        assert!(keys.take(escape, Some(7)).is_none());
+        assert_eq!(keys.take(escape, Instant::now(), Some(7)), Some(find));
+        keys.press(escape, Some(find), Instant::now());
+        assert!(keys.take(escape, Instant::now(), Some(7)).is_none());
     }
 
     #[test]
@@ -362,8 +404,8 @@ mod tests {
         let key = PhysicalKey::Code(KeyCode::ArrowDown);
         let mut keys = ExplorerImeKeys::default();
         keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
-        keys.press(key, Some(InputOwner::List(7)));
-        assert!(keys.take(key, None).is_none());
+        keys.press(key, Some(InputOwner::List(7)), Instant::now());
+        assert!(keys.take(key, Instant::now(), None).is_none());
     }
 
     /// 보류 없이 처리한 같은 키는 도착 때 주인이 재생 시점 주인이라 그 explorer 가 가져간다.
@@ -372,7 +414,10 @@ mod tests {
         let key = PhysicalKey::Code(KeyCode::ArrowDown);
         let mut keys = ExplorerImeKeys::default();
         keys.ime(&Ime::Preedit("간".into(), Some((3, 3))), Some(7));
-        keys.press(key, Some(InputOwner::List(7)));
-        assert_eq!(keys.take(key, Some(7)), Some(InputOwner::List(7)));
+        keys.press(key, Some(InputOwner::List(7)), Instant::now());
+        assert_eq!(
+            keys.take(key, Instant::now(), Some(7)),
+            Some(InputOwner::List(7))
+        );
     }
 }
