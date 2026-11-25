@@ -864,7 +864,7 @@ fn draw_profile_row(
                         false,
                     );
                     if detecting_now {
-                        ui.add(egui::Spinner::new().size(th.font_size_caption.value()));
+                        ui.add(egui::Spinner::new().size(th.remote_detect_spinner_size().value()));
                         selectable_label(
                             ui,
                             t("remote_tool.detecting"),

@@ -231,7 +231,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "Add profile (left) · protocol filter (right) once two protocols are stored",
             ),
             ("row", "name · status Tag · target mono · passkey/detecting"),
-            ("detecting", "Spinner 12"),
+            ("detecting", "Spinner remote-detect-spinner-size 11"),
             ("actions", "IconButton sm ×3 (right)"),
             (
                 "local ssh",
@@ -823,7 +823,7 @@ fn profile_row(ui: &mut egui::Ui, theme: &Theme, p: &Profile) {
                 }
                 if p.detecting {
                     Spinner::new()
-                        .size(theme.font_size_term_sm.value())
+                        .size(theme.remote_detect_spinner_size().value())
                         .show(ui, theme);
                     kit::caption(ui, theme, "detecting…", false);
                 }
