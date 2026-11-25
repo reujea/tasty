@@ -552,7 +552,8 @@ pub(super) struct MeshButtonWindow<'a> {
 
 /// 버튼 사건 하나를 mesh 판정([`crate::state::mesh_frames::mesh_button_target`])에 넘기고, 고른 leaf의 입력
 /// 큐(로컬 `local`, 원격 `attach`)에 surface 기준 좌표로 넣는다. 창 밖(좌표 없음)에서 보낸 기록된 뗌 뒤에는 같은
-/// leaf에 `PointerGone`을 다시 넣는다. 왼쪽 버튼 뗌이면 창의 왼쪽 누름 상태도 끈다. 사건을 가져갔으면 `true`다.
+/// leaf에 [`GONE_POINT`]로의 이동과 `PointerGone`을 넣어, 그 패스가 hover 없이 끝나게 한다. 왼쪽 버튼 뗌이면
+/// 창의 왼쪽 누름 상태도 끈다. 사건을 가져갔으면 `true`다.
 pub(super) fn route_mesh_button(
     w: MeshButtonWindow<'_>,
     pass: MeshPass,
@@ -594,9 +595,16 @@ pub(super) fn route_mesh_button(
         pressed,
         modifiers: w.modifiers,
     };
-    // 창 밖에서 보낸 뗌은 SDK가 그 좌표로 포인터를 안에 둔다. CursorLeft가 보낸 PointerGone을 다시 보낸다.
-    let gone = outside.then_some(RawInputEventWire::PointerGone);
-    for event in std::iter::once(event).chain(gone) {
+    // 창 밖에서 보낸 뗌은 egui가 그 좌표를 latest_pos·interact_pos로 채워 그 패스의 hit-test가 hover를 켠다.
+    // PointerGone은 latest_pos만 비우므로, 그 앞에 leaf 밖 먼 곳으로 이동을 넣어 interact_pos를 밖으로 옮긴다.
+    let left = outside.then_some([
+        RawInputEventWire::PointerMoved {
+            x: GONE_POINT.0,
+            y: GONE_POINT.1,
+        },
+        RawInputEventWire::PointerGone,
+    ]);
+    for event in std::iter::once(event).chain(left.into_iter().flatten()) {
         match r.side {
             MeshSide::Local => w.local.entry(r.id).or_default().events.push(event),
             MeshSide::Attach => w.attach.entry(r.id).or_default().push_event(event),
@@ -604,6 +612,9 @@ pub(super) fn route_mesh_button(
     }
     true
 }
+
+/// 창 밖 뗌 뒤 포인터를 옮겨 두는 leaf 논리 좌표. 어떤 위젯의 hit-test 반경에도 들지 않을 만큼 leaf 밖이다.
+pub(super) const GONE_POINT: (f32, f32) = (-10_000.0, -10_000.0);
 
 /// 누른 채인 leaf로 가는 포인터 이동 사건. 보낸 논리 좌표 `at`을 누름 기록에 남겨 창 밖 뗌이 같은 좌표로 간다.
 /// 로컬·attach 이동 전달이 함께 쓴다.

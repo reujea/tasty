@@ -8,7 +8,7 @@ use tasty_plugin_protocol::{ModifiersWire, PointerButtonWire, RawInputEventWire}
 use winit::event::MouseButton::{self, Left, Right};
 
 use super::{
-    MeshButtonWindow, MeshForwardState, MeshPass, local_point, pointer_moved_event,
+    GONE_POINT, MeshButtonWindow, MeshForwardState, MeshPass, local_point, pointer_moved_event,
     route_mesh_button,
 };
 use crate::model::{PhysicalPx, PhysicalRect};
@@ -86,6 +86,17 @@ impl Window {
     ) -> bool {
         self.pass(regions, cursor, MeshPass::Recorded, event)
             || (!above && self.pass(regions, cursor, MeshPass::Below, event))
+    }
+
+    /// `side` leaf `id`의 입력 큐 그대로.
+    pub(super) fn queue(&self, side: MeshSide, id: u32) -> Vec<RawInputEventWire> {
+        match side {
+            MeshSide::Local => self.local.get(&id).map_or(Vec::new(), |s| s.events.clone()),
+            MeshSide::Attach => self
+                .attach
+                .get(&id)
+                .map_or(Vec::new(), |s| s.events().to_vec()),
+        }
     }
 
     /// `side` leaf `id`의 입력 큐에 든 사건 순서. 버튼·이동·떠남 밖의 사건도 [`Seen::Other`]로 남긴다.
@@ -234,6 +245,7 @@ fn a_release_without_a_cursor_reaches_the_pressed_leaf_at_its_last_point() {
             expected.extend(moved.map(|(x, y)| Seen::Moved(x, y - 10.0)));
             expected.extend([
                 Seen::Button(PointerButtonWire::Secondary, false, y),
+                Seen::Moved(GONE_POINT.0, GONE_POINT.1),
                 Seen::Gone,
             ]);
             assert_eq!(w.events(side, 1), expected, "{side:?} moved={moved:?}");
@@ -321,6 +333,7 @@ fn a_release_outside_the_window_uses_the_last_point_sent_to_its_leaf() {
             Seen::Button(PointerButtonWire::Middle, true, 15.0),
             Seen::Button(PointerButtonWire::Primary, false, 25.0),
             Seen::Button(PointerButtonWire::Middle, false, 25.0),
+            Seen::Moved(GONE_POINT.0, GONE_POINT.1),
             Seen::Gone,
         ]
     );
@@ -331,4 +344,82 @@ fn a_release_outside_the_window_uses_the_last_point_sent_to_its_leaf() {
             Seen::Moved(5.0, 20.0),
         ]
     );
+}
+
+/// leaf 하나(100x50 논리 pt)를 덮는 버튼 위젯을 그리는 egui 패스 한 번. 이 패스에서 위젯이 hover였는지 돌려준다.
+/// SDK(`tasty-plugin-sdk` egui_surface/input.rs)처럼 wire 사건을 egui 사건으로 1:1로 옮긴다.
+fn egui_pass(ctx: &egui::Context, events: &[RawInputEventWire]) -> bool {
+    let events = events
+        .iter()
+        .map(|e| match *e {
+            RawInputEventWire::PointerMoved { x, y } => egui::Event::PointerMoved(egui::pos2(x, y)),
+            RawInputEventWire::PointerButton {
+                x,
+                y,
+                button,
+                pressed,
+                ..
+            } => egui::Event::PointerButton {
+                pos: egui::pos2(x, y),
+                button: match button {
+                    PointerButtonWire::Primary => egui::PointerButton::Primary,
+                    PointerButtonWire::Secondary => egui::PointerButton::Secondary,
+                    PointerButtonWire::Middle => egui::PointerButton::Middle,
+                },
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            },
+            RawInputEventWire::PointerGone => egui::Event::PointerGone,
+            ref other => panic!("이 시험이 옮기지 않는 사건: {other:?}"),
+        })
+        .collect();
+    let raw = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(100.0, 50.0),
+        )),
+        events,
+        ..Default::default()
+    };
+    let mut hovered = false;
+    // 이 시험은 위젯 hover만 본다. 패스 출력(도형·텍스처)은 쓰지 않는다.
+    let _ = ctx.run(raw, |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            hovered = ui
+                .allocate_response(ui.available_size(), egui::Sense::click())
+                .hovered();
+        });
+    });
+    hovered
+}
+
+/// 창 밖 뗌을 받은 leaf는 그 패스를 hover 없이 끝낸다. egui 0.31.1은 PointerButton에서 latest_pos와
+/// interact_pos를 채우고 PointerGone에서 latest_pos만 비우므로, 뗌 좌표가 interact_pos로 남으면 그 패스의
+/// hit-test가 hover를 켜고 plugin이 다음 프레임을 그리지 않는 동안 화면에 남는다. leaf 큐를 실제 egui 패스로
+/// 돌려(hover 확인 → 누름 → CursorLeft의 PointerGone → 창 밖 뗌) 마지막 패스와 그 뒤 빈 패스의 hover를 잰다.
+/// 로컬과 attach가 같다.
+#[test]
+fn a_release_outside_the_window_ends_its_pass_without_hover() {
+    for side in [MeshSide::Local, MeshSide::Attach] {
+        let regions = [region(1, 10.0, side)];
+        let ctx = egui::Context::default();
+        let over = [RawInputEventWire::PointerMoved { x: 5.0, y: 10.0 }];
+        egui_pass(&ctx, &over);
+        assert!(
+            egui_pass(&ctx, &over),
+            "{side:?} 전제: 포인터 아래 위젯은 hover다"
+        );
+        let mut w = Window::default();
+        assert!(w.button(&regions, Some((5.0, 20.0)), (Left, true), false));
+        let pressed = w.queue(side, 1);
+        egui_pass(&ctx, &pressed);
+        egui_pass(&ctx, &[RawInputEventWire::PointerGone]);
+        assert!(w.button(&regions, None, (Left, false), false));
+        let released = w.queue(side, 1).split_off(pressed.len());
+        assert!(
+            !egui_pass(&ctx, &released),
+            "{side:?} 창 밖 뗌의 패스가 hover를 켰다: {released:?}"
+        );
+        assert!(!egui_pass(&ctx, &[]), "{side:?} 그 뒤 패스");
+    }
 }
