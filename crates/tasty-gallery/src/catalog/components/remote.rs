@@ -349,8 +349,8 @@ const ATTACHES: &[Attach] = &[
     },
 ];
 
-/// Attach 탭이 열린 원격 연결 창.
-fn attach_frame(ui: &mut egui::Ui, theme: &Theme) {
+/// Attach 탭이 열린 원격 연결 창. 창 안 탭 포커스 예제도 쓴다.
+pub(super) fn attach_frame(ui: &mut egui::Ui, theme: &Theme) {
     kit::frame_card(ui, theme, WIDTH, kit::panel_fill(theme), |ui| {
         attach_header(ui, theme);
         tab_bar(ui, theme, 1);

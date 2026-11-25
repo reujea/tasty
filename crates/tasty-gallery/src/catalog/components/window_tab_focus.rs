@@ -100,12 +100,12 @@ fn frames() -> [(&'static str, FocusLook, Frame); 8] {
         (
             "remote · tab next to the open one",
             FocusLook::RemoteTab(2),
-            super::remote::attach_form_frame,
+            super::remote::attach_frame,
         ),
         (
             "remote · selected tab",
             FocusLook::RemoteTab(1),
-            super::remote::attach_form_frame,
+            super::remote::attach_frame,
         ),
         (
             "remote · segmented",
