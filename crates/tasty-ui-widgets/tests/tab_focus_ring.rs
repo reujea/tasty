@@ -75,11 +75,19 @@ fn pass_inside(
     pass_kind(ctx, th, events, egui::StrokeKind::Inside, draw)
 }
 
-/// 탭 줄을 그린다. 탭 사각형은 바 위쪽에서 시작하는 높이 36 칸이라 링으로 거꾸로 확인한다.
+/// 탭 줄 라벨.
+const LABELS: [&str; 3] = ["Remote profiles", "Attach", "Passkeys"];
+
+/// 탭 0이 열린 탭 줄을 그린다.
 fn strip(ui: &mut egui::Ui, th: &Theme, focus_look: Option<usize>) {
+    strip_open(ui, th, 0, focus_look);
+}
+
+/// `active` 탭이 열린 탭 줄을 그린다.
+fn strip_open(ui: &mut egui::Ui, th: &Theme, active: usize, focus_look: Option<usize>) {
     let data = TabStripData {
-        labels: &["Remote profiles", "Attach", "Passkeys"],
-        active: 0,
+        labels: &LABELS,
+        active,
         x_range: ui.max_rect().x_range(),
     };
     match focus_look {
@@ -118,35 +126,65 @@ fn tab_moves_the_inside_ring_along_the_remote_tab_strip() {
     );
 }
 
-/// 모든 탭의 링이 자기 탭 안쪽(각 변 3, 링 2)에 있고 이웃 탭 사각형과 겹치지 않는다. 선택 탭과 비선택 탭의 링은
-/// 같은 자리다.
-#[test]
-fn every_remote_tab_ring_stays_inside_its_tab_whether_selected_or_not() {
-    let th = theme();
+/// `active` 탭이 열리고 `focus` 탭을 포커스 모양으로 고정한 탭 줄을 한 패스 그린다. (안쪽 링 사각형들, 탭 사각형들)을
+/// 돌려준다. 탭 사각형은 링이 아니라 탭 줄이 egui에 등록한 각 탭의 응답 영역에서 읽는다.
+fn strip_rects(th: &Theme, active: usize, focus: usize) -> (Vec<Rect>, Vec<Rect>) {
     let ctx = egui::Context::default();
-    let inset = inset(&th);
-    let ring_w = th.focus_ring_width.value();
-    let rings: Vec<Rect> = (0..3)
-        .map(|i| {
-            let r = pass_inside(&ctx, &th, vec![], &mut |ui| strip(ui, &th, Some(i)));
-            assert_eq!(r.len(), 1, "tab {i}: {r:?}");
-            r[0].0
+    let mut ids = Vec::new();
+    let rings = pass_inside(&ctx, th, vec![], &mut |ui| {
+        ids = (0..LABELS.len())
+            .map(|i| ui.id().with((i, "rt_tab")))
+            .collect();
+        strip_open(ui, th, active, Some(focus));
+    });
+    let tabs = ids
+        .iter()
+        .map(|id| {
+            ctx.read_response(*id)
+                .expect("each tab registers its rect")
+                .rect
         })
         .collect();
-    let tabs: Vec<Rect> = rings.iter().map(|r| r.expand(inset)).collect();
-    for (i, ring) in rings.iter().enumerate() {
-        assert!(tabs[i].contains_rect(*ring), "tab {i}");
-        // Inside 획이라 링 안쪽 변은 탭 변에서 3 + 링 폭 2 = 5 들어온다.
-        assert_eq!(ring.shrink(ring_w).top() - tabs[i].top(), inset + ring_w);
+    (rings.into_iter().map(|(r, _, _)| r).collect(), tabs)
+}
+
+/// 모든 탭의 링은 자기 탭 안쪽이다. 링 바깥 변은 탭 네 변에서 3(밑줄 2 + focus-ring-offset 1), 링 안쪽 변은
+/// 정확히 5(+ 링 폭 2) 들어오고 이웃 탭 사각형과 겹치지 않는다.
+#[test]
+fn every_remote_tab_ring_sits_five_inside_its_own_tab() {
+    let th = theme();
+    let inset = inset(&th);
+    let ring_w = th.focus_ring_width.value();
+    for focus in 0..LABELS.len() {
+        let (rings, tabs) = strip_rects(&th, 0, focus);
+        assert_eq!(rings.len(), 1, "tab {focus}: {rings:?}");
+        let ring = rings[0];
+        let tab = tabs[focus];
+        assert_eq!(ring, tab.shrink(inset), "outer edge, tab {focus}");
+        assert_eq!(
+            ring.shrink(ring_w),
+            tab.shrink(5.0),
+            "inner edge 5 in, tab {focus}"
+        );
         for (j, other) in tabs.iter().enumerate() {
-            if i != j {
-                assert!(!ring.intersects(*other), "ring {i} touches tab {j}");
+            if j != focus {
+                assert!(!ring.intersects(*other), "ring {focus} touches tab {j}");
             }
         }
     }
-    // 탭 0이 선택 탭이다. 위·아래 변은 선택 여부와 무관하게 같다.
-    for r in &rings[1..] {
-        assert_eq!((r.top(), r.bottom()), (rings[0].top(), rings[0].bottom()));
+}
+
+/// 같은 탭을 선택 상태와 비선택 상태로 각각 그려도 링 사각형은 같다(정본: 선택이 옮겨도 링 위치가 같다).
+#[test]
+fn the_remote_tab_ring_keeps_its_place_when_the_selection_moves() {
+    let th = theme();
+    for focus in 0..LABELS.len() {
+        let other = (focus + 1) % LABELS.len();
+        let (selected, tabs_a) = strip_rects(&th, focus, focus);
+        let (unselected, tabs_b) = strip_rects(&th, other, focus);
+        assert_eq!(tabs_a, tabs_b, "the tabs stay put");
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected, unselected, "tab {focus} selected vs not");
     }
 }
 
