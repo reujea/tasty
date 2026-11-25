@@ -16,7 +16,6 @@ use tasty_ui_widgets::vspace;
 
 pub const APPROVAL_POPUP_ID: &str = "approval";
 
-const DEFAULT_WIDTH: LogicalPx = tasty_design_tokens::generated::component::approval::WIDTH;
 const MIN_HEIGHT: LogicalPx = LogicalPx(180.0);
 const MAX_HEIGHT: LogicalPx = LogicalPx(480.0);
 
@@ -157,8 +156,9 @@ pub fn approval_popup_sizer(
     _engine: &crate::runtime::engine_read::EngineRead<'_>,
     payload: &PopupPayload,
 ) -> egui::Vec2 {
+    let width = popup_width(&theme::theme());
     let Some(record) = shown_record(state, payload) else {
-        return egui::vec2(DEFAULT_WIDTH.value(), MIN_HEIGHT.value());
+        return egui::vec2(width.value(), MIN_HEIGHT.value());
     };
     let record = Some(record);
     let body_len = record
@@ -181,7 +181,12 @@ pub fn approval_popup_sizer(
         + LogicalPx(56.0))
     .min(MAX_HEIGHT)
     .max(MIN_HEIGHT);
-    egui::vec2(DEFAULT_WIDTH.value(), total_h.value())
+    egui::vec2(width.value(), total_h.value())
+}
+
+/// 승인 팝업 폭은 approval-width 토큰이다. sizer가 배율을 직접 적용하므로 Theme 접근자로 읽는다.
+fn popup_width(th: &Theme) -> LogicalPx {
+    th.approval_width()
 }
 
 /// View 입력 — 한 선택지의 시각/의미 데이터.
@@ -574,10 +579,11 @@ mod props_tests {
         }
     }
 
-    /// 승인 팝업의 폭은 approval-width 토큰을 읽고 값은 480 그대로다.
+    /// 승인 팝업의 폭은 approval-width 토큰을 읽고 배율 1에서 값은 480 그대로다.
     #[test]
     fn default_width_is_the_token_value() {
-        assert_eq!(DEFAULT_WIDTH, LogicalPx(480.0));
+        let th = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
+        assert_eq!(popup_width(&th), LogicalPx(480.0));
     }
 
     #[test]

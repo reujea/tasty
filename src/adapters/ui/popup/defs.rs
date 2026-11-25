@@ -41,6 +41,14 @@ pub fn all_defs() -> &'static [PopupDef] {
             th.modhint_min_height().value(),
         ));
         let modhint_grip = th.modhint_grip_size();
+        let ports_size = popup_size(egui::vec2(
+            th.ports_window_width().value(),
+            th.ports_window_height().value(),
+        ));
+        let remote_picker_size = popup_size(egui::vec2(
+            th.remote_picker_width().value(),
+            th.remote_picker_height().value(),
+        ));
     let notice_width = th.notice_column_width().value();
         drop(th);
         vec![
@@ -366,10 +374,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     content_margin: PopupContentMargin::None,
                     // 검색 입력칸이 글자를 편집한다.
                     keyboard: PopupKeyboard::Text,
-                    ..host_decl(popup_size(egui::vec2(
-                        tasty_design_tokens::generated::component::ports::WINDOW_WIDTH.value(),
-                        tasty_design_tokens::generated::component::ports::WINDOW_HEIGHT.value(),
-                    )))
+                    ..host_decl(ports_size)
                 },
                 title_key: "port_scanner.heading",
                 fullscreen_stage: None,
@@ -479,10 +484,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     min_size: None,
                     shell: PopupShell::Panel,
                     content_margin: PopupContentMargin::None,
-                    ..host_decl(popup_size(egui::vec2(
-                        tasty_design_tokens::generated::component::remote::PICKER_WIDTH.value(),
-                        tasty_design_tokens::generated::component::remote::PICKER_HEIGHT.value(),
-                    )))
+                    ..host_decl(remote_picker_size)
                 },
                 title_key: "remote_attach.heading",
                 fullscreen_stage: None,
