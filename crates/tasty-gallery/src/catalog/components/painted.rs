@@ -26,12 +26,21 @@ fn flatten(shape: &egui::Shape, out: &mut Vec<egui::Shape>) {
 }
 
 /// `draw`를 두 번 그려(글꼴·글리프 텍스처가 자리 잡게) 둘째 프레임의 도형을 모은다.
-pub(crate) fn paint(mut draw: impl FnMut(&mut egui::Ui)) -> Painted {
+pub(crate) fn paint(draw: impl FnMut(&mut egui::Ui)) -> Painted {
+    paint_frames(2, draw)
+}
+
+/// 새 Context에서 한 프레임만 그려 그 도형을 모은다. 직전 프레임 기억 없이 보이는 첫 화면이다.
+pub(crate) fn paint_first_frame(draw: impl FnMut(&mut egui::Ui)) -> Painted {
+    paint_frames(1, draw)
+}
+
+fn paint_frames(frames: usize, mut draw: impl FnMut(&mut egui::Ui)) -> Painted {
     let ctx = egui::Context::default();
     // 글리프는 SVG 그림이다. 로더가 없으면 글리프가 칠해지지 않는다.
     egui_extras::install_image_loaders(&ctx);
     let mut shapes = Vec::new();
-    for _ in 0..2 {
+    for _ in 0..frames {
         let raw = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
                 egui::Pos2::ZERO,

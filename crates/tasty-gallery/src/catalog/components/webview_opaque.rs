@@ -367,15 +367,19 @@ fn scene_c(ui: &mut egui::Ui, th: &Theme, mode: Mode) {
             egui::FontId::proportional(th.font_size_caption.value()),
             th.text_on_active().to_egui(),
         );
-        // 메뉴는 버튼 위, 왼쪽 정렬이다. 높이는 직전 프레임에 잰 값을 쓴다.
+        // 메뉴는 버튼 위, 왼쪽 정렬이다. 메뉴 하단을 기준점에 두려면 높이가 필요하므로 직전
+        // 패스에 잰 높이를 쓰고, 높이를 모르거나 달라졌으면 이 패스를 버리고 다시 그리게 한다.
         let id = ui.id().with("tools_h");
-        let prev_h: f32 = ui.data(|d| d.get_temp(id)).unwrap_or(0.0);
+        let prev_h: Option<f32> = ui.data(|d| d.get_temp(id));
         let pos = egui::pos2(
             rect.left() + z(SCENE_C_MENU_LEFT).value(),
-            rect.bottom() - z(SCENE_C_MENU_BOTTOM).value() - prev_h,
+            rect.bottom() - z(SCENE_C_MENU_BOTTOM).value() - prev_h.unwrap_or(0.0),
         );
         let boxed = place(ui, pos, |ui| tools_menu::tools_card(ui, th, mode.edge()));
-        ui.data_mut(|d| d.insert_temp(id, boxed.height()));
+        if prev_h != Some(boxed.height()) {
+            ui.data_mut(|d| d.insert_temp(id, boxed.height()));
+            ui.ctx().request_discard("webview opaque tools menu height");
+        }
         if mode == Mode::Opaque {
             host_outline(ui, th, boxed);
         }
@@ -547,8 +551,11 @@ pub fn draw_file_picker(ui: &mut egui::Ui, theme: &Theme) {
 mod tests {
     use tasty_type_appearance::theme::Theme;
 
-    use super::{Mode, scene_a, scene_b, scene_c, scene_d, zoomed};
-    use crate::catalog::components::painted::{Painted, paint};
+    use super::{
+        HOST_OUTLINE_OFFSET, Mode, SCENE_C_MENU_BOTTOM, scene_a, scene_b, scene_c, scene_d, z,
+        zoomed,
+    };
+    use crate::catalog::components::painted::{Painted, paint, paint_first_frame};
 
     type Scene = fn(&mut egui::Ui, &Theme, Mode);
 
@@ -648,6 +655,49 @@ mod tests {
                          {button:?}"
                     );
                 }
+            }
+        }
+    }
+
+    /// 메뉴 높이를 기억하지 못한 첫 프레임에도 메뉴 하단이 틀 아래 SCENE_C_MENU_BOTTOM 자리에
+    /// 있고, 메뉴 둘레 점선이 surface-active Tools 버튼 위를 지나지 않는다.
+    #[test]
+    fn tools_menu_sits_on_its_bottom_anchor_from_the_first_frame() {
+        for (name, th) in themes() {
+            let p = paint_first_frame(|ui| scene_c(ui, &th, Mode::Opaque));
+            let label = p
+                .texts
+                .iter()
+                .find(|t| t.text == crate::i18n::t("sidebar.tools_button"))
+                .expect("Tools button label");
+            let button = p.rect_filled_around(th.surface_active().to_egui(), label.rect);
+            let ink = th.specimen_annotation_border().to_egui();
+            let mark: Vec<egui::Rect> = p
+                .shapes
+                .iter()
+                .filter_map(|s| match s {
+                    egui::Shape::LineSegment { points, stroke } if stroke.color == ink => {
+                        Some(egui::Rect::from_two_pos(points[0], points[1]))
+                    }
+                    _ => None,
+                })
+                .collect();
+            assert!(mark.len() >= 4, "{name}: the opaque column draws the mark");
+            // 버튼 아래 변은 틀 아래에서 spacing_sm 위다.
+            let frame_bottom = button.bottom() + th.spacing_sm.value();
+            let anchor = frame_bottom - z(SCENE_C_MENU_BOTTOM).value();
+            let mark_bottom = mark.iter().map(|r| r.bottom()).fold(f32::MIN, f32::max);
+            let menu_bottom = mark_bottom - (z(HOST_OUTLINE_OFFSET) + th.border_width).value();
+            assert!(
+                (menu_bottom - anchor).abs() < 0.5,
+                "{name}: first frame menu bottom {menu_bottom} is not on the anchor {anchor}"
+            );
+            for seg in &mark {
+                assert!(
+                    !seg.expand(th.border_width.value() * 0.5).intersects(button),
+                    "{name}: first frame mark {seg:?} runs over the surface-active button \
+                     {button:?}"
+                );
             }
         }
     }
