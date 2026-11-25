@@ -40,7 +40,7 @@ fn token_census_matches_design_export() {
     let set = dtcg::parse(DTCG_JSON).expect("vendor json must parse");
     assert_eq!(
         set.tier_count(dtcg::Tier::Primitive),
-        150,
+        152,
         "primitive census drift"
     );
     assert_eq!(
@@ -53,7 +53,7 @@ fn token_census_matches_design_export() {
         1216,
         "component census drift"
     );
-    assert_eq!(set.len(), 1638, "total census drift");
+    assert_eq!(set.len(), 1640, "total census drift");
 }
 
 /// in-memory 재생성 결과가 커밋된 생성물 텍스트와 완전히 일치해야 한다.
