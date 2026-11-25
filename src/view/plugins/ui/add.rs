@@ -736,25 +736,23 @@ mod tests {
         assert!(actions.is_empty());
     }
 
-    /// Given 폴더 선택 창이 열리고 Cancel 에 포커스가 남은 미인증 미리보기, When Esc, Then 미리보기가 취소되고 폴더
-    /// 선택 창은 열린 채다.
+    /// Given 폴더 선택 창이 열리고 Cancel 에 포커스가 남은 미인증 미리보기, When Esc, Then 창을 덮은 폴더 선택 창이
+    /// 키 주인이라 미리보기는 취소되지 않는다.
     #[test]
-    fn preview_takes_escape_when_focus_is_outside_the_chooser() {
+    fn preview_ignores_escape_over_an_outside_focus_under_the_chooser() {
         crate::i18n::init("en");
         let directory = tempfile::tempdir().unwrap();
         let mut state = preview_with_chooser(directory.path(), true);
         let ctx = egui::Context::default();
         let mut actions = Vec::new();
         window_frame(&ctx, &mut state, &mut actions, vec![]);
-        assert_eq!(
-            next_owner(&ctx, &state),
-            None,
-            "the Cancel focus is outside"
+        assert!(
+            next_owner(&ctx, &state).is_some(),
+            "the covering chooser owns the keys over the Cancel focus"
         );
         window_frame(&ctx, &mut state, &mut actions, key(egui::Key::Escape));
-        assert!(state.add_preview.is_none());
-        assert!(state.add_path_input.is_empty());
-        assert!(state.folder_chooser.is_open());
+        assert!(state.add_preview.is_some());
+        assert_eq!(state.add_path_input, "/tmp/p");
         assert!(actions.is_empty());
     }
 

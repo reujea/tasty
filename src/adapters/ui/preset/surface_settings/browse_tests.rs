@@ -244,9 +244,10 @@ fn open_folder(chooser: &mut WindowFileChooser) {
     ));
 }
 
-/// Given 파일 선택 창이 열리고 포커스가 수정한 입력칸, When Enter, Then surface 설정이 받아 확인한다.
+/// Given 파일 선택 창이 열리고 포커스가 수정한 입력칸, When Enter, Then 창을 덮은 파일 선택 창이 키 주인이라 surface
+/// 설정은 받지 않는다.
 #[test]
-fn surface_settings_take_enter_when_focus_is_outside_the_chooser() {
+fn surface_settings_ignore_enter_over_an_outside_focus_under_the_chooser() {
     crate::i18n::init("en");
     let ctx = egui::Context::default();
     let mut cfg = dirty_terminal();
@@ -257,9 +258,13 @@ fn surface_settings_take_enter_when_focus_is_outside_the_chooser() {
     ctx.memory_mut(|m| m.request_focus(input));
     drop(preset_pass(&ctx, &mut cfg, &mut chooser, vec![]));
     assert_eq!(
-        next_owner(&ctx, &chooser),
-        None,
-        "the pass starts at the input"
+        ctx.memory(|m| m.focused()),
+        Some(input),
+        "the input keeps the egui focus"
+    );
+    assert!(
+        next_owner(&ctx, &chooser).is_some(),
+        "the covering chooser owns the keys"
     );
     let enter = preset_pass(
         &ctx,
@@ -267,7 +272,7 @@ fn surface_settings_take_enter_when_focus_is_outside_the_chooser() {
         &mut chooser,
         vec![key_press(egui::Key::Enter)],
     );
-    assert!(matches!(enter.outcome, CfgOutcome::Confirm));
+    assert!(matches!(enter.outcome, CfgOutcome::None));
 }
 
 /// Given 파일 선택 창이 키 주인, When Enter·Esc, Then surface 설정은 받지 않는다.
@@ -354,10 +359,10 @@ fn the_chooser_takes_the_keys_when_the_opening_pass_left_no_outside_focus() {
     assert!(matches!(pass.outcome, CfgOutcome::None));
 }
 
-/// Given 수정한 startup 입력칸 포커스가 남은 채 찾아보기로 연 파일 선택 창, When 다음 패스 Enter, Then 입력칸이 받아
-/// 확인한다. 대신 파일 선택 창 안을 누르면 그다음 패스부터 파일 선택 창이 키 주인이다.
+/// Given 수정한 startup 입력칸 포커스가 남은 채 찾아보기로 연 파일 선택 창, When 다음 패스 Enter, Then 창을 덮은 파일
+/// 선택 창이 키 주인이라 surface 설정은 받지 않는다. 파일 선택 창 안을 눌러도 키 주인은 파일 선택 창이다.
 #[test]
-fn an_outside_focus_left_by_the_opening_pass_keeps_the_keys_outside() {
+fn an_outside_focus_left_by_the_opening_pass_does_not_take_the_keys() {
     crate::i18n::init("en");
     for click_inside in [false, true] {
         let ctx = egui::Context::default();
@@ -374,7 +379,7 @@ fn an_outside_focus_left_by_the_opening_pass_keeps_the_keys_outside() {
             WindowFocusRecord::read(&ctx).layer().map(|l| l.order),
             Some(egui::Order::Background)
         );
-        assert_eq!(next_owner(&ctx, &chooser), None);
+        assert!(next_owner(&ctx, &chooser).is_some());
         if click_inside {
             let inside = egui::pos2(500.0, 360.0);
             let click = vec![
@@ -391,7 +396,7 @@ fn an_outside_focus_left_by_the_opening_pass_keeps_the_keys_outside() {
                 &mut chooser,
                 vec![key_press(egui::Key::Enter)],
             );
-            assert!(matches!(enter.outcome, CfgOutcome::Confirm));
+            assert!(matches!(enter.outcome, CfgOutcome::None));
         }
     }
 }

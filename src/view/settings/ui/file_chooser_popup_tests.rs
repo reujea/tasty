@@ -1716,7 +1716,10 @@ fn a_press_on_the_save_name_keeps_its_focus() {
     ctx.memory_mut(|m| m.request_focus(outside_id));
     drop(chooser_pass(&mut h, &mut st, &mut outside));
     assert_eq!(focused(&ctx), Some(outside_id), "창 위젯이 포커스를 가진다");
-    assert_eq!(next_owner(&ctx, &st), None, "누르기 전에는 키 주인이 없다");
+    assert!(
+        next_owner(&ctx, &st).is_some(),
+        "창을 덮은 chooser 가 누르기 전부터 키 주인이다"
+    );
 
     h.press(&mut st, name);
     let (owned, _) = chooser_pass(&mut h, &mut st, &mut outside);

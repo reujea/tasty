@@ -207,10 +207,10 @@ fn uninstall_confirm_ignores_escape_while_the_chooser_owns_keys() {
     assert!(actions.is_empty());
 }
 
-/// Given 폴더 선택 창이 열리고 패스 시작 포커스가 창의 필터 입력칸, When Esc, Then 제거 확인이 Esc 를 받아 닫히고
-/// 폴더 선택 창은 열린 채다.
+/// Given 폴더 선택 창이 열리고 패스 시작 포커스가 창의 필터 입력칸, When Esc, Then 창을 덮은 폴더 선택 창이 키
+/// 주인이라 제거 확인은 열린 채다.
 #[test]
-fn uninstall_confirm_takes_escape_when_focus_is_outside_the_chooser() {
+fn uninstall_confirm_ignores_escape_over_an_outside_focus_under_the_chooser() {
     crate::i18n::init("en");
     let (snapshot, mut state) = confirming(PluginsTab::List);
     let ctx = egui::Context::default();
@@ -225,14 +225,15 @@ fn uninstall_confirm_takes_escape_when_focus_is_outside_the_chooser() {
     );
     ctx.memory_mut(|m| m.request_focus(filter));
     drop(draw_window(&ctx, &snapshot, &mut state, &mut actions));
-    assert_eq!(
-        next_owner(&ctx, &state),
-        None,
-        "the pass starts at the filter"
+    assert!(
+        next_owner(&ctx, &state).is_some(),
+        "the covering chooser owns the keys over the filter focus"
     );
     run_window(&ctx, &snapshot, &mut state, &mut actions, vec![escape()]);
-    assert_eq!(state.confirm_uninstall_id, None);
-    assert!(state.folder_chooser.is_open());
+    assert_eq!(
+        state.confirm_uninstall_id.as_deref(),
+        Some("com.example.first")
+    );
     assert!(actions.is_empty());
 }
 
