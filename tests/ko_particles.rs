@@ -9,21 +9,17 @@ const PAIRED: &[&str] = &[
     "을(를)", "를(을)", "은(는)", "는(은)", "이(가)", "가(이)", "와(과)", "과(와)",
 ];
 
-/// 받침에 따라 붙는 앞 글자를 괄호로 적은 병기와, 그 뒤에 이어져 조사를 이루는 어미.
-/// 앞이 한글 음절이나 자리표시자이고 뒤가 이 어미일 때만 병기다(`보고서(이).txt` 는 아니다).
-const BRACKETED: &[(&str, &[&str])] = &[
-    ("(으)", &["로", "면", "며", "니", "세요"]),
-    (
-        "(이)",
-        &[
-            "나", "며", "고", "라는", "라고", "란", "라도", "든", "랑", "여", "다", "에요", "면",
-        ],
-    ),
-    ("(아)", &[""]),
-    ("(야)", &[""]),
-];
+/// 받침에 따라 붙는 앞 글자를 괄호로 적은 병기. 앞이 한글 음절이거나 자리표시자 문맥이고
+/// 뒤에 한글 음절(조사·어미의 나머지)이 이어지면 병기다(`{}(이)라면`, `'{}'(으)로`).
+/// `보고서(이).txt` 처럼 뒤가 한글이 아니면 보통 글이다.
+const BRACKETED: &[&str] = &["(으)", "(이)"];
 
-/// 형태가 바뀌는 조사 뒤에 이어 붙는 보조사(`{}로는`, `{}와도`, `{}이나`, `{}로만`).
+/// 괄호 자체가 호격 조사인 병기. 자리표시자 문맥 바로 뒤이고 뒤가 낱말 끝일 때만 병기다
+/// (`{}(아)`). 한글 음절 뒤의 `음절(아)` 는 보통 글이다.
+const VOCATIVE: &[&str] = &["(아)", "(야)"];
+
+/// 형태가 바뀌는 조사 뒤에 이어 붙는 보조사(`{}로는`, `{}와도`, `{}이나`, `{}로만도`).
+/// 여러 개가 이어 붙어도 하나씩 뗀다.
 /// `{}가지`·`{}개` 처럼 조사가 아닌 낱말은 이 목록에 걸리지 않는다.
 const AUXILIARY: &[&str] = &["라도", "부터", "까지", "는", "도", "만", "나", "든"];
 
@@ -89,16 +85,34 @@ fn placeholder_spans(value: &str) -> Vec<(usize, usize)> {
     ends
 }
 
-/// 조사 바로 뒤가 낱말의 끝이면 0, 보조사 하나가 이어지고 끝나면 그 보조사 길이를 돌려준다.
+fn word_ends(s: &str) -> bool {
+    !s.chars().next().is_some_and(is_hangul)
+}
+
+/// 자리표시자 문맥이 끝나는 위치들. 자리표시자 바로 뒤, 또는 그 뒤 닫는 따옴표·백틱 하나 뒤다.
+/// 두 판정(조사 병기, 자리표시자 뒤 조사)이 같은 문맥을 쓴다.
+fn placeholder_contexts(value: &str) -> Vec<(usize, usize)> {
+    placeholder_spans(value)
+        .into_iter()
+        .map(|(start, end)| {
+            let closer = value[end..]
+                .chars()
+                .next()
+                .filter(|c| CLOSERS.contains(c))
+                .map_or(0, char::len_utf8);
+            (start, end + closer)
+        })
+        .collect()
+}
+
+/// 조사 뒤에 보조사가 0개 이상 이어진 뒤 낱말이 끝나면, 떼어 낸 보조사 전체 길이를 돌려준다.
 fn particle_ends(after: &str) -> Option<usize> {
-    let ends = |s: &str| !s.chars().next().is_some_and(is_hangul);
-    if ends(after) {
-        return Some(0);
+    let mut rest = after;
+    while !word_ends(rest) {
+        let aux = AUXILIARY.iter().find(|aux| rest.starts_with(**aux))?;
+        rest = &rest[aux.len()..];
     }
-    AUXILIARY
-        .iter()
-        .find(|aux| after.strip_prefix(**aux).is_some_and(ends))
-        .map(|aux| aux.len())
+    Some(after.len() - rest.len())
 }
 
 /// 값에 든 조사 병기를 돌려준다.
@@ -108,40 +122,40 @@ fn paired_particles(value: &str) -> Vec<String> {
         .filter(|p| value.contains(**p))
         .map(|p| p.to_string())
         .collect();
-    for (bracket, endings) in BRACKETED {
+    let contexts: Vec<usize> = placeholder_contexts(value)
+        .into_iter()
+        .map(|(_, end)| end)
+        .collect();
+    for bracket in BRACKETED.iter().chain(VOCATIVE) {
+        let vocative = VOCATIVE.contains(bracket);
         for (at, _) in value.match_indices(bracket) {
-            let before = value[..at].chars().next_back();
-            let after = &value[at + bracket.len()..];
-            let attached = before.is_some_and(|c| is_hangul(c) || c == '}');
-            // 빈 어미는 괄호 자체가 조사다(`{}(아)`). 그때는 뒤가 낱말의 끝이어야 한다.
-            let ending = endings.iter().find(|e| match after.strip_prefix(**e) {
-                Some(rest) if e.is_empty() => !rest.chars().next().is_some_and(is_hangul),
-                Some(_) => true,
-                None => false,
-            });
-            if let (true, Some(e)) = (attached, ending) {
-                found.push(format!("{bracket}{e}"));
+            let after_syllable = value[..at].chars().next_back().is_some_and(is_hangul);
+            let after_placeholder = contexts.contains(&at);
+            let ends = word_ends(&value[at + bracket.len()..]);
+            let paired = if vocative {
+                after_placeholder && ends
+            } else {
+                (after_syllable || after_placeholder) && !ends
+            };
+            if paired {
+                found.push(bracket.to_string());
             }
         }
     }
     found
 }
 
-/// 자리표시자 바로 뒤(닫는 따옴표 하나는 건너뜀)에 붙은 형태가 바뀌는 조사를 돌려준다.
+/// 자리표시자 문맥 바로 뒤에 붙은 형태가 바뀌는 조사를 돌려준다.
 fn varying_after_placeholder(value: &str) -> Vec<String> {
     let mut found = Vec::new();
-    for (start, end) in placeholder_spans(value) {
-        let mut rest = &value[end..];
-        if let Some(c) = rest.chars().next().filter(|c| CLOSERS.contains(c)) {
-            rest = &rest[c.len_utf8()..];
-        }
+    for (start, end) in placeholder_contexts(value) {
+        let rest = &value[end..];
         let hit = VARYING.iter().find_map(|p| {
             let after = rest.strip_prefix(*p)?;
             particle_ends(after).map(|aux| p.len() + aux)
         });
         if let Some(len) = hit {
-            let tail = value.len() - rest.len() + len;
-            found.push(value[start..tail].to_string());
+            found.push(value[start..end + len].to_string());
         }
     }
     found
@@ -205,6 +219,11 @@ fn the_scanner_sees_each_form() {
     assert_eq!(varying_after_placeholder("{}와도 같습니다"), ["{}와도"]);
     assert_eq!(varying_after_placeholder("{}이나 {}"), ["{}이나"]);
     assert_eq!(varying_after_placeholder("{}로만 엽니다"), ["{}로만"]);
+    assert_eq!(varying_after_placeholder("{}로만도 됩니다"), ["{}로만도"]);
+    assert_eq!(
+        varying_after_placeholder("{}로만은 안 됩니다"),
+        ["{}로만은"]
+    );
     assert!(varying_after_placeholder("{}개 항목").is_empty());
 }
 
@@ -212,9 +231,19 @@ fn the_scanner_sees_each_form() {
 fn the_paired_scanner_needs_a_particle_context() {
     assert_eq!(paired_particles("{}을(를) 제거"), ["을(를)"]);
     assert_eq!(paired_particles("항목이(가) 있습니다"), ["이(가)"]);
-    assert_eq!(paired_particles("{}(으)로 이동"), ["(으)로"]);
-    assert_eq!(paired_particles("{}(이)나 {}"), ["(이)나"]);
+    assert_eq!(paired_particles("{}(으)로 이동"), ["(으)"]);
+    assert_eq!(paired_particles("{}(이)나 {}"), ["(이)"]);
+    for form in ["라면", "라서", "야", "지만", "어야", "니까", "였을"] {
+        let value = format!("{{}}(이){form} 계속");
+        assert_eq!(paired_particles(&value), ["(이)"], "{value}");
+    }
+    // 자리표시자 뒤 닫는 따옴표·백틱 하나는 자리표시자 문맥에 든다.
+    assert_eq!(paired_particles("'{}'(으)로 엽니다"), ["(으)"]);
+    assert_eq!(paired_particles("“{}”(이)라는 이름"), ["(이)"]);
+    assert_eq!(paired_particles("`{}`(으)로 실행"), ["(으)"]);
+    assert_eq!(paired_particles("{}(아), 안녕"), ["(아)"]);
     // 괄호가 조사를 이루지 않는 보통 글.
     assert!(paired_particles("파일 이름 보고서(이).txt").is_empty());
     assert!(paired_particles("조합 중인 음절(아)을 입력").is_empty());
+    assert!(paired_particles("조합 중인 음절(아)").is_empty());
 }
