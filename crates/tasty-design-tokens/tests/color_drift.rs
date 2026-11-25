@@ -454,7 +454,7 @@ fn assert_ink_on_raised(name: &str, th: &Theme) {
     );
 }
 
-/// 생성기는 strokeStyle을 상수로 만들지 않으므로 앱이 잘라낸 항목 이름에 이탤릭을 직접 건다.
+/// 생성기는 fontStyle을 상수로 만들지 않으므로 앱이 잘라낸 항목 이름에 이탤릭을 직접 건다.
 /// 디자인이 값을 바꾸면 그 코드(`tasty_ui_widgets::italicize_name`)도 함께 바꾼다.
 #[test]
 fn cut_pending_font_style_is_the_italic_the_app_applies() {

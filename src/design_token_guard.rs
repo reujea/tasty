@@ -592,6 +592,10 @@ const PATHLESS_LENGTH_TOKENS: &[(&str, &str)] = &[
         "소비처가 없어 표에 오른 적이 없다",
     ),
     (
+        "semantic.field-width-xl",
+        "소비처가 없어 표에 오른 적이 없다",
+    ),
+    (
         "semantic.font-size-brand-lockup",
         "component `loading-lockup-font-size` 의 alias 로만 쓰인다 — 그 접근자는 역할 \
          이름이라 이 토큰의 경로가 아니다",

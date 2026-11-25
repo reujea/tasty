@@ -62,7 +62,7 @@ const EGUI_LENGTH_HEADS: &[&str] = &[
 const DECLARATION_SITES: &[(&str, usize, &str)] = &[
     (
         "crates/tasty-design-tokens/src/generated/",
-        75,
+        80,
         "스케일 자신 — 이 파일이 곧 size-* 의 정본이다",
     ),
     (
@@ -207,7 +207,8 @@ const AREAS: &[(&str, Option<usize>, &str)] = &[
         // segmented 알약 간격 6(SEGMENT_GAP)은 정본 `seg` 묶음의 `gap: 6`이며 역할 토큰이 없다. 배율은 곱해 따른다.
         // 그래프 뷰의 상세 패널을 하단 시트로 바꾸는 폭 640(GRAPH_NARROW_DETAIL_SHEET)은 size-640과 숫자만 같다.
         // size-640은 PresetView 창 높이의 별칭 대상이고 이 폭의 역할 토큰은 없다.
-        Some(40),
+        // 포트 스캐너 열 하한 84·76(Port·Proto)은 size-84·size-76이 스케일에 들어와 잡힌다.
+        Some(42),
         "공용 위젯",
     ),
     (
@@ -688,9 +689,11 @@ fn the_gallery_share_splits_into_four_kinds() {
     // Attach prelayout의 560×180은 원격 디자인 storyboard 액자다. 역할별 Theme 토큰이 없으며
     // attach_loading.rs의 이름 있는 LogicalPx 상수 두 개로만 사용한다. 본체 치수가 아니다.
     // 검색 막대 견본의 입력 칸 하한 80은 견본 액자 안의 최소 폭이며 역할 토큰이 없다.
+    // size-84·size-76이 스케일에 들어와 탐색기 사이드바·git viewer·배너 견본의 84와 표 견본의
+    // 열 초기 폭 84·76이 잡힌다. 그 견본의 역할 토큰은 없다.
     assert!(
-        named_value <= 22 && displayed <= roster,
-        "갤러리의 같은 Theme 값 자리 {named_value}(상한 22) 또는 전시 후보 {displayed}(전시 명부 {roster})가 상한을 넘었다. 줄어든 것은 실패가 아니다"
+        named_value <= 27 && displayed <= roster,
+        "갤러리의 같은 Theme 값 자리 {named_value}(상한 27) 또는 전시 후보 {displayed}(전시 명부 {roster})가 상한을 넘었다. 줄어든 것은 실패가 아니다"
     );
 }
 

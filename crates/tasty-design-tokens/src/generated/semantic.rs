@@ -58,6 +58,9 @@ pub const FIELD_WIDTH_MD: LogicalPx = super::primitive::SIZE_160;
 /// `semantic.field-width-range` → `{primitive.size-180}` = 180px
 pub const FIELD_WIDTH_RANGE: LogicalPx = super::primitive::SIZE_180;
 
+/// `semantic.field-width-xl` → `{primitive.size-320}` = 320px
+pub const FIELD_WIDTH_XL: LogicalPx = super::primitive::SIZE_320;
+
 /// `semantic.field-width-xs` → `{primitive.size-90}` = 90px
 pub const FIELD_WIDTH_XS: LogicalPx = super::primitive::SIZE_90;
 

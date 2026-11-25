@@ -246,6 +246,13 @@ pub mod capture {
     pub const STAGE_INSET: LogicalPx = crate::generated::semantic::SPACE_SM;
 }
 
+pub mod caret {
+    use tasty_type_geometry::length::LogicalPx;
+
+    /// `component.caret-specimen-field-width` → `{primitive.size-260}` = 260px
+    pub const SPECIMEN_FIELD_WIDTH: LogicalPx = crate::generated::primitive::SIZE_260;
+}
+
 pub mod center {
     use tasty_type_geometry::length::LogicalPx;
 
@@ -273,6 +280,13 @@ pub mod checkbox {
 
     /// `component.checkbox-size` → `{primitive.size-16}` = 16px
     pub const SIZE: LogicalPx = crate::generated::primitive::SIZE_16;
+}
+
+pub mod clipboard {
+    use tasty_type_geometry::length::LogicalPx;
+
+    /// `component.clipboard-specimen-width` → `{primitive.size-460}` = 460px
+    pub const SPECIMEN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_460;
 }
 
 pub mod codearea {
@@ -544,6 +558,9 @@ pub mod explorer {
     /// `component.explorer-favorites-pin-threshold` → `{primitive.size-600}` = 600px
     pub const FAVORITES_PIN_THRESHOLD: LogicalPx = crate::generated::primitive::SIZE_600;
 
+    /// `component.explorer-full-specimen-width` → `{primitive.size-760}` = 760px
+    pub const FULL_SPECIMEN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_760;
+
     /// `component.explorer-grid-thumb-size` → `{primitive.size-40}` = 40px
     pub const GRID_THUMB_SIZE: LogicalPx = crate::generated::primitive::SIZE_40;
 
@@ -783,6 +800,9 @@ pub mod git {
 
     /// `component.git-toolbar-height` → `{semantic.toolbar-height}` = 32px
     pub const TOOLBAR_HEIGHT: LogicalPx = crate::generated::semantic::TOOLBAR_HEIGHT;
+
+    /// `component.git-viewer-specimen-width` → `{primitive.size-640}` = 640px
+    pub const VIEWER_SPECIMEN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_640;
 }
 
 pub mod graph {
@@ -1477,6 +1497,18 @@ pub mod plugin {
 
     /// `component.plugin-avatar-size-sm` → `{primitive.size-32}` = 32px
     pub const AVATAR_SIZE_SM: LogicalPx = crate::generated::primitive::SIZE_32;
+
+    /// `component.plugin-trust-attn-empty-height` → `{primitive.size-240}` = 240px
+    pub const TRUST_ATTN_EMPTY_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_240;
+
+    /// `component.plugin-trust-specimen-width` → `{primitive.size-560}` = 560px
+    pub const TRUST_SPECIMEN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_560;
+
+    /// `component.plugin-trust-specimen-width-narrow` → `{primitive.size-320}` = 320px
+    pub const TRUST_SPECIMEN_WIDTH_NARROW: LogicalPx = crate::generated::primitive::SIZE_320;
+
+    /// `component.plugin-trust-specimen-width-sm` → `{primitive.size-440}` = 440px
+    pub const TRUST_SPECIMEN_WIDTH_SM: LogicalPx = crate::generated::primitive::SIZE_440;
 }
 
 pub mod plugins {
@@ -1484,6 +1516,12 @@ pub mod plugins {
 
     /// `component.plugins-attention-list-width` → `{primitive.size-240}` = 240px
     pub const ATTENTION_LIST_WIDTH: LogicalPx = crate::generated::primitive::SIZE_240;
+
+    /// `component.plugins-inset` → `{primitive.size-14}` = 14px
+    pub const INSET: LogicalPx = crate::generated::primitive::SIZE_14;
+
+    /// `component.plugins-window-width` → `{primitive.size-880}` = 880px
+    pub const WINDOW_WIDTH: LogicalPx = crate::generated::primitive::SIZE_880;
 }
 
 pub mod plugins_list {
@@ -1527,15 +1565,36 @@ pub mod port {
     /// `component.port-favorites-row-height` → `{semantic.control-height-tree}` = 22px
     pub const FAVORITES_ROW_HEIGHT: LogicalPx = crate::generated::semantic::CONTROL_HEIGHT_TREE;
 
+    /// `component.port-port-col-width` → `{primitive.size-84}` = 84px
+    pub const PORT_COL_WIDTH: LogicalPx = crate::generated::primitive::SIZE_84;
+
     /// `component.port-process-col-min-width` → `{primitive.size-200}` = 200px
     pub const PROCESS_COL_MIN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_200;
 
+    /// `component.port-process-specimen-width` → `{primitive.size-960}` = 960px
+    pub const PROCESS_SPECIMEN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_960;
+
+    /// `component.port-proto-col-width` → `{primitive.size-76}` = 76px
+    pub const PROTO_COL_WIDTH: LogicalPx = crate::generated::primitive::SIZE_76;
+
     /// `component.port-star-col-width` → `{primitive.size-28}` = 28px
     pub const STAR_COL_WIDTH: LogicalPx = crate::generated::primitive::SIZE_28;
+
+    /// `component.port-state-col-width` → `{primitive.size-140}` = 140px
+    pub const STATE_COL_WIDTH: LogicalPx = crate::generated::primitive::SIZE_140;
+
+    /// `component.port-tab-col-width` → `{primitive.size-80}` = 80px
+    pub const TAB_COL_WIDTH: LogicalPx = crate::generated::primitive::SIZE_80;
+
+    /// `component.port-workspace-col-width` → `{primitive.size-120}` = 120px
+    pub const WORKSPACE_COL_WIDTH: LogicalPx = crate::generated::primitive::SIZE_120;
 }
 
 pub mod ports {
     use tasty_type_geometry::length::LogicalPx;
+
+    /// `component.ports-pad-x` → `{primitive.size-14}` = 14px
+    pub const PAD_X: LogicalPx = crate::generated::primitive::SIZE_14;
 
     /// `component.ports-window-height` → `{primitive.size-520}` = 520px
     pub const WINDOW_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_520;
@@ -1600,6 +1659,13 @@ pub mod progress {
     pub const RADIUS: LogicalPx = crate::generated::semantic::RADIUS_SM;
 }
 
+pub mod r#mod {
+    use tasty_type_geometry::length::LogicalPx;
+
+    /// `component.mod-hint-specimen-width` → `{primitive.size-560}` = 560px
+    pub const HINT_SPECIMEN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_560;
+}
+
 pub mod rail {
     use tasty_type_geometry::length::LogicalPx;
 
@@ -1616,20 +1682,41 @@ pub mod rail {
 pub mod remote {
     use tasty_type_geometry::length::LogicalPx;
 
+    /// `component.remote-content-pad-top` → `{primitive.size-10}` = 10px
+    pub const CONTENT_PAD_TOP: LogicalPx = crate::generated::primitive::SIZE_10;
+
+    /// `component.remote-detect-spinner-size` → `{semantic.font-size-caption}` = 11px
+    pub const DETECT_SPINNER_SIZE: LogicalPx = crate::generated::semantic::FONT_SIZE_CAPTION;
+
     /// `component.remote-filter-dropdown-width` → `{primitive.size-240}` = 240px
     pub const FILTER_DROPDOWN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_240;
 
     /// `component.remote-filter-menu-width` → `{primitive.size-240}` = 240px
     pub const FILTER_MENU_WIDTH: LogicalPx = crate::generated::primitive::SIZE_240;
 
+    /// `component.remote-form-specimen-width` → `{primitive.size-460}` = 460px
+    pub const FORM_SPECIMEN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_460;
+
     /// `component.remote-label-col` → `{primitive.size-112}` = 112px
     pub const LABEL_COL: LogicalPx = crate::generated::primitive::SIZE_112;
+
+    /// `component.remote-pad-x` → `{primitive.size-14}` = 14px
+    pub const PAD_X: LogicalPx = crate::generated::primitive::SIZE_14;
 
     /// `component.remote-picker-height` → `{primitive.size-460}` = 460px
     pub const PICKER_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_460;
 
     /// `component.remote-picker-width` → `{primitive.size-680}` = 680px
     pub const PICKER_WIDTH: LogicalPx = crate::generated::primitive::SIZE_680;
+
+    /// `component.remote-port-field-width` → `{primitive.size-96}` = 96px
+    pub const PORT_FIELD_WIDTH: LogicalPx = crate::generated::primitive::SIZE_96;
+
+    /// `component.remote-row-action-gap` → `{primitive.size-1}` = 1px
+    pub const ROW_ACTION_GAP: LogicalPx = crate::generated::primitive::SIZE_1;
+
+    /// `component.remote-row-line-gap` → `{primitive.size-2}` = 2px
+    pub const ROW_LINE_GAP: LogicalPx = crate::generated::primitive::SIZE_2;
 
     /// `component.remote-row-popup-width` → `{primitive.size-360}` = 360px
     pub const ROW_POPUP_WIDTH: LogicalPx = crate::generated::primitive::SIZE_360;
@@ -1645,6 +1732,18 @@ pub mod remote {
 
     /// `component.remote-row-specimen-width` → `{primitive.size-480}` = 480px
     pub const ROW_SPECIMEN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_480;
+
+    /// `component.remote-tab-gap` → `{primitive.size-2}` = 2px
+    pub const TAB_GAP: LogicalPx = crate::generated::primitive::SIZE_2;
+
+    /// `component.remote-tab-height` → `{primitive.size-35}` = 35px
+    pub const TAB_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_35;
+
+    /// `component.remote-window-height` → `{primitive.size-460}` = 460px
+    pub const WINDOW_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_460;
+
+    /// `component.remote-window-width` → `{primitive.size-520}` = 520px
+    pub const WINDOW_WIDTH: LogicalPx = crate::generated::primitive::SIZE_520;
 }
 
 pub mod restore {
@@ -2143,6 +2242,9 @@ pub mod trigger {
 
 pub mod tutorial {
     use tasty_type_geometry::length::LogicalPx;
+
+    /// `component.tutorial-marker-specimen-min-width` → `{primitive.size-320}` = 320px
+    pub const MARKER_SPECIMEN_MIN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_320;
 
     /// `component.tutorial-step-specimen-min-width` → `{primitive.size-440}` = 440px
     pub const STEP_SPECIMEN_MIN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_440;

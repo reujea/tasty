@@ -1,5 +1,5 @@
 {
-  "$description": "Tasty Design System — W3C DTCG token export. 3 tiers: primitive → semantic → component. Aliases ({tier.key}) mirror the CSS var() chain. Theme-scoped primitives & semantic role-remaps carry a Latte value under $extensions[\"com.tasty.mode\"].latte; baseline $value is Catppuccin Mocha. Generated from tokens/{primitives,semantic,components}.css — full parity, do not hand-edit.",
+  "$description": "Tasty Design System tokens in DTCG format with Tasty extensions, including the fontStyle type. Each $type is inferred from its CSS value. Dimensions, shadows and dash patterns are stored as CSS strings. The three tiers and their aliases are generated from token CSS, with Mocha as the base and Latte overrides under $extensions[\"com.tasty.mode\"].latte.",
   "$extensions": {
     "com.tasty.themes": [
       "mocha (default)",
@@ -353,6 +353,10 @@
       "$type": "dimension",
       "$value": "36px"
     },
+    "size-35": {
+      "$type": "dimension",
+      "$value": "35px"
+    },
     "size-46": {
       "$type": "dimension",
       "$value": "46px"
@@ -380,6 +384,10 @@
     "size-240": {
       "$type": "dimension",
       "$value": "240px"
+    },
+    "size-260": {
+      "$type": "dimension",
+      "$value": "260px"
     },
     "size-320": {
       "$type": "dimension",
@@ -689,9 +697,17 @@
       "$type": "dimension",
       "$value": "64px"
     },
+    "size-76": {
+      "$type": "dimension",
+      "$value": "76px"
+    },
     "size-80": {
       "$type": "dimension",
       "$value": "80px"
+    },
+    "size-84": {
+      "$type": "dimension",
+      "$value": "84px"
     },
     "size-96": {
       "$type": "dimension",
@@ -744,6 +760,10 @@
     "size-760": {
       "$type": "dimension",
       "$value": "760px"
+    },
+    "size-880": {
+      "$type": "dimension",
+      "$value": "880px"
     },
     "size-1100": {
       "$type": "dimension",
@@ -1308,6 +1328,10 @@
       "$type": "dimension",
       "$value": "{primitive.size-200}"
     },
+    "field-width-xl": {
+      "$type": "dimension",
+      "$value": "{primitive.size-320}"
+    },
     "dropdown-max-height": {
       "$type": "dimension",
       "$value": "{primitive.size-220}"
@@ -1550,7 +1574,7 @@
       "$value": "{primitive.font-weight-700}"
     },
     "font-style-absent": {
-      "$type": "number",
+      "$type": "fontStyle",
       "$value": "italic"
     },
     "line-height-tight": {
@@ -2564,6 +2588,10 @@
     "input-font-size": {
       "$type": "dimension",
       "$value": "{semantic.font-size-body}"
+    },
+    "caret-specimen-field-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-260}"
     },
     "input-bg": {
       "$type": "color",
@@ -4468,6 +4496,30 @@
       "$type": "dimension",
       "$value": "{primitive.size-140}"
     },
+    "port-port-col-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-84}"
+    },
+    "port-proto-col-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-76}"
+    },
+    "port-workspace-col-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-120}"
+    },
+    "port-tab-col-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-80}"
+    },
+    "port-state-col-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-140}"
+    },
+    "port-process-specimen-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-960}"
+    },
     "port-star-on": {
       "$type": "color",
       "$value": "{semantic.accent-warning-glyph}"
@@ -4495,6 +4547,22 @@
     "plugins-attention-list-width": {
       "$type": "dimension",
       "$value": "{primitive.size-240}"
+    },
+    "plugins-window-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-880}"
+    },
+    "plugins-inset": {
+      "$type": "dimension",
+      "$value": "{primitive.size-14}"
+    },
+    "plugins-header-pad-left": {
+      "$type": "dimension",
+      "$value": "calc(var(--tasty-size-20) + -1 * var(--tasty-border-width))"
+    },
+    "plugins-header-pad-right": {
+      "$type": "dimension",
+      "$value": "calc(var(--tasty-space-lg) + -1 * var(--tasty-border-width))"
     },
     "plugins-header-glyph": {
       "$type": "color",
@@ -4628,9 +4696,33 @@
       "$type": "dimension",
       "$value": "{primitive.size-440}"
     },
+    "tutorial-marker-specimen-min-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-320}"
+    },
+    "remote-form-specimen-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-460}"
+    },
+    "git-viewer-specimen-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-640}"
+    },
+    "clipboard-specimen-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-460}"
+    },
+    "mod-hint-specimen-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-560}"
+    },
+    "explorer-full-specimen-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-760}"
+    },
     "specimen-annotation-border": {
       "$type": "color",
-      "$value": "{semantic.border-control}"
+      "$value": "{semantic.border-control-raised}"
     },
     "perm-granted-fg": {
       "$type": "color",
@@ -4912,6 +5004,10 @@
       "$type": "dimension",
       "$value": "{primitive.size-112}"
     },
+    "remote-port-field-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-96}"
+    },
     "remote-filter-menu-width": {
       "$type": "dimension",
       "$value": "{primitive.size-240}",
@@ -5048,7 +5144,7 @@
       "$value": "{semantic.text-muted}"
     },
     "cut-pending-font-style": {
-      "$type": "strokeStyle",
+      "$type": "fontStyle",
       "$value": "italic"
     },
     "switch-overlay-size": {
@@ -5911,6 +6007,46 @@
       "$type": "dimension",
       "$value": "{primitive.size-520}"
     },
+    "ports-pad-x": {
+      "$type": "dimension",
+      "$value": "{primitive.size-14}"
+    },
+    "remote-window-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-520}"
+    },
+    "remote-window-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-460}"
+    },
+    "remote-pad-x": {
+      "$type": "dimension",
+      "$value": "{primitive.size-14}"
+    },
+    "remote-content-pad-top": {
+      "$type": "dimension",
+      "$value": "{primitive.size-10}"
+    },
+    "remote-detect-spinner-size": {
+      "$type": "dimension",
+      "$value": "{semantic.font-size-caption}"
+    },
+    "remote-tab-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-35}"
+    },
+    "remote-tab-gap": {
+      "$type": "dimension",
+      "$value": "{primitive.size-2}"
+    },
+    "remote-row-line-gap": {
+      "$type": "dimension",
+      "$value": "{primitive.size-2}"
+    },
+    "remote-row-action-gap": {
+      "$type": "dimension",
+      "$value": "{primitive.size-1}"
+    },
     "remote-picker-width": {
       "$type": "dimension",
       "$value": "{primitive.size-680}"
@@ -6679,6 +6815,22 @@
       "$type": "color",
       "$value": "{semantic.accent-success-ink}",
       "$description": "trusted one-line body (plugins.trust_trusted_body)"
+    },
+    "plugin-trust-specimen-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-560}"
+    },
+    "plugin-trust-specimen-width-sm": {
+      "$type": "dimension",
+      "$value": "{primitive.size-440}"
+    },
+    "plugin-trust-specimen-width-narrow": {
+      "$type": "dimension",
+      "$value": "{primitive.size-320}"
+    },
+    "plugin-trust-attn-empty-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-240}"
     },
     "notice-column-inset": {
       "$type": "dimension",
