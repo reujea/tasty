@@ -44,14 +44,14 @@ attention만으로 알림 패널 항목을 만들지 않으며, 필요하면 발
 
 | 경로 | 동작 |
 |---|---|
-| 실제 렌더에서 surface에 포커스 | 포커스 pane·현재 workspace의 surface이고 창이 OS 포커스를 가지면 kind와 관계없이 해제 |
+| 실제 렌더에서 surface에 키 포커스 | 그 프레임의 host 키 포커스 surface(키를 가진 팝업·무대·튜토리얼 말풍선·복원 안내 안쪽 컨트롤이 키를 가지면 없다)이고, 창이 OS 포커스를 가지며, 그 surface가 내용을 숨기는 점유(hard lock, 점유 workspace의 멤버) 중이 아니면 kind와 관계없이 해제 |
 | 알림 한 개 또는 모두 읽음 | 해당 surface에 안 읽은 알림이 남지 않았을 때 해제 |
 | `surface.attention.clear` | 지정한 surface를 해제; 선택 kind가 있으면 정확히 일치할 때만 해제 |
 
-창이 OS 포커스를 잃은 동안에는 보이는 포커스 탭도 attention을 지우지 않는다. webview 자식이 키보드 포커스를 쥔 경우는 창이 포커스를 가진 것으로 본다. 창이 포커스를 되찾으면 다음 렌더에서 해제한다. 그래서 화면에 보이는 포커스 탭은 attention 색을 띠지 않지만, 포커스가 없는 pane이나 다른 workspace의 활성 탭은 순위 사다리에 따라 attention 색을 유지한다.
+창이 OS 포커스를 잃은 동안에는 보이는 포커스 탭도 attention을 지우지 않는다. webview 자식이 키보드 포커스를 쥔 경우는 창이 포커스를 가진 것으로 본다. 창이 포커스를 되찾으면 다음 렌더에서 해제한다. 키를 가진 팝업(검색 바 등)이 열린 동안에도 밑 surface의 attention을 지우지 않고, 팝업이 키를 돌려준 뒤의 렌더에서 해제한다. 그래서 화면에 보이는 포커스 탭은 attention 색을 띠지 않지만, 포커스가 없는 pane이나 다른 workspace의 활성 탭은 순위 사다리에 따라 attention 색을 유지한다.
 
 hard 점유 중에는 서버 로컬 사용자가 보거나 알림을 읽어도 attention을 지우지 않는다.
-`clear_attention_local`이 이 조건을 검사한다. 알림 자체는 읽음으로 처리하며 soft 점유에는 제한하지 않는다.
+`clear_attention_local`이 이 조건을 검사한다. 렌더의 키 포커스 해제는 점유 workspace의 멤버(surface lock 없음)도 hard 점유처럼 보고 미룬다(`src/app/frame_effect.rs`의 `FocusObserved`, `is_content_hidden`). 알림 자체는 읽음으로 처리하며 soft 점유에는 제한하지 않는다.
 점유가 풀리면 다음 로컬 확인부터 다시 해제할 수 있다.
 
 검증된 holder의 clear는 기본 `clear_attention`을 직접 부른다.
@@ -79,7 +79,7 @@ mirror 사용자가 실제로 보거나 로컬 알림을 읽어 레코드를 지
 스트림 손실의 감지와 재동기화는 [attach 손실 처리](../../dev-guide/attach-behavior.md#통지를-받은-client-가-하는-일-재동기화-계약)를 따른다.
 clear 전송 실패는 재시도하지 않는다. 오래된 확인을 나중에 적용해 새 attention을 지우지 않기 위해서다.
 
-- 이미 포커스된 mirror에 새 attention이 오면 다음 렌더에서 바로 확인 처리한다. 로컬과 같은 규칙이다.
+- 이미 키 포커스를 가진 mirror에 새 attention이 오면 다음 렌더에서 바로 확인 처리한다. 로컬과 같은 규칙이다.
 - surface 삭제와 세션 정리에서는 attention도 지운다. kind 변환은 같은 surface이므로 지우지 않는다.
 - surface 단위 raw attach에는 workspace 기반 clear 전달과 GUI 확인 경로가 없다.
   이 경우 점유가 끝난 뒤 서버 로컬 확인으로 해제한다.

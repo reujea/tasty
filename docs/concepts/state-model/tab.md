@@ -78,7 +78,7 @@ pane P에 탭 A·B가 있고 A가 선택돼 있다. A에는 surface a1·a2가 �
 1. B는 선택되지 않았지만 탭바에 busy 점이 보인다. A를 계속 보고 있어도 B의 busy는 사라지지 않는다. b1의 출력이 멈춰 busy 폴링이 idle로 바꿀 때 사라진다.
 2. 창이 OS 포커스를 잃은 동안 a1에 `Completion`, a2에 `NeedsInput`이 생긴다. 포커스 해제는 창이 OS 포커스를 가져야 일어나므로 둘 다 남는다. A의 제목색은 높은 kind인 `NeedsInput`이다.
 3. 이 상태에서 B를 선택하거나 탭 순서를 바꿔도 a1·a2의 attention은 바뀌지 않는다. 선택·재정렬은 구조와 View 선택의 사건이고 attention 해제가 아니다. A가 선택에서 빠지면 제목색 순위에서 "활성 탭"만 빠지고 `NeedsInput` 색은 그대로다.
-4. A를 다시 선택하고 창이 OS 포커스를 되찾으면 다음 렌더가 포커스 surface 하나를 확인 처리한다(`src/view/main/redraw.rs`의 `FocusObserved`). a1이 포커스 surface이므로 a1의 `Completion`만 지워진다. a2의 `NeedsInput`은 남아 A의 제목색은 계속 `NeedsInput`이다. a2로 포커스를 옮겨야 지워진다. 전체화면 무대가 열려 있으면 이 확인을 하지 않는다.
+4. A를 다시 선택하고 창이 OS 포커스를 되찾으면 다음 렌더가 host 키 포커스 surface 하나를 확인 처리한다(`src/view/main/redraw.rs`의 `focus_observed_effect`, `FocusObserved`). a1이 포커스 surface이므로 a1의 `Completion`만 지워진다. a2의 `NeedsInput`은 남아 A의 제목색은 계속 `NeedsInput`이다. a2로 포커스를 옮겨야 지워진다. 키를 가진 팝업·전체화면 무대·튜토리얼 말풍선·복원 안내 안쪽 컨트롤이 키를 가졌거나 a1이 내용을 숨기는 점유(hard lock, 점유 workspace의 멤버) 중이면 이 확인을 하지 않는다.
 
 원격 생성 대기 탭은 위 표의 탭이 아니다. 응답 전에는 탭바 끝에 대기 탭이 보이지만 도메인 ID가 없고 `tasty list tabs`에 나오지 않는다. 구조 응답이 적용되면 실제 탭이 생기고, 그 전에 연결 epoch가 끝나면 대기 탭만 사라진다([원격 생성 대기 그림](index.md#원격-생성-대기-그림)).
 

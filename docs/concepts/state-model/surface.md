@@ -63,7 +63,7 @@ busy가 false라는 것은 "작업이 끝났다"나 "성공했다"는 뜻이 아
 
 - mirror surface에서는 로컬 발생을 만들지 않는다(`raise_attention`). 서버가 보낸 값만 반영하고, 로컬 해제는 서버로 전달한다.
 - 로컬 사용자의 확인 해제는 hard 점유 중에는 일어나지 않는다(`clear_attention_local`). soft 점유는 이 제한에 포함되지 않는다.
-- 포커스에 의한 해제는 렌더가 확인한 포커스 대상이 아직 유효하고 창이 OS 포커스를 가질 때만 일어난다(`src/app/frame_effect.rs`의 `FocusObserved`).
+- 포커스에 의한 해제는 렌더가 확인한 host 키 포커스 surface(키를 가진 팝업·무대·튜토리얼 말풍선·복원 안내 안쪽 컨트롤이 키를 가지면 없다)가 아직 유효하고, 창이 OS 포커스를 가지며, 그 surface가 내용을 숨기는 점유(hard lock, 점유 workspace의 멤버) 중이 아닐 때만 일어난다(`src/app/frame_effect.rs`의 `FocusObserved`).
 
 ### 점유
 
