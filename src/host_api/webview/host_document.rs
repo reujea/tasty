@@ -29,6 +29,27 @@ pub(super) fn host_load_header(load: u64) -> String {
     format!("{HOST_LOAD_HEADER}: {load}")
 }
 
+/// 시작 요청의 `HOST_LOAD_HEADER` 조회 결과. 머리글이 없는 것과 조회가 실패한 것을 가른다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum HostLoadHeader {
+    /// 머리글이 없다(WebView2 `Contains`가 거짓). 페이지가 시작한 탐색이다.
+    Absent,
+    /// 머리글의 로드 번호.
+    Load(u64),
+    /// 머리글을 읽지 못했다(`RequestHeaders`·`Contains`·`GetHeader` 오류, 번호가 아닌 값).
+    Unreadable,
+}
+
+impl HostLoadHeader {
+    /// 읽은 로드 번호. 없거나 읽지 못했으면 None이다(본문을 받지 않는다).
+    pub(super) fn load(self) -> Option<u64> {
+        match self {
+            Self::Load(load) => Some(load),
+            Self::Absent | Self::Unreadable => None,
+        }
+    }
+}
+
 /// `HOST_LOAD_HEADER` 값을 로드 번호로 읽는다. 읽지 못하면 None이다(호스트가 보낸 것이 아니다).
 pub(super) fn parse_host_load(value: &str) -> Option<u64> {
     value.trim().parse().ok()
@@ -44,9 +65,19 @@ pub(super) fn host_may_load_url(url: &str) -> bool {
 /// 시작 전에 취소한 예약 주소 탐색이 지금 호스트 로드가 보낸 것인지. `header`는 그 시작 요청의
 /// `HOST_LOAD_HEADER` 값, `latest`는 지금 호스트 로드 번호다. WebView2는 다시 읽기·이력 이동·리다이렉트에서
 /// 앞 요청의 머리글을 다시 보내므로, 머리글이 있는 것만으로는 지금 로드가 보낸 탐색이 아니다. 번호가 지금
-/// 로드와 같을 때만이다.
-pub(super) fn sent_for_current_load(header: Option<u64>, latest: u64) -> bool {
-    header == Some(latest)
+/// 로드와 같을 때만이다. 머리글 조회가 실패했으면(`Unreadable`) 그 로드의 다시 싣기를 보냈고 아직 시작하지
+/// 않았을 때(`awaiting_retry`, `HostDocuments::awaiting_start`)만 그 시작으로 본다. 그 시작을 받지 않으므로
+/// 로드가 기다리는 탐색을 잃은 것이다. 머리글이 없는 시작(페이지 탐색)은 지금 로드가 보낸 것이 아니다.
+pub(super) fn sent_for_current_load(
+    header: HostLoadHeader,
+    latest: u64,
+    awaiting_retry: bool,
+) -> bool {
+    match header {
+        HostLoadHeader::Load(load) => load == latest,
+        HostLoadHeader::Unreadable => awaiting_retry,
+        HostLoadHeader::Absent => false,
+    }
 }
 
 /// Win32 `NavigateToString`이 받는 문자열의 최대 크기(UTF-16 바이트).
@@ -150,6 +181,13 @@ impl HostDocuments {
             nav: None,
             shown: false,
         });
+    }
+
+    /// 로드 `load`의 다시 싣기를 보냈고 그 시작이 아직 어느 탐색에도 묶이지 않았는지.
+    pub(super) fn awaiting_start(&self, load: u64) -> bool {
+        self.entries
+            .iter()
+            .any(|e| e.load == load && !e.shown && e.nav.is_none())
     }
 
     /// 다시 싣기 `Navigate`가 바로 거절됐다. 시작 신호가 오지 않으므로 여기서 지운다.

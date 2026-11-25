@@ -12,8 +12,9 @@ use windows::core::{BOOL, Error, HSTRING, Interface, PWSTR, Result, w};
 
 use super::super::NavState;
 use super::super::host_document::{
-    HOST_LOAD_HEADER, HostDocuments, RESERVED_FILTERS, StartDecision, host_document_url,
-    host_load_header, is_reserved, parse_host_load, retry_via_host_document, sent_for_current_load,
+    HOST_LOAD_HEADER, HostDocuments, HostLoadHeader, RESERVED_FILTERS, StartDecision,
+    host_document_url, host_load_header, is_reserved, parse_host_load, retry_via_host_document,
+    sent_for_current_load,
 };
 use super::super::load_generation::end_cancelled_navigation;
 use tasty_model::html_script::top_level::{StartKind, TopLevelAdmission};
@@ -242,42 +243,57 @@ pub(super) fn start(
     let mut redirected = BOOL(0);
     // SAFETY: live args on the apartment thread. A failed query counts as a redirect (closed side).
     let redirected = unsafe { args.IsRedirected(&mut redirected) }.is_err() || redirected.as_bool();
-    let host_load = host_load(args);
-    let decision = documents.borrow_mut().navigation_started(
-        &text,
-        nav,
-        start_kind(args),
-        redirected,
-        host_load,
-    );
+    let header = host_load(args);
+    let kind = start_kind(args);
+    let decision =
+        documents
+            .borrow_mut()
+            .navigation_started(&text, nav, kind, redirected, header.load());
+    if decision != StartDecision::NotReserved {
+        tracing::debug!(
+            "WebView surface {surface}: host document address start {decision:?} (kind {kind:?}, \
+             redirected {redirected}, header {header:?}, latest {latest})"
+        );
+    }
     if decision != StartDecision::Cancel {
         return Ok(decision);
     }
     // SAFETY: live args on the apartment thread.
     unsafe { args.SetCancel(true)? };
-    let host_sent = sent_for_current_load(host_load, latest);
+    let awaiting = documents.borrow().awaiting_start(latest);
+    let host_sent = sent_for_current_load(header, latest, awaiting);
     if end_cancelled_navigation(chrome.0, chrome.1, top_level, nav, redirected, host_sent) {
         documents.borrow_mut().cancelled(nav);
     }
-    tracing::debug!(
-        "WebView surface {surface}: cancelled a navigation to a host document address the host did \
-         not send"
-    );
     Ok(StartDecision::Cancel)
 }
 
-/// 시작 요청의 `HOST_LOAD_HEADER` 값. 머리글이 없거나 읽지 못하면 None이다(호스트가 보낸 것으로 보지 않는다).
-fn host_load(args: &ICoreWebView2NavigationStartingEventArgs) -> Option<u64> {
+/// 시작 요청의 `HOST_LOAD_HEADER`. 없음은 `Contains`가 성공하고 거짓을 준 때뿐이다. 조회 호출의 오류와
+/// 번호가 아닌 값은 `Unreadable`이다(어느 쪽도 본문을 받지 않는다).
+fn host_load(args: &ICoreWebView2NavigationStartingEventArgs) -> HostLoadHeader {
+    let name = HSTRING::from(HOST_LOAD_HEADER);
     // SAFETY: live args on the apartment thread.
-    let headers = unsafe { args.RequestHeaders() }.ok()?;
+    let Ok(headers) = (unsafe { args.RequestHeaders() }) else {
+        return HostLoadHeader::Unreadable;
+    };
+    let mut present = BOOL(0);
+    // SAFETY: live headers on the apartment thread; the BOOL is a local.
+    if unsafe { headers.Contains(&name, &mut present) }.is_err() {
+        return HostLoadHeader::Unreadable;
+    }
+    if !present.as_bool() {
+        return HostLoadHeader::Absent;
+    }
     let mut value = PWSTR::null();
     // SAFETY: live headers on the apartment thread; the value is freed below.
-    unsafe { headers.GetHeader(&HSTRING::from(HOST_LOAD_HEADER), &mut value) }.ok()?;
+    if unsafe { headers.GetHeader(&name, &mut value) }.is_err() {
+        return HostLoadHeader::Unreadable;
+    }
     // SAFETY: GetHeader succeeded, so value is a NUL-terminated string.
     let text = unsafe { value.to_string() }.unwrap_or_default();
     // SAFETY: the caller owns the returned allocation.
     unsafe { CoTaskMemFree(Some(value.0 as *const std::ffi::c_void)) };
-    parse_host_load(&text)
+    parse_host_load(&text).map_or(HostLoadHeader::Unreadable, HostLoadHeader::Load)
 }
 
 /// WebView2가 보고한 탐색 종류. 조회하지 못하면 `Other`다(Reload로 보지 않는다).

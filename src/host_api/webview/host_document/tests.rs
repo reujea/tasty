@@ -508,3 +508,39 @@ fn a_cancelled_page_navigation_keeps_the_admitted_host_retry() {
     assert!(!docs.navigation_completed(Some(15), true));
     assert_eq!(docs.loads(), vec![(2, true)]);
 }
+
+/// 다시 싣기를 보낸 뒤 그 시작의 머리글을 읽지 못하면 본문을 주지 않고, 그 로드가 기다리는 시작으로 본다.
+/// 머리글이 없는 시작(페이지 탐색)은 그렇게 보지 않는다.
+#[test]
+fn an_unreadable_header_counts_only_while_the_retry_awaits_its_start() {
+    let mut docs = HostDocuments::default();
+    let b = host_document_url(1, 1, 2);
+    docs.sent(2, b.clone(), body("b"));
+    assert!(docs.awaiting_start(2));
+    assert!(!docs.awaiting_start(3));
+    let unreadable = HostLoadHeader::Unreadable;
+    assert_eq!(
+        docs.navigation_started(&b, Some(15), StartKind::Other, false, unreadable.load()),
+        StartDecision::Cancel
+    );
+    assert!(serve(&mut docs, &b).is_none());
+    assert!(sent_for_current_load(unreadable, 2, docs.awaiting_start(2)));
+    assert!(!sent_for_current_load(
+        HostLoadHeader::Absent,
+        2,
+        docs.awaiting_start(2)
+    ));
+    assert!(!sent_for_current_load(
+        unreadable,
+        3,
+        docs.awaiting_start(3)
+    ));
+    // 다시 싣기가 묶인 뒤에는 읽지 못한 시작을 그 로드의 것으로 보지 않는다.
+    assert_eq!(start(&mut docs, &b, 16), StartDecision::HostLoad);
+    assert!(!docs.awaiting_start(2));
+    assert!(!sent_for_current_load(
+        unreadable,
+        2,
+        docs.awaiting_start(2)
+    ));
+}

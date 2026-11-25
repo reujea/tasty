@@ -546,13 +546,13 @@ mod tests {
 
     #[test]
     fn a_cancelled_history_start_with_an_earlier_load_number_keeps_the_new_load() {
-        use super::super::host_document::sent_for_current_load;
+        use super::super::host_document::{HostLoadHeader, sent_for_current_load};
         // 로드 3이 요청돼 세대가 빈 구간에, 로드 2의 머리글을 다시 보낸 이력 이동이 취소된다.
         let nav = Cell::new(NavState::Loading);
         let generation = Cell::new(None);
         let top = RefCell::new(TopLevelAdmission::default());
         top.borrow_mut().designate(Designation::Next);
-        let host_sent = sent_for_current_load(Some(2), 3);
+        let host_sent = sent_for_current_load(HostLoadHeader::Load(2), 3, false);
         assert!(end_cancelled_navigation(
             &nav,
             &generation,
@@ -564,19 +564,19 @@ mod tests {
         assert_eq!(nav.get(), NavState::Loading);
         assert_eq!(generation.get(), None);
         assert!(next_start_admitted(&top), "새 로드의 지목은 남는다");
-        assert!(sent_for_current_load(Some(3), 3));
-        assert!(!sent_for_current_load(None, 3));
+        assert!(sent_for_current_load(HostLoadHeader::Load(3), 3, false));
+        assert!(!sent_for_current_load(HostLoadHeader::Absent, 3, true));
     }
 
     #[test]
     fn a_cancelled_page_navigation_to_the_retry_address_keeps_the_pending_load() {
-        use super::super::host_document::sent_for_current_load;
+        use super::super::host_document::{HostLoadHeader, sent_for_current_load};
         // 로드 3의 다시 싣기가 장벽을 기다리는 동안, 페이지가 같은 주소로 가는 탐색(머리글 없음)이 취소된다.
         let nav = Cell::new(NavState::Loading);
         let generation = Cell::new(None);
         let top = RefCell::new(TopLevelAdmission::default());
         top.borrow_mut().designate(Designation::Next);
-        let host_sent = sent_for_current_load(None, 3);
+        let host_sent = sent_for_current_load(HostLoadHeader::Absent, 3, true);
         assert!(end_cancelled_navigation(
             &nav,
             &generation,
@@ -591,13 +591,47 @@ mod tests {
     }
 
     #[test]
+    fn an_unreadable_header_on_the_awaited_retry_fails_the_load() {
+        use super::super::host_document::{HostLoadHeader, sent_for_current_load};
+        // 로드 3의 다시 싣기를 보냈고 아직 시작이 없다. 그 시작의 머리글 조회가 실패해 취소된다.
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(None);
+        let top = RefCell::new(TopLevelAdmission::default());
+        let host_sent = sent_for_current_load(HostLoadHeader::Unreadable, 3, true);
+        assert!(!end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(9),
+            false,
+            host_sent
+        ));
+        assert_eq!(nav.get(), NavState::Failed);
+        assert_eq!(generation.get(), Some(9));
+        // 머리글이 없는 시작(페이지 탐색)은 기다리는 동안에도 로드를 끝내지 않는다.
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(None);
+        let host_sent = sent_for_current_load(HostLoadHeader::Absent, 3, true);
+        assert!(end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(10),
+            false,
+            host_sent
+        ));
+        assert_eq!(nav.get(), NavState::Loading);
+        assert_eq!(generation.get(), None);
+    }
+
+    #[test]
     fn a_cancelled_navigation_without_an_id_is_current_only_with_the_current_load_number() {
-        use super::super::host_document::sent_for_current_load;
+        use super::super::host_document::{HostLoadHeader, sent_for_current_load};
         // 로드 3의 다시 싣기가 시작했으나 NavigationId를 읽지 못해 취소된다. 머리글 번호가 지금 로드다.
         let nav = Cell::new(NavState::Loading);
         let generation = Cell::new(None);
         let top = RefCell::new(TopLevelAdmission::default());
-        let host_sent = sent_for_current_load(Some(3), 3);
+        let host_sent = sent_for_current_load(HostLoadHeader::Load(3), 3, false);
         assert!(!end_cancelled_navigation(
             &nav,
             &generation,
@@ -618,7 +652,7 @@ mod tests {
         // 번호가 지금 로드가 아니면 지금 로드로 보지 않는다.
         let nav = Cell::new(NavState::Loading);
         let generation = Cell::new(None);
-        let host_sent = sent_for_current_load(Some(2), 3);
+        let host_sent = sent_for_current_load(HostLoadHeader::Load(2), 3, false);
         assert!(end_cancelled_navigation(
             &nav,
             &generation,
