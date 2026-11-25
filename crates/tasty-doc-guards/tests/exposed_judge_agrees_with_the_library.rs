@@ -253,3 +253,34 @@ fn the_row_floor_sees_a_collapsed_collection() {
     // 죽으면 위 단정의 결과가 정리 오류에 가린다.
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// 잡 구조를 못 읽은 파일이 하나라도 있으면 rc 2, stdout은 비고, stderr에 `on:`과 잡 구조(파일:행)를 함께 적는다.
+/// 이름순으로 앞선 정상 워크플로를 같이 두어 중간 결과가 stdout으로 새지 않는지도 본다.
+#[test]
+fn an_unreadable_job_structure_fails_the_binary_without_partial_output() {
+    let root = tasty_doc_guards::temp_scratch::Scratch::new("channels-structure");
+    let dir = root.path().join(".github/workflows");
+    std::fs::create_dir_all(&dir).expect("임시 워크플로 디렉터리를 못 만들었다");
+    let good = "on:\n  push:\n    branches: [main]\njobs:\n  a:\n    steps:\n      - run: cargo test --workspace\n";
+    let bad = "on: [push]\njobs:\n  build: # x\n    steps:\n      - run: cargo test\n";
+    std::fs::write(dir.join("a.yml"), good).expect("a.yml 쓰기 실패");
+    std::fs::write(dir.join("b.yml"), bad).expect("b.yml 쓰기 실패");
+    let (rc, stdout, stderr) = run(&[&root.path().to_string_lossy()]);
+    assert_eq!(
+        rc, 2,
+        "판독하지 못한 파일이 있는데 rc가 2가 아니다. stderr: {stderr}"
+    );
+    assert!(
+        stdout.is_empty(),
+        "판독 실패인데 stdout에 결과가 나왔다: {stdout}"
+    );
+    for want in [
+        "b.yml: `on:` 을 못 읽었다",
+        "b.yml:3 지원하지 않는 표기: 잡 머리가 아니다",
+    ] {
+        assert!(
+            stderr.contains(want),
+            "`{want}`를 기대했다. stderr: {stderr}"
+        );
+    }
+}

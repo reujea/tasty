@@ -822,3 +822,34 @@ fn a_cached_checkout_with_a_condition_is_rejected() {
         );
     }
 }
+
+/// S1: 채널 가드(`workflow_triggers`)가 거절하는 지원 밖 표기를 이 가드도 같은 파일:행으로 거절한다.
+/// 합성 파일 `probe.yml`이라 파일별 규칙과 저장소 하한이 닿지 않는다.
+#[test]
+fn the_notation_the_channel_guard_rejects_is_rejected_here_too() {
+    let steps = "    runs-on: [self-hosted, Linux]\n    steps:\n      - name: first\n        run: echo\n      - name: probe\n";
+    for (yaml, want) in [
+        (
+            format!(
+                "on:\n  push:\njobs:\n  j:\n{steps}        if: >-\n          ${{{{ !cancelled() }}}}\n        run: cargo test\n"
+            ),
+            "probe.yml:10 지원하지 않는 표기: if 값이 블록 스칼라다",
+        ),
+        (
+            format!(
+                "on:\n  push:\njobs:\n  j:\n{steps}        continue-on-error: yes\n        run: cargo test\n"
+            ),
+            "probe.yml:10 지원하지 않는 표기: continue-on-error 값이 true/false가 아니다",
+        ),
+        (
+            format!("on:\n  push:\njobs:\n  j: # x\n{steps}        run: cargo test\n"),
+            "probe.yml:4 지원하지 않는 표기: 잡 머리가 아니다",
+        ),
+        (
+            format!("on:\n  push:\njobs:\n  j: # x:\n{steps}        run: cargo test\n"),
+            "probe.yml:4 지원하지 않는 표기: 잡 머리가 아니다",
+        ),
+    ] {
+        assert_caught(&[("probe.yml".to_string(), yaml)], want);
+    }
+}

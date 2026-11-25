@@ -803,3 +803,130 @@ jobs:
         );
     }
 }
+
+/// 공용 판독(`workflow_yaml`)으로 바꾼 잡·스텝 경계와 지원 밖 표기 거절을 고정한다.
+#[cfg(test)]
+mod shared_reader_tests {
+    use super::*;
+
+    /// 이름 없는 스텝(`- run:`·`- id:`로 시작)은 앞 스텝에 합쳐지지 않고 제 순번을 받는다.
+    #[test]
+    fn a_nameless_step_is_its_own_step() {
+        let yaml = "jobs:\n  j:\n    steps:\n      - name: a\n        run: echo\n      \
+                    - run: cargo test --workspace\n      - id: x\n        run: cargo clippy\n";
+        let steps = job_steps("fixture.yml", yaml).unwrap_or_else(|e| panic!("{e:?}"));
+        let got: Vec<(usize, usize)> = steps.iter().map(|s| (s.ordinal, s.line)).collect();
+        assert_eq!(
+            got,
+            vec![(1, 4), (2, 6), (3, 7)],
+            "이름 없는 스텝이 제 스텝으로 읽히지 않았다(순번, 행): {steps:?}"
+        );
+        let swallowable: Vec<usize> = swallowable_verification_steps("fixture.yml", yaml)
+            .unwrap_or_else(|e| panic!("{e:?}"))
+            .iter()
+            .map(|s| s.ordinal)
+            .collect();
+        assert_eq!(
+            swallowable,
+            vec![2, 3],
+            "이름 없는 두 검증 스텝을 앞 스텝 뒤의 검증으로 세지 않았다"
+        );
+    }
+
+    fn assert_rejected<T: std::fmt::Debug>(got: Result<T, Vec<String>>, want: &str) {
+        match got {
+            Ok(v) => panic!("지원 밖 표기를 받아들였다: {v:?}"),
+            Err(errs) => assert!(
+                errs.iter().any(|e| e.contains(want)),
+                "`{want}`를 기대했다. 실제: {errs:?}"
+            ),
+        }
+    }
+
+    const STEP_HEAD: &str = "jobs:\n  j:\n    steps:\n      - name: first\n        run: echo\n      \
+                             - name: probe\n";
+
+    /// 스텝 조건이 블록 스칼라이거나 true/false가 아니면 스텝 판독 셋이 모두 실패한다.
+    #[test]
+    fn unsupported_step_conditions_fail_every_step_reader() {
+        for (extra, want) in [
+            (
+                "        if: >-\n          ${{ !cancelled() }}\n",
+                "fixture.yml:7 지원하지 않는 표기: if 값이 블록 스칼라다",
+            ),
+            (
+                "        continue-on-error: yes\n",
+                "fixture.yml:7 지원하지 않는 표기: continue-on-error 값이 true/false가 아니다",
+            ),
+        ] {
+            let yaml = format!("{STEP_HEAD}{extra}        run: cargo test --workspace\n");
+            assert_rejected(job_steps("fixture.yml", &yaml), want);
+            assert_rejected(swallowable_verification_steps("fixture.yml", &yaml), want);
+            assert_rejected(protected_verification_steps("fixture.yml", &yaml), want);
+        }
+    }
+
+    /// 잡 머리 줄 끝의 주석(콜론으로 끝나도)은 잡 판독 전부가 거절한다.
+    #[test]
+    fn an_unsupported_job_header_fails() {
+        for head in ["  build: # x\n", "  build: # x:\n"] {
+            let yaml = format!("on:\n  push:\njobs:\n{head}    steps:\n      - run: cargo test\n");
+            let want = "fixture.yml:4 지원하지 않는 표기: 잡 머리가 아니다";
+            assert_rejected(job_spans("fixture.yml", &yaml), want);
+            assert_rejected(automatic_job_bodies("fixture.yml", &yaml), want);
+            assert_rejected(job_steps("fixture.yml", &yaml), want);
+        }
+    }
+
+    /// `jobs:` 블록 뒤 최상위 키는 마지막 잡 본문에 들지 않는다. 들면 그 안의 수동 조건 글자가 잡을 수동으로 바꾼다.
+    #[test]
+    fn a_top_level_key_after_jobs_is_not_in_the_last_job() {
+        let yaml = "on:\n  push:\njobs:\n  a:\n    steps:\n      - run: cargo test\nenv:\n  \
+                    NOTE: \"github.event_name == 'workflow_dispatch'\"\n";
+        let spans = job_spans("fixture.yml", yaml).unwrap_or_else(|e| panic!("{e:?}"));
+        assert_eq!(spans.len(), 1);
+        assert!(
+            !spans[0].body.contains("NOTE"),
+            "jobs 블록 뒤의 줄이 잡 본문에 들어갔다: {:?}",
+            spans[0].body
+        );
+        assert_eq!(
+            automatic_job_names("fixture.yml", yaml).unwrap_or_else(|e| panic!("{e:?}")),
+            vec!["a".to_string()],
+            "뒤 최상위 키의 글자로 자동 잡을 수동으로 분류했다"
+        );
+    }
+
+    fn scratch_workflows(what: &str, files: &[(&str, &str)]) -> crate::temp_scratch::Scratch {
+        let dir = crate::temp_scratch::Scratch::new(what);
+        for (name, text) in files {
+            std::fs::write(dir.path().join(name), text)
+                .unwrap_or_else(|e| panic!("{name}를 못 썼다: {e}"));
+        }
+        dir
+    }
+
+    /// 경로 필터가 있어 채널에서 빠질 파일도 잡 구조는 먼저 본다. `on:`과 잡 구조가 함께 틀리면 둘 다 알린다.
+    #[test]
+    fn filter_free_coverage_checks_the_structure_before_the_channel_filter() {
+        let filtered = "on:\n  push:\n    paths:\n      - 'src/**'\njobs:\n  build: # x\n    \
+                        steps:\n      - run: cargo test --workspace\n";
+        let dir = scratch_workflows("ffc-structure", &[("filtered.yml", filtered)]);
+        assert_rejected(
+            filter_free_coverage(dir.path()),
+            "filtered.yml:6 지원하지 않는 표기: 잡 머리가 아니다",
+        );
+        let both = "on: [push]\njobs:\n  build: # x\n    steps:\n      - run: cargo test\n";
+        let dir = scratch_workflows("ffc-both", &[("both.yml", both)]);
+        let errs = filter_free_coverage(dir.path()).expect_err("두 판독이 모두 실패했다");
+        for want in [
+            "both.yml: on: 을 못 읽었다",
+            "both.yml:3 지원하지 않는 표기: 잡 머리가 아니다",
+        ] {
+            assert!(
+                errs.iter().any(|e| e.contains(want)),
+                "`{want}`를 기대했다. 실제: {errs:?}"
+            );
+        }
+    }
+}
