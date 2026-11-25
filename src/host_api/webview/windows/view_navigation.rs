@@ -102,6 +102,7 @@ impl PlatformWebView {
         self.host_documents.borrow_mut().requested(None);
         let fallback = (self.host_document_ready && may_exceed_limit(html)).then(|| {
             super::host_document::Fallback {
+                environment: self._environment.clone(),
                 documents: self.host_documents.clone(),
                 allowed: self.host_document_allowed.clone(),
                 latest: self.host_load.clone(),

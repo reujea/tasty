@@ -12,8 +12,8 @@ use windows::core::{BOOL, Error, HSTRING, Interface, PWSTR, Result, w};
 
 use super::super::NavState;
 use super::super::host_document::{
-    HostDocuments, RESERVED_FILTERS, StartDecision, host_document_url, is_reserved,
-    retry_via_host_document,
+    HOST_LOAD_HEADER, HostDocuments, RESERVED_FILTERS, StartDecision, host_document_url,
+    host_load_header, is_reserved, parse_host_load, retry_via_host_document,
 };
 use super::super::load_generation::end_cancelled_navigation;
 use tasty_model::html_script::top_level::{StartKind, TopLevelAdmission};
@@ -239,18 +239,22 @@ pub(super) fn start(
     // SAFETY: live args on the apartment thread.
     let nav = unsafe { args.NavigationId(&mut id) }.ok().map(|()| id);
     let mut redirected = BOOL(0);
-    // SAFETY: live args on the apartment thread. A failed query counts as a new navigation.
-    let redirected = unsafe { args.IsRedirected(&mut redirected) }.is_ok() && redirected.as_bool();
-    let decision =
-        documents
-            .borrow_mut()
-            .navigation_started(&text, nav, start_kind(args), redirected);
+    // SAFETY: live args on the apartment thread. A failed query counts as a redirect (closed side).
+    let redirected = unsafe { args.IsRedirected(&mut redirected) }.is_err() || redirected.as_bool();
+    let host_load = host_load(args);
+    let decision = documents.borrow_mut().navigation_started(
+        &text,
+        nav,
+        start_kind(args),
+        redirected,
+        host_load,
+    );
     if decision != StartDecision::Cancel {
         return Ok(decision);
     }
     // SAFETY: live args on the apartment thread.
     unsafe { args.SetCancel(true)? };
-    let host_sent = documents.borrow().is_requested(&text);
+    let host_sent = host_load.is_some() || documents.borrow().is_requested(&text);
     if end_cancelled_navigation(chrome.0, chrome.1, top_level, nav, redirected, host_sent) {
         documents.borrow_mut().cancelled(nav);
     }
@@ -259,6 +263,20 @@ pub(super) fn start(
          not send"
     );
     Ok(StartDecision::Cancel)
+}
+
+/// 시작 요청의 `HOST_LOAD_HEADER` 값. 머리글이 없거나 읽지 못하면 None이다(호스트가 보낸 것으로 보지 않는다).
+fn host_load(args: &ICoreWebView2NavigationStartingEventArgs) -> Option<u64> {
+    // SAFETY: live args on the apartment thread.
+    let headers = unsafe { args.RequestHeaders() }.ok()?;
+    let mut value = PWSTR::null();
+    // SAFETY: live headers on the apartment thread; the value is freed below.
+    unsafe { headers.GetHeader(&HSTRING::from(HOST_LOAD_HEADER), &mut value) }.ok()?;
+    // SAFETY: GetHeader succeeded, so value is a NUL-terminated string.
+    let text = unsafe { value.to_string() }.unwrap_or_default();
+    // SAFETY: the caller owns the returned allocation.
+    unsafe { CoTaskMemFree(Some(value.0 as *const std::ffi::c_void)) };
+    parse_host_load(&text)
 }
 
 /// WebView2가 보고한 탐색 종류. 조회하지 못하면 `Other`다(Reload로 보지 않는다).
@@ -280,6 +298,7 @@ fn start_kind(args: &ICoreWebView2NavigationStartingEventArgs) -> StartKind {
 /// `NavigateToString`이 거절한 문서를 host 전용 주소로 한 번 다시 싣는 준비물. 클로저가 본문을 소유해
 /// bed focus 장벽에 붙잡힌 앞 로드도 자기 본문을 잃지 않는다.
 pub(super) struct Fallback {
+    pub(super) environment: ICoreWebView2Environment,
     pub(super) documents: std::rc::Rc<RefCell<HostDocuments>>,
     pub(super) allowed: std::rc::Rc<std::cell::Cell<bool>>,
     pub(super) latest: std::rc::Rc<std::cell::Cell<u64>>,
@@ -290,7 +309,8 @@ pub(super) struct Fallback {
 }
 
 impl Fallback {
-    /// 거절 `rejected`가 다시 싣기 대상이면 host 전용 주소로 `Navigate`한다. 대상이 아니거나 다시 싣기도
+    /// 거절 `rejected`가 다시 싣기 대상이면 host 전용 주소로, 로드 번호 머리글(`HOST_LOAD_HEADER`)을 단 요청을
+    /// 보낸다(`NavigateWithWebResourceRequest`). 대상이 아니거나 다시 싣기도
     /// 거절되면 `rejected`를 돌려준다(호출자가 `NavigateToString` 거절 줄을 남기고 chrome을 Failed로 끝낸다).
     /// 다시 싣기의 거절은 두 호출이 로그에서 구별되도록 `host document Navigate` 줄로 따로 남긴다.
     pub(super) fn retry(self, webview: &ICoreWebView2, rejected: Error) -> Result<()> {
@@ -306,8 +326,7 @@ impl Fallback {
         let url = host_document_url(self.surface, self.view, self.load);
         let target = HSTRING::from(url.as_str());
         self.documents.borrow_mut().sent(self.load, url, self.body);
-        // SAFETY: live WebView on its apartment thread; the HSTRING lives for the call.
-        if let Err(e) = unsafe { webview.Navigate(&target) } {
+        if let Err(e) = navigate_host_load(&self.environment, webview, &target, self.load) {
             tracing::warn!(
                 "WebView surface {}: WebView2 host document Navigate failed: {e}",
                 self.surface
@@ -321,5 +340,27 @@ impl Fallback {
             self.surface
         );
         Ok(())
+    }
+}
+
+/// host 전용 주소로 로드 번호 머리글을 단 GET 탐색을 보낸다.
+fn navigate_host_load(
+    environment: &ICoreWebView2Environment,
+    webview: &ICoreWebView2,
+    target: &HSTRING,
+    load: u64,
+) -> Result<()> {
+    let environment: ICoreWebView2Environment2 = environment.cast()?;
+    let view: ICoreWebView2_2 = webview.cast()?;
+    let headers = HSTRING::from(host_load_header(load));
+    // SAFETY: live environment and WebView on their apartment thread; the HSTRINGs live for the calls.
+    unsafe {
+        let request = environment.CreateWebResourceRequest(
+            target,
+            w!("GET"),
+            None::<&windows::Win32::System::Com::IStream>,
+            &headers,
+        )?;
+        view.NavigateWithWebResourceRequest(&request)
     }
 }

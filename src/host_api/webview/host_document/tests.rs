@@ -1,8 +1,18 @@
 use super::*;
 
-/// 리다이렉트가 아닌 새 탐색의 시작(호스트의 `Navigate`, 페이지의 이동).
+/// 호스트가 보낸 새 탐색의 시작. 주소 끝의 로드 번호를 머리글로 단다(`host_document_url`).
 fn start(docs: &mut HostDocuments, uri: &str, nav: u64) -> StartDecision {
-    docs.navigation_started(uri, Some(nav), StartKind::Other, false)
+    let load = uri
+        .rsplit('/')
+        .next()
+        .and_then(|last| last.split('#').next())
+        .and_then(parse_host_load);
+    docs.navigation_started(uri, Some(nav), StartKind::Other, false, load)
+}
+
+/// 페이지가 스스로 시작한 새 탐색(머리글 없음).
+fn page(docs: &mut HostDocuments, uri: &str, nav: u64) -> StartDecision {
+    docs.navigation_started(uri, Some(nav), StartKind::Other, false, None)
 }
 
 /// 지금 main 문서 요청에 본문을 실은 응답을 넘긴다(Windows 배선은 `SetResponse` 성공 뒤 `served`를 부른다).
@@ -16,7 +26,7 @@ fn serve(docs: &mut HostDocuments, uri: &str) -> Option<Arc<str>> {
 
 /// WebView2가 Reload로 보고한 시작.
 fn reload(docs: &mut HostDocuments, uri: &str, nav: u64) -> StartDecision {
-    docs.navigation_started(uri, Some(nav), StartKind::Reload, false)
+    docs.navigation_started(uri, Some(nav), StartKind::Reload, false, None)
 }
 
 const E_FAIL: i32 = 0x8000_4005_u32 as i32;
@@ -385,7 +395,7 @@ fn only_the_host_retry_and_a_reload_reach_a_reserved_address() {
     let (a, b) = (host_document_url(1, 1, 1), host_document_url(1, 1, 2));
     docs.sent(1, a.clone(), body("a"));
     assert_eq!(
-        docs.navigation_started(&a, Some(9), StartKind::Other, true),
+        docs.navigation_started(&a, Some(9), StartKind::Other, true, Some(1)),
         StartDecision::Cancel,
         "보낸 주소로의 리다이렉트"
     );
@@ -404,12 +414,12 @@ fn only_the_host_retry_and_a_reload_reach_a_reserved_address() {
     );
     assert!(serve(&mut docs, &a).is_none());
     assert_eq!(
-        docs.navigation_started(&a, Some(12), StartKind::History, false),
+        docs.navigation_started(&a, Some(12), StartKind::History, false, Some(1)),
         StartDecision::Cancel,
         "이력 이동"
     );
     assert_eq!(
-        docs.navigation_started(&a, Some(13), StartKind::Reload, true),
+        docs.navigation_started(&a, Some(13), StartKind::Reload, true, Some(1)),
         StartDecision::Cancel,
         "Reload의 리다이렉트"
     );
@@ -453,4 +463,36 @@ fn the_requested_address_is_the_host_record() {
     assert!(!docs.is_requested("http://v1-1.tasty-host-document.invalid/other.md"));
     docs.requested(None);
     assert!(!docs.is_requested(a));
+}
+
+/// 호스트 다시 싣기의 시작보다 먼저 페이지가 같은 주소로 가는 탐색을 시작해도 본문은 호스트 탐색만 받는다.
+#[test]
+fn a_page_navigation_ahead_of_the_host_retry_gets_no_body() {
+    let mut docs = HostDocuments::default();
+    let a = host_document_url(1, 1, 1);
+    docs.sent(1, a.clone(), body("a"));
+    assert_eq!(page(&mut docs, &a, 9), StartDecision::Cancel);
+    assert!(serve(&mut docs, &a).is_none());
+    assert_eq!(
+        docs.navigation_started(&a, None, StartKind::Other, false, Some(1)),
+        StartDecision::Cancel,
+        "탐색 ID를 읽지 못한 시작은 묶지 않는다"
+    );
+    assert_eq!(
+        docs.navigation_started(&a, Some(10), StartKind::Other, false, Some(2)),
+        StartDecision::Cancel,
+        "다른 로드의 머리글"
+    );
+    assert_eq!(start(&mut docs, &a, 11), StartDecision::HostLoad);
+    assert_eq!(serve(&mut docs, &a).as_deref(), Some("a"));
+}
+
+/// 다시 싣기 요청의 머리글 줄은 시작 처리기가 읽는 이름과 값으로 나뉜다.
+#[test]
+fn the_host_load_header_round_trips() {
+    let line = host_load_header(7);
+    let (name, value) = line.split_once(':').unwrap();
+    assert_eq!(name, HOST_LOAD_HEADER);
+    assert_eq!(parse_host_load(value), Some(7));
+    assert_eq!(parse_host_load("seven"), None);
 }

@@ -18,6 +18,21 @@ pub(super) const RESERVED_FILTERS: [&str; 2] = [
     "https://*.tasty-host-document.invalid*",
 ];
 
+/// host가 다시 싣기 요청에 다는 머리글. 값은 그 로드 번호다. 페이지는 top-level 탐색에 머리글을 달 수
+/// 없으므로, 이 머리글이 있는 시작만 호스트가 보낸 다시 싣기로 본다(WebView2 `Navigate`는 탐색 ID를
+/// 돌려주지 않아 호출과 그 `NavigationStarting`을 이을 다른 수단이 없다).
+pub(super) const HOST_LOAD_HEADER: &str = "X-Tasty-Host-Load";
+
+/// 로드 `load`의 다시 싣기 요청에 다는 머리글 줄(`CreateWebResourceRequest`의 headers).
+pub(super) fn host_load_header(load: u64) -> String {
+    format!("{HOST_LOAD_HEADER}: {load}")
+}
+
+/// `HOST_LOAD_HEADER` 값을 로드 번호로 읽는다. 읽지 못하면 None이다(호스트가 보낸 것이 아니다).
+pub(super) fn parse_host_load(value: &str) -> Option<u64> {
+    value.trim().parse().ok()
+}
+
 /// Win32 `NavigateToString`이 받는 문자열의 최대 크기(UTF-16 바이트).
 const NAVIGATE_TO_STRING_MAX_BYTES: usize = 2 * 1024 * 1024;
 
@@ -157,18 +172,20 @@ impl HostDocuments {
     }
 
     /// main frame `NavigationStarting`. 새 탐색은 앞 탐색을 대신한다. `kind`는 WebView2가 보고한 탐색
-    /// 종류(모르면 `Other`), `redirected`는 리다이렉트 hop인지다.
+    /// 종류(모르면 `Other`), `redirected`는 리다이렉트 hop인지(조회 실패는 리다이렉트), `host_load`는 시작
+    /// 요청의 `HOST_LOAD_HEADER` 값이다.
     ///
-    /// 예약 주소는 둘만 받는다. 호스트가 보낸 다시 싣기(보낸 문서의 주소로, 그 문서가 아직 어느 탐색에도
-    /// 묶이지 않았을 때 처음 시작한 리다이렉트가 아닌 새 탐색)와 commit된 문서의 Reload다. WebView2
-    /// `Navigate`는 탐색 ID를 돌려주지 않아, 보낸 문서를 처음 시작한 탐색 ID에 묶고 그 뒤 같은 주소의
-    /// 다른 탐색은 막는다.
+    /// 예약 주소는 둘만 받는다. 호스트가 보낸 다시 싣기(보낸 문서의 주소와 로드 번호 머리글이 맞고, 그 문서가
+    /// 아직 어느 탐색에도 묶이지 않은 리다이렉트가 아닌 새 탐색. 그 탐색 ID에 묶는다)와 commit된 문서의
+    /// Reload다. 머리글이 없는 탐색(페이지가 스스로 시작한 탐색)은 보낸 문서의 주소라도 받지 않는다. 탐색 ID를
+    /// 읽지 못한 시작은 묶을 수 없어 받지 않는다.
     pub(super) fn navigation_started(
         &mut self,
         uri: &str,
         nav: Option<u64>,
         kind: StartKind,
         redirected: bool,
+        host_load: Option<u64>,
     ) -> StartDecision {
         if !is_reserved(uri) {
             self.main = Some(Main {
@@ -179,10 +196,15 @@ impl HostDocuments {
             return StartDecision::NotReserved;
         }
         let found = match (redirected, kind) {
-            (false, StartKind::Other) => self
+            (false, StartKind::Other) if nav.is_some() => self
                 .entries
                 .iter_mut()
-                .find(|e| !e.shown && e.nav.is_none() && same_target(&e.url, uri))
+                .find(|e| {
+                    host_load == Some(e.load)
+                        && !e.shown
+                        && e.nav.is_none()
+                        && same_target(&e.url, uri)
+                })
                 .map(|entry| {
                     entry.nav = Some(nav);
                     (entry.url.clone(), StartDecision::HostLoad)
