@@ -432,7 +432,8 @@ fn only_the_host_retry_and_a_reload_reach_a_reserved_address() {
         StartDecision::Cancel,
         "보낸 문서가 이미 묶인 뒤 같은 주소의 두 번째 새 탐색"
     );
-    assert!(serve(&mut docs, &b).is_none());
+    // 취소한 16은 요청을 내지 않는다. 문서 요청은 받은 15의 것이라 본문을 받는다.
+    assert_eq!(serve(&mut docs, &b).as_deref(), Some("b"));
 }
 
 /// 200 응답을 만들지 못해 404를 보낸 탐색은 성공으로 끝나도 실패이고 보이던 문서를 지우지 않는다.
@@ -495,4 +496,17 @@ fn the_host_load_header_round_trips() {
     assert_eq!(name, HOST_LOAD_HEADER);
     assert_eq!(parse_host_load(value), Some(7));
     assert_eq!(parse_host_load("seven"), None);
+}
+
+/// 받은 호스트 다시 싣기가 진행 중일 때 같은 주소로 온 페이지 탐색을 취소해도 그 다시 싣기의 기록은 남는다.
+#[test]
+fn a_cancelled_page_navigation_keeps_the_admitted_host_retry() {
+    let mut docs = HostDocuments::default();
+    let b = host_document_url(1, 1, 2);
+    docs.sent(2, b.clone(), body("b"));
+    assert_eq!(start(&mut docs, &b, 15), StartDecision::HostLoad);
+    assert_eq!(page(&mut docs, &b, 16), StartDecision::Cancel);
+    assert_eq!(serve(&mut docs, &b).as_deref(), Some("b"));
+    assert!(!docs.navigation_completed(Some(15), true));
+    assert_eq!(docs.loads(), vec![(2, true)]);
 }
