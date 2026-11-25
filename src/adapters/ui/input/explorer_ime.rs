@@ -97,7 +97,7 @@ impl ExplorerImeKeys {
     ) -> Option<InputOwner> {
         let observed = self.presses.get_mut(&key)?;
         let paired = observed.iter().rposition(|(at, _)| *at <= arrived)?;
-        let (_, owner) = observed.drain(..=paired).last()?;
+        let (_, owner) = observed.drain(..=paired).next_back()?;
         if observed.is_empty() {
             self.presses.remove(&key);
         }
