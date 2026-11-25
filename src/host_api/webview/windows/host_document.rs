@@ -261,7 +261,7 @@ pub(super) fn start(
     }
     // SAFETY: live args on the apartment thread.
     unsafe { args.SetCancel(true)? };
-    let awaiting = documents.borrow().awaiting_start(latest);
+    let awaiting = documents.borrow().awaiting_start(latest, &text);
     let host_sent = sent_for_current_load(header, latest, awaiting);
     if end_cancelled_navigation(chrome.0, chrome.1, top_level, nav, redirected, host_sent) {
         documents.borrow_mut().cancelled(nav);

@@ -576,6 +576,62 @@ mod tests {
     }
 
     #[test]
+    fn an_unreadable_reload_of_the_shown_document_keeps_the_awaited_retry() {
+        use super::super::host_document::{
+            HostDocuments, HostLoadHeader, StartDecision, host_document_url, sent_for_current_load,
+        };
+        use tasty_model::html_script::top_level::StartKind;
+        // 문서 A(로드 1)가 보이는 채 로드 2가 문서 B의 다시 싣기를 보내고 그 시작을 기다린다.
+        let mut docs = HostDocuments::default();
+        let a = host_document_url(1, 1, 1);
+        let b = host_document_url(1, 1, 2);
+        docs.sent(1, a.clone(), std::sync::Arc::from("a"));
+        let a_load = HostLoadHeader::Load(1);
+        let started = docs.navigation_started(&a, Some(15), StartKind::Other, false, a_load);
+        assert_eq!(started, StartDecision::HostLoad);
+        assert!(docs.respond(&a, true, true, false).is_some());
+        docs.served();
+        docs.committed(Some(15), false);
+        assert!(!docs.navigation_completed(Some(15), true));
+        docs.sent(2, b.clone(), std::sync::Arc::from("b"));
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(None);
+        let top = RefCell::new(TopLevelAdmission::default());
+        top.borrow_mut().designate(Designation::Next);
+        // A의 ID 있는 Reload가 머리글을 읽지 못해 취소된다. B의 로드·세대·지목은 그대로다.
+        let unreadable = HostLoadHeader::Unreadable;
+        let reload = docs.navigation_started(&a, Some(16), StartKind::Reload, false, unreadable);
+        assert_eq!(reload, StartDecision::Cancel);
+        let host_sent = sent_for_current_load(unreadable, 2, docs.awaiting_start(2, &a));
+        assert!(end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(16),
+            false,
+            host_sent
+        ));
+        assert_eq!(nav.get(), NavState::Loading);
+        assert_eq!(generation.get(), None);
+        assert!(next_start_admitted(&top), "B의 지목은 남는다");
+        // 같은 장면에서 B 주소의 시작이 머리글을 읽지 못해 취소되면 B는 Failed다.
+        let top = RefCell::new(TopLevelAdmission::default());
+        let retry = docs.navigation_started(&b, Some(17), StartKind::Other, false, unreadable);
+        assert_eq!(retry, StartDecision::Cancel);
+        let host_sent = sent_for_current_load(unreadable, 2, docs.awaiting_start(2, &b));
+        assert!(!end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(17),
+            false,
+            host_sent
+        ));
+        assert_eq!(nav.get(), NavState::Failed);
+        assert_eq!(generation.get(), Some(17));
+    }
+
+    #[test]
     fn a_cancelled_history_start_with_an_earlier_load_number_keeps_the_new_load() {
         use super::super::host_document::{HostLoadHeader, sent_for_current_load};
         // 로드 3이 요청돼 세대가 빈 구간에, 로드 2의 머리글을 다시 보낸 이력 이동이 취소된다.

@@ -75,8 +75,9 @@ pub(super) fn refuse_load_url(
 /// `HOST_LOAD_HEADER` 값, `latest`는 지금 호스트 로드 번호다. WebView2는 다시 읽기·이력 이동·리다이렉트에서
 /// 앞 요청의 머리글을 다시 보내므로, 머리글이 있는 것만으로는 지금 로드가 보낸 탐색이 아니다. 번호가 지금
 /// 로드와 같을 때만이다. 머리글 조회가 실패했으면(`Unreadable`) 그 로드의 다시 싣기를 보냈고 아직 시작하지
-/// 않았을 때(`awaiting_retry`, `HostDocuments::awaiting_start`)만 그 시작으로 본다. 그 시작을 받지 않으므로
-/// 로드가 기다리는 탐색을 잃은 것이다. 머리글이 없는 시작(페이지 탐색)은 지금 로드가 보낸 것이 아니다.
+/// 않았으며 취소한 시작이 그 다시 싣기의 주소일 때(`awaiting_retry`, `HostDocuments::awaiting_start`)만 그
+/// 시작으로 본다. 그 시작을 받지 않으므로 로드가 기다리는 탐색을 잃은 것이다. 보이는 문서 주소의 Reload처럼
+/// 다른 주소의 시작은 기다리는 로드를 끝내지 않는다. 머리글이 없는 시작(페이지 탐색)은 지금 로드가 보낸 것이 아니다.
 pub(super) fn sent_for_current_load(
     header: HostLoadHeader,
     latest: u64,
@@ -239,11 +240,12 @@ impl HostDocuments {
         });
     }
 
-    /// 로드 `load`의 다시 싣기를 보냈고 그 시작이 아직 어느 탐색에도 묶이지 않았는지.
-    pub(super) fn awaiting_start(&self, load: u64) -> bool {
+    /// 로드 `load`의 다시 싣기를 보냈고 그 시작이 아직 어느 탐색에도 묶이지 않았으며, `uri`가 그 다시 싣기의
+    /// 주소인지.
+    pub(super) fn awaiting_start(&self, load: u64, uri: &str) -> bool {
         self.entries
             .iter()
-            .any(|e| e.load == load && !e.shown && e.nav.is_none())
+            .any(|e| e.load == load && !e.shown && e.nav.is_none() && same_target(&e.url, uri))
     }
 
     /// 다시 싣기 `Navigate`가 바로 거절됐다. 시작 신호가 오지 않으므로 여기서 지운다.

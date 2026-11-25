@@ -569,32 +569,37 @@ fn an_unreadable_header_counts_only_while_the_retry_awaits_its_start() {
     let mut docs = HostDocuments::default();
     let b = host_document_url(1, 1, 2);
     docs.sent(2, b.clone(), body("b"));
-    assert!(docs.awaiting_start(2));
-    assert!(!docs.awaiting_start(3));
+    assert!(docs.awaiting_start(2, &b));
+    assert!(!docs.awaiting_start(3, &b));
+    assert!(!docs.awaiting_start(2, &host_document_url(1, 1, 1)));
     let unreadable = HostLoadHeader::Unreadable;
     assert_eq!(
         docs.navigation_started(&b, Some(15), StartKind::Other, false, unreadable),
         StartDecision::Cancel
     );
     assert!(serve(&mut docs, &b).is_none());
-    assert!(sent_for_current_load(unreadable, 2, docs.awaiting_start(2)));
+    assert!(sent_for_current_load(
+        unreadable,
+        2,
+        docs.awaiting_start(2, &b)
+    ));
     assert!(!sent_for_current_load(
         HostLoadHeader::Absent,
         2,
-        docs.awaiting_start(2)
+        docs.awaiting_start(2, &b)
     ));
     assert!(!sent_for_current_load(
         unreadable,
         3,
-        docs.awaiting_start(3)
+        docs.awaiting_start(3, &b)
     ));
     // 다시 싣기가 묶인 뒤에는 읽지 못한 시작을 그 로드의 것으로 보지 않는다.
     assert_eq!(start(&mut docs, &b, 16), StartDecision::HostLoad);
-    assert!(!docs.awaiting_start(2));
+    assert!(!docs.awaiting_start(2, &b));
     assert!(!sent_for_current_load(
         unreadable,
         2,
-        docs.awaiting_start(2)
+        docs.awaiting_start(2, &b)
     ));
 }
 
