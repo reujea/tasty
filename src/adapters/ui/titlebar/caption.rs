@@ -50,7 +50,8 @@ pub fn draw_caption_buttons(
         let resp = ui.interact(
             cell,
             egui::Id::new(("tasty_caption_btn", idx)),
-            egui::Sense::click(),
+            // 메인 창 캡션 버튼은 키보드 정지점이 아니다(키 입력은 터미널로 간다). 포인터 클릭만 받는다.
+            egui::Sense::CLICK,
         );
         let btn_hovered = resp.hovered();
         hovered |= btn_hovered;

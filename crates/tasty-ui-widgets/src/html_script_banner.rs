@@ -311,7 +311,8 @@ pub enum HtmlScriptMarkerKind {
 }
 
 /// 마커를 `html_script_marker_hit` 정사각 칸 가운데에 그린다. hover 때 `tooltip`을 보인다.
-/// Blocked 마커만 클릭을 받고 hover 채움을 가진다. Allowed 마커는 툴팁만 있다.
+/// Blocked 마커만 클릭을 받고 hover 채움을 가진다. Allowed 마커는 툴팁만 있다. 마커는 pane 탭 줄에 놓이고 그 줄은
+/// 키보드 정지점이 아니므로 포인터 클릭만 받는다.
 /// 툴팁은 탭 스트립 규칙([`Tooltip::placement_clear_of_native`])으로 `native` 영역을 피해 배치한다.
 /// `cell`은 마커가 든 탭 칸이며 위·아래가 모두 막혔을 때 스트립 안 후보의 기준이 된다.
 pub fn html_script_marker(
@@ -328,7 +329,7 @@ pub fn html_script_marker(
         HtmlScriptMarkerKind::Blocked => (
             tasty_icons::LOCK,
             theme.html_script_marker_fg(),
-            egui::Sense::click(),
+            egui::Sense::CLICK,
         ),
         HtmlScriptMarkerKind::Allowed => (
             tasty_icons::SCRIPT,

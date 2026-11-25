@@ -5,6 +5,12 @@ mod apply;
 mod tab;
 mod view;
 
+/// pane 탭 줄의 클릭 감지. 탭 줄은 키보드 정지점이 아니므로(정본 vendor/README.md "States via overlays",
+/// Components › Tab) 포인터 클릭만 받고 egui 포커스 순회에 들지 않는다. 키 입력은 그대로 pane 내용으로 간다.
+const POINTER_CLICK: egui::Sense = egui::Sense::CLICK;
+/// [`POINTER_CLICK`]에 드래그를 더한 감지(탭 끌기).
+const POINTER_CLICK_AND_DRAG: egui::Sense = egui::Sense::CLICK.union(egui::Sense::DRAG);
+
 pub use apply::apply_tab_bar_actions;
 pub use view::{compute_drop_index, draw_pane_tab_bars_view};
 
@@ -1154,6 +1160,40 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    /// pane 탭 줄은 키보드 정지점이 아니다(정본 vendor/README.md "States via overlays"). 스크롤 화살표·빈 칸·탭·닫기·
+    /// lock 표지·+·오른쪽 아이콘이 모두 그려진 줄에 Tab을 여러 번 넣어도 egui 포커스가 생기지 않는다.
+    #[test]
+    fn tab_never_stops_on_the_pane_tab_strip() {
+        let mut pane = scrolling_pane(40.0);
+        pane.tab_html_script_marker[1] = Some(TabScriptMarker {
+            surface_id: 7,
+            kind: tasty_ui_widgets::HtmlScriptMarkerKind::Blocked,
+            web: false,
+        });
+        let ctx = egui::Context::default();
+        let mut actions = Vec::new();
+        for k in 0..40 {
+            let mut raw = egui::RawInput {
+                focused: true,
+                ..Default::default()
+            };
+            if k >= 5 {
+                raw.events.push(egui::Event::Key {
+                    key: egui::Key::Tab,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers {
+                        shift: k % 2 == 0,
+                        ..Default::default()
+                    },
+                });
+            }
+            run_frame(&ctx, &pane, raw, &mut actions);
+            assert_eq!(ctx.memory(|m| m.focused()), None, "pass {k}");
+        }
     }
 
     fn scrolling_pane(scroll: f32) -> PaneTabBarView {

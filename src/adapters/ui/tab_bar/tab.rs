@@ -183,9 +183,9 @@ pub(super) fn draw_tab(
             tab_clip,
             tab_id,
             if pending {
-                egui::Sense::click()
+                super::POINTER_CLICK
             } else {
-                egui::Sense::click_and_drag()
+                super::POINTER_CLICK_AND_DRAG
             },
         );
         // close 버튼 (active or hover) — 우측 끝. 클릭은
@@ -207,7 +207,7 @@ pub(super) fn draw_tab(
             let cr = ui.interact(
                 close_rect,
                 egui::Id::new(("tabclose", info.pane_id, i)),
-                egui::Sense::click(),
+                super::POINTER_CLICK,
             );
             if cr.hovered() {
                 painter.rect_filled(

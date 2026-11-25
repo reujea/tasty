@@ -99,6 +99,7 @@ pub fn draw_pane_tab_bars_view(
         })
         .fixed_pos(egui::pos2(logical_x, logical_y))
         .order(egui::Order::Foreground)
+        .sense(super::POINTER_CLICK)
         .show(ctx, |ui| {
             let bg = if info.is_focused {
                 th.surface_raised()
@@ -123,7 +124,7 @@ pub fn draw_pane_tab_bars_view(
                             let can_left = scroll > 0.0 || cue;
                             let (r, resp) = ui.allocate_exact_size(
                                 egui::vec2(arrow_w, bar_h),
-                                egui::Sense::click(),
+                                super::POINTER_CLICK,
                             );
                             tasty_ui_widgets::paint_tab_scroll_arrow(
                                 ui,
@@ -147,7 +148,7 @@ pub fn draw_pane_tab_bars_view(
                         );
                         let (_, viewport_resp) = ui.allocate_exact_size(
                             egui::vec2(viewport_w, bar_h),
-                            egui::Sense::click(),
+                            super::POINTER_CLICK,
                         );
                         if viewport_resp.secondary_clicked() && info.draft_pane.is_none() {
                             output.actions.push(TabBarAction::OpenPaneContextMenu {
@@ -222,7 +223,7 @@ pub fn draw_pane_tab_bars_view(
                                 let resp = ui.interact(
                                     plus_clip,
                                     egui::Id::new(format!("tab_plus_{}", info.pane_id)),
-                                    egui::Sense::click(),
+                                    super::POINTER_CLICK,
                                 );
                                 if resp.hovered() {
                                     painter.rect_filled(
@@ -268,7 +269,7 @@ pub fn draw_pane_tab_bars_view(
                             let can_right = scroll < max_scroll || cue;
                             let (r, resp) = ui.allocate_exact_size(
                                 egui::vec2(arrow_w, bar_h),
-                                egui::Sense::click(),
+                                super::POINTER_CLICK,
                             );
                             tasty_ui_widgets::paint_tab_scroll_arrow(
                                 ui,
@@ -292,7 +293,7 @@ pub fn draw_pane_tab_bars_view(
                             }
                             let (r, resp) = ui.allocate_exact_size(
                                 egui::vec2(icon_btn_w, bar_h),
-                                egui::Sense::click(),
+                                super::POINTER_CLICK,
                             );
                             let color = if resp.hovered() {
                                 th.text_primary()

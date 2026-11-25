@@ -54,9 +54,7 @@ pub struct TitlebarProps<'a> {
     pub maximized: bool,
     /// 창 버튼이 키보드 포커스 표시를 갖는 창이다(Linux 설정창). 참이면 포커스를 받은 버튼에 포커스 링을 그리고,
     /// 이름 툴팁을 디자인 시스템 Tooltip으로 버튼 아래 오른쪽 끝 맞춤에 hover와 포커스 때 띄운다.
-    /// 메인 창은 키 입력이 터미널로 가서 버튼이 포커스를 받지 않으므로 거짓이다.
-    // 이유: 참으로 넘기는 곳이 Linux 설정창뿐이고, 이 값을 읽는 Linux DE 버튼도 Linux 빌드에만 그려진다.
-    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    /// 메인 창은 키 입력이 터미널로 가서 거짓이고, 그때 창 버튼과 드래그 영역은 포인터만 받아 Tab 순회에 들지 않는다.
     pub keyboard_focus: bool,
     /// 빈 영역 드래그가 시작된 패스에 왼쪽 버튼만 눌려 있을 때만 창 이동으로 보고한다(Linux 설정창, 디자인 정본은
     /// 왼쪽 드래그만 이동이다). 거짓이면 어느 버튼의 드래그든 이동이다(메인 창).
@@ -168,7 +166,11 @@ pub fn draw_titlebar_view(ctx: &egui::Context, props: &TitlebarProps) -> Titleba
                 let resp = ui.interact(
                     drag_rect,
                     egui::Id::new(DRAG_AREA_ID),
-                    egui::Sense::click_and_drag(),
+                    if props.keyboard_focus {
+                        egui::Sense::click_and_drag()
+                    } else {
+                        egui::Sense::CLICK.union(egui::Sense::DRAG)
+                    },
                 );
                 let drag_started = if props.primary_drag_only {
                     resp.drag_started() && only_primary_down(ui)
@@ -252,10 +254,10 @@ fn draw_window_buttons(
             WindowButton::Maximize => crate::i18n::t("titlebar.maximize"),
             WindowButton::Close => crate::i18n::t("titlebar.close"),
         };
-        let sense = if props.popup_owns_keys {
-            egui::Sense::CLICK
-        } else {
+        let sense = if props.keyboard_focus && !props.popup_owns_keys {
             egui::Sense::click()
+        } else {
+            egui::Sense::CLICK
         };
         let resp = ui.interact(btn_rect, id, sense);
         let resp = if props.keyboard_focus {
@@ -380,6 +382,65 @@ fn draw_button_glyph(
                 ],
                 stroke,
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 메인 창 타이틀바(keyboard_focus 거짓)는 키보드 정지점이 아니다. 드래그 영역과 창 버튼이 모두 그려진 줄에 Tab을
+    /// 여러 번 넣어도 egui 포커스가 생기지 않는다. 키 입력은 터미널로 간다.
+    #[test]
+    fn tab_never_stops_on_the_main_window_titlebar() {
+        let theme = tasty_themes::mocha_fallback();
+        let props = TitlebarProps {
+            theme: &theme,
+            active: true,
+            height: theme.titlebar_height.value(),
+            left_inset: 0.0,
+            controls: Some(TitlebarControls {
+                buttons: vec![
+                    WindowButton::Minimize,
+                    WindowButton::Maximize,
+                    WindowButton::Close,
+                ],
+                side: ControlSide::Right,
+            }),
+            maximized: false,
+            keyboard_focus: false,
+            primary_drag_only: false,
+            popup_owns_keys: false,
+        };
+        let ctx = egui::Context::default();
+        for k in 0..12 {
+            let events = if k == 0 {
+                Vec::new()
+            } else {
+                vec![egui::Event::Key {
+                    key: egui::Key::Tab,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::default(),
+                }]
+            };
+            drop(ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(800.0, 400.0),
+                    )),
+                    focused: true,
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    drop(draw_titlebar_view(ctx, &props));
+                },
+            ));
+            assert_eq!(ctx.memory(|m| m.focused()), None, "pass {k}");
         }
     }
 }
