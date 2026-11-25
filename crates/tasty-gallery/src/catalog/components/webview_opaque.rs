@@ -566,7 +566,6 @@ mod tests {
         ]
     }
 
-    /// `color` 로 그은 선분 수.
     /// 선분 끝점 쌍. `color` 가 있으면 그 색 선분만.
     fn segment_points(p: &Painted, color: Option<egui::Color32>) -> Vec<[egui::Pos2; 2]> {
         p.shapes
@@ -582,6 +581,7 @@ mod tests {
             .collect()
     }
 
+    /// `color` 로 그은 선분 수.
     fn segments(p: &Painted, color: egui::Color32) -> usize {
         p.shapes
             .iter()
