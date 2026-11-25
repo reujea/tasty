@@ -187,3 +187,64 @@ impl Painted {
             .any(|t| t.text == text && area.contains_rect(t.rect))
     }
 }
+
+/// 도우미의 색 비교를 고정한다. 표본 시험은 제품 잉크가 바뀌면 실패하지만, 도우미가 색을 보지 않게
+/// 느슨해지면 그대로 통과할 수 있어 도우미만 따로 잰다.
+mod helper_tests {
+    use super::{Painted, paint};
+
+    const PANEL: egui::Color32 = egui::Color32::from_rgb(10, 20, 30);
+    const BED: egui::Color32 = egui::Color32::from_rgb(40, 50, 60);
+    const SWATCH: egui::Color32 = egui::Color32::from_rgb(200, 100, 50);
+    const HIGHLIGHT: egui::Color32 = egui::Color32::from_rgb(90, 90, 160);
+    const USE: &str = "— chip use";
+
+    fn at(x: f32, y: f32, w: f32, h: f32) -> egui::Rect {
+        egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h))
+    }
+
+    /// 패널 안 칩 하나: 칩 바탕 → 투명 사각형 → 스와치 → 글자 뒤 강조 → 용도 글자 순서로 칠한다.
+    /// 강조 사각형은 칩보다 작게 글자를 품고, 투명 사각형은 스와치보다 먼저 칩 안에 있다.
+    fn chip_sample() -> (Painted, egui::Rect) {
+        let chip = at(40.0, 40.0, 400.0, 60.0);
+        let p = paint(|ui| {
+            let painter = ui.painter();
+            painter.rect_filled(at(20.0, 20.0, 600.0, 200.0), 0.0, PANEL);
+            painter.rect_filled(chip, 0.0, BED);
+            painter.rect_filled(at(48.0, 60.0, 12.0, 12.0), 0.0, egui::Color32::TRANSPARENT);
+            painter.rect_filled(at(64.0, 60.0, 12.0, 12.0), 0.0, SWATCH);
+            painter.rect_filled(at(90.0, 45.0, 340.0, 50.0), 0.0, HIGHLIGHT);
+            painter.text(
+                egui::pos2(100.0, 55.0),
+                egui::Align2::LEFT_TOP,
+                USE,
+                egui::FontId::proportional(14.0),
+                egui::Color32::WHITE,
+            );
+        });
+        (p, chip)
+    }
+
+    /// 같은 글자를 품은 사각형이 여럿이어도 고른 색으로 채운 것만 돌려준다.
+    #[test]
+    fn rect_filled_around_matches_the_fill_colour() {
+        let (p, chip) = chip_sample();
+        let text = p.text(USE).rect;
+        assert_eq!(p.rect_filled_around(BED, text), chip);
+        assert_eq!(
+            p.rect_filled_around(PANEL, text),
+            at(20.0, 20.0, 600.0, 200.0)
+        );
+        assert_eq!(
+            p.rect_filled_around(HIGHLIGHT, text),
+            at(90.0, 45.0, 340.0, 50.0)
+        );
+    }
+
+    /// 칩은 바탕 색으로 찾고, 스와치는 칩 안의 투명하지 않은 첫 사각형이다.
+    #[test]
+    fn token_chip_finds_the_bed_and_the_opaque_swatch() {
+        let (p, chip) = chip_sample();
+        assert_eq!(p.token_chip(BED, USE), (chip, SWATCH));
+    }
+}
