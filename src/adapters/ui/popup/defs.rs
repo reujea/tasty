@@ -49,6 +49,10 @@ pub fn all_defs() -> &'static [PopupDef] {
             unzoomed.ports_window_width().value(),
             unzoomed.ports_window_height().value(),
         ));
+        let remote_size = popup_size(egui::vec2(
+            unzoomed.remote_window_width().value(),
+            unzoomed.remote_window_height().value(),
+        ));
         let remote_picker_size = popup_size(egui::vec2(
             unzoomed.remote_picker_width().value(),
             unzoomed.remote_picker_height().value(),
@@ -463,7 +467,7 @@ pub fn all_defs() -> &'static [PopupDef] {
                     content_margin: PopupContentMargin::None,
                     // 프로필 양식의 입력칸이 글자를 편집한다.
                     keyboard: PopupKeyboard::Text,
-                    ..host_decl(popup_size(egui::vec2(520.0, 460.0)))
+                    ..host_decl(remote_size)
                 },
                 title_key: "remote_tool.heading",
                 fullscreen_stage: None,

@@ -7,7 +7,7 @@ use tasty_ui_widgets::{
     remote_row_title, selectable_text,
 };
 
-use super::{WIDTH, add_bar_region, attach_header, list_region, tab_bar};
+use super::{add_bar_region, attach_header, list_region, tab_bar};
 use crate::catalog::icons;
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::catalog::widgets::dialog as kit;
@@ -115,7 +115,8 @@ pub fn draw_passkeys(ui: &mut egui::Ui, theme: &Theme) {
 
 /// 시안 `RemoteFrame tab="passkeys"` — 머리 · 탭 · add-bar · 목록.
 pub(in crate::catalog::components) fn passkeys_frame(ui: &mut egui::Ui, theme: &Theme) {
-    kit::frame_card(ui, theme, WIDTH, kit::panel_fill(theme), |ui| {
+    let width = theme.remote_window_width();
+    kit::frame_card(ui, theme, width, kit::panel_fill(theme), |ui| {
         attach_header(ui, theme);
         tab_bar(ui, theme, 2);
 

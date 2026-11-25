@@ -27,7 +27,6 @@ pub use forms::{draw_generic_passkey_forms, draw_profile_form};
 pub use passkeys::draw_passkeys;
 pub use segment_rule::draw_segment_rule;
 
-const WIDTH: LogicalPx = LogicalPx(520.0);
 /// SSH config 빈 상태 카드 폭. 디자인 "From ssh config" Spec 의 Stage 액자 값이다.
 const SSH_STATE_WIDTH: LogicalPx = LogicalPx(300.0);
 
@@ -137,8 +136,9 @@ const LOCAL_HOSTS: &[LocalSshHost<'static>] = &[
 ];
 
 pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
+    let width = theme.remote_window_width();
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
-        kit::frame_card(ui, theme, WIDTH, kit::panel_fill(theme), |ui| {
+        kit::frame_card(ui, theme, width, kit::panel_fill(theme), |ui| {
             header_region(ui, theme, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
@@ -383,7 +383,8 @@ const ATTACHES: &[Attach] = &[
 
 /// Attach 탭이 열린 원격 연결 창.
 pub(super) fn attach_frame(ui: &mut egui::Ui, theme: &Theme) {
-    kit::frame_card(ui, theme, WIDTH, kit::panel_fill(theme), |ui| {
+    let width = theme.remote_window_width();
+    kit::frame_card(ui, theme, width, kit::panel_fill(theme), |ui| {
         attach_header(ui, theme);
         tab_bar(ui, theme, 1);
 

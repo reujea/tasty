@@ -104,8 +104,8 @@ const AREAS: &[(&str, Option<usize>, &str)] = &[
         // popup의 기본 크기·열 최소폭·스크롤 상한 중 대응하는 역할의 토큰이 없는 값이 남아 있다.
         // 같은 숫자의 폭·점 크기 토큰을 높이·간격에 대신 쓰지 않는다.
         // approval-width(480)는 승인 팝업 폭의 역할 토큰이라 popup의 다른 480 자리(높이 상한·최소 폭)에 대신 쓰지 않는다.
-        // file picker의 640 × 480과 원격 도구의 기본 폭 520은 size-640·size-520과 숫자만 같다. 그 두 primitive는
-        // PresetView 창 높이와 포트 창 높이의 별칭 대상이라 file picker·원격 도구의 역할 토큰이 아니다.
+        // file picker의 640 × 480은 size-640과 숫자만 같다. 그 primitive는 PresetView 창 높이의 별칭 대상이라
+        // file picker의 역할 토큰이 아니다.
         "popup 기본 크기표 — vec2(400.0, 320.0) 처럼 정의 옆에 값이 그대로 박혀 있다",
     ),
     (
