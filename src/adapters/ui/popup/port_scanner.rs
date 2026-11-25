@@ -21,14 +21,17 @@ use crate::theme::Theme;
 use tasty_portscan::PortState;
 use tasty_ui_widgets::tokens::{STRUCT_GAP_1, STRUCT_GAP_2, STRUCT_GAP_4, TAG_PILL_CORNER_RADIUS};
 use tasty_ui_widgets::{
-    Button, ButtonVariant, IconButton, IconButtonVariant, Input, PORTS_PANEL_PAD_X, PortsColumn,
-    StatusKind, TableAlign, TableColumn, TableColumnWidth, TableSortDir, checkbox, hspace,
+    Button, ButtonVariant, IconButton, IconButtonVariant, Input, PortsColumn, StatusKind,
+    TableAlign, TableColumn, TableColumnWidth, TableSortDir, checkbox, hspace,
     in_selected_table_row, margin_sym, ports_favorite_detail_and_state, ports_process_cell,
     ports_star_column_width, ports_table, status_dot, table_cell_ink, vspace,
 };
 
-/// popup 좌우 안쪽 여백. 갤러리 예제와 같은 값을 쓰도록 공용 위젯 크레이트에 둔다.
-const PANEL_PAD_X: i8 = PORTS_PANEL_PAD_X;
+/// popup 좌우 안쪽 여백(정본 `--tasty-ports-pad-x`). 헤더·필터·즐겨찾기 캡션·푸터가 같은 세로선에 선다.
+/// `egui::Margin` 필드가 `i8`이라 타입을 맞춘다.
+fn panel_pad_x(th: &Theme) -> i8 {
+    th.ports_pad_x().value() as i8
+}
 
 pub const PORT_SCANNER_POPUP_ID: &str = "port_scanner";
 
@@ -938,8 +941,8 @@ pub fn draw_port_scanner_view(
 
     let h_ir = egui::Frame::NONE
         .inner_margin(egui::Margin {
-            left: PANEL_PAD_X,
-            right: PANEL_PAD_X,
+            left: panel_pad_x(props.theme),
+            right: panel_pad_x(props.theme),
             top: props.theme.spacing_md.value() as i8,
             bottom: props.theme.spacing_md.value() as i8,
         })
@@ -961,8 +964,8 @@ pub fn draw_port_scanner_view(
 
     let f_ir = egui::Frame::NONE
         .inner_margin(egui::Margin {
-            left: PANEL_PAD_X,
-            right: PANEL_PAD_X,
+            left: panel_pad_x(props.theme),
+            right: panel_pad_x(props.theme),
             top: props.theme.spacing_sm.value() as i8,
             bottom: props.theme.spacing_sm.value() as i8,
         })
@@ -987,8 +990,8 @@ pub fn draw_port_scanner_view(
         .resizable(false)
         .show_separator_line(false)
         .frame(egui::Frame::NONE.inner_margin(egui::Margin {
-            left: PANEL_PAD_X,
-            right: PANEL_PAD_X,
+            left: panel_pad_x(props.theme),
+            right: panel_pad_x(props.theme),
             top: props.theme.spacing_sm.value() as i8,
             bottom: props.theme.spacing_sm.value() as i8,
         }))
@@ -1543,7 +1546,7 @@ fn draw_favorites_section(
         // 캡션과 빈 안내 줄만 popup 좌우 여백을 둔다.
         .inner_margin(egui::Margin {
             left: 0,
-            right: PANEL_PAD_X,
+            right: panel_pad_x(th),
             top: 0,
             bottom: 0,
         })
@@ -1554,7 +1557,7 @@ fn draw_favorites_section(
                 egui::vec2(ui.available_width(), row_h),
                 egui::Layout::left_to_right(egui::Align::Center),
                 |ui| {
-                    ui.add_space(f32::from(PANEL_PAD_X));
+                    ui.add_space(th.ports_pad_x().value());
                     let heading = if props.favorites.is_empty() {
                         props.label_favorites_heading.to_string()
                     } else {
@@ -1583,7 +1586,7 @@ fn draw_favorites_section(
                     egui::vec2(ui.available_width(), row_h),
                     egui::Layout::left_to_right(egui::Align::Center),
                     |ui| {
-                        ui.add_space(f32::from(PANEL_PAD_X));
+                        ui.add_space(th.ports_pad_x().value());
                         ui.spacing_mut().item_spacing.x = th.spacing_xs.value();
                         let sz = th.icon_glyph_size_sm.value();
                         let (r, _) =

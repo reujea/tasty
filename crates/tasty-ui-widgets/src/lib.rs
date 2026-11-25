@@ -331,8 +331,8 @@ pub use popup_title::{
     show_popup_title_tooltip,
 };
 pub use ports_table::{
-    PORTS_PANEL_PAD_X, PortsColumn, ports_favorite_detail_and_state,
-    ports_favorite_state_min_width, ports_process_cell, ports_star_column_width, ports_table,
+    PortsColumn, ports_favorite_detail_and_state, ports_favorite_state_min_width,
+    ports_process_cell, ports_star_column_width, ports_table,
 };
 pub use rail_marks::{
     paint_rail_category_line, paint_rail_flat_divider, paint_workspace_mirror_chip,

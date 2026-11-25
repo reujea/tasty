@@ -3,10 +3,9 @@
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
-    Button, ButtonVariant, IconButton, IconButtonVariant, PORTS_PANEL_PAD_X, PortsColumn,
-    StatusKind, TableAlign, TableColumn, TableColumnWidth, TagVariant, fixed_total_width,
-    ports_favorite_detail_and_state, ports_process_cell, ports_star_column_width, ports_table,
-    status_dot, tag,
+    Button, ButtonVariant, IconButton, IconButtonVariant, PortsColumn, StatusKind, TableAlign,
+    TableColumn, TableColumnWidth, TagVariant, fixed_total_width, ports_favorite_detail_and_state,
+    ports_process_cell, ports_star_column_width, ports_table, status_dot, tag,
 };
 
 use crate::catalog::icons;
@@ -115,7 +114,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             |ui| {
                 let bottom = LogicalPx(ui.cursor().top())
                     + kit::border_box_inner(theme, theme.ports_window_height());
-                kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
+                kit::region_sym(ui, theme.ports_pad_x(), theme.spacing_sm, |ui| {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
                         kit::icon(
@@ -161,7 +160,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 });
                 kit::hsep(ui, theme);
 
-                kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
+                kit::region_sym(ui, theme.ports_pad_x(), theme.spacing_sm, |ui| {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
                         let s = theme.icon_glyph_size_md.value();
@@ -200,7 +199,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                         .frame(egui::Frame::NONE)
                         .show_inside(ui, |ui| {
                             kit::hsep(ui, theme);
-                            kit::region_sym(ui, theme.spacing_md, theme.spacing_sm, |ui| {
+                            kit::region_sym(ui, theme.ports_pad_x(), theme.spacing_sm, |ui| {
                                 ui.horizontal(|ui| {
                                     ui.label(
                                         egui::RichText::new("5 of 5 ports")
@@ -533,11 +532,11 @@ fn draw_favorites_section(ui: &mut egui::Ui, theme: &Theme, favorites: &[Favorit
         .fill(theme.bg_sidebar().to_egui())
         .show(ui, |ui| {
             // 행은 왼쪽 여백 없이 별 칸부터 시작하고, 캡션과 빈 안내 줄만 왼쪽 여백을 둔다.
-            // 본체 popup과 같은 좌우 여백(디자인 `--tasty-size-14`).
-            let inset = f32::from(PORTS_PANEL_PAD_X);
+            // 본체 popup과 같은 좌우 여백(정본 `--tasty-ports-pad-x`).
+            let inset = theme.ports_pad_x().value();
             let margin = egui::Margin {
                 left: 0,
-                right: PORTS_PANEL_PAD_X,
+                right: theme.ports_pad_x().value() as i8,
                 top: 0,
                 bottom: 0,
             };

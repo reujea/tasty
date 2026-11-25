@@ -70,11 +70,6 @@ impl PortsColumn {
     }
 }
 
-/// 포트 popup 좌우 안쪽 여백. 디자인 `port_scanner.jsx`의 `--tasty-size-14`로 4px 그리드 밖이다
-/// (가장 가까운 `spacing_md` 12와 2px 차). 헤더·필터·즐겨찾기 캡션·푸터가 같은 세로선에 서야 해서
-/// 본체 popup과 갤러리 예제가 한 값을 쓴다. `egui::Margin` 필드가 `i8`이라 타입을 맞춘다.
-pub const PORTS_PANEL_PAD_X: i8 = 14;
-
 /// 즐겨찾기 행 오른쪽 상태 칸의 최소 폭. 디자인 `port_scanner.jsx`의 `--tasty-size-112`이며
 /// 역할 토큰이 없다. 토큰처럼 UI 배율을 곱한다.
 pub fn ports_favorite_state_min_width(theme: &Theme) -> LogicalPx {
