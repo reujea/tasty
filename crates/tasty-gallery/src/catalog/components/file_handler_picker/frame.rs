@@ -729,6 +729,12 @@ fn fh_group_rule(ui: &mut egui::Ui, theme: &Theme) {
     );
 }
 
+/// 프레임 카드의 본문 폭. 디자인 `FileHandlerFrame` 의 420px 은 테두리를 포함하므로(헤더 줄 상자 390 =
+/// 420 − 1×2 − 14×2) 테두리를 바깥에 더하는 카드 본문은 420 − 테두리×2 다.
+pub(super) fn frame_body_width(theme: &Theme) -> tasty_type_geometry::length::LogicalPx {
+    FH_FRAME_WIDTH - theme.border_width.scaled(2.0)
+}
+
 /// 상태 하나를 프레임 하나로 — 디자인 `FileHandlerFrame`.
 pub(super) fn frame(ui: &mut egui::Ui, theme: &Theme, state: FrameState, headless: bool) {
     frame_with_path(ui, theme, state, headless, state.path());
@@ -742,35 +748,47 @@ pub(super) fn frame_with_path(
     headless: bool,
     path: &str,
 ) {
-    kit::frame_card(ui, theme, FH_FRAME_WIDTH, kit::panel_fill(theme), |ui| {
-        if !headless {
-            fh_titlebar(ui, theme);
-        }
-        fh_header(ui, theme, state, path, None);
-        if state == FrameState::Fallback {
-            fh_fallback_strip(ui, theme);
-        }
-        if state == FrameState::Empty {
-            fh_empty(ui, theme);
-        } else {
-            fh_list(ui, theme, state, false);
-        }
-        fh_footer(ui, theme, state != FrameState::Empty);
-    });
+    kit::frame_card(
+        ui,
+        theme,
+        frame_body_width(theme),
+        kit::panel_fill(theme),
+        |ui| {
+            if !headless {
+                fh_titlebar(ui, theme);
+            }
+            fh_header(ui, theme, state, path, None);
+            if state == FrameState::Fallback {
+                fh_fallback_strip(ui, theme);
+            }
+            if state == FrameState::Empty {
+                fh_empty(ui, theme);
+            } else {
+                fh_list(ui, theme, state, false);
+            }
+            fh_footer(ui, theme, state != FrameState::Empty);
+        },
+    );
 }
 
 /// 경로 생략 결과를 비교할 수 있도록 헤더만 그린다.
 pub(super) fn header_card(ui: &mut egui::Ui, theme: &Theme, path: &str) {
-    kit::frame_card(ui, theme, FH_FRAME_WIDTH, kit::panel_fill(theme), |ui| {
-        fh_header(ui, theme, FrameState::Default, path, None);
-    });
+    kit::frame_card(
+        ui,
+        theme,
+        frame_body_width(theme),
+        kit::panel_fill(theme),
+        |ui| {
+            fh_header(ui, theme, FrameState::Default, path, None);
+        },
+    );
 }
 
 /// 원격 경로 Spec 의 프레임 하나 — 디자인 `FileHandlerFrame` 에 `remote` 를 준 형태. `head` 가 없으면 로컬
 /// 경로의 전체 프레임이다. 원격이면 머리 경로 줄 앞에 원격 표지가 붙고 목록은 원격에 열 수 있는 핸들러
 /// (디자인 `FH_REMOTE`: built-in 행만, `default` Tag 없음)다. `state` 가 `Fallback` 이면 링크 메뉴의 열기
 /// 동작처럼 1 회성 띠와 `All handlers` 그룹을 그린다. 원격 picker 는 후보가 있을 때만 열려 빈 상태가 없다.
-/// 디자인의 420px 은 테두리를 포함하므로(헤더 줄 상자 390 = 420 − 1×2 − 14×2) 본문 폭은 420 − 테두리×2 다.
+/// 본문 폭은 다른 프레임과 같은 [`frame_body_width`] 다.
 /// 경로는 표지가 남긴 상자에 대해 본체와 같은 공용 함수로 앞을 줄인다.
 pub(super) fn remote_spec_frame(
     ui: &mut egui::Ui,
@@ -800,15 +818,20 @@ pub(super) fn remote_spec_frame(
         None => fh_model::target_budget_chars(advance),
     };
     let path = fh_model::elide_target_front(raw_path, budget);
-    let width = FH_FRAME_WIDTH - theme.border_width.scaled(2.0);
-    kit::frame_card(ui, theme, width, kit::panel_fill(theme), |ui| {
-        fh_header(ui, theme, state, &path, head);
-        if state == FrameState::Fallback {
-            fh_fallback_strip(ui, theme);
-        }
-        fh_list(ui, theme, state, head.is_some());
-        fh_footer(ui, theme, true);
-    });
+    kit::frame_card(
+        ui,
+        theme,
+        frame_body_width(theme),
+        kit::panel_fill(theme),
+        |ui| {
+            fh_header(ui, theme, state, &path, head);
+            if state == FrameState::Fallback {
+                fh_fallback_strip(ui, theme);
+            }
+            fh_list(ui, theme, state, head.is_some());
+            fh_footer(ui, theme, true);
+        },
+    );
 }
 
 /// 원격 대상의 목록 — 디자인 `FH_REMOTE`. 원격에 열 수 있는 행(표본은 built-in 행)만 두고 어느 행에도

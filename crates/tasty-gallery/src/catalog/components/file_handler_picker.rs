@@ -8,7 +8,9 @@ use tasty_type_appearance::theme::Theme;
 
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 use crate::catalog::widgets::dialog as kit;
-use frame::{FrameState, RemoteHead, fh_footer, frame, header_card, remote_spec_frame};
+use frame::{
+    FrameState, RemoteHead, fh_footer, frame, frame_body_width, header_card, remote_spec_frame,
+};
 use tasty_ui_widgets::file_handler as fh_model;
 use tasty_ui_widgets::tokens::FH_FRAME_WIDTH;
 
@@ -643,9 +645,15 @@ pub fn draw_headless(ui: &mut egui::Ui, theme: &Theme) {
 
 pub fn draw_footer(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
-        kit::frame_card(ui, theme, FH_FRAME_WIDTH, kit::panel_fill(theme), |ui| {
-            fh_footer(ui, theme, true);
-        });
+        kit::frame_card(
+            ui,
+            theme,
+            frame_body_width(theme),
+            kit::panel_fill(theme),
+            |ui| {
+                fh_footer(ui, theme, true);
+            },
+        );
     });
     spec::meta(
         ui,
@@ -757,6 +765,46 @@ pub fn draw_default_tag(ui: &mut egui::Ui, theme: &Theme) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 모든 프레임 카드는 디자인 `FileHandlerFrame` 처럼 테두리를 포함해 420 이다(원격 경로 표본만 맞던 것을
+    /// 공용 본문 폭으로 맞춤).
+    #[test]
+    fn every_frame_card_is_420_wide_with_its_border() {
+        use frame::FrameState as S;
+        let ctx = egui::Context::default();
+        let theme = crate::host_shell::latte_theme();
+        let mut widths = Vec::new();
+        let _frame = ctx.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let mut measure = |label: &str, draw: &dyn Fn(&mut egui::Ui)| {
+                    let w = ui.scope(|ui| draw(ui)).response.rect.width();
+                    widths.push((label.to_owned(), w));
+                };
+                for (label, state) in [
+                    ("default", S::Default),
+                    ("recent", S::Recent),
+                    ("fallback", S::Fallback),
+                    ("empty", S::Empty),
+                    ("long", S::Long),
+                    ("mixed", S::Mixed),
+                ] {
+                    measure(label, &|ui| frame(ui, &theme, state, true));
+                }
+                measure("titlebar", &|ui| frame(ui, &theme, S::Long, false));
+                measure("header", &|ui| {
+                    header_card(ui, &theme, "docs/architecture.md")
+                });
+                measure("remote local", &|ui| {
+                    remote_spec_frame(ui, &theme, "docs/architecture.md", None, S::Default)
+                });
+            });
+        });
+        let want = FH_FRAME_WIDTH.value();
+        for (label, w) in &widths {
+            assert_eq!(*w, want, "{label}");
+        }
+        assert_eq!(widths.len(), 9);
+    }
 
     /// 예제 라벨에 적힌 원본·생략 결과의 문자 수를 실제 함수 결과와 비교한다.
     #[test]
