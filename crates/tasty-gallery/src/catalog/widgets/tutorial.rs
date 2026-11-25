@@ -35,6 +35,46 @@ const FAUX_DOT_R: LogicalPx = LogicalPx(4.0);
 const FAUX_LABEL_GAP: LogicalPx = LogicalPx(14.0);
 const FAUX_TEXT_PAD: LogicalPx = LogicalPx(10.0);
 
+/// 본체 basics 주제의 단계 하나. 제목·본문은 본체 번역 키로 읽어 문구 사본을 두지 않는다.
+pub(crate) struct BasicsStep {
+    pub(crate) id: &'static str,
+    pub(crate) title_key: &'static str,
+    pub(crate) body_key: &'static str,
+}
+
+macro_rules! basics_step {
+    ($id:literal) => {
+        BasicsStep {
+            id: $id,
+            title_key: concat!("tutorial.step_", $id, "_title"),
+            body_key: concat!("tutorial.step_", $id, "_body"),
+        }
+    };
+}
+
+/// 본체 `src/adapters/ui/tutorial/catalog.rs`의 basics 주제와 같은 순서다. 갤러리는 본체 크레이트에
+/// 의존하지 않으므로 목록을 여기 두고, 본체 정의와 같은지는 이 모듈의 시험이 본체 소스를 읽어 본다.
+/// 진행 표시의 전체 수는 이 길이다. 마지막 summary 단계는 본체에서 마커·spotlight 없이 말풍선만 뜬다.
+pub(crate) const BASICS_STEPS: [BasicsStep; 5] = [
+    basics_step!("workspace"),
+    basics_step!("pane"),
+    basics_step!("tab"),
+    basics_step!("surface"),
+    basics_step!("summary"),
+];
+
+/// 합성 표본 항목의 한 줄 설명. 시험이 단계 수를 `BASICS_STEPS`와 대조한다.
+pub(crate) const COMPOSITE_WHEN: &str =
+    "Step 1/5 워크스페이스 — marker + spotlight dim + callout, popup closed";
+
+/// 합성 표본의 설명. 시험이 단계 수·순서를 `BASICS_STEPS`와 대조한다.
+pub(crate) const COMPOSITE_NOTE: &str = "Popup closed: marker (glow ring) + spotlight dim + \
+     callout only. Step 1 wraps the whole content area (tabs + surface + status, sidebar \
+     excluded); later steps shrink the marker pane → tab → surface, revealing containment. The \
+     last step (summary) shows the callout alone, with no marker and no dim. Next → step 2 · \
+     Back → prev · Skip/Esc → topic popup · last-step Next → reopen popup. Marker + dim are \
+     pointer-events:none.";
+
 /// 사이드바와 마커가 같은 경계를 쓰도록 예제의 폭 제한을 한 곳에서 계산한다.
 fn faux_sidebar_w(r: egui::Rect) -> f32 {
     FAUX_SIDEBAR_W.value().min(r.width() * 0.5)
@@ -637,56 +677,34 @@ pub fn draw_marker(ui: &mut egui::Ui, theme: &Theme) {
          ring under reduced-motion.",
     );
 }
+/// basics 주제의 `id` 단계를 본체 순서의 번호와 본체 문구로 그린다.
+fn basics_callout(ui: &mut egui::Ui, theme: &Theme, tail: Tail, id: &str) {
+    let (i, step) = BASICS_STEPS
+        .iter()
+        .enumerate()
+        .find(|(_, s)| s.id == id)
+        .expect("basics step id");
+    callout(
+        ui,
+        theme,
+        tail,
+        i + 1,
+        BASICS_STEPS.len(),
+        crate::i18n::t(step.title_key),
+        crate::i18n::t(step.body_key),
+        i == 0,
+    );
+}
 pub fn draw_callout(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
-        spec::cluster(ui, theme, "tail up", |ui| {
-            callout(
-                ui,
-                theme,
-                Tail::Up,
-                2,
-                5,
-                "탭 헤더",
-                "페인 상단의 이 띠에서 탭을 전환·추가·닫습니다.",
-                false,
-            );
-        });
-        spec::cluster(ui, theme, "tail down", |ui| {
-            callout(
-                ui,
-                theme,
-                Tail::Down,
-                3,
-                5,
-                "페인",
-                "탭 하나가 열리는 이 사각 영역이 페인입니다.",
-                false,
-            );
-        });
-        spec::cluster(ui, theme, "tail left", |ui| {
-            callout(
-                ui,
-                theme,
-                Tail::Left,
-                4,
-                5,
-                "서피스",
-                "페인 안에서 실제 터미널·마크다운이 그려지는 면.",
-                false,
-            );
-        });
-        spec::cluster(ui, theme, "tail right · first step", |ui| {
-            callout(
-                ui,
-                theme,
-                Tail::Right,
-                1,
-                5,
-                "워크스페이스",
-                "이 전체 영역이 하나의 워크스페이스입니다.",
-                true,
-            );
-        });
+        for (label, tail, id) in [
+            ("tail up", Tail::Up, "pane"),
+            ("tail down", Tail::Down, "tab"),
+            ("tail left", Tail::Left, "surface"),
+            ("tail right · first step", Tail::Right, "workspace"),
+        ] {
+            spec::cluster(ui, theme, label, |ui| basics_callout(ui, theme, tail, id));
+        }
     });
 
     spec::meta(
@@ -809,13 +827,5 @@ pub fn draw_composite(ui: &mut egui::Ui, theme: &Theme) {
             paint_marker(p, m, theme, true);
         });
     });
-    spec::note(
-        ui,
-        theme,
-        "Popup closed: marker (glow ring) + spotlight dim + callout only. Step 1 wraps the \
-         whole content area (tabs + surface + status, sidebar excluded); later steps shrink \
-         the marker tab → pane → surface, revealing containment. Next → step 2 · Back → prev \
-         · Skip/Esc → topic popup · last-step Next → reopen popup. Marker + dim are \
-         pointer-events:none.",
-    );
+    spec::note(ui, theme, COMPOSITE_NOTE);
 }

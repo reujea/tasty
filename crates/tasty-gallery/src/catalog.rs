@@ -2059,9 +2059,7 @@ pub fn pages() -> Vec<Page> {
                         spec(
                             "tutorial-composite",
                             "Composite — a tutorial step in place",
-                            Some(
-                                "Step 1/4 워크스페이스 — marker + spotlight dim + callout, popup closed",
-                            ),
+                            Some(widgets::tutorial::COMPOSITE_WHEN),
                             widgets::tutorial::draw_composite,
                         ),
                     ],
