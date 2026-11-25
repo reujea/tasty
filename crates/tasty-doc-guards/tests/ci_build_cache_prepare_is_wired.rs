@@ -823,7 +823,7 @@ fn a_cached_checkout_with_a_condition_is_rejected() {
     }
 }
 
-/// S1: 채널 가드(`workflow_triggers`)가 거절하는 지원 밖 표기를 이 가드도 같은 파일:행으로 거절한다.
+/// 채널 가드(`workflow_triggers`)가 거절하는 지원 밖 표기를 이 가드도 같은 파일:행으로 거절한다.
 /// 합성 파일 `probe.yml`이라 파일별 규칙과 저장소 하한이 닿지 않는다.
 #[test]
 fn the_notation_the_channel_guard_rejects_is_rejected_here_too() {
