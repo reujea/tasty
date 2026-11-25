@@ -103,6 +103,46 @@ fn a_button_on_an_active_ground_takes_the_raised_accent_ring() {
     );
 }
 
+/// 기본 제공 Latte. Mocha에서는 border-focus와 accent-primary-raised가 같은 blue라 바탕별 링 색을 가르지 못한다.
+fn latte() -> Theme {
+    let file = tasty_themes::ThemeFile::parse(tasty_themes::LATTE_TOML_TEXT)
+        .expect("builtin latte.toml ships valid");
+    let (partial, is_light) = file.to_partial();
+    let mut colors = tasty_themes::mocha_fallback_colors();
+    colors.apply_partial(&partial);
+    Theme::with_colors(colors, is_light.unwrap_or(true))
+}
+
+/// 앱의 버튼·아이콘 버튼은 panel(crust·mantle·base)과 raised 바탕에 놓인다. 두 바탕의 링은 border-focus이고
+/// active 바탕만 accent-primary-raised다(정본 RULES focus-ring 표). 앱 자리별 링 아래 바탕은 보고서 표에 있다.
+#[test]
+fn the_ring_colour_follows_the_ground_under_it() {
+    let th = latte();
+    let focus = th.border_focus().to_egui();
+    let on_active = th.accent_primary_raised().to_egui();
+    assert_ne!(focus, on_active, "latte tells the two ring colours apart");
+    let gap = th.focus_ring_offset.value();
+    for (ground, color) in [
+        (Ground::Panel, focus),
+        (Ground::Raised, focus),
+        (Ground::Active, on_active),
+    ] {
+        assert_ring_after_tab(&th, gap, color, &mut |ui| {
+            Button::new("Open")
+                .variant(ButtonVariant::Ghost)
+                .ground(ground)
+                .show(ui, &th)
+                .rect
+        });
+        assert_ring_after_tab(&th, gap, color, &mut |ui| {
+            IconButton::new()
+                .ground(ground)
+                .show(ui, &th, &|_, _, _| {})
+                .rect
+        });
+    }
+}
+
 #[test]
 fn a_focused_icon_button_draws_the_ring_one_offset_off_its_box() {
     let th = theme();
