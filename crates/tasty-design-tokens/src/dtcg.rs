@@ -353,12 +353,29 @@ fn component_split(name: &str) -> (String, String) {
             best = Some(p);
         }
     }
-    match best {
+    let (module, rest) = match best {
         Some(p) => (p.replace('-', "_"), name[p.len() + 1..].to_string()),
         None => match name.split_once('-') {
             Some((head, rest)) => (head.replace('-', "_"), rest.to_string()),
             None => (name.replace('-', "_"), name.to_string()),
         },
+    };
+    (module_ident(module), rest)
+}
+
+/// 모듈명이 Rust 키워드(예: `mod-hint-*`의 `mod`)면 raw identifier로 쓴다.
+fn module_ident(module: String) -> String {
+    const KEYWORDS: &[&str] = &[
+        "abstract", "as", "async", "await", "become", "box", "break", "const", "continue", "do",
+        "dyn", "else", "enum", "extern", "false", "final", "fn", "for", "gen", "if", "impl", "in",
+        "let", "loop", "macro", "match", "mod", "move", "mut", "override", "priv", "pub", "ref",
+        "return", "static", "struct", "trait", "true", "try", "type", "typeof", "unsafe",
+        "unsized", "use", "virtual", "where", "while", "yield",
+    ];
+    if KEYWORDS.contains(&module.as_str()) {
+        format!("r#{module}")
+    } else {
+        module
     }
 }
 
