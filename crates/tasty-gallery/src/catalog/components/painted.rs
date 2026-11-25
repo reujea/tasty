@@ -191,6 +191,8 @@ impl Painted {
 /// 도우미의 색 비교를 고정한다. 표본 시험은 제품 잉크가 바뀌면 실패하지만, 도우미가 색을 보지 않게
 /// 느슨해지면 그대로 통과할 수 있어 도우미만 따로 잰다.
 mod helper_tests {
+    use tasty_type_geometry::length::LogicalPx;
+
     use super::{Painted, paint};
 
     /// 표본에 칠할 네 색(패널, 칩 바탕, 스와치, 글자 뒤 강조). 색 값은 상관없고 서로 달라야 한다.
@@ -219,21 +221,65 @@ mod helper_tests {
     }
     const USE: &str = "— chip use";
 
-    fn at(x: f32, y: f32, w: f32, h: f32) -> egui::Rect {
-        egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h))
+    fn at(x: LogicalPx, y: LogicalPx, w: LogicalPx, h: LogicalPx) -> egui::Rect {
+        egui::Rect::from_min_size(
+            egui::pos2(x.value(), y.value()),
+            egui::vec2(w.value(), h.value()),
+        )
     }
 
     /// 패널 안 칩 하나: 칩 바탕 → 투명 사각형 → 스와치 → 글자 뒤 강조 → 용도 글자 순서로 칠한다.
     /// 강조 사각형은 칩보다 작게 글자를 품고, 투명 사각형은 스와치보다 먼저 칩 안에 있다.
     fn chip_sample(k: &Inks) -> (Painted, egui::Rect) {
-        let chip = at(40.0, 40.0, 400.0, 60.0);
+        let chip = at(
+            LogicalPx(40.0),
+            LogicalPx(40.0),
+            LogicalPx(400.0),
+            LogicalPx(60.0),
+        );
         let p = paint(|ui| {
             let painter = ui.painter();
-            painter.rect_filled(at(20.0, 20.0, 600.0, 200.0), 0.0, k.panel);
+            painter.rect_filled(
+                at(
+                    LogicalPx(20.0),
+                    LogicalPx(20.0),
+                    LogicalPx(600.0),
+                    LogicalPx(200.0),
+                ),
+                0.0,
+                k.panel,
+            );
             painter.rect_filled(chip, 0.0, k.bed);
-            painter.rect_filled(at(48.0, 60.0, 12.0, 12.0), 0.0, egui::Color32::TRANSPARENT);
-            painter.rect_filled(at(64.0, 60.0, 12.0, 12.0), 0.0, k.swatch);
-            painter.rect_filled(at(90.0, 45.0, 340.0, 50.0), 0.0, k.highlight);
+            painter.rect_filled(
+                at(
+                    LogicalPx(48.0),
+                    LogicalPx(60.0),
+                    LogicalPx(12.0),
+                    LogicalPx(12.0),
+                ),
+                0.0,
+                egui::Color32::TRANSPARENT,
+            );
+            painter.rect_filled(
+                at(
+                    LogicalPx(64.0),
+                    LogicalPx(60.0),
+                    LogicalPx(12.0),
+                    LogicalPx(12.0),
+                ),
+                0.0,
+                k.swatch,
+            );
+            painter.rect_filled(
+                at(
+                    LogicalPx(90.0),
+                    LogicalPx(45.0),
+                    LogicalPx(340.0),
+                    LogicalPx(50.0),
+                ),
+                0.0,
+                k.highlight,
+            );
             painter.text(
                 egui::pos2(100.0, 55.0),
                 egui::Align2::LEFT_TOP,
@@ -254,11 +300,21 @@ mod helper_tests {
         assert_eq!(p.rect_filled_around(k.bed, text), chip);
         assert_eq!(
             p.rect_filled_around(k.panel, text),
-            at(20.0, 20.0, 600.0, 200.0)
+            at(
+                LogicalPx(20.0),
+                LogicalPx(20.0),
+                LogicalPx(600.0),
+                LogicalPx(200.0)
+            )
         );
         assert_eq!(
             p.rect_filled_around(k.highlight, text),
-            at(90.0, 45.0, 340.0, 50.0)
+            at(
+                LogicalPx(90.0),
+                LogicalPx(45.0),
+                LogicalPx(340.0),
+                LogicalPx(50.0)
+            )
         );
     }
 
