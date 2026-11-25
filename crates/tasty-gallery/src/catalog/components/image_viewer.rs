@@ -47,8 +47,6 @@ const FLOAT_W: LogicalPx = LogicalPx(96.0);
 const FLOAT_H: LogicalPx = LogicalPx(64.0);
 
 // 아래 값은 시안 `plugins.jsx` 의 이미지 상태 Stage 와 `ExpState` 칸 치수다. 대응 토큰이 없다.
-/// 시안 상태 칸 줄 최대 폭(`maxWidth: 760`).
-const STATE_ROW_W: LogicalPx = LogicalPx(760.0);
 /// 시안 상태 격자 열 수(`gridTemplateColumns: repeat(3, …)`).
 const STATE_GRID_COLUMNS: usize = 3;
 /// 시안 상태 칸 높이(`ExpState` 의 `height: 180`).
@@ -215,7 +213,9 @@ fn draw_states(ui: &mut egui::Ui, theme: &Theme) {
             // 시안의 3열 격자(`repeat(3, minmax(0, 1fr))`, gap 12). 한 줄에 다섯 칸을 넣지 않는다.
             let gap = theme.spacing_md.value();
             let cols = STATE_GRID_COLUMNS as f32;
-            let w = (STATE_ROW_W.value() - gap * (cols - 1.0)) / cols;
+            // 격자 폭은 image-state-specimen-grid-width 토큰이다.
+            let grid_w = theme.image_state_specimen_grid_width().value();
+            let w = (grid_w - gap * (cols - 1.0)) / cols;
             for row in CANVAS_STATES.chunks(STATE_GRID_COLUMNS) {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = gap;

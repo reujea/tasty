@@ -10,8 +10,7 @@ use tasty_ui_widgets::{ButtonVariant, StateGlyph as WidgetGlyph, StateScreenView
 use crate::catalog::icons::{self, MockGlyph};
 use crate::catalog::spec::{self, StageVariant, TokenChip};
 
-/// 시안 상태 줄의 최대 폭(`maxWidth: 700`)과 상태 칸 높이(`height: 180`). 전시 치수다.
-const ROW_W: LogicalPx = LogicalPx(700.0);
+/// 시안 상태 칸 높이(`height: 180`). 전시 치수다. 상태 줄 폭은 explorer-state-specimen-row-width 토큰이다.
 const STATE_H: LogicalPx = LogicalPx(180.0);
 /// 시안 팝업 두 장 사이 간격(`gap: 18`). 대응 토큰이 없다.
 const POPUP_GAP: LogicalPx = LogicalPx(18.0);
@@ -83,6 +82,7 @@ const STATES: &[StateCell<'static>] = &[
 ];
 
 pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
+    let row_w = theme.explorer_state_specimen_row_width();
     spec::stage(ui, theme, StageVariant::Solo, |ui| {
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = theme.spacing_lg.value();
@@ -90,15 +90,15 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 let gap = theme.spacing_md.value();
                 ui.spacing_mut().item_spacing.x = gap;
                 let n = STATES.len() as f32;
-                let cell_w = (ROW_W.value() - gap * (n - 1.0)) / n;
+                let cell_w = (row_w.value() - gap * (n - 1.0)) / n;
                 for s in STATES {
                     state_cell(ui, theme, s, cell_w);
                 }
             });
             // 시안 팝업 줄은 `justifyContent: center` 라 상태 줄과 같은 축의 가운데에 둔다.
             ui.horizontal_top(|ui| {
-                let row_w = theme.measure_sm * 2.0 + POPUP_GAP;
-                ui.add_space(((ROW_W - row_w) * 0.5).value().max(0.0));
+                let popups_w = theme.measure_sm * 2.0 + POPUP_GAP;
+                ui.add_space(((row_w - popups_w) * 0.5).value().max(0.0));
                 ui.spacing_mut().item_spacing.x = POPUP_GAP.value();
                 popups::favorite(ui, theme);
                 popups::rename(ui, theme);
