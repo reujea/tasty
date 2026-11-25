@@ -84,6 +84,7 @@ fn steps(item: &ResolvedPluginEdit) -> (Option<WindowEvent>, Vec<WindowEvent>) {
                 original = Some(event.clone());
             }
             ReplayStep::Input(event, _) => queued.push(event.clone()),
+            #[cfg(debug_assertions)]
             ReplayStep::Debug(input) => panic!("이 줄에는 debug 주입이 없다: {input:?}"),
         }
     }
@@ -147,6 +148,7 @@ fn arrived_text_is_sent_and_the_key_moves_to_the_reply_hold_with_its_queue() {
             ReplayStep::Original(event, _) | ReplayStep::Input(event, _) => {
                 order.push(event.clone())
             }
+            #[cfg(debug_assertions)]
             ReplayStep::Debug(input) => panic!("이 줄에는 debug 주입이 없다: {input:?}"),
         }
     }
@@ -335,6 +337,7 @@ impl super::AwaitSink for ReplayingApp {
                         continue;
                     }
                     ReplayStep::Input(event, _) => event,
+                    #[cfg(debug_assertions)]
                     ReplayStep::Debug(input) => panic!("이 줄에는 debug 주입이 없다: {input:?}"),
                 };
                 if self.holds.queue(window(), &event, Instant::now()) {

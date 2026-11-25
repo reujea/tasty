@@ -34,11 +34,7 @@ pub(super) struct PasteAwait {
 impl PasteAwait {
     /// 줄 선 입력 가운데 가장 먼저 창에 도착한 시각(X11 관찰 정리, `explorer_ime`).
     pub(super) fn first_queued_at(&self) -> Option<Instant> {
-        self.queued.iter().find_map(|item| match item {
-            LineItem::Event(_, at) => Some(*at),
-            #[cfg(debug_assertions)]
-            LineItem::Debug(_) => None,
-        })
+        self.queued.iter().find_map(LineItem::arrived_at)
     }
 
     /// 키·IME·modifier 는 줄을 서고, 포인터 입력은 이미 줄 선 입력이 있을 때만 그 뒤에 선다.

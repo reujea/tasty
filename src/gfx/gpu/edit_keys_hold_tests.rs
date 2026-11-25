@@ -213,8 +213,10 @@ fn a_release_replays_in_order_and_stops_when_the_window_closes() {
         release,
         |closed: &bool| *closed,
         |step| {
-            let Replayed::Event(event, judged, at) = step else {
-                unreachable!("the line holds only window events");
+            let (event, judged, at) = match step {
+                Replayed::Event(event, judged, at) => (event, judged, at),
+                #[cfg(debug_assertions)]
+                Replayed::Debug(_) => unreachable!("the line holds only window events"),
             };
             seen.push((event.clone(), judged, at));
             event == Ev::Other("escape")
@@ -582,6 +584,7 @@ fn tab() -> egui::Event {
 }
 
 /// The labels of a released line in order: window events by their name, debug injections as text.
+#[cfg(debug_assertions)]
 fn line_labels(release: Release<Ev>) -> Vec<String> {
     use crate::view::main::debug_input::DebugInput;
     release
@@ -599,6 +602,7 @@ fn line_labels(release: Release<Ev>) -> Vec<String> {
 /// [held window key A, debug B, window key C]: the debug injection takes its place in the same line
 /// as the window events and the release gives them back in the order they came, so C does not run
 /// before B.
+#[cfg(debug_assertions)]
 #[test]
 fn a_debug_input_takes_its_place_in_the_hold_line() {
     use crate::view::main::debug_input::DebugInput;
@@ -626,6 +630,7 @@ fn a_debug_input_takes_its_place_in_the_hold_line() {
 }
 
 /// With no line open a debug injection comes back to run through the window's entry now.
+#[cfg(debug_assertions)]
 #[test]
 fn a_debug_input_without_a_line_runs_now() {
     use crate::view::main::debug_input::DebugInput;

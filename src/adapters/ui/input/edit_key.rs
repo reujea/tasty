@@ -183,7 +183,8 @@ impl<E> LineItem<E> {
         }
     }
 
-    fn arrived_at(&self) -> Option<Instant> {
+    /// 창 사건이면 그 도착 시각. debug 주입은 시각이 없다.
+    pub(crate) fn arrived_at(&self) -> Option<Instant> {
         match self {
             Self::Event(_, at) => Some(*at),
             #[cfg(debug_assertions)]
