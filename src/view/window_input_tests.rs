@@ -702,6 +702,38 @@ fn a_key_a_non_covering_popup_does_not_use_reaches_no_window_node() {
     assert!(!h.key_with(&mut w, egui::Key::X, egui::Modifiers::CTRL, None));
 }
 
+/// Given 창을 덮는 팝업 I(선언 Esc `Ignore`)가 포커스를 가지고 열린 창, When bare Esc 를 치면, Then I 는 그 Esc 의
+/// 수신자가 아니라 위로 올라가지만 덮인 창 노드(창 위젯과 창 자체 처리)는 경로에 없어 받지 않는다.
+#[test]
+fn a_bare_escape_an_ignoring_covering_popup_leaves_reaches_no_window_node() {
+    let mut h = Harness::new();
+    let mut w = TestWindow::new();
+    let mut def = crate::view::settings::ui::keybinding_conflict_def();
+    def.decl.escape = crate::adapters::ui::popup::PopupEscape::Ignore;
+    w.popups.register_def(&def, 1.0);
+    h.drain(&mut w);
+    let request = OpenRequest::new(
+        crate::view::settings::ui::KEYBINDING_CONFLICT_POPUP_ID,
+        PopupScope::Window,
+    )
+    .at(egui::pos2(500.0, 400.0))
+    .focused();
+    let iid = w.popups.open_request(&request, true).expect("opened");
+    h.drain(&mut w);
+    h.drain(&mut w);
+    assert!(w.popups.instance(iid).expect("open").covers());
+    assert!(!h.key_with(&mut w, egui::Key::Escape, egui::Modifiers::NONE, None));
+}
+
+/// Given 팝업 노드가 없는 창, When bare Esc 를 치면, Then 창 노드가 받는다.
+#[test]
+fn a_bare_escape_without_a_popup_node_reaches_the_window_node() {
+    let mut h = Harness::new();
+    let mut w = TestWindow::new();
+    h.drain(&mut w);
+    assert!(h.key_with(&mut w, egui::Key::Escape, egui::Modifiers::NONE, None));
+}
+
 /// Given 팝업 노드가 없는 창, When Ctrl+X 를 치면, Then 창 노드(창 위젯 내용)가 받는다.
 #[test]
 fn a_key_without_a_popup_node_reaches_the_window_node() {
