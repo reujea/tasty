@@ -33,6 +33,12 @@ const FIELD_H: LogicalPx = LogicalPx(16.0);
 const EDGE_W: LogicalPx = LogicalPx(64.0);
 const EDGE_CELL_W: LogicalPx = LogicalPx(80.0);
 const EDGE_CELL_H: LogicalPx = LogicalPx(24.0);
+/// 시안 popup-focus `LeafUnderPopup`의 leaf 크기(`size-240`×`size-112`).
+const UNDER_LEAF_W: LogicalPx = LogicalPx(240.0);
+const UNDER_LEAF_H: LogicalPx = LogicalPx(112.0);
+/// 같은 시안의 팝업 위치와 폭(`size-28` 아래, `size-140` 폭).
+const UNDER_POPUP_TOP: LogicalPx = LogicalPx(28.0);
+const UNDER_POPUP_W: LogicalPx = LogicalPx(140.0);
 
 /// surface 종류 하나의 표본.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -305,7 +311,7 @@ fn border_stroke(theme: &Theme) -> egui::Stroke {
     egui::Stroke::new(theme.border_width.value(), theme.border_default().to_egui())
 }
 
-/// 시안 `frame`. 링이 있으면 시안의 `outline`처럼 테두리 자리를 링이 차지한다.
+/// 시안 `frame`. 링은 시안 `SurfaceRing`처럼 테두리 안쪽 leaf에 그려 위쪽 변이 띠 행에 놓인다.
 fn frame_rect(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -318,13 +324,9 @@ fn frame_rect(
     let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
     let p = ui.painter_at(rect);
     let r = theme.corner_radius.value();
-    if ring.is_some() {
-        paint_leaf(ui, &p, theme, rect, kind, focused, bed_focused, ring);
-    } else {
-        let leaf = rect.shrink(theme.border_width.value());
-        paint_leaf(ui, &p, theme, leaf, kind, focused, bed_focused, None);
-        p.rect_stroke(rect, r, border_stroke(theme), egui::StrokeKind::Inside);
-    }
+    let leaf = rect.shrink(theme.border_width.value());
+    paint_leaf(ui, &p, theme, leaf, kind, focused, bed_focused, ring);
+    p.rect_stroke(rect, r, border_stroke(theme), egui::StrokeKind::Inside);
     rect
 }
 
@@ -476,6 +478,10 @@ fn draw_every_kind(ui: &mut egui::Ui, theme: &Theme) {
             ),
             ("motion", "0ms"),
             ("unknown focus", "unfocused"),
+            (
+                "focused means",
+                "host key focus, not pane or tab selection · a popup that holds key focus leaves every surface unfocused (Overlays › Dialogs, popup focus)",
+            ),
         ],
         &[
             TokenChip::new(
@@ -574,6 +580,99 @@ fn webview_marked(ui: &mut egui::Ui, theme: &Theme, label: &str, focused: bool, 
     });
 }
 
+/// 시안 popup-focus `LeafUnderPopup`(terminal, completed). 팝업이 키 포커스를 가진 동안 leaf는 unfocused 바탕에
+/// 완료 링을 남기고 PTY 커서를 그리지 않는다. 키 포커스가 leaf로 돌아오면 링이 풀리고 focused 바탕이 된다.
+fn leaf_under_popup(ui: &mut egui::Ui, theme: &Theme, popup_has_keys: bool) {
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(UNDER_LEAF_W.value(), UNDER_LEAF_H.value()),
+        egui::Sense::hover(),
+    );
+    let p = ui.painter_at(rect);
+    let r = theme.corner_radius.value();
+    let leaf = rect.shrink(theme.border_width.value());
+    let ring = popup_has_keys.then(|| done(theme));
+    paint_leaf(
+        ui,
+        &p,
+        theme,
+        leaf,
+        Kind::Terminal,
+        !popup_has_keys,
+        !popup_has_keys,
+        ring,
+    );
+    p.rect_stroke(rect, r, border_stroke(theme), egui::StrokeKind::Inside);
+    let margin = theme.popup_content_margin().value();
+    let caption = theme.font_size_caption.value();
+    let gap = theme.spacing_xs.value();
+    let popup = egui::Rect::from_min_size(
+        egui::pos2(
+            rect.right() - theme.spacing_sm.value() - UNDER_POPUP_W.value(),
+            rect.top() + UNDER_POPUP_TOP.value(),
+        ),
+        egui::vec2(
+            UNDER_POPUP_W.value(),
+            margin * 2.0 + caption * 2.0 * 1.4 + gap,
+        ),
+    );
+    p.add(theme.shadow_popover().to_egui().as_shape(popup, r));
+    p.rect_filled(popup, r, theme.bg_panel().to_egui());
+    p.rect_stroke(
+        popup,
+        r,
+        egui::Stroke::new(theme.border_width.value(), theme.border_frame().to_egui()),
+        egui::StrokeKind::Inside,
+    );
+    if popup_has_keys {
+        tasty_ui_widgets::paint_popup_focus_edge(&p, theme, popup);
+    }
+    let at = popup.min + egui::vec2(margin, margin);
+    p.text(
+        at,
+        egui::Align2::LEFT_TOP,
+        "Plugin popover",
+        egui::FontId::proportional(caption),
+        theme.text_primary().to_egui(),
+    );
+    p.text(
+        at + egui::vec2(0.0, caption * 1.4 + gap),
+        egui::Align2::LEFT_TOP,
+        "surface scope, no scrim",
+        egui::FontId::proportional(caption),
+        theme.text_muted().to_egui(),
+    );
+}
+
+/// 시안 popup-focus View `popup-focus-leaf-under-terminal-completed`.
+fn draw_completed_under_popup(ui: &mut egui::Ui, theme: &Theme) {
+    cluster(
+        ui,
+        theme,
+        "Completed terminal under a popup in an active OS window",
+        |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.x = theme.spacing_lg.value();
+                for (caption, popup_has_keys) in [
+                    (
+                        "Popup holds key focus · ring stays, unfocused bed, no cursor",
+                        true,
+                    ),
+                    ("Key focus returns · ring clears, focused bed", false),
+                ] {
+                    ui.vertical(|ui| {
+                        ui.label(
+                            egui::RichText::new(caption)
+                                .size(theme.font_size_caption.value())
+                                .color(theme.text_muted().to_egui()),
+                        );
+                        leaf_under_popup(ui, theme, popup_has_keys);
+                    });
+                }
+            });
+        },
+    );
+}
+
 fn draw_with_marks(ui: &mut egui::Ui, theme: &Theme) {
     let edge = |label, focused, ring| Marked {
         label,
@@ -597,6 +696,7 @@ fn draw_with_marks(ui: &mut egui::Ui, theme: &Theme) {
         edge("Occupied hard or mirror, unfocused", false, hard(theme)),
         edge("Needs input, focused", true, input(theme)),
         edge("Needs input, unfocused", false, input(theme)),
+        edge("Completed, focused (inactive OS window)", true, done(theme)),
         edge("Completed, unfocused", false, done(theme)),
         bed("Bed kind, needs input, focused", true, input(theme)),
         bed("Bed kind, needs input, unfocused", false, input(theme)),
@@ -605,6 +705,11 @@ fn draw_with_marks(ui: &mut egui::Ui, theme: &Theme) {
             bed_focused: false,
             ..bed("", true, hard(theme))
         },
+        bed(
+            "Bed kind, completed, focused (inactive OS window)",
+            true,
+            done(theme),
+        ),
         bed("Bed kind, completed, unfocused", false, done(theme)),
         Marked {
             label: "Markdown, hard occupied, focused: unfocused values, the webview covers the ring",
@@ -642,10 +747,12 @@ fn draw_with_marks(ui: &mut egui::Ui, theme: &Theme) {
             ),
             ("Webview, needs input, focused", true, input(theme)),
             ("Webview, needs input, unfocused", false, input(theme)),
+            ("Webview, completed, focused", true, done(theme)),
             ("Webview, completed, unfocused", false, done(theme)),
         ] {
             webview_marked(ui, theme, label, focused, ring);
         }
+        draw_completed_under_popup(ui, theme);
     });
     meta(
         ui,
@@ -697,7 +804,7 @@ fn draw_with_marks(ui: &mut egui::Ui, theme: &Theme) {
     note(
         ui,
         theme,
-        "A completed highlight clears on focus, so there is no focused frame for it.",
+        "Completion clears when the leaf has key focus, the OS window is active, and the leaf is free of hard occupancy. A focused leaf keeps its completion highlight while the OS window is inactive, even when a soft occupancy ring hides it. On a hard-occupied leaf, the occupancy ring takes precedence over completion. On a focused leaf, needs input stays visible only while the OS window is inactive or the leaf is hard occupied. Otherwise it clears on the next frame. Hard occupancy uses the unfocused bed, so the focused bed with needs input shows an inactive OS window. Regardless of OS window activation, key focus clears soft occupancy whose parent surface is gone, with any hard occupancy keeping the hard ring visible and delaying the clear until the first frame after it ends. Soft occupancy with a live parent stays and can show its ring on a focused leaf.",
     );
 }
 
