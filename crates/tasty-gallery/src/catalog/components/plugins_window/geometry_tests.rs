@@ -8,19 +8,39 @@ fn theme() -> Theme {
     Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0)
 }
 
-/// Installed 창 하나를 그리고, 창 바탕(bg_panel 채움) 사각형과 함께 돌려준다.
-fn installed_window(th: &Theme) -> (Painted, egui::Rect) {
-    let painted = paint(|ui| {
-        window(
-            ui,
-            th,
-            Tab::Installed {
-                detail: installed::Detail::Selected(0),
-            },
-        );
-    });
+/// 창 하나를 그리고, 창 바탕(bg_panel 채움) 사각형과 함께 돌려준다.
+fn painted_window(th: &Theme, tab: Tab) -> (Painted, egui::Rect) {
+    let painted = paint(|ui| window(ui, th, tab));
     let frame = painted.rect_filled_with(th.bg_panel().to_egui());
     (painted, frame)
+}
+
+fn installed_window(th: &Theme) -> (Painted, egui::Rect) {
+    painted_window(
+        th,
+        Tab::Installed {
+            detail: installed::Detail::Selected(0),
+        },
+    )
+}
+
+/// 헤더 안 선택 세그먼트(surface-active 채움) 사각형.
+fn selected_segment(th: &Theme, painted: &Painted, frame: egui::Rect) -> egui::Rect {
+    let header = egui::Rect::from_min_size(
+        frame.min,
+        egui::vec2(frame.width(), th.plugins_header_height().value()),
+    );
+    let active = th.surface_active().to_egui();
+    painted
+        .shapes
+        .iter()
+        .find_map(|s| match s {
+            egui::Shape::Rect(r) if r.fill == active && header.contains_rect(r.rect) => {
+                Some(r.rect)
+            }
+            _ => None,
+        })
+        .expect("헤더 안 선택 세그먼트가 없다")
 }
 
 /// 헤더 글리프는 창 왼쪽에서 `plugins_header_pad_left` + 보더, 닫기 칸은 창 오른쪽에서
@@ -115,5 +135,27 @@ fn the_segment_tab_is_plugins_tab_height_tall() {
     assert!(
         (tab.height() - want).abs() < 0.5 && (tab.center().y - header.center().y).abs() < 0.5,
         "선택 세그먼트 {tab:?} 가 헤더 {header:?} 가운데의 높이 {want} 가 아니다"
+    );
+}
+
+/// Installed 와 Attention 탭 사이는 `plugins_tab_gap` 이다. 탭마다 선택해 그려 채움 사각형으로 잰다.
+#[test]
+fn neighbouring_segment_tabs_are_plugins_tab_gap_apart() {
+    let th = theme();
+    let (installed, frame_a) = installed_window(&th);
+    let first = selected_segment(&th, &installed, frame_a);
+    let (attention, frame_b) = painted_window(
+        &th,
+        Tab::Attention {
+            empty: false,
+            selected: 0,
+        },
+    );
+    let second = selected_segment(&th, &attention, frame_b);
+    let gap = (second.left() - frame_b.left()) - (first.right() - frame_a.left());
+    let want = th.plugins_tab_gap().value();
+    assert!(
+        (gap - want).abs() < 0.5,
+        "Installed {first:?} 와 Attention {second:?} 사이 {gap} 가 plugins_tab_gap {want} 가 아니다"
     );
 }

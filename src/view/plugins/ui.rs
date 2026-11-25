@@ -385,7 +385,9 @@ pub fn draw_plugins_panel(
                     draw_header_divider(ui, &th);
                     hspace(ui, th.spacing_sm);
 
-                    // 세그먼트 탭 (Installed N / Attention N / Add plugin).
+                    // 세그먼트 탭 (Installed N / Attention N / Add plugin). 탭 사이는 정본 `plugins-tab-gap` 이다.
+                    // 가로 item_spacing 이 이미 들어가므로 그 나머지만 더한다.
+                    let tab_gap = th.plugins_tab_gap() - LogicalPx(ui.spacing().item_spacing.x);
                     let installed_count = snapshot.plugins.len();
                     if segment_tab(
                         ui,
@@ -397,7 +399,7 @@ pub fn draw_plugins_panel(
                     ) {
                         ui_state.active_tab = PluginsTab::List;
                     }
-                    hspace(ui, STRUCT_GAP_2);
+                    hspace(ui, tab_gap);
                     // Attention 탭 — 확인 필요 plugin 개수를 danger 배지로 노출.
                     let attention_count = snapshot.attention.len();
                     if segment_tab(
@@ -410,7 +412,7 @@ pub fn draw_plugins_panel(
                     ) {
                         ui_state.active_tab = PluginsTab::Attention;
                     }
-                    hspace(ui, STRUCT_GAP_2);
+                    hspace(ui, tab_gap);
                     if segment_tab(
                         ui,
                         &th,
@@ -609,7 +611,7 @@ fn segment_tab(
         ui.painter()
             .galley(gp, g, egui::Color32::from(th.text_on_accent()));
     }
-    // 탭 사이(item_spacing + STRUCT_GAP_2)가 링 폭보다 넓어 탭 안에서 그려도 이웃 탭에 덮이지 않는다.
+    // 탭 사이(plugins_tab_gap)가 링 폭보다 넓어 탭 안에서 그려도 이웃 탭에 덮이지 않는다.
     if resp.has_focus() {
         tasty_ui_widgets::paint_control_ring(
             ui.painter(),
@@ -635,4 +637,3 @@ use add::draw_add_tab;
 use attention::draw_attention_tab;
 use list::draw_list_tab;
 use tasty_ui_widgets::hspace;
-use tasty_ui_widgets::tokens::STRUCT_GAP_2;

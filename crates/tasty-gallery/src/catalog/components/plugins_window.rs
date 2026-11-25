@@ -10,7 +10,6 @@ mod reserved;
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
-use tasty_ui_widgets::tokens::STRUCT_GAP_2;
 use tasty_ui_widgets::{ControlSize, paint_dashed_outline};
 
 use crate::catalog::icons::{CLOSE, PLUG};
@@ -262,8 +261,8 @@ fn header(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, tab: Tab) {
                 egui::vec2(w, tab_h),
             ));
         }
-        // 앱 탭 막대(src/view/plugins/ui.rs)처럼 테마 egui 스타일의 가로 항목 간격에 STRUCT_GAP_2를 더한다.
-        x += w + ui.ctx().style().spacing.item_spacing.x + STRUCT_GAP_2.value();
+        // 앱 탭 막대(src/view/plugins/ui.rs)와 같은 탭 사이 간격이다.
+        x += w + theme.plugins_tab_gap().value();
     }
     // 탭 사이가 링 폭보다 넓어 링은 mantle 위에만 놓인다. 세 탭을 모두 그린 뒤 얹는다.
     if let Some(rect) = ring {
