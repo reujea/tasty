@@ -128,7 +128,7 @@ fn narrow_locales_render_the_received_pending_fields_and_japanese_commits_ten() 
     // 실제로 그린 범위 안내를 수령 문구와 대조해 formatter 전환에도 값과 문구가 유지되는지 확인한다.
     for (lang, expected) in [
         ("en", "Between 2 and 10000. Commits as 2."),
-        ("ko", "2~10000 사이의 값입니다. 2(으)로 확정됩니다."),
+        ("ko", "2~10000 사이의 값입니다. 2 값으로 확정됩니다."),
         ("ja", "2〜10000 の範囲です。2 として確定します。"),
     ] {
         let ctx = egui::Context::default();
