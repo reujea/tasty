@@ -226,7 +226,9 @@ fn automatic_job_bodies_of_dir(workflows: &Path, floor: &Floor) -> Vec<String> {
             continue;
         }
         // 잡 분할과 수동 전용 분류는 workflow_triggers의 공유 함수를 사용한다.
-        bodies.extend(automatic_job_bodies(&text));
+        bodies.extend(
+            automatic_job_bodies(&w.rel, &text).unwrap_or_else(|e| panic!("{}", e.join("\\n"))),
+        );
     }
     bodies
 }
@@ -1791,7 +1793,8 @@ fn theme_target_workflows(root: &Path, target: &str) -> Vec<String> {
         {
             continue;
         }
-        let invocations: Vec<_> = automatic_job_bodies(&text)
+        let invocations: Vec<_> = automatic_job_bodies(&workflow.rel, &text)
+            .unwrap_or_else(|e| panic!("{}", e.join("\\n")))
             .iter()
             .flat_map(|body| cargo_test_tails(body))
             .map(|tail| {
@@ -3280,7 +3283,9 @@ fn the_verification_steps_a_dead_neighbour_can_swallow_are_pinned() {
 
     let mut found: Vec<String> = Vec::new();
     for (name, text) in &texts {
-        for s in tasty_doc_guards::workflow_triggers::swallowable_verification_steps(text) {
+        for s in tasty_doc_guards::workflow_triggers::swallowable_verification_steps(name, text)
+            .unwrap_or_else(|e| panic!("{}", e.join("\\n")))
+        {
             found.push(format!(
                 "{name}:{} {} #{} {}",
                 s.line, s.job, s.ordinal, s.name
@@ -3303,7 +3308,9 @@ fn the_steps_that_were_lifted_out_of_the_failure_chain_stay_lifted() {
     let texts = workflow_texts();
     let mut protected: Vec<String> = Vec::new();
     for (name, text) in &texts {
-        for s in tasty_doc_guards::workflow_triggers::protected_verification_steps(text) {
+        for s in tasty_doc_guards::workflow_triggers::protected_verification_steps(name, text)
+            .unwrap_or_else(|e| panic!("{}", e.join("\\n")))
+        {
             protected.push(format!("{name}:{} {} {}", s.line, s.job, s.name));
         }
     }

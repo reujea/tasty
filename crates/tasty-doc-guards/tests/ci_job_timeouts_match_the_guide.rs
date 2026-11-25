@@ -51,7 +51,7 @@ fn workflows() -> BTreeMap<Cell, Vec<String>> {
     for w in walked {
         let text = std::fs::read_to_string(&w.path)
             .unwrap_or_else(|e| panic!("워크플로 {} 를 못 읽었다: {e}", w.rel));
-        for job in job_spans(&text) {
+        for job in job_spans(&w.rel, &text).unwrap_or_else(|e| panic!("{}", e.join("\n"))) {
             out.insert((w.rel.clone(), job.name), job_level_timeouts(&job.body));
         }
     }

@@ -69,7 +69,9 @@ fn the_exposed_judge_reports_the_same_population_as_the_library() {
             "{name}: 태그전용 판정이 갈렸다"
         );
 
-        let lib_auto = automatic_job_bodies(&text).len();
+        let lib_auto = automatic_job_bodies(name, &text)
+            .unwrap_or_else(|e| panic!("{}", e.join("\n")))
+            .len();
         assert_eq!(
             auto.parse::<usize>().unwrap_or(usize::MAX),
             lib_auto,
@@ -120,7 +122,7 @@ fn the_exposed_judge_reports_the_same_coverage_as_the_library() {
     };
 
     let lib = filter_free_coverage(&root.join(".github/workflows"))
-        .unwrap_or_else(|bad| panic!("`on:` 을 못 읽은 워크플로: {bad:?}"));
+        .unwrap_or_else(|bad| panic!("판독하지 못한 워크플로: {bad:?}"));
 
     assert_eq!(
         split(&field("named=")),

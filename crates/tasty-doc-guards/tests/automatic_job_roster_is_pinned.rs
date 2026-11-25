@@ -80,8 +80,11 @@ fn measured() -> (BTreeSet<JobCell>, BTreeSet<JobCell>) {
         // 읽기 실패와 잡 삭제를 구분하기 위해 오류를 무시하지 않는다.
         let text = std::fs::read_to_string(&w.path)
             .unwrap_or_else(|e| panic!("워크플로 {} 를 못 읽었다: {e}", w.rel));
-        let a: BTreeSet<String> = automatic_job_names(&text).into_iter().collect();
-        for name in job_headers(&text) {
+        let a: BTreeSet<String> = automatic_job_names(&w.rel, &text)
+            .unwrap_or_else(|e| panic!("{}", e.join("\n")))
+            .into_iter()
+            .collect();
+        for name in job_headers(&w.rel, &text).unwrap_or_else(|e| panic!("{}", e.join("\n"))) {
             let cell = (w.rel.clone(), name.clone());
             if a.contains(&name) {
                 auto.insert(cell);

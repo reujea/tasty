@@ -20,19 +20,31 @@ pub struct Field {
     pub children: Vec<(usize, String)>,
 }
 
+/// 스텝 하나. `line`은 `- `가 있는 첫 줄이다.
 #[derive(Debug)]
 pub struct Step {
     pub job: String,
     pub line: usize,
     pub fields: Vec<Field>,
+    /// 스텝의 원문 줄(주석·빈 줄 포함). 첫 줄은 `- `를 떼고 스텝 키 깊이(8칸)로 맞춘 꼴이다.
+    pub lines: Vec<(usize, String)>,
 }
 
+/// 잡 하나. `raw`는 잡 머리 줄부터 다음 잡 머리 직전(또는 `jobs:` 블록 끝)까지의 원문 줄이다.
 #[derive(Debug)]
 pub struct Job {
     pub name: String,
     pub line: usize,
     pub fields: Vec<Field>,
     pub steps: Vec<Step>,
+    pub raw: Vec<(usize, String)>,
+}
+
+/// 스텝의 실행 조건 두 값. 없으면 None이다.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct StepConditions {
+    pub if_expr: Option<String>,
+    pub continue_on_error: Option<bool>,
 }
 
 pub fn indent_of(line: &str) -> usize {
@@ -169,13 +181,18 @@ pub fn parse(file: &str, text: &str) -> (Vec<Job>, Vec<String>) {
             break;
         }
         let head = raw.trim();
-        if indent_of(raw) != 2 || !head.ends_with(':') || split_key(head).is_none() {
-            errs.push(format!(
-                "{file}:{no} {UNSUPPORTED}: 잡 머리가 아니다: {head}"
-            ));
-            k += 1;
-            continue;
-        }
+        // 잡 머리는 같은 줄 값이 없는 `키:`다. 줄 끝 주석도 같은 줄 값으로 보아 받지 않는다.
+        let name = match split_key(head) {
+            Some((key, value)) if indent_of(raw) == 2 && value.is_empty() => key,
+            _ => {
+                errs.push(format!(
+                    "{file}:{no} {UNSUPPORTED}: 잡 머리가 아니다: {head}"
+                ));
+                k += 1;
+                continue;
+            }
+        };
+        let mut raw_lines = vec![lines[k].clone()];
         let mut body = Vec::new();
         k += 1;
         while k < lines.len() {
@@ -186,7 +203,7 @@ pub fn parse(file: &str, text: &str) -> (Vec<Job>, Vec<String>) {
             body.push(lines[k].clone());
             k += 1;
         }
-        let name = head.trim_end_matches(':').to_string();
+        raw_lines.extend(body.iter().cloned());
         let fields = fields_at(&body, 4, file, &mut errs);
         let steps = fields
             .iter()
@@ -198,6 +215,7 @@ pub fn parse(file: &str, text: &str) -> (Vec<Job>, Vec<String>) {
             line: *no,
             fields,
             steps,
+            raw: raw_lines,
         });
     }
     (jobs, errs)
@@ -215,6 +233,10 @@ fn parse_steps(job: &str, steps: &Field, file: &str, errs: &mut Vec<String>) -> 
     for (no, raw) in &steps.children {
         if !is_blank(raw) && indent_of(raw) == 6 {
             match raw.strip_prefix("      - ") {
+                Some(rest) if is_blank(rest) => {
+                    errs.push(format!("{file}:{no} {UNSUPPORTED}: 스텝 첫 줄에 키가 없다"));
+                    continue;
+                }
                 Some(rest) => {
                     groups.push((*no, vec![(*no, format!("{}{rest}", " ".repeat(8)))]));
                     continue;
@@ -245,6 +267,7 @@ fn parse_steps(job: &str, steps: &Field, file: &str, errs: &mut Vec<String>) -> 
             job: job.to_string(),
             line,
             fields: fields_at(&g, 8, file, errs),
+            lines: g,
         })
         .collect()
 }
@@ -317,6 +340,19 @@ pub fn boolean(file: &str, fields: &[Field], key: &str) -> Result<Option<bool>, 
                 "{file}:{line} {UNSUPPORTED}: {key} 값이 true/false가 아니다: {v}"
             ))
         }
+    }
+}
+
+/// 스텝의 `if`(한 줄 값)와 `continue-on-error`(true/false)를 읽는다. 둘 중 하나라도 받지 않는 표기면 Err다.
+pub fn step_conditions(file: &str, step: &Step) -> Result<StepConditions, Vec<String>> {
+    let if_expr = scalar(file, &step.fields, "if");
+    let continue_on_error = boolean(file, &step.fields, "continue-on-error");
+    match (if_expr, continue_on_error) {
+        (Ok(if_expr), Ok(continue_on_error)) => Ok(StepConditions {
+            if_expr,
+            continue_on_error,
+        }),
+        (a, b) => Err(a.err().into_iter().chain(b.err()).collect()),
     }
 }
 

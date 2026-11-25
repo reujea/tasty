@@ -46,7 +46,9 @@ fn automatic_jobs_under(dir: &Path, floor: &Floor) -> Vec<(String, String)> {
                 w.rel
             )
         });
-        for body in automatic_job_bodies(&text) {
+        for body in
+            automatic_job_bodies(&w.rel, &text).unwrap_or_else(|e| panic!("{}", e.join("\n")))
+        {
             out.push((w.rel.clone(), body));
         }
     }

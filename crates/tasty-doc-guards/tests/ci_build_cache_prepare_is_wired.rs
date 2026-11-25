@@ -9,8 +9,8 @@ use std::path::PathBuf;
 
 use tasty_doc_guards::floored_walk::{Descend, Floor, walk_with_floor};
 use tasty_doc_guards::workflow_yaml::{
-    Job, Step, UNSUPPORTED, boolean, parse, runs_on_labels, scalar, top_level_and_terms,
-    with_fields,
+    Job, Step, UNSUPPORTED, boolean, parse, runs_on_labels, scalar, step_conditions,
+    top_level_and_terms, with_fields,
 };
 
 const PREPARE_OK: &str = "steps.prepare.outcome == 'success'";
@@ -299,11 +299,8 @@ fn check_prepare_body(file: &str, job: &Job, s: &Step, r: &mut Report) {
 /// 모든 스텝의 `if`·`continue-on-error` 표기를 본다. 아래 판정의 예외(진단 스텝)와 따로 두어,
 /// 예외에 해당하는 스텝도 지원 밖 표기면 실패한다.
 fn check_step_notation(file: &str, s: &Step, p: &mut Vec<String>) {
-    if let Err(e) = scalar(file, &s.fields, "if") {
-        p.push(e);
-    }
-    if let Err(e) = boolean(file, &s.fields, "continue-on-error") {
-        p.push(e);
+    if let Err(e) = step_conditions(file, s) {
+        p.extend(e);
     }
 }
 

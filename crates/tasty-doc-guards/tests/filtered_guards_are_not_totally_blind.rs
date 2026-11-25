@@ -214,7 +214,7 @@ fn no_filtered_scan_guard_reads_only_ignored_paths() {
     let root = tasty_doc_guards::repo_root();
     let globs = ignore_globs(&root);
     let covered = filter_free_coverage(&root.join(".github/workflows")).unwrap_or_else(|bad| {
-        panic!("`on:` 을 못 읽은 워크플로가 있다 — 판정 불가는 통과가 아니다: {bad:?}")
+        panic!("판독하지 못한 워크플로가 있다 — 판정 불가는 통과가 아니다: {bad:?}")
     });
     // 타깃 목록이나 패키지 목록 중 한쪽만 비는 구성도 가능하다.
     assert!(

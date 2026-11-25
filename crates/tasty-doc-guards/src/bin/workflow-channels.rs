@@ -5,7 +5,8 @@
 //! 마지막에는 필터 없는 채널의 named=, packages=, whole_workspace=를 출력한다.
 //! yes/no와 정수·목록을 읽어 위반 여부를 판단하는 것은 호출자의 역할이다.
 //!
-//! 종료코드 0은 결과 출력, 2는 루트 부재·워크플로 없음·on 선언 판독 실패다.
+//! 종료코드 0은 결과 출력, 2는 루트 부재·워크플로 없음·파일 읽기 실패·on 선언 판독 실패·잡 구조 판독 실패다.
+//! 2이면 stdout에 아무것도 내지 않고, 판독하지 못한 파일(잡 구조는 파일:행)을 stderr에 적는다.
 
 use std::path::{Path, PathBuf};
 
@@ -60,19 +61,36 @@ fn main() {
         std::process::exit(2);
     }
 
+    // 모든 파일을 본 뒤 하나라도 판독하지 못했으면 결과를 내지 않는다. 한 파일의 `on:`과 잡 구조 오류는 함께 알린다.
     let mut out = String::new();
+    let mut bad: Vec<String> = Vec::new();
     for path in &paths {
         let name = path.file_name().unwrap_or_default().to_string_lossy();
-        let Ok(text) = std::fs::read_to_string(path) else {
-            eprintln!("{name}: 못 읽었다");
-            std::process::exit(2);
+        let text = match std::fs::read_to_string(path) {
+            Ok(t) => t,
+            Err(e) => {
+                bad.push(format!("{name}: 못 읽었다: {e}"));
+                continue;
+            }
         };
-        let Some(t) = push_trigger(&text) else {
-            eprintln!("{name}: `on:` 을 못 읽었다 — 판정 불가는 통과가 아니다");
-            std::process::exit(2);
+        let trigger = push_trigger(&text);
+        if trigger.is_none() {
+            bad.push(format!(
+                "{name}: `on:` 을 못 읽었다 — 판정 불가는 통과가 아니다"
+            ));
+        }
+        let counts = automatic_job_bodies(&name, &text)
+            .and_then(|auto| job_header_count(&name, &text).map(|all| (auto.len(), all)));
+        let (auto, all) = match counts {
+            Ok(c) => c,
+            Err(errs) => {
+                bad.extend(errs);
+                continue;
+            }
         };
-        let auto = automatic_job_bodies(&text).len();
-        let all = job_header_count(&text);
+        let Some(t) = trigger else {
+            continue;
+        };
         out.push_str(&format!(
             "{name}\t{}\t{}\t{}\t{auto}\t{}\n",
             yn(t.present),
@@ -80,6 +98,12 @@ fn main() {
             yn(t.tags_only),
             all.saturating_sub(auto),
         ));
+    }
+    if !bad.is_empty() {
+        for line in &bad {
+            eprintln!("{line}");
+        }
+        std::process::exit(2);
     }
 
     match filter_free_coverage(&dir) {
@@ -95,7 +119,7 @@ fn main() {
             out.push_str(&format!("whole_workspace={}\n", yn(c.whole_workspace)));
         }
         Err(bad) => {
-            eprintln!("`on:` 을 못 읽은 워크플로: {}", bad.join(", "));
+            eprintln!("판독하지 못한 워크플로: {}", bad.join(", "));
             std::process::exit(2);
         }
     }

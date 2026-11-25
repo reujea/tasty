@@ -62,8 +62,8 @@ fn a_filter_free_job_runs_this_package_whole() {
     let root = repo_root();
     let coverage = filter_free_coverage(&root.join(".github/workflows")).unwrap_or_else(|bad| {
         panic!(
-            "`on:` 을 못 읽은 워크플로가 있다 — 판정 불가는 통과가 아니다. 인라인 \
-                 표기(`on: [push]`)면 블록 표기로 바꾸거나 판독기를 넓혀라: {bad:?}"
+            "판독하지 못한 워크플로가 있다 — 판정 불가는 통과가 아니다. 인라인 표기(`on: [push]`)나 \
+                 지원하지 않는 잡·스텝 표기면 지원하는 표기로 바꾼다: {bad:?}"
         )
     });
 

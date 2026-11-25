@@ -243,51 +243,42 @@ fn flatten(yaml: &str) -> String {
 pub struct JobSpan {
     /// `jobs:` 아래 2 칸 헤더에 적힌 이름(뒤의 `:` 는 뗐다).
     pub name: String,
-    /// 헤더 줄을 **포함한** 본문. 주석이 그대로 남아 있다 — 아래 술어 설명 참조.
+    /// 헤더 줄을 **포함한** 원문 본문. 다음 잡 머리 직전이나 `jobs:` 블록 끝(들여쓰기 없는 다음 줄)에서 끝난다.
+    /// 주석이 그대로 남아 있다 — 아래 술어 설명 참조.
     pub body: String,
 }
 
+/// 공용 판독([`crate::workflow_yaml::parse`])으로 잡을 나눈다. 구조가 지원 밖 표기면 Err(파일:행 오류 줄)다.
+fn parsed_jobs(file: &str, yaml: &str) -> Result<Vec<crate::workflow_yaml::Job>, Vec<String>> {
+    let (jobs, errs) = crate::workflow_yaml::parse(file, yaml);
+    if errs.is_empty() { Ok(jobs) } else { Err(errs) }
+}
+
 /// jobs 아래의 잡 이름과 본문을 나눈다. 자동/수동 분류는 별도로 한다.
-/// 헤더는 주석을 지운 사본에서 찾고 본문은 원문으로 반환한다.
-/// 잡 헤더의 두 칸 들여쓰기만 지원한다. 이를 따르지 않는 파일은 잡 분류를 잘못할 수 있다.
-/// jobs와 첫 헤더 사이의 내용은 어느 잡에도 포함하지 않는다.
-pub fn job_spans(yaml: &str) -> Vec<JobSpan> {
-    let normalized = yaml.replace("\r\n", "\n");
-    let stripped = strip_yaml_comments(&normalized);
-    let mut out: Vec<JobSpan> = Vec::new();
-    let mut in_jobs = false;
-    for (line, bare) in normalized.lines().zip(stripped.lines()) {
-        if bare.starts_with("jobs:") {
-            in_jobs = true;
-            continue;
-        }
-        if !in_jobs {
-            continue;
-        }
-        let is_job_head =
-            bare.starts_with("  ") && !bare.starts_with("   ") && bare.trim_end().ends_with(':');
-        if is_job_head {
-            out.push(JobSpan {
-                name: bare.trim().trim_end_matches(':').to_string(),
-                body: String::new(),
-            });
-        }
-        if let Some(cur) = out.last_mut() {
-            cur.body.push_str(line);
-            cur.body.push('\n');
-        }
-    }
-    out
+/// 잡·스텝 구조는 [`crate::workflow_yaml`]의 좁은 표기만 받고, 그 밖의 표기는 Err로 돌려준다.
+/// 본문은 주석을 포함한 원문이다. jobs와 첫 헤더 사이의 내용은 어느 잡에도 포함하지 않는다.
+pub fn job_spans(file: &str, yaml: &str) -> Result<Vec<JobSpan>, Vec<String>> {
+    Ok(parsed_jobs(file, yaml)?
+        .into_iter()
+        .map(|j| JobSpan {
+            name: j.name,
+            body: j.raw.iter().fold(String::new(), |mut acc, (_, l)| {
+                acc.push_str(l);
+                acc.push('\n');
+                acc
+            }),
+        })
+        .collect())
 }
 
 /// 자동·수동을 구분하지 않은 잡 이름들. 소비자는 파일별 수집 결과도 확인해야 한다.
-pub fn job_headers(yaml: &str) -> Vec<String> {
-    job_spans(yaml).into_iter().map(|j| j.name).collect()
+pub fn job_headers(file: &str, yaml: &str) -> Result<Vec<String>, Vec<String>> {
+    Ok(job_spans(file, yaml)?.into_iter().map(|j| j.name).collect())
 }
 
 /// [`job_headers`] 의 수. 이름이 필요 없는 자리에서 쓴다.
-pub fn job_header_count(yaml: &str) -> usize {
-    job_spans(yaml).len()
+pub fn job_header_count(file: &str, yaml: &str) -> Result<usize, Vec<String>> {
+    Ok(job_spans(file, yaml)?.len())
 }
 
 /// workflow_dispatch 조건 문자열이 있으면 수동 전용으로 분류한다.
@@ -298,22 +289,22 @@ fn is_manual_only(body: &str) -> bool {
 }
 
 /// 수동 전용으로 분류한 잡을 제외한 이름들. 실제 실행 여부를 보장하지 않는다.
-pub fn automatic_job_names(yaml: &str) -> Vec<String> {
-    job_spans(yaml)
+pub fn automatic_job_names(file: &str, yaml: &str) -> Result<Vec<String>, Vec<String>> {
+    Ok(job_spans(file, yaml)?
         .into_iter()
         .filter(|j| !is_manual_only(&j.body))
         .map(|j| j.name)
-        .collect()
+        .collect())
 }
 
 /// 수동 전용으로 분류한 잡을 제외한 본문들. 트리거·경로 필터는 push_trigger에서 따로 확인한다.
 /// Rust 밖에서도 같은 판독을 사용하려면 workflow-channels 바이너리를 호출한다.
-pub fn automatic_job_bodies(yaml: &str) -> Vec<String> {
-    job_spans(yaml)
+pub fn automatic_job_bodies(file: &str, yaml: &str) -> Result<Vec<String>, Vec<String>> {
+    Ok(job_spans(file, yaml)?
         .into_iter()
         .filter(|j| !is_manual_only(&j.body))
         .map(|j| j.body)
-        .collect()
+        .collect())
 }
 
 /// 평탄화된 본문에서 `cargo test` 호출을 하나씩 잘라낸다. 각 조각은 다음 `cargo ` 직전
@@ -333,7 +324,10 @@ fn cargo_test_invocations(flat: &str) -> Vec<&str> {
     out
 }
 
-/// 워크플로 디렉터리에서 경로 필터 없는 push 채널의 검사 범위를 읽는다. 읽지 못한 파일은 Err로 반환한다.
+/// 워크플로 디렉터리에서 경로 필터 없는 push 채널의 검사 범위를 읽는다. 판독하지 못한 파일은 Err로 반환한다.
+/// Err 항목은 디렉터리 IO(`<디렉터리>: <오류>`), 파일 IO(`<파일>: 읽지 못했다: <오류>`), `on:` 판독 실패
+/// (`<파일>: on: 을 못 읽었다`), 잡 구조 판독 실패(`<파일>:<행> 지원하지 않는 표기: …`)다. 잡 구조는 채널 선별 전에
+/// 모든 파일에서 보고, 한 파일에서 `on:`과 잡 구조가 함께 실패하면 둘 다 낸다.
 pub fn filter_free_coverage(
     workflows: &std::path::Path,
 ) -> Result<FilterFreeCoverage, Vec<String>> {
@@ -355,18 +349,31 @@ pub fn filter_free_coverage(
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
-        let Ok(text) = std::fs::read_to_string(&path) else {
-            unreadable.push(name);
-            continue;
+        let text = match std::fs::read_to_string(&path) {
+            Ok(t) => t,
+            Err(e) => {
+                unreadable.push(format!("{name}: 읽지 못했다: {e}"));
+                continue;
+            }
         };
-        let Some(trigger) = push_trigger(&text) else {
-            unreadable.push(name);
+        let trigger = push_trigger(&text);
+        if trigger.is_none() {
+            unreadable.push(format!("{name}: on: 을 못 읽었다"));
+        }
+        let bodies = match automatic_job_bodies(&name, &text) {
+            Ok(b) => b,
+            Err(errs) => {
+                unreadable.extend(errs);
+                continue;
+            }
+        };
+        let Some(trigger) = trigger else {
             continue;
         };
         if !trigger.present || trigger.path_filtered || trigger.tags_only {
             continue;
         }
-        for body in automatic_job_bodies(&text) {
+        for body in bodies {
             let flat = flatten(&body);
             for inv in cargo_test_invocations(&flat) {
                 let words: Vec<&str> = inv.split_whitespace().collect();
@@ -410,7 +417,7 @@ mod coverage_tests {
 
     fn coverage() -> FilterFreeCoverage {
         filter_free_coverage(&crate::repo_root().join(".github/workflows"))
-            .unwrap_or_else(|bad| panic!("`on:` 을 못 읽은 워크플로: {bad:?}"))
+            .unwrap_or_else(|bad| panic!("판독하지 못한 워크플로: {bad:?}"))
     }
 
     /// 전체 결과가 비면 판독 실패나 채널 삭제를 확인한다. named와 packages 중 한쪽만 빈 것은 정상일 수 있다.
@@ -444,7 +451,7 @@ mod coverage_tests {
         let yaml = "on:\n  push:\n    branches: [main]\njobs:\n  auto:\n    steps:\n      \
                     - run: cargo test -p alpha\n  manual:\n    if: github.event_name == \
                     'workflow_dispatch'\n    steps:\n      - run: cargo test -p beta\n";
-        let bodies = automatic_job_bodies(yaml);
+        let bodies = automatic_job_bodies("fixture.yml", yaml).unwrap();
         assert_eq!(
             bodies.len(),
             1,
@@ -466,7 +473,7 @@ mod coverage_tests {
         let yaml = "on:\n  push:\n    branches: [main]\njobs:\n  alpha:\n    steps:\n      \
                     - run: cargo test -p alpha\n\n  # 아래 잡이 무엇을 닫는지 적는다:\n  \
                     #  - 하나\n  beta:\n    steps:\n      - run: cargo test -p beta\n";
-        let bodies = automatic_job_bodies(yaml);
+        let bodies = automatic_job_bodies("fixture.yml", yaml).unwrap();
         assert_eq!(
             bodies.len(),
             2,
@@ -478,7 +485,7 @@ mod coverage_tests {
             "잡 본문에서 주석이 사라졌다. 소비자가 원문을 검사할 수 있어야 한다: {bodies:?}"
         );
         assert_eq!(
-            job_header_count(yaml),
+            job_header_count("fixture.yml", yaml).unwrap(),
             2,
             "잡 헤더 수와 본문 수의 분류 기준이 달라졌다."
         );
@@ -502,7 +509,9 @@ mod coverage_tests {
                 continue;
             };
             files += 1;
-            bodies += automatic_job_bodies(&text).len();
+            bodies += automatic_job_bodies(&p.display().to_string(), &text)
+                .unwrap_or_else(|e| panic!("{}", e.join("\n")))
+                .len();
         }
         assert!(
             files >= 8,
@@ -572,9 +581,9 @@ mod coverage_tests {
 pub struct Step {
     /// 이 스텝이 속한 잡 이름.
     pub job: String,
-    /// `- name:` 이나 `- uses:` 에 적힌 글자.
+    /// 표시용 이름. `name` 값, 없으면 `uses` 값, 둘 다 없으면 `(이름 없음)`이다. 판정에 쓰지 않는다.
     pub name: String,
-    /// 파일 기준 줄 번호(1-based). 주석을 지운 사본에서도 줄이 보존되므로 원문과 같다.
+    /// 스텝 첫 줄(`- `가 있는 줄)의 파일 기준 줄 번호(1-based).
     pub line: usize,
     /// 잡 안 순번(1-based).
     pub ordinal: usize,
@@ -582,62 +591,66 @@ pub struct Step {
     pub has_if: bool,
     /// `continue-on-error: true` 인가. 붙으면 이 스텝의 실패가 잡 결론에 안 들어간다.
     pub continue_on_error: bool,
-    /// 스텝 헤더 다음부터 다음 스텝 직전까지의 줄들.
+    /// `name` 필드를 뺀 스텝 줄들(주석을 지웠다). 이름은 실행문이 아니므로 넣지 않는다.
     pub body: String,
 }
 
-/// 잡 헤더는 두 칸, name/uses 스텝 헤더는 여섯 칸 들여쓰기인 형태만 지원한다.
-/// 주석을 제거하되 줄 번호는 유지한다. 소비자는 스텝을 하나도 읽지 못한 결과를 확인해야 한다.
-pub fn job_steps(yaml: &str) -> Vec<Step> {
-    let stripped = strip_yaml_comments(&yaml.replace("\r\n", "\n"));
-    let mut out: Vec<Step> = Vec::new();
-    let mut in_jobs = false;
-    let mut job = String::new();
-    let mut ordinal = 0usize;
-    for (i, line) in stripped.lines().enumerate() {
-        let no = i + 1;
-        if line.starts_with("jobs:") {
-            in_jobs = true;
-            continue;
-        }
-        if !in_jobs {
-            continue;
-        }
-        let is_job_head =
-            line.starts_with("  ") && !line.starts_with("   ") && line.trim_end().ends_with(':');
-        if is_job_head {
-            job = line.trim().trim_end_matches(':').to_string();
-            ordinal = 0;
-            continue;
-        }
-        if let Some(rest) = line
-            .strip_prefix("      - name:")
-            .or_else(|| line.strip_prefix("      - uses:"))
-        {
-            ordinal += 1;
+/// 표시용 이름. 좁은 한 줄 값으로 읽히면 그 값, 아니면 주석을 지운 같은 줄 글자다.
+fn display_value(file: &str, step: &crate::workflow_yaml::Step, key: &str) -> Option<String> {
+    let f = step.fields.iter().find(|f| f.key == key)?;
+    Some(
+        crate::workflow_yaml::scalar(file, &step.fields, key)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| strip_yaml_comments(&f.inline).trim().to_string()),
+    )
+}
+
+/// 잡의 스텝들을 읽는다. 잡·스텝 구조는 [`crate::workflow_yaml`]의 좁은 표기이고(스텝은 6칸의 모든 `- `에서
+/// 시작한다), 스텝마다 `if`·`continue-on-error`를 [`crate::workflow_yaml::step_conditions`]로 읽는다.
+/// 지원 밖 표기가 하나라도 있으면 Err(파일:행 오류 줄)다. 소비자는 스텝을 하나도 읽지 못한 결과도 확인해야 한다.
+pub fn job_steps(file: &str, yaml: &str) -> Result<Vec<Step>, Vec<String>> {
+    let jobs = parsed_jobs(file, yaml)?;
+    let mut out = Vec::new();
+    let mut errs = Vec::new();
+    for job in &jobs {
+        for (k, s) in job.steps.iter().enumerate() {
+            let cond = match crate::workflow_yaml::step_conditions(file, s) {
+                Ok(c) => c,
+                Err(e) => {
+                    errs.extend(e);
+                    continue;
+                }
+            };
+            let name_lines: Vec<usize> = s
+                .fields
+                .iter()
+                .filter(|f| f.key == "name")
+                .flat_map(|f| std::iter::once(f.line).chain(f.children.iter().map(|(n, _)| *n)))
+                .collect();
+            let kept: String = s
+                .lines
+                .iter()
+                .filter(|(n, _)| !name_lines.contains(n))
+                .fold(String::new(), |mut acc, (_, l)| {
+                    acc.push_str(l);
+                    acc.push('\n');
+                    acc
+                });
             out.push(Step {
-                job: job.clone(),
-                name: rest.trim().to_string(),
-                line: no,
-                ordinal,
-                has_if: false,
-                continue_on_error: false,
-                body: String::new(),
+                job: job.name.clone(),
+                name: display_value(file, s, "name")
+                    .or_else(|| display_value(file, s, "uses"))
+                    .unwrap_or_else(|| "(이름 없음)".to_string()),
+                line: s.line,
+                ordinal: k + 1,
+                has_if: cond.if_expr.is_some(),
+                continue_on_error: cond.continue_on_error == Some(true),
+                body: strip_yaml_comments(&kept),
             });
-            continue;
-        }
-        if let Some(step) = out.last_mut() {
-            if line.starts_with("        if:") {
-                step.has_if = true;
-            }
-            if line.trim() == "continue-on-error: true" {
-                step.continue_on_error = true;
-            }
-            step.body.push_str(line);
-            step.body.push('\n');
         }
     }
-    out
+    if errs.is_empty() { Ok(out) } else { Err(errs) }
 }
 
 /// 이 스텝이 검증을 돌리는가 — `cargo test` 또는 `cargo clippy`.
@@ -654,8 +667,8 @@ fn runs_verification(step: &Step) -> bool {
 
 /// 앞 스텝이 있고 명시적인 if·continue-on-error가 없는 cargo test/clippy 스텝을 찾는다.
 /// 앞 스텝 실패로 실행되지 않을 수 있는 검증을 분류한다. 실패를 무시하는 스텝은 별도로 다룬다.
-pub fn swallowable_verification_steps(yaml: &str) -> Vec<Step> {
-    let steps = job_steps(yaml);
+pub fn swallowable_verification_steps(file: &str, yaml: &str) -> Result<Vec<Step>, Vec<String>> {
+    let steps = job_steps(file, yaml)?;
     let mut out = Vec::new();
     for (k, s) in steps.iter().enumerate() {
         if !runs_verification(s) || s.has_if || s.continue_on_error {
@@ -665,16 +678,16 @@ pub fn swallowable_verification_steps(yaml: &str) -> Vec<Step> {
             out.push(s.clone());
         }
     }
-    out
+    Ok(out)
 }
 
 /// 명시적인 if가 있는 검증 스텝을 따로 분류한다. 조건식 자체의 의미는 평가하지 않는다.
 /// 정리·배포처럼 cargo test/clippy를 실행하지 않는 스텝은 포함하지 않는다.
-pub fn protected_verification_steps(yaml: &str) -> Vec<Step> {
-    job_steps(yaml)
+pub fn protected_verification_steps(file: &str, yaml: &str) -> Result<Vec<Step>, Vec<String>> {
+    Ok(job_steps(file, yaml)?
         .into_iter()
         .filter(|s| s.has_if && runs_verification(s))
-        .collect()
+        .collect())
 }
 
 #[cfg(test)]
@@ -708,7 +721,7 @@ jobs:
 
     #[test]
     fn the_step_reader_finds_steps_at_all() {
-        let steps = job_steps(FIXTURE);
+        let steps = job_steps("fixture.yml", FIXTURE).unwrap();
         assert_eq!(
             steps.len(),
             6,
@@ -724,7 +737,8 @@ jobs:
 
     #[test]
     fn only_a_step_a_dead_neighbour_can_swallow_is_counted() {
-        let got: Vec<String> = swallowable_verification_steps(FIXTURE)
+        let got: Vec<String> = swallowable_verification_steps("fixture.yml", FIXTURE)
+            .unwrap()
             .iter()
             .map(|s| s.name.trim().to_string())
             .collect();
@@ -738,7 +752,8 @@ jobs:
     /// 두 분류가 같은 스텝을 중복 포함하지 않는지 확인한다.
     #[test]
     fn the_protected_and_the_swallowable_never_hold_the_same_step() {
-        let prot: Vec<String> = protected_verification_steps(FIXTURE)
+        let prot: Vec<String> = protected_verification_steps("fixture.yml", FIXTURE)
+            .unwrap()
             .iter()
             .map(|s| s.name.trim().to_string())
             .collect();
@@ -747,7 +762,8 @@ jobs:
             vec!["protected".to_string()],
             "짝 술어가 고르는 것이 달라졌다: {prot:?} — 기대는 `protected` 하나다"
         );
-        let swal: Vec<String> = swallowable_verification_steps(FIXTURE)
+        let swal: Vec<String> = swallowable_verification_steps("fixture.yml", FIXTURE)
+            .unwrap()
             .iter()
             .map(|s| s.name.trim().to_string())
             .collect();
@@ -775,7 +791,8 @@ jobs:
       - name: the real one
         run: cargo test --workspace
 "#;
-        let picked: Vec<String> = swallowable_verification_steps(COMMENTED)
+        let picked: Vec<String> = swallowable_verification_steps("fixture.yml", COMMENTED)
+            .unwrap()
             .iter()
             .map(|s| s.name.trim().to_string())
             .collect();
