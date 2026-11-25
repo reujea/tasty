@@ -63,15 +63,10 @@ pub fn occupancy_edge_stroke(theme: &Theme, hard: bool) -> egui::Stroke {
     egui::Stroke::new(theme.surface_occupied_border_width().value(), color)
 }
 
-/// 개수를 숫자로 보이는 상한(`semantic.count-display-max`). 워크스페이스 배지·실행 중 개수·
-/// 알림 배지가 이 값 하나를 따른다.
-pub(crate) const COUNT_DISPLAY_MAX: usize =
-    tasty_design_tokens::generated::semantic::COUNT_DISPLAY_MAX as usize;
-
 /// 워크스페이스 행 개수 배지의 글자. 상한을 넘으면 `상한+`(99+)로 줄인다.
 pub fn attention_count_label(count: usize) -> String {
-    if count > COUNT_DISPLAY_MAX {
-        format!("{COUNT_DISPLAY_MAX}+")
+    if count > crate::tokens::COUNT_DISPLAY_MAX {
+        format!("{}+", crate::tokens::COUNT_DISPLAY_MAX)
     } else {
         count.to_string()
     }
@@ -198,6 +193,11 @@ mod tests {
     #[test]
     fn every_count_notation_follows_the_design_maximum() {
         let max = tasty_design_tokens::generated::semantic::COUNT_DISPLAY_MAX as usize;
+        assert_eq!(
+            crate::tokens::COUNT_DISPLAY_MAX,
+            max,
+            "the widget cap must equal the count-display-max token"
+        );
         let over = format!("{max}+");
         assert_eq!(attention_count_label(max), max.to_string());
         assert_eq!(attention_count_label(max + 1), over);

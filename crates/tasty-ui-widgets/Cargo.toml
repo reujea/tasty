@@ -15,8 +15,6 @@ tasty-dag-layout = { path = "../tasty-dag-layout" }
 tasty-egui-theme = { path = "../tasty-egui-theme" }
 tasty-type-appearance = { path = "../tasty-type-appearance", features = ["egui-compat"] }
 tasty-type-geometry = { path = "../tasty-type-geometry" }
-# Theme 접근자가 생성되지 않는 숫자 토큰(개수 표시 상한)을 읽는다. 시험은 토스트 구조 상수도 이 값과 대조한다.
-tasty-design-tokens = { path = "../tasty-design-tokens" }
 
 [dev-dependencies]
 # 번역 문구로 배치를 재는 시험이 내장 언어 목록과 언어 파일을 읽는다.
@@ -25,6 +23,8 @@ toml = "0.8"
 # 라벨 글꼴 시험이 고정폭 글꼴의 글자 표를 읽는다.
 tasty-font = { path = "../tasty-font" }
 ttf-parser = "0.25"
+# 토스트 구조 상수가 DTCG 토큰 값과 같은지 시험에서 대조한다.
+tasty-design-tokens = { path = "../tasty-design-tokens" }
 # path_field_focus 통합테스트가 headless Context 구동에 실제 Theme 을 요구한다.
 tasty-themes = { path = "../tasty-themes" }
 # 스크롤 화살표 테스트가 chevron 글리프를 실제 텍스처로 칠해 tint를 읽는다. svg 로더가 없으면 글리프가 칠해지지 않는다.

@@ -174,3 +174,9 @@ pub const FH_RECENT_DIM_OPACITY: f32 = 0.8;
 /// (시안 `flex: 1 1 var(--tasty-size-240)`). 이보다 좁으면 버튼이 설명 아래로 내려간다.
 /// 역할 토큰이 없는 배치 경계라 여기 두고, 그리는 쪽이 UI 배율을 곱한다.
 pub const FH_INTRO_TEXT_MIN: LogicalPx = LogicalPx(240.0);
+
+/// 개수를 숫자로 보이는 상한 = `semantic.count-display-max` = 99. 워크스페이스 배지·실행 중 개수·
+/// 알림 배지가 이 값 하나를 따르고, 넘으면 `99+`로 줄인다. 숫자 토큰은 Theme 접근자가 생성되지 않고,
+/// 이 크레이트는 플러그인 SDK가 쓰는 플러그인 폐포라 tasty-design-tokens를 일반 의존성으로 두지 않는다.
+/// 토큰 값과의 일치는 시험이 확인한다.
+pub const COUNT_DISPLAY_MAX: usize = 99;
