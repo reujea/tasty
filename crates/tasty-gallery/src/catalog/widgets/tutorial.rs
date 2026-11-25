@@ -75,6 +75,9 @@ pub(crate) const COMPOSITE_NOTE: &str = "Popup closed: marker (glow ring) + spot
      Back → prev · Skip/Esc → topic popup · last-step Next → reopen popup. Marker + dim are \
      pointer-events:none.";
 
+/// 합성 표본 무대 왼쪽 위에서 첫 단계 말풍선까지의 거리. tasty-page 합성 표본의 말풍선 위치(left 150, top 120)다.
+const COMPOSITE_CALLOUT_OFFSET: egui::Vec2 = egui::vec2(150.0, 120.0);
+
 /// 사이드바와 마커가 같은 경계를 쓰도록 예제의 폭 제한을 한 곳에서 계산한다.
 fn faux_sidebar_w(r: egui::Rect) -> f32 {
     FAUX_SIDEBAR_W.value().min(r.width() * 0.5)
@@ -583,7 +586,7 @@ fn demo_box(
     w: LogicalPx,
     h: LogicalPx,
     add: impl FnOnce(&egui::Painter, egui::Rect),
-) {
+) -> egui::Rect {
     let (rect, _) = ui.allocate_exact_size(egui::vec2(w.value(), h.value()), egui::Sense::hover());
     let p = ui.painter_at(rect);
     p.rect_filled(rect, theme.corner_radius.value(), theme.bg_app().to_egui());
@@ -597,6 +600,7 @@ fn demo_box(
         ),
         egui::StrokeKind::Inside,
     );
+    rect
 }
 pub fn draw_marker(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Wrap, |ui| {
@@ -814,7 +818,7 @@ pub fn draw_topics(ui: &mut egui::Ui, theme: &Theme) {
 pub fn draw_composite(ui: &mut egui::Ui, theme: &Theme) {
     spec::stage(ui, theme, StageVariant::Solo, |ui| {
         let w = LogicalPx(ui.available_width()).min(LogicalPx(520.0));
-        demo_box(ui, theme, w, LogicalPx(340.0), |p, r| {
+        let stage = demo_box(ui, theme, w, LogicalPx(340.0), |p, r| {
             paint_faux_app(p, r, theme);
             paint_scrim(p, r, theme);
             // 사이드바 폭이 줄어들어도 마커가 콘텐츠 경계에 맞도록 같은 계산을 쓴다.
@@ -826,6 +830,12 @@ pub fn draw_composite(ui: &mut egui::Ui, theme: &Theme) {
             );
             paint_marker(p, m, theme, true);
         });
+        // 본체처럼 현재 단계(첫 단계) 번호와 basics 전체 단계 수를 말풍선에 넘긴다.
+        let at = stage.min + COMPOSITE_CALLOUT_OFFSET;
+        let mut child = ui.new_child(
+            egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(at, stage.max - at)),
+        );
+        basics_callout(&mut child, theme, Tail::Right, BASICS_STEPS[0].id);
     });
     spec::note(ui, theme, COMPOSITE_NOTE);
 }

@@ -86,3 +86,33 @@ fn composite_texts_state_the_app_step_count_and_order() {
         "{COMPOSITE_NOTE}"
     );
 }
+
+/// 합성 표본을 GPU 없이 한 프레임 그려 글자 모양을 모은다.
+fn composite_texts() -> Vec<String> {
+    fn collect(shape: &egui::epaint::Shape, out: &mut Vec<String>) {
+        match shape {
+            egui::epaint::Shape::Text(t) => out.push(t.galley.text().to_owned()),
+            egui::epaint::Shape::Vec(v) => v.iter().for_each(|s| collect(s, out)),
+            _ => {}
+        }
+    }
+    let theme = tasty_themes::mocha_fallback();
+    let ctx = egui::Context::default();
+    let output = ctx.run(egui::RawInput::default(), |ctx| {
+        egui::CentralPanel::default().show(ctx, |ui| super::draw_composite(ui, &theme));
+    });
+    let mut out = Vec::new();
+    for cs in &output.shapes {
+        collect(&cs.shape, &mut out);
+    }
+    out
+}
+
+#[test]
+fn composite_draws_the_first_basics_step_callout() {
+    let texts = composite_texts();
+    let progress = format!("1 / {}", BASICS_STEPS.len());
+    assert!(texts.contains(&progress), "{progress} 없음: {texts:?}");
+    let title = crate::i18n::t(BASICS_STEPS[0].title_key);
+    assert!(texts.iter().any(|t| t == title), "{title} 없음: {texts:?}");
+}
