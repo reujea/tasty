@@ -681,3 +681,6 @@ mod tests {
 
 #[cfg(test)]
 mod observation_tests;
+
+#[cfg(test)]
+mod notices_tests;

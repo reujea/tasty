@@ -2,7 +2,7 @@
 //! 공통 알림 형식을 사용해 제목·본문·버튼 배치를 맞춘다.
 
 use tasty_type_appearance::theme::Theme;
-use tasty_ui_widgets::{Button, ButtonVariant, ControlSize};
+use tasty_ui_widgets::{Button, ButtonVariant, ControlSize, Ground};
 
 use crate::adapters::ui::icons;
 use crate::i18n::{t, t_count, t_fmt, t_fmt2};
@@ -34,6 +34,69 @@ pub(super) struct NoticeAction<'a> {
     pub(super) variant: ButtonVariant,
 }
 
+/// 알림 블록의 색. `tint`는 채움·테두리, `glyph`는 글리프, `title`은 제목과 개수의 잉크다.
+/// 디자인 `IeBlockG`의 `tone`(제목)과 `glyphTone`(글리프)이 raised 위 danger tint에서 갈린다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct NoticeInk {
+    pub(super) tint: egui::Color32,
+    pub(super) glyph: egui::Color32,
+    pub(super) title: egui::Color32,
+}
+
+impl NoticeInk {
+    /// 글리프와 제목이 같은 잉크인 블록.
+    fn same(tint: egui::Color32, ink: egui::Color32) -> Self {
+        Self {
+            tint,
+            glyph: ink,
+            title: ink,
+        }
+    }
+}
+
+/// 내보내기 실패 블록의 색 — 디자인 `IeExportFailG`. raised 카드 위 danger tint라 제목은
+/// accent-danger-strong, 글리프는 accent-danger-raised다.
+pub(super) fn export_failure_ink(th: &Theme) -> NoticeInk {
+    NoticeInk {
+        tint: th.accent_danger().to_egui(),
+        glyph: th.accent_danger_raised().to_egui(),
+        title: th.accent_danger_strong().to_egui(),
+    }
+}
+
+/// 내보내기 실패의 버튼은 tint 밖 raised 카드 바탕에 놓인다(디자인 `IeExportFailG`).
+const EXPORT_FAILURE_ACTION_GROUND: Ground = Ground::Raised;
+
+/// 알림 블록의 본문 잉크 — 디자인 `IeBlockG` 본문의 text-on-active.
+pub(super) fn notice_body_ink(th: &Theme) -> egui::Color32 {
+    th.text_on_active().to_egui()
+}
+
+/// 액션 버튼 행. 눌린 액션의 인덱스를 돌려준다.
+fn action_buttons(
+    ui: &mut egui::Ui,
+    th: &Theme,
+    actions: &[NoticeAction<'_>],
+    ground: Ground,
+) -> Option<usize> {
+    let mut clicked = None;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
+        for (i, action) in actions.iter().enumerate() {
+            if Button::new(action.label)
+                .variant(action.variant)
+                .size(ControlSize::Sm)
+                .ground(ground)
+                .show(ui, th)
+                .clicked()
+            {
+                clicked = Some(i);
+            }
+        }
+    });
+    clicked
+}
+
 /// 알림 블록 — 디자인 `IeBlockG`. 톤 틴트 배경 + 톤 테두리 · 헤더(글리프 · 제목 · 우측 개수) ·
 /// 본문 · 액션 행. 눌린 액션의 인덱스를 돌려준다.
 // reason: 레시피의 칸(톤 · 글리프 · 제목 · 개수 · 본문 · 액션)이 그대로 인자다 — 묶으면 세 호출부가
@@ -42,7 +105,7 @@ pub(super) struct NoticeAction<'a> {
 pub(super) fn notice_block(
     ui: &mut egui::Ui,
     th: &Theme,
-    (tone, ink): (egui::Color32, egui::Color32),
+    ink: NoticeInk,
     glyph: icons::Icon,
     title: &str,
     count: Option<&str>,
@@ -51,10 +114,10 @@ pub(super) fn notice_block(
 ) -> Option<usize> {
     let mut clicked = None;
     egui::Frame::new()
-        .fill(tone.gamma_multiply(th.tint_fill_alpha()))
+        .fill(ink.tint.gamma_multiply(th.tint_fill_alpha()))
         .stroke(egui::Stroke::new(
             th.border_width.value(),
-            tone.gamma_multiply(th.tint_border_alpha()),
+            ink.tint.gamma_multiply(th.tint_border_alpha()),
         ))
         .corner_radius(th.corner_radius.value())
         .inner_margin(tasty_ui_widgets::margin_all(th.spacing_md))
@@ -63,11 +126,11 @@ pub(super) fn notice_block(
             ui.spacing_mut().item_spacing.y = th.spacing_xs.value();
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
-                glyph_at(ui, glyph, th.icon_glyph_size_md, ink);
+                glyph_at(ui, glyph, th.icon_glyph_size_md, ink.glyph);
                 ui.label(
                     egui::RichText::new(title)
                         .size(th.font_size_body.value())
-                        .color(ink),
+                        .color(ink.title),
                 );
                 if let Some(count) = count {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -75,7 +138,7 @@ pub(super) fn notice_block(
                             egui::RichText::new(count)
                                 .family(tasty_ui_widgets::label_font_family())
                                 .size(th.font_size_caption.value())
-                                .color(ink),
+                                .color(ink.title),
                         );
                     });
                 }
@@ -83,32 +146,20 @@ pub(super) fn notice_block(
             body(ui);
             if !actions.is_empty() {
                 tasty_ui_widgets::vspace(ui, th.spacing_xs);
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
-                    for (i, action) in actions.iter().enumerate() {
-                        if Button::new(action.label)
-                            .variant(action.variant)
-                            .size(ControlSize::Sm)
-                            .show(ui, th)
-                            .clicked()
-                        {
-                            clicked = Some(i);
-                        }
-                    }
-                });
+                clicked = action_buttons(ui, th, actions, Ground::Panel);
             }
         });
     clicked
 }
 
-/// 실패 블록의 본문 한 문단 — 12 text-secondary, max-width measure-md.
+/// 실패 블록의 본문 한 문단 — 12 text-on-active, max-width measure-md.
 fn failure_body(ui: &mut egui::Ui, th: &Theme, text: &str) {
     ui.scope(|ui| {
         ui.set_max_width(th.measure_md.value());
         ui.label(
             egui::RichText::new(text)
                 .size(th.font_size_term_sm.value())
-                .color(th.text_secondary()),
+                .color(notice_body_ink(th)),
         );
     });
 }
@@ -121,7 +172,7 @@ fn os_reason_line(ui: &mut egui::Ui, th: &Theme, message: &str) {
             egui::RichText::new(message)
                 .size(th.font_size_caption.value())
                 .family(egui::FontFamily::Monospace)
-                .color(th.text_muted()),
+                .color(notice_body_ink(th)),
         )
         .truncate(),
     )
@@ -145,7 +196,7 @@ pub(super) fn parse_failure(ui: &mut egui::Ui, th: &Theme, failure: &Failure) ->
     notice_block(
         ui,
         th,
-        (
+        NoticeInk::same(
             th.accent_danger().to_egui(),
             th.accent_danger_raised().to_egui(),
         ),
@@ -198,10 +249,7 @@ pub(super) fn export_failure(
     notice_block(
         ui,
         th,
-        (
-            th.accent_danger().to_egui(),
-            th.accent_danger_raised().to_egui(),
-        ),
+        export_failure_ink(th),
         icons::ALERT_CIRCLE,
         t(
             if matches!(failure.reason, ExportFailReason::OutcomeUnknown) {
@@ -217,6 +265,12 @@ pub(super) fn export_failure(
                 os_reason_line(ui, th, message);
             }
         },
+        &[],
+    );
+    // 버튼은 tint 밖, 카드의 raised 바탕에 둔다. 블록과의 간격은 카드의 행 간격이다.
+    action_buttons(
+        ui,
+        th,
         &[
             NoticeAction {
                 label: t("settings.keybindings.ie_export_retry"),
@@ -227,6 +281,7 @@ pub(super) fn export_failure(
                 variant: ButtonVariant::Ghost,
             },
         ],
+        EXPORT_FAILURE_ACTION_GROUND,
     )
     .map(|i| {
         if i == 0 {
@@ -265,7 +320,7 @@ pub(super) fn bundle_notices(
     notice_block(
         ui,
         th,
-        (
+        NoticeInk::same(
             th.accent_warning().to_egui(),
             th.accent_warning_raised().to_egui(),
         ),
