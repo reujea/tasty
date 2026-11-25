@@ -432,14 +432,14 @@ pub fn draw_tab_strip_with_focus_look(
         }
         x += w + gap;
     }
-    // 링(offset + 폭)은 탭 간격보다 넓어 이웃 탭에 걸치므로, 모든 탭의 채움과 밑줄을 그린 뒤에 얹는다.
+    // 링은 설정 L1 탭과 같은 탭 안쪽 링이다(정본 remote-tab-next-to-selected-focus). 탭 간격 2라 바깥 링은 이웃
+    // 탭 안으로 들어가 이웃 선택 탭의 밑줄과 이어지므로 안쪽에 그린다. 모든 탭의 채움과 밑줄 뒤에 얹는다.
     if let Some(rect) = ring {
-        crate::focus_ring::paint_control_ring(
+        crate::focus_ring::paint_tab_inset_ring(
             ui.painter(),
             th,
             rect,
-            0.0,
-            crate::focus_ring::control_ring_gap(th),
+            th.tab_indicator_width(),
             th.border_focus().to_egui(),
         );
     }

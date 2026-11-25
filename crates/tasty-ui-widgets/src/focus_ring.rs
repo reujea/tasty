@@ -2,7 +2,9 @@
 //!
 //! - 필드 링: 필드 테두리 바로 바깥에 틈 없이 붙인 border_width 링. Input·CodeArea·Select·MultiSelect가 쓴다.
 //! - 컨트롤 링: 컨트롤 상자에서 focus_ring_offset 만큼 띄운 focus_ring_width 링. 버튼·체크박스·창 안 탭이 쓰고,
-//!   Switch는 트랙에서 두 배만큼 띄운다. 설정 L1 탭만 탭 안쪽에 그린다.
+//!   Switch는 트랙에서 두 배만큼 띄운다.
+//! - 탭 안쪽 링: 설정 L1 탭과 원격 창 탭 줄은 같은 focus_ring_width 링을 탭 안쪽, 활성 밑줄 위로
+//!   focus_ring_offset 띄운 자리에 그린다([`paint_tab_inset_ring`]).
 //!
 //! 링 조건은 위젯의 `has_focus()`다. 이 크레이트의 버튼·토글·탭은 포인터 클릭으로 egui 포커스를 요청하지 않으므로
 //! 그 포커스는 Tab 이동이나 앱의 `request_focus`에서만 생긴다(정본 `:focus-visible`과 같은 범위).
@@ -49,7 +51,7 @@ pub fn paint_control_ring(
     );
 }
 
-/// `rect`를 네 변 모두 `inset`만큼 줄인 안쪽에 그리는 focus_ring_width 링(설정 L1 탭).
+/// `rect`를 네 변 모두 `inset`만큼 줄인 안쪽에 그리는 focus_ring_width 링.
 pub fn paint_inset_ring(
     painter: &egui::Painter,
     theme: &Theme,
@@ -62,6 +64,30 @@ pub fn paint_inset_ring(
         0.0,
         egui::Stroke::new(theme.focus_ring_width.value(), color),
         egui::StrokeKind::Inside,
+    );
+}
+
+/// 탭 안쪽 링을 탭 사각형 네 변에서 줄이는 거리. 활성 밑줄(`underline` 두께) 위로 focus-ring-offset을 띄운다.
+/// 배율 1에서 3이고, 링 안쪽 변은 탭 변에서 5(정본 offset −(2×focus-ring-width + focus-ring-offset))다.
+pub fn tab_ring_inset(theme: &Theme, underline: LogicalPx) -> LogicalPx {
+    underline + theme.focus_ring_offset
+}
+
+/// 탭 안쪽 링(설정 L1 탭, 원격 창 탭 줄). 선택 여부와 무관하게 모든 탭에서 같은 자리다. 탭 아래 변부터 위로 밑줄,
+/// focus-ring-offset 띠, 링 순서라 링이 밑줄과 이웃 탭에 닿지 않는다.
+pub fn paint_tab_inset_ring(
+    painter: &egui::Painter,
+    theme: &Theme,
+    rect: egui::Rect,
+    underline: LogicalPx,
+    color: egui::Color32,
+) {
+    paint_inset_ring(
+        painter,
+        theme,
+        rect,
+        tab_ring_inset(theme, underline),
+        color,
     );
 }
 

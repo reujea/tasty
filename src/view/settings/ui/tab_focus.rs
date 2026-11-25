@@ -13,11 +13,11 @@ pub(super) fn l1_ring_then_clicked(
     underline: LogicalPx,
 ) -> bool {
     if resp.has_focus() {
-        tasty_ui_widgets::paint_inset_ring(
+        tasty_ui_widgets::paint_tab_inset_ring(
             ui.painter(),
             th,
             resp.rect,
-            underline + th.focus_ring_offset,
+            underline,
             th.border_focus().to_egui(),
         );
     }

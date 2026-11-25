@@ -66,7 +66,7 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
         ui.with_layout(
             egui::Layout::left_to_right(egui::Align::Min).with_main_wrap(true),
             |ui| {
-                let frames: [(&str, FocusLook, Frame); 6] = [
+                let frames: [(&str, FocusLook, Frame); 7] = [
                     (
                         "settings · L1 tab",
                         FocusLook::L1(0),
@@ -82,9 +82,15 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
                         FocusLook::L2(1),
                         super::settings::frame,
                     ),
+                    // 정본 remote-tab-next-to-selected-focus·remote-selected-tab-focus(page gallery-leftovers f04edb6).
                     (
-                        "remote · tab strip",
-                        FocusLook::RemoteTab(0),
+                        "remote · tab next to the selected one",
+                        FocusLook::RemoteTab(1),
+                        super::remote::passkeys_frame,
+                    ),
+                    (
+                        "remote · selected tab",
+                        FocusLook::RemoteTab(2),
                         super::remote::passkeys_frame,
                     ),
                     (
@@ -125,11 +131,11 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ("keys", "Tab / Shift+Tab move focus · Space / Enter press"),
             (
                 "focus",
-                "control ring: focus-ring-width 2 · border-focus · focus-ring-offset 1 off the tab",
+                "control ring: focus-ring-width 2 · border-focus · focus-ring-offset 1 off the L2 row, segment and plugins tab",
             ),
             (
-                "settings L1 tab",
-                "the same ring inside the tab, 1 clear of the 2 active underline (−5 offset)",
+                "settings L1 · remote tab",
+                "the same ring inside the tab, 1 clear of the 2 active underline (−5 offset), selected or not",
             ),
             (
                 "plugins tab",

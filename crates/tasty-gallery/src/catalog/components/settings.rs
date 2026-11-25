@@ -325,11 +325,11 @@ fn l1_tab(
     }
     // 본체 L1 탭처럼 링을 탭 안쪽에 그리고 밑줄과 focus-ring-offset 만큼 띄운다.
     if focused {
-        tasty_ui_widgets::paint_inset_ring(
+        tasty_ui_widgets::paint_tab_inset_ring(
             ui.painter(),
             theme,
             rect,
-            theme.tab_indicator_width() + theme.focus_ring_offset,
+            theme.tab_indicator_width(),
             theme.border_focus().to_egui(),
         );
     }

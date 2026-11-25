@@ -212,7 +212,7 @@ pub use file_handler_form::{
 pub use filter_readout::{filter_readout, filter_readout_label, filter_readout_width};
 pub use focus_ring::{
     control_ring_color, control_ring_gap, paint_control_ring, paint_field_ring, paint_inset_ring,
-    pinned_focus, switch_ring_gap,
+    paint_tab_inset_ring, pinned_focus, switch_ring_gap, tab_ring_inset,
 };
 pub use folder_picker::FolderPickerFooter;
 pub use graph_view::{
