@@ -454,16 +454,14 @@ fn a_body_that_never_left_keeps_the_previous_document() {
     assert_eq!(reload(&mut docs, &a, 12), StartDecision::Reload);
 }
 
-/// 호스트가 보낸 기록(`load_url` 주소)은 마지막 요청만 남고, 본문 로드는 그 기록을 지운다.
+/// 호스트는 `load_url`로 예약 주소를 보내지 않는다(다시 싣기만 그 주소를 연다).
 #[test]
-fn the_requested_address_is_the_host_record() {
-    let mut docs = HostDocuments::default();
-    let a = "http://v1-1.tasty-host-document.invalid/notes.md";
-    docs.requested(Some(a));
-    assert!(docs.is_requested(&format!("{a}#top")));
-    assert!(!docs.is_requested("http://v1-1.tasty-host-document.invalid/other.md"));
-    docs.requested(None);
-    assert!(!docs.is_requested(a));
+fn the_host_never_loads_a_reserved_address_by_url() {
+    assert!(!host_may_load_url(
+        "http://v1-1.tasty-host-document.invalid/notes.md"
+    ));
+    assert!(!host_may_load_url(&host_document_url(1, 1, 2)));
+    assert!(host_may_load_url("https://example.com/notes.md"));
 }
 
 /// 호스트 다시 싣기의 시작보다 먼저 페이지가 같은 주소로 가는 탐색을 시작해도 본문은 호스트 탐색만 받는다.

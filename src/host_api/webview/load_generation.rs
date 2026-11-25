@@ -440,7 +440,7 @@ mod tests {
 
     #[test]
     fn a_cancelled_host_navigation_ends_its_load_and_its_designation() {
-        // load_url이 Loading·빈 세대·지목을 세운 뒤 그 탐색이 표에 없는 예약 주소라 취소된다.
+        // 호스트 로드가 Loading·빈 세대·지목을 세운 뒤, 지금 로드 번호 머리글을 단 그 탐색이 받히지 않고 취소된다.
         let nav = Cell::new(NavState::Loading);
         let generation = Cell::new(None);
         let top = RefCell::new(TopLevelAdmission::default());
@@ -565,6 +565,28 @@ mod tests {
         assert!(next_start_admitted(&top), "새 로드의 지목은 남는다");
         assert!(sent_for_current_load(Some(3), 3));
         assert!(!sent_for_current_load(None, 3));
+    }
+
+    #[test]
+    fn a_cancelled_page_navigation_to_the_retry_address_keeps_the_pending_load() {
+        use super::super::host_document::sent_for_current_load;
+        // 로드 3의 다시 싣기가 장벽을 기다리는 동안, 페이지가 같은 주소로 가는 탐색(머리글 없음)이 취소된다.
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(None);
+        let top = RefCell::new(TopLevelAdmission::default());
+        top.borrow_mut().designate(Designation::Next);
+        let host_sent = sent_for_current_load(None, 3);
+        assert!(end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(9),
+            false,
+            host_sent
+        ));
+        assert_eq!(nav.get(), NavState::Loading);
+        assert_eq!(generation.get(), None);
+        assert!(next_start_admitted(&top), "기다리는 요청의 지목은 남는다");
     }
 
     #[test]

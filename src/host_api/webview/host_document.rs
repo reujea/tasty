@@ -34,6 +34,13 @@ pub(super) fn parse_host_load(value: &str) -> Option<u64> {
     value.trim().parse().ok()
 }
 
+/// 호스트가 `load_url`로 이 주소를 보낼지. 예약 주소는 다시 싣기(머리글을 단 요청)만 여는 주소라
+/// `load_url`로는 보내지 않는다. 호출자는 그 로드를 거절된 로드로 끝낸다. 그래서 주소만 같은 페이지
+/// 탐색이 호스트 요청으로 읽힐 구간(바탕 포커스 장벽을 기다리는 `Navigate`)이 생기지 않는다.
+pub(super) fn host_may_load_url(url: &str) -> bool {
+    !is_reserved(url)
+}
+
 /// 시작 전에 취소한 예약 주소 탐색이 지금 호스트 로드가 보낸 것인지. `header`는 그 시작 요청의
 /// `HOST_LOAD_HEADER` 값, `latest`는 지금 호스트 로드 번호다. WebView2는 다시 읽기·이력 이동·리다이렉트에서
 /// 앞 요청의 머리글을 다시 보내므로, 머리글이 있는 것만으로는 지금 로드가 보낸 탐색이 아니다. 번호가 지금
@@ -116,8 +123,6 @@ pub(super) struct HostDocuments {
     main: Option<Main>,
     /// 시작 전에 취소한 탐색. 그 완료는 chrome 상태를 바꾸지 않는다.
     cancelled: Option<u64>,
-    /// 호스트가 마지막으로 `load_url`로 요청한 주소. 본문 로드(`load_html`)면 None이다.
-    requested: Option<String>,
 }
 
 /// 탐색 시작에 대한 판정.
@@ -145,18 +150,6 @@ impl HostDocuments {
             nav: None,
             shown: false,
         });
-    }
-
-    /// 호스트 로드 요청. `load_url`이면 그 주소, `load_html`이면 None이다.
-    pub(super) fn requested(&mut self, url: Option<&str>) {
-        self.requested = url.map(str::to_string);
-    }
-
-    /// 이 주소가 호스트가 마지막으로 `load_url`로 요청한 주소인지.
-    pub(super) fn is_requested(&self, uri: &str) -> bool {
-        self.requested
-            .as_deref()
-            .is_some_and(|r| same_target(r, uri))
     }
 
     /// 다시 싣기 `Navigate`가 바로 거절됐다. 시작 신호가 오지 않으므로 여기서 지운다.
