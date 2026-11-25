@@ -322,8 +322,8 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
 /// 앞선 넓은 예제가 열의 Ui를 넓혀도 보이는 폭은 갤러리 본문 열 폭에서 무대 틀(여백·테두리)을 뺀 값이다.
 /// 그린 창의 사각형과, 가로로 스크롤했으면 그 보이는 영역을 돌려준다.
 fn window_stage(ui: &mut egui::Ui, theme: &Theme) -> (egui::Rect, Option<egui::Rect>) {
-    let column = spec::body_column_width(ui);
-    let outer = ui.available_width();
+    let column = LogicalPx(spec::body_column_width(ui));
+    let outer = LogicalPx(ui.available_width());
     let mut layout = None;
     stage(ui, theme, StageVariant::Tight, |ui| {
         egui::Frame::new()
@@ -331,9 +331,10 @@ fn window_stage(ui: &mut egui::Ui, theme: &Theme) -> (egui::Rect, Option<egui::R
             .corner_radius(theme.corner_radius.value())
             .inner_margin(egui::Margin::same(STAGE_PAD.value() as i8))
             .show(ui, |ui| {
-                let viewport = (column - (outer - ui.available_width())).max(0.0);
-                ui.set_width(viewport);
-                layout = Some(if viewport >= theme.preset_window_width().value() {
+                let viewport =
+                    (column - (outer - LogicalPx(ui.available_width()))).max(LogicalPx(0.0));
+                ui.set_width(viewport.value());
+                layout = Some(if viewport >= theme.preset_window_width() {
                     let window = ui
                         .vertical_centered(|ui| {
                             STATE.with(|s| window(ui, theme, &mut s.borrow_mut()))
@@ -343,7 +344,7 @@ fn window_stage(ui: &mut egui::Ui, theme: &Theme) -> (egui::Rect, Option<egui::R
                 } else {
                     let out = egui::ScrollArea::horizontal()
                         .id_salt("preset-view-window")
-                        .max_width(viewport)
+                        .max_width(viewport.value())
                         .drag_to_scroll(false)
                         .show(ui, |ui| {
                             STATE.with(|s| window(ui, theme, &mut s.borrow_mut()))
@@ -356,21 +357,26 @@ fn window_stage(ui: &mut egui::Ui, theme: &Theme) -> (egui::Rect, Option<egui::R
 }
 
 fn window(ui: &mut egui::Ui, theme: &Theme, st: &mut WinState) -> egui::Rect {
-    let bw = theme.border_width.value();
+    let bw = theme.border_width;
     // 창 크기는 앱 PresetView의 처음 크기(preset-window-width × preset-window-height)이고 줄이지 않는다.
-    let win_w = theme.preset_window_width().value();
+    let win_w = theme.preset_window_width();
     egui::Frame::new()
         .fill(theme.bg_panel().to_egui())
-        .stroke(egui::Stroke::new(bw, theme.border_strong().to_egui()))
+        .stroke(egui::Stroke::new(
+            bw.value(),
+            theme.border_strong().to_egui(),
+        ))
         .corner_radius(theme.corner_radius.value())
         .shadow(theme.shadow_modal().to_egui())
         .show(ui, |ui| {
             let w = win_w - bw * 2.0;
-            let h = theme.preset_window_height().value() - bw * 2.0;
-            let (rect, _) = ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::hover());
-            let title = egui::Rect::from_min_size(rect.min, egui::vec2(w, TITLE_H.value()));
+            let h = theme.preset_window_height() - bw * 2.0;
+            let (rect, _) =
+                ui.allocate_exact_size(egui::vec2(w.value(), h.value()), egui::Sense::hover());
+            let title = egui::Rect::from_min_size(rect.min, egui::vec2(w.value(), TITLE_H.value()));
             title_bar(ui, theme, title);
-            let l1 = egui::Rect::from_min_size(title.left_bottom(), egui::vec2(w, L1_H.value()));
+            let l1 =
+                egui::Rect::from_min_size(title.left_bottom(), egui::vec2(w.value(), L1_H.value()));
             l1_tabs(ui, theme, l1, st);
             let body = egui::Rect::from_min_max(l1.left_bottom(), rect.max);
             let list =
@@ -381,7 +387,7 @@ fn window(ui: &mut egui::Ui, theme: &Theme, st: &mut WinState) -> egui::Rect {
             rect
         })
         .inner
-        .expand(bw)
+        .expand(bw.value())
 }
 
 /// 아래 테두리 hairline 을 그린다.
