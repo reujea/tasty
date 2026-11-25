@@ -1031,7 +1031,7 @@ fn body(ui: &mut egui::Ui, theme: &Theme, v: Variant, body_h: LogicalPx) {
                 theme,
                 v.w,
                 body_h,
-                CenterState::loading("Loading folder…").sub_line(Some(if matches!(v.mode, Mode::Folder { .. }) { crate::i18n::t("filepicker.loading_body_local") } else if v.remote { &remote_body } else { "Reading the directory over SSH." })),
+                CenterState::loading("Loading folder…").sub_line(Some(if matches!(v.mode, Mode::Folder { .. }) { crate::i18n::t("filepicker.loading_body_local") } else if v.remote { &remote_body } else { crate::i18n::t("filepicker.loading_body_local") })),
             )
         }
         FpState::Empty => center(
