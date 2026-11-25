@@ -1287,3 +1287,64 @@ fn a_new_escape_after_a_press_that_cut_the_frame_is_not_a_repeat() {
     );
     assert!(input.is_empty());
 }
+
+/// [`frame`]과 같은 순서로 한 프레임을 그리고 팝업 포커스 막대 수를 센다.
+fn focus_bars(ctx: &egui::Context, state: &mut RequestContext) -> usize {
+    let layout = layout();
+    let raw = egui::RawInput {
+        screen_rect: Some(rect(0.0, 0.0, 1200.0, 700.0)),
+        ..Default::default()
+    };
+    state
+        .popups
+        .begin_key_pass(ctx.input(|i| i.key_down(egui::Key::Escape)));
+    let out = ctx.run(raw, |ctx| {
+        state.popups.prepare_frame_for_draw(ctx, Some(&layout));
+        state.decide_frame_key_owner(Some(&layout));
+        state.popups.draw(ctx, &mut |_, _| {}, Some(&layout), &[]);
+    });
+    state.close_input_pass(ctx);
+    super::focus_bar_count(&out)
+}
+
+/// 좁은 범위 키 주인은 자기 막대 하나를 켠다. 창 위로 펼친 팝업과 그 팝업이 연 자식이 키를 가지면 어느 팝업도
+/// 막대를 그리지 않고 키 포커스 surface도 없어 창 안에 켜진 표지가 없다(정본 RULES 4절 "Shown over the window").
+#[test]
+fn a_popup_shown_over_the_window_and_its_child_light_nothing() {
+    const CHILD: PopupId = "window_key_gate_test_child";
+    let Scene {
+        mut state,
+        mut session,
+        ctx,
+        g,
+        x,
+    } = open_scene(|state| {
+        state.popups.register(PopupState::new(
+            CHILD,
+            "test",
+            egui::vec2(120.0, 80.0),
+            PopupScope::Window,
+        ));
+    });
+    assert_eq!(focus_bars(&ctx, &mut state), 1, "the narrow owner X");
+    assert_eq!(state.key_focus_surface(&session.borrow_mut().read()), None);
+
+    state.popups.close_instance(x, PopupCloseReason::Command);
+    state.popups.expand(g);
+    let mut request = OpenRequest::new(CHILD, PopupScope::Surface(2)).focused();
+    request.parent = Some(g);
+    let child = state.popups.open_request(&request, true).expect("child");
+    focus_bars(&ctx, &mut state);
+    assert!(state.popups.instance(g).unwrap().expanded());
+    assert_eq!(
+        state.popups.instance(child).unwrap().placement_scope(),
+        PopupScope::Window,
+        "the child is shown over the window with its parent"
+    );
+    assert_eq!(
+        state.popups.focused_dismissal_target().map(|t| t.1),
+        Some(child)
+    );
+    assert_eq!(focus_bars(&ctx, &mut state), 0, "nothing lit");
+    assert_eq!(state.key_focus_surface(&session.borrow_mut().read()), None);
+}

@@ -382,9 +382,9 @@ fn the_painted_edge_ends_on_the_host_row_and_opens_only_the_composited_clip() {
     );
 }
 
-/// 창 범위 팝업이 키를 가진 프레임에는 켜진 표지가 없다: 띠 leaf는 unfocused이고, 바탕 값도 없으며, 창 범위 팝업은
-/// 포커스 막대를 그리지 않는다(`popup/draw.rs`·`popup_render.rs`가 창 범위를 뺀다). 팝업을 닫은 프레임에는 그 leaf
-/// 하나가 켜진다.
+/// 창 범위 팝업이 키를 가진 프레임에는 켜진 표지가 없다: 띠 leaf는 unfocused이고, 바탕 값도 없으며, 팝업 층을
+/// 실제로 그려도 창 범위 팝업은 포커스 막대를 그리지 않는다(`popup/draw.rs`가 창 범위를 뺀다). 팝업을 닫은 프레임에는
+/// 그 leaf 하나가 켜진다. 창 위로 펼친 팝업과 그 자식은 `popup::window_key_gate_tests`가 본다.
 #[test]
 fn a_window_scope_popup_with_key_focus_leaves_nothing_lit() {
     let (mut state, mut session) = scene(
@@ -417,8 +417,18 @@ fn a_window_scope_popup_with_key_focus_leaves_nothing_lit() {
         ));
         edges + beds
     };
+    let ctx = egui::Context::default();
+    let bars = |state: &mut MainViewState| {
+        let out = ctx.run(egui::RawInput::default(), |ctx| {
+            crate::adapters::ui::draw_popups(ctx, state, &read, &panes, screen(), SCALE);
+        });
+        crate::adapters::ui::popup::focus_bar_count(&out)
+    };
     assert!(!state.surface_focus_edges.is_empty(), "an edge leaf");
     assert_eq!(lit(&state), 0, "the popup holds key focus");
+    assert!(state.popups.is_open("notifications"));
+    assert_eq!(bars(&mut state), 0, "a window-scope popup draws no bar");
+    assert_eq!(bars(&mut state), 0, "nor on the next frame");
 
     state.popups.close("notifications");
     state.refresh_frame_key_focus(&read);

@@ -1439,6 +1439,28 @@ impl PopupManager {
     }
 }
 
+/// 시험용: 그린 프레임에서 팝업 포커스 막대(`tasty_ui_widgets::paint_popup_focus_edge`)를 칠한 사각형 수. 막대 색과
+/// 막대 높이가 함께 맞는 채움만 센다.
+#[cfg(test)]
+pub(crate) fn focus_bar_count(out: &egui::FullOutput) -> usize {
+    let theme = crate::theme::theme();
+    let fill = theme.popup_focus_edge_focused().to_egui();
+    let height = theme.popup_focus_edge_width().value();
+    fn count(shape: &egui::Shape, fill: egui::Color32, height: f32) -> usize {
+        match shape {
+            egui::Shape::Rect(r) => {
+                usize::from(r.fill == fill && (r.rect.height() - height).abs() < 0.01)
+            }
+            egui::Shape::Vec(shapes) => shapes.iter().map(|s| count(s, fill, height)).sum(),
+            _ => 0,
+        }
+    }
+    out.shapes
+        .iter()
+        .map(|c| count(&c.shape, fill, height))
+        .sum()
+}
+
 #[cfg(test)]
 #[path = "popup/parent_tests.rs"]
 mod parent_tests;

@@ -522,3 +522,116 @@ fn the_terminal_under_a_focused_search_bar_paints_unfocused() {
         "output suppression stays"
     );
 }
+
+/// 같은 surface가 키 포커스를 유지한 채 프레임을 더 내도 진입은 새로 생기지 않는다(plugin `surface.focused`를 매
+/// 프레임 내지 않는다).
+#[test]
+fn frames_that_keep_key_focus_add_no_entry() {
+    let (mut state, mut session, sid) = scene();
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    assert_eq!(state.take_key_focus_entries(), vec![(sid, None)]);
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    assert!(state.take_key_focus_entries().is_empty());
+}
+
+/// 제출하지 못한 프레임은 진입을 넣지 않고 낸 값도 바꾸지 않는다. 다음에 낸 프레임이 진입을 넣는다.
+#[test]
+fn a_frame_that_was_not_shown_adds_no_entry() {
+    let (mut state, mut session, sid) = scene();
+    let engine = session.borrow_mut();
+    let read = engine.read();
+    state.refresh_frame_key_focus(&read);
+    state.finish_frame_key_focus(&read, false);
+    assert!(state.take_key_focus_entries().is_empty(), "not shown");
+    assert_eq!(state.shown_bed_focus(), None, "nothing shown yet");
+    state.show_key_focus_frame(&read);
+    assert_eq!(state.take_key_focus_entries(), vec![(sid, None)]);
+    assert_eq!(state.shown_bed_focus(), Some(sid));
+}
+
+/// 전체화면 무대가 열린 동안 키 포커스 surface가 없고 강조 해제 효과도 없다. 무대가 닫히면 돌아온다.
+#[test]
+fn the_fullscreen_stage_leaves_no_surface_with_key_focus() {
+    let (mut state, mut session, sid) = scene();
+    session
+        .borrow_mut()
+        .raise_attention(sid, AttentionKind::Completion);
+    assert!(state.open_fullscreen_stage("blank"));
+    assert_eq!(key_focus(&state, &mut session), None);
+    assert!(!observe(&mut state, &mut session, true), "no observation");
+    assert_eq!(
+        attention(&mut session, sid),
+        Some(AttentionKind::Completion)
+    );
+    assert!(state.close_fullscreen_stage());
+    assert_eq!(key_focus(&state, &mut session), Some(sid));
+}
+
+/// 창의 포커스 감지(`observe_window_focus`, App이 창마다 부른다): 키를 가진 팝업 아래에서 선택을 바꾸면 탭의 OSC
+/// 제목을 새 선택 surface의 것으로 다시 읽고, 팝업이 키를 돌려줄 때(선택 변경 없음)는 다시 읽지 않는다. 키 포커스
+/// 진입은 `surface.focused`로 plugin 이벤트 큐에 들어간다. 시험 surface에는 터미널이 없어 다시 읽으면 제목이 없어진다.
+#[test]
+fn the_window_focus_pass_refreshes_titles_on_selection_and_queues_key_focus_entries() {
+    use crate::app::dispatch::host_events::observe_window_focus;
+    use crate::state::PendingHostEvent;
+    crate::i18n::init("en");
+    let (mut state, mut session) = crate::state::tests::two_pane_fixture();
+    let set_title = |session: &mut EngineSession, sid: u32| {
+        session
+            .borrow_mut()
+            .live
+            .surface_titles
+            .entry(sid)
+            .or_default()
+            .osc_title = Some(format!("stale {sid}"));
+    };
+    let title = |session: &mut EngineSession, sid: u32| {
+        session
+            .borrow_mut()
+            .live
+            .surface_titles
+            .get(&sid)
+            .and_then(|t| t.osc_title.clone())
+    };
+    let focused = |session: &mut EngineSession| -> Vec<(u32, Option<u32>)> {
+        session
+            .borrow_mut()
+            .take_pending_host_events()
+            .into_iter()
+            .filter_map(|e| match e {
+                PendingHostEvent::SurfaceFocused {
+                    surface_id,
+                    prev_surface_id,
+                } => Some((surface_id, prev_surface_id)),
+                _ => None,
+            })
+            .collect()
+    };
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    observe_window_focus(&mut state, &mut session.borrow_mut());
+    assert_eq!(focused(&mut session), vec![(201, None)], "first entry");
+
+    open_window_popup(&mut state);
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    set_title(&mut session, 101);
+    assert!(state.focus_surface_by_id(&session.borrow_mut().read(), 101));
+    observe_window_focus(&mut state, &mut session.borrow_mut());
+    assert_eq!(
+        title(&mut session, 101),
+        None,
+        "read again for the new selection"
+    );
+    assert!(focused(&mut session).is_empty(), "no entry under the popup");
+
+    set_title(&mut session, 101);
+    state.popups.close("notifications");
+    state.show_key_focus_frame(&session.borrow_mut().read());
+    observe_window_focus(&mut state, &mut session.borrow_mut());
+    assert_eq!(
+        title(&mut session, 101),
+        Some("stale 101".into()),
+        "keys came back without a selection change"
+    );
+    assert_eq!(focused(&mut session), vec![(101, None)], "keys came back");
+}
