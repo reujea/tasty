@@ -391,7 +391,7 @@ pub fn draw_attach(ui: &mut egui::Ui, theme: &Theme) {
         &[
             TokenChip::new(
                 "accent-warning",
-                "inactive badge",
+                "inactive / profile-missing",
                 theme.accent_warning_raised().to_egui(),
             ),
             TokenChip::new("text-muted", "inactive name", theme.text_muted().to_egui()),
