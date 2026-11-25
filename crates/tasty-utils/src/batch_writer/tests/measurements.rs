@@ -171,7 +171,11 @@ fn abandoned_receipt_keeps_pending_age_until_terminal_unknown_outcome() {
         (1, 10, Some(5000))
     );
     rig.gate.open();
-    eventually("completion", || rig.handle.stats().completed_unknown == 1);
+    // 종결 수는 결과 칸이 예산을 돌려주기 전에 오르므로 held_items까지 기다린다.
+    eventually("completion", || {
+        let s = rig.handle.stats();
+        s.completed_unknown == 1 && s.held_items == 0
+    });
     let stats = rig.handle.stats();
     assert_eq!(
         (
@@ -216,8 +220,9 @@ fn independent_results_and_caught_executor_panic_have_distinct_terminal_counts()
     rig.probe.script.lock().unwrap().push_back(Script::Panic);
     let lost = rig.handle.submit(req(5)).unwrap();
     rig.clock.advance(Duration::from_millis(2));
-    eventually("lost", || rig.handle.stats().completed_lost == 1);
-    assert!(matches!(lost.try_take(), Some(Completion::Lost)));
+    // 종결 수는 결과 칸이 채워지기 전에 오르므로 결과를 먼저 기다린다.
+    assert!(matches!(lost.wait_timeout(WAIT), Some(Completion::Lost)));
+    assert_eq!(rig.handle.stats().completed_lost, 1);
     assert_eq!(rig.handle.stats().executor_execution.samples, 2);
     drop(receipts);
     eventually("join", || rig.writer.poll_shutdown() == 0);
