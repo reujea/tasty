@@ -174,15 +174,16 @@ pub(super) fn chrome_state_after_end(
 }
 
 /// 시작 처리기가 host 전용 주소의 탐색을 취소했다(`host_document`). 취소한 탐색이 chrome의 지금 로드인지는
-/// 아래로 가린다. 탐색 ID를 모르면 지금 로드로 보지 않는다(닫힌 쪽).
+/// 아래로 가린다.
 ///
-/// - 리다이렉트: 세대가 그 탐색의 ID일 때만 지금 로드다. 세대가 빈 구간(`begin_load` 뒤 요청의 시작 전)의
-///   리다이렉트는 새 요청보다 앞선 탐색의 것이다.
-/// - 리다이렉트가 아닌 시작: 세대가 빈 구간에서 호스트가 보낸 기록과 맞을 때(`host_sent`)만 지금 로드다.
-///   세대가 있으면 그 뒤의 새 시작은 보이던 문서가 시작한 탐색이다.
+/// - 세대가 빈 구간(`begin_load` 뒤 요청의 시작 전): 리다이렉트가 아니고 지금 호스트 로드가 보낸
+///   탐색(`host_sent`)일 때만 지금 로드다. 탐색 ID를 읽지 못했어도 그렇다. 그 로드가 기다리는 탐색을 이
+///   취소로 잃었으므로 Loading에 두지 않는다. 이 구간의 리다이렉트는 새 요청보다 앞선 탐색의 것이다.
+/// - 세대가 있을 때: 그 탐색의 ID가 세대인 리다이렉트만 지금 로드다. 그 뒤의 새 시작은 보이던 문서가
+///   시작한 탐색이다. 탐색 ID를 모르면 지금 로드로 보지 않는다(닫힌 쪽).
 ///
 /// 지금 로드면 시작 처리기가 하던 원격 차단 지목 소비를 하고(리다이렉트가 아닐 때), 열린 로드를 닫고
-/// Failed로 끝내며 그 ID를 세대로 둔다. 그 완료는 보통의 실패로 처리하면 된다. 지금 로드가 아니면 chrome·
+/// Failed로 끝내며 그 ID를 세대로 둔다. ID를 모르면 거절된 로드의 세대(`REJECTED_LOAD`)를 둔다. 그 완료는 보통의 실패로 처리하면 된다. 지금 로드가 아니면 chrome·
 /// 세대·지목을 그대로 두고 true를 돌려준다. 호출자는 그 완료가 chrome을 바꾸지 않게 건너뛴다.
 #[cfg(any(windows, test))]
 pub(super) fn end_cancelled_navigation(
@@ -194,9 +195,9 @@ pub(super) fn end_cancelled_navigation(
     host_sent: bool,
 ) -> bool {
     let current = match (chrome_generation.get(), nav) {
-        (_, None) => false,
+        (None, _) => !redirected && host_sent,
         (Some(generation), Some(id)) => redirected && generation == id,
-        (None, Some(_)) => !redirected && host_sent,
+        (Some(_), None) => false,
     };
     if !current {
         return true;
@@ -207,14 +208,14 @@ pub(super) fn end_cancelled_navigation(
     }
     top.end();
     nav_state.set(NavState::Failed);
-    chrome_generation.set(nav);
+    chrome_generation.set(Some(nav.unwrap_or(REJECTED_LOAD)));
     false
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        CancelledDecisions, NavState, SignalOrderLoads, chrome_state_after_end,
+        CancelledDecisions, NavState, REJECTED_LOAD, SignalOrderLoads, chrome_state_after_end,
         end_cancelled_navigation, end_rejected_load, is_current_load, nav_state_after_end,
     };
 
@@ -590,18 +591,54 @@ mod tests {
     }
 
     #[test]
-    fn a_cancelled_navigation_without_an_id_is_not_the_current_load() {
+    fn a_cancelled_navigation_without_an_id_is_current_only_with_the_current_load_number() {
+        use super::super::host_document::sent_for_current_load;
+        // 로드 3의 다시 싣기가 시작했으나 NavigationId를 읽지 못해 취소된다. 머리글 번호가 지금 로드다.
         let nav = Cell::new(NavState::Loading);
         let generation = Cell::new(None);
         let top = RefCell::new(TopLevelAdmission::default());
+        let host_sent = sent_for_current_load(Some(3), 3);
+        assert!(!end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            None,
+            false,
+            host_sent
+        ));
+        assert_eq!(nav.get(), NavState::Failed);
+        assert_eq!(generation.get(), Some(REJECTED_LOAD));
+        // 그 탐색의 늦은 종료(ID가 있든 없든)는 Failed를 바꾸지 않는다.
+        assert_eq!(
+            chrome_state_after_end(generation.get(), Some(4), true),
+            None
+        );
+        assert_eq!(chrome_state_after_end(generation.get(), None, true), None);
+
+        // 번호가 지금 로드가 아니면 지금 로드로 보지 않는다.
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(None);
+        let host_sent = sent_for_current_load(Some(2), 3);
         assert!(end_cancelled_navigation(
             &nav,
             &generation,
             &top,
             None,
             false,
-            true
+            host_sent
         ));
         assert_eq!(nav.get(), NavState::Loading);
+        assert_eq!(generation.get(), None);
+        // 세대가 있는 동안 ID를 모르는 취소도 지금 로드가 아니다.
+        let generation = Cell::new(Some(6));
+        assert!(end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            None,
+            true,
+            true
+        ));
+        assert_eq!(generation.get(), Some(6));
     }
 }
