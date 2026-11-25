@@ -1,4 +1,4 @@
-//! 내보내기 실패 블록과 가져오기 파싱 실패 블록의 잉크·버튼 바탕을 그려진 화면에서 확인한다.
+//! 내보내기 실패·가져오기 파싱 실패·번들 경고 블록의 잉크와 버튼 바탕을 그려진 화면에서 확인한다.
 
 use super::*;
 
@@ -357,5 +357,81 @@ fn parse_failure_body_stays_text_secondary() {
             th.text_secondary().to_egui(),
             "parse failure body"
         );
+    }
+}
+
+/// 그려진 파싱 실패 블록의 제목 글자와 tint 안 글리프는 모두 accent-danger-strong이다.
+#[test]
+fn parse_failure_paints_title_and_glyph_in_danger_strong() {
+    for th in themes() {
+        assert_ne!(
+            th.accent_danger_strong(),
+            th.accent_danger_raised(),
+            "strong must be distinguishable from the old raised ink"
+        );
+        let failure = Failure {
+            path: "/tmp/settings.json".to_string(),
+            line: None,
+        };
+        let scene = Scene::new();
+        let p = scene.settle(&mut |ui: &mut egui::Ui| {
+            notices::parse_failure(ui, &th, &failure);
+        });
+        let strong = th.accent_danger_strong().to_egui();
+        let title = p.text(t("settings.keybindings.ie_failure_title"));
+        assert_eq!(title.color, strong, "title");
+        let tint = p.rect_filled_with(danger_tint(&th));
+        assert!(tint.contains_rect(title.rect), "title inside the tint");
+        let glyphs: Vec<egui::Color32> = p
+            .glyphs
+            .iter()
+            .filter(|(r, _)| tint.contains_rect(*r))
+            .map(|(_, c)| *c)
+            .collect();
+        assert_eq!(glyphs, vec![strong], "title glyph");
+    }
+}
+
+/// 그려진 번들 경고 블록의 제목·개수·글리프는 accent-warning-raised, 각 줄은 text-on-active다.
+#[test]
+fn bundle_notices_paint_warning_raised_header_and_on_active_lines() {
+    for th in themes() {
+        assert_ne!(
+            th.text_on_active(),
+            th.text_secondary(),
+            "line ink must be distinguishable from the old one"
+        );
+        let lines = vec![
+            "first notice line".to_string(),
+            "second notice line".to_string(),
+        ];
+        let scene = Scene::new();
+        let p = scene.settle(&mut |ui: &mut egui::Ui| {
+            notices::bundle_notices(ui, &th, &lines, true);
+        });
+        let raised = th.accent_warning_raised().to_egui();
+        let title = p.text(t("settings.keybindings.ie_notices_title"));
+        assert_eq!(title.color, raised, "title");
+        let count = crate::i18n::t_count("settings.keybindings.ie_notices_count", 2, &["2"]);
+        assert_eq!(p.text(&count).color, raised, "count");
+        let tint = p.rect_filled_with(
+            th.accent_warning()
+                .to_egui()
+                .gamma_multiply(th.tint_fill_alpha()),
+        );
+        let glyphs: Vec<egui::Color32> = p
+            .glyphs
+            .iter()
+            .filter(|(r, _)| tint.contains_rect(*r))
+            .map(|(_, c)| *c)
+            .collect();
+        assert_eq!(glyphs, vec![raised], "title glyph");
+        for line in &lines {
+            assert_eq!(
+                p.text(line).color,
+                th.text_on_active().to_egui(),
+                "line {line:?}"
+            );
+        }
     }
 }

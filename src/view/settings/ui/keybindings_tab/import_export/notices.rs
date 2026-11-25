@@ -72,6 +72,28 @@ pub(super) fn notice_body_ink(th: &Theme) -> egui::Color32 {
     th.text_on_active().to_egui()
 }
 
+/// 가져오기 파싱 실패 블록의 색 — 디자인 `IeParseFailG`. 제목과 글리프 모두 accent-danger-strong이다
+/// (`glyphTone`을 따로 주지 않아 `tone`을 따른다).
+pub(super) fn parse_failure_ink(th: &Theme) -> NoticeInk {
+    NoticeInk::same(
+        th.accent_danger().to_egui(),
+        th.accent_danger_strong().to_egui(),
+    )
+}
+
+/// 번들 경고 블록의 색 — 디자인 `IeBundleNoticesG`. 제목·개수·글리프 모두 accent-warning-raised다.
+pub(super) fn bundle_notices_ink(th: &Theme) -> NoticeInk {
+    NoticeInk::same(
+        th.accent_warning().to_egui(),
+        th.accent_warning_raised().to_egui(),
+    )
+}
+
+/// 번들 경고 한 줄의 잉크 — 디자인 `IeBlockG` 본문 칸의 text-on-active.
+pub(super) fn bundle_notice_line_ink(th: &Theme) -> egui::Color32 {
+    th.text_on_active().to_egui()
+}
+
 /// 가져오기 파싱 실패 블록의 본문 잉크 — 가져오기 detail의 text-secondary.
 pub(super) fn parse_failure_body_ink(th: &Theme) -> egui::Color32 {
     th.text_secondary().to_egui()
@@ -201,10 +223,7 @@ pub(super) fn parse_failure(ui: &mut egui::Ui, th: &Theme, failure: &Failure) ->
     notice_block(
         ui,
         th,
-        NoticeInk::same(
-            th.accent_danger().to_egui(),
-            th.accent_danger_raised().to_egui(),
-        ),
+        parse_failure_ink(th),
         icons::ALERT_CIRCLE,
         t("settings.keybindings.ie_failure_title"),
         None,
@@ -325,10 +344,7 @@ pub(super) fn bundle_notices(
     notice_block(
         ui,
         th,
-        NoticeInk::same(
-            th.accent_warning().to_egui(),
-            th.accent_warning_raised().to_egui(),
-        ),
+        bundle_notices_ink(th),
         icons::ALERT_TRIANGLE,
         t("settings.keybindings.ie_notices_title"),
         Some(&count),
@@ -344,7 +360,7 @@ pub(super) fn bundle_notices(
                     ui.label(
                         egui::RichText::new(line)
                             .size(th.font_size_term_sm.value())
-                            .color(th.text_secondary()),
+                            .color(bundle_notice_line_ink(th)),
                     );
                 });
             }
