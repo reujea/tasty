@@ -4,6 +4,7 @@
 //! 그린 뒤 팝업을 그린다.
 
 use super::*;
+use crate::adapters::ui::popup::window_segments::WindowKey;
 use crate::adapters::ui::popup::{PopupId, PopupScope, PopupState};
 use crate::gfx::gpu::input_pass::{InputPassHost, run_input_pass};
 use crate::gfx::gpu::text_selection::HeldPastes;
@@ -202,15 +203,20 @@ impl Harness {
         }
     }
 
-    fn settle(&mut self, window: &mut impl WindowPopups, incoming: Incoming) {
+    fn settle(
+        &mut self,
+        window: &mut impl WindowPopups,
+        incoming: Incoming,
+        key: Option<WindowKey>,
+    ) -> bool {
         let ctx = self.ctx.clone();
-        settle_window_input(self, &ctx, window.window_popups(), incoming);
+        settle_window_input(self, &ctx, window.window_popups(), incoming, key)
     }
 
     /// 포인터를 옮기고(끊지 않는 사건) 누른다.
     pub(crate) fn press(&mut self, window: &mut impl WindowPopups, pos: egui::Pos2) {
         self.queue.push(egui::Event::PointerMoved(pos));
-        self.settle(window, Incoming::Press);
+        self.settle(window, Incoming::Press, None);
         self.queue.push(button(pos, true));
     }
 
@@ -234,20 +240,33 @@ impl Harness {
         self.key_with(window, key, egui::Modifiers::NONE, text);
     }
 
-    /// `modifiers` 를 실은 키 하나. 글자가 있으면 같은 사건이 글자도 싣는다.
+    /// `modifiers` 를 실은 키 하나. 글자가 있으면 같은 사건이 글자도 싣는다. 창 노드(창 위젯과 창 자체 처리)가 그 키를
+    /// 받으면 참이다(단계 4).
     pub(crate) fn key_with(
         &mut self,
         window: &mut impl WindowPopups,
         key: egui::Key,
         modifiers: egui::Modifiers,
         text: Option<&str>,
-    ) {
-        let incoming = if key == egui::Key::Escape {
+    ) -> bool {
+        let route = crate::adapters::ui::input::key_route::RouteKey {
+            key: Some(key),
+            modifiers,
+            super_held: false,
+        };
+        let incoming = if route.bare_escape() {
             Incoming::Escape
         } else {
             Incoming::Key
         };
-        self.settle(window, incoming);
+        let window_receives = self.settle(
+            window,
+            incoming,
+            Some(WindowKey::Path {
+                key: route,
+                own: false,
+            }),
+        );
         self.queue.push(egui::Event::Key {
             key,
             physical_key: None,
@@ -267,6 +286,7 @@ impl Harness {
             &mut self.queue,
             held,
         );
+        window_receives
     }
 
     fn type_x(&mut self, window: &mut TestWindow) {

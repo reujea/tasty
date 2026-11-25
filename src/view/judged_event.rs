@@ -1,14 +1,15 @@
 //! 자체 키 처리를 가진 egui 전용 창(설정·종료 확인·Preset·Plugins)이 창 이벤트 하나를 편집 키 판정, egui,
 //! 창 자체 처리 순서로 넘기는 공통 흐름. 판정이 가져간 이벤트는 창 자체 처리에 가지 않는다. 팝업 관리자를 가진 창은
-//! 판정 앞에서 사건 시점 노드로 입력을 끊고(`window_input::settle_window_input`), egui 에 실은 키의 몫을 그 노드로
-//! 묶는다. 계약: `docs/design/policies/key-mapping.md`의 "보류와 재생".
+//! 판정 앞에서 사건 시점 노드로 입력을 끊고 그 노드에서 키의 수신 노드를 정한다(`window_input::settle_window_input`).
+//! egui 에 실은 키의 몫을 그 노드로 묶고, 창 자체 처리는 창 노드가 받은 키만 본다. 계약:
+//! `docs/design/policies/key-mapping.md`의 "보류와 재생".
 
 use winit::event::WindowEvent;
 
 use super::ViewAction;
 use super::key_event::{KeyEventSteps, run_key_event};
 use super::ui::View;
-use super::window_input::{bind_window_input, incoming_of, settle_window_input};
+use super::window_input::{bind_window_input, incoming_of, settle_window_input, window_key_of};
 use crate::adapters::ui::input::edit_key::EditKey;
 use crate::adapters::ui::popup::PopupManager;
 
@@ -17,14 +18,17 @@ pub(crate) type WindowInputOf<V> =
     fn(&mut V) -> Option<(&mut crate::gpu::GpuState, &mut PopupManager)>;
 
 /// 창 이벤트 하나. `to_egui`면 편집 키 판정을 거쳐 egui에 넘긴다. 판정이 가져간 이벤트는 다시 그리기만 요청하고
-/// `own`(창 자체 처리)에 주지 않는다. 보류가 풀리면 `super::replay_edit_keys`가 다시 이 함수로 보낸다.
-/// `judged`는 그때 원래 키가 판정받은 편집이다. `input` 은 끊기와 결속에 쓰는 창의 GPU 와 관리자다.
+/// `own`(창 자체 처리)에 주지 않는다. 팝업이 받은 키도 `own` 에 주지 않는다(단계 4 수신 노드가 창 노드인 키만 간다).
+/// 보류가 풀리면 `super::replay_edit_keys`가 다시 이 함수로 보낸다. `judged`는 그때 원래 키가 판정받은 편집이다.
+/// `own_keys` 는 창 자체 처리가 그 키 누름을 바인딩으로 쓰는지(설정 창의 toggle_settings)다. `input` 은 끊기와 결속에
+/// 쓰는 창의 GPU 와 관리자다.
 pub(crate) fn judged_window_event<V: View>(
     view: &mut V,
     event: WindowEvent,
     judged: Option<EditKey>,
     to_egui: bool,
     own: fn(&mut V, WindowEvent) -> ViewAction,
+    own_keys: fn(&V, &winit::event::KeyEvent) -> bool,
     input: WindowInputOf<V>,
 ) -> ViewAction {
     // 보류 검사는 어느 단계도 사건을 읽기 전 맨 앞 한 자리다. 보류가 풀리면 `replay_edit_keys` 가 이 입구로 다시
@@ -35,11 +39,16 @@ pub(crate) fn judged_window_event<V: View>(
     let node = WindowKeyNode {
         settle: |view: &mut V, event: &WindowEvent| {
             let mods = view.base_mut().state.modifiers;
-            if let Some((gpu, popups)) = input(view)
-                && let Some(incoming) = incoming_of(event, mods)
-            {
-                let ctx = gpu.egui_ctx.clone();
-                settle_window_input(gpu, &ctx, popups, incoming);
+            let key = window_key_of(event, mods, |key| own_keys(&*view, key));
+            match input(view) {
+                Some((gpu, popups)) => match incoming_of(event, mods) {
+                    Some(incoming) => {
+                        let ctx = gpu.egui_ctx.clone();
+                        settle_window_input(gpu, &ctx, popups, incoming, key)
+                    }
+                    None => true,
+                },
+                None => true,
             }
         },
         bind: |view: &mut V, event: &WindowEvent| {
@@ -80,7 +89,7 @@ fn hold_window_input<V: View>(view: &mut V, event: &WindowEvent, input: WindowIn
     base.gpu.hold_window_input(&base.winit, event, handed)
 }
 
-/// 별도 창 단계 3~5(`settle`)와 egui 에 실은 키의 몫 결속(`bind`).
+/// 별도 창 단계 3~5(`settle`, 창 노드가 그 사건을 받으면 참)와 egui 에 실은 키의 몫 결속(`bind`).
 struct WindowKeyNode<S, B> {
     settle: S,
     bind: B,
@@ -102,7 +111,7 @@ where
     G: FnOnce(&mut V, &E, Option<EditKey>) -> Option<(bool, bool)>,
     D: FnMut(&mut V),
     O: FnOnce(&mut V, E) -> ViewAction,
-    S: FnMut(&mut V, &E),
+    S: FnMut(&mut V, &E) -> bool,
     B: FnMut(&mut V, &E),
 {
     JudgedWindowSteps {
@@ -113,6 +122,7 @@ where
         mark_dirty,
         own: Some(own),
         node,
+        window_receives: true,
     }
 }
 
@@ -125,6 +135,8 @@ struct JudgedWindowSteps<'v, V, G, D, O, S, B> {
     mark_dirty: D,
     own: Option<O>,
     node: WindowKeyNode<S, B>,
+    /// 단계 4 수신 노드가 창 노드인지(`settle`). 아니면(팝업이 받았다) 창 자체 처리에 가지 않는다.
+    window_receives: bool,
 }
 
 impl<V, E, G, D, O, S, B> KeyEventSteps<E> for JudgedWindowSteps<'_, V, G, D, O, S, B>
@@ -132,11 +144,11 @@ where
     G: FnOnce(&mut V, &E, Option<EditKey>) -> Option<(bool, bool)>,
     D: FnMut(&mut V),
     O: FnOnce(&mut V, E) -> ViewAction,
-    S: FnMut(&mut V, &E),
+    S: FnMut(&mut V, &E) -> bool,
     B: FnMut(&mut V, &E),
 {
     fn settle_key_node(&mut self, event: &E) {
-        (self.node.settle)(self.view, event);
+        self.window_receives = (self.node.settle)(self.view, event);
     }
 
     fn judge_edit_key(&mut self, _event: &E) -> Option<Option<EditKey>> {
@@ -166,8 +178,8 @@ where
             (self.mark_dirty)(self.view);
         }
         match self.own.take() {
-            Some(own) => own(self.view, event),
-            None => ViewAction::None,
+            Some(own) if self.window_receives => own(self.view, event),
+            _ => ViewAction::None,
         }
     }
 }
@@ -201,7 +213,10 @@ mod tests {
                 ViewAction::Close
             },
             WindowKeyNode {
-                settle: |window: &mut Window, _: &&str| window.steps.push("settle"),
+                settle: |window: &mut Window, _: &&str| {
+                    window.steps.push("settle");
+                    true
+                },
                 bind: |window: &mut Window, _: &&str| window.steps.push("bind"),
             },
         );
@@ -233,6 +248,112 @@ mod tests {
         assert!(matches!(action, ViewAction::None));
         assert!(window.own.is_empty(), "the window did not handle it");
         assert_eq!(window.dirty, 1);
+    }
+
+    /// 팝업 관리자를 가진 별도 창 대역: egui 입력 큐(`window_input::tests::Harness`), 관리자, 창 자체 처리가 본 키.
+    struct PopupWindow {
+        h: crate::view::window_input::tests::Harness,
+        popups: PopupManager,
+        own: Vec<egui::Key>,
+    }
+
+    impl PopupWindow {
+        /// 팝업 하나(선언 기본: 덮지 않음, 소비 집합 `Keys`)를 포커스를 주며 연 창. `open` 이 거짓이면 팝업이 없다.
+        fn new(open: bool) -> Self {
+            use crate::adapters::ui::popup::{PopupScope, PopupState};
+            let mut popups = PopupManager::new();
+            popups.register(PopupState::new(
+                "judged_event_popup",
+                "p",
+                egui::vec2(200.0, 100.0),
+                PopupScope::Window,
+            ));
+            if open {
+                let request =
+                    crate::intent::OpenRequest::new("judged_event_popup", PopupScope::Window)
+                        .at(egui::pos2(100.0, 100.0))
+                        .focused();
+                assert!(popups.open_request(&request, true).is_some());
+            }
+            Self {
+                h: crate::view::window_input::tests::Harness::new(),
+                popups,
+                own: Vec::new(),
+            }
+        }
+
+        /// 수식키 없는 키 누름 하나를 제품 단계(사건 입구 끊기·egui 적재·결속·창 자체 처리)로 넘긴다.
+        fn key(&mut self, key: egui::Key) -> ViewAction {
+            use crate::adapters::ui::popup::frame_keys::Incoming;
+            use crate::view::main::input_segment::EguiPressSink;
+            let incoming = if key == egui::Key::Escape {
+                Incoming::Escape
+            } else {
+                Incoming::Key
+            };
+            let mut steps = window_steps(
+                self,
+                None,
+                true,
+                |w: &mut PopupWindow, key: &egui::Key, _| {
+                    w.h.queued_events().push(egui::Event::Key {
+                        key: *key,
+                        physical_key: None,
+                        pressed: true,
+                        repeat: false,
+                        modifiers: egui::Modifiers::NONE,
+                    });
+                    Some((true, false))
+                },
+                |_| {},
+                |w, key| {
+                    w.own.push(key);
+                    ViewAction::None
+                },
+                WindowKeyNode {
+                    settle: move |w: &mut PopupWindow, key: &egui::Key| {
+                        let ctx = w.h.ctx.clone();
+                        let key = crate::adapters::ui::popup::window_segments::WindowKey::Path {
+                            key: crate::adapters::ui::input::key_route::RouteKey {
+                                key: Some(*key),
+                                modifiers: egui::Modifiers::NONE,
+                                super_held: false,
+                            },
+                            own: false,
+                        };
+                        settle_window_input(&mut w.h, &ctx, &mut w.popups, incoming, Some(key))
+                    },
+                    bind: move |w: &mut PopupWindow, _: &egui::Key| {
+                        let ctx = w.h.ctx.clone();
+                        bind_window_input(
+                            &ctx,
+                            &mut w.popups,
+                            incoming,
+                            w.h.queued_events(),
+                            false,
+                        );
+                    },
+                },
+            );
+            run_key_event(&mut steps, key)
+        }
+    }
+
+    /// Given 별도 창에서 팝업(소비 집합 `Keys`)이 포커스 노드, When 수식키 없는 글자 키를 누르면, Then 그 키는 팝업이
+    /// 받고 창 자체 처리(설정 창의 toggle_settings·더블탭)는 보지 않는다.
+    #[test]
+    fn a_key_the_window_popup_receives_skips_the_window_s_own_handling() {
+        let mut window = PopupWindow::new(true);
+        drop(window.key(egui::Key::Q));
+        assert!(window.own.is_empty(), "own saw {:?}", window.own);
+    }
+
+    /// Given 별도 창에 팝업이 없다, When 같은 글자 키를 누르면, Then 창 노드가 받아 창 자체 처리가 그 키를 본다.
+    #[test]
+    fn a_key_without_a_window_popup_reaches_the_window_s_own_handling() {
+        let mut window = PopupWindow::new(false);
+        drop(window.key(egui::Key::Q));
+        assert_eq!(window.own, [egui::Key::Q]);
     }
 
     /// 판정이 넘긴 이벤트는 egui를 거쳐 창 자체 처리에 간다. egui에 넘기지 않는 이벤트는 판정 없이 바로 간다.

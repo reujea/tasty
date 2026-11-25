@@ -28,6 +28,18 @@ impl WindowNode {
     }
 }
 
+/// 별도 창 키 사건 하나의 경로 값(단계 4 입력).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum WindowKey {
+    /// 경로 키. `own` 은 그 키가 창 자체 처리의 바인딩에 맞는지다(`key_nodes::separate_window_receiver`).
+    Path {
+        key: crate::adapters::ui::input::key_route::RouteKey,
+        own: bool,
+    },
+    /// 지금 경로로 남는 사건(뗌·수식키 단독 누름·IME). 사건 시점 노드가 받는다.
+    Current,
+}
+
 /// 별도 창의 몫별 노드와 패스 뒤 기록.
 #[derive(Debug, Default)]
 pub(crate) struct WindowSegments {
@@ -41,6 +53,8 @@ pub(crate) struct WindowSegments {
     after: VecDeque<Option<WindowNode>>,
     /// 이번 `run` 의 결속 없는 몫 키 주인: `run` 시작 때 노드의 인스턴스(`begin_window_run`).
     run_owner: Option<PopupInstanceId>,
+    /// 마지막 키 사건의 단계 4 수신 노드(`settle_window_key`). 창 위젯이면 창 노드(창 위젯과 창 자체 처리)다.
+    key_receiver: Option<WindowNode>,
 }
 
 impl WindowSegments {
@@ -133,35 +147,42 @@ impl PopupManager {
         self.bind_window_key_node(node.popup().map(PopupNode::Host));
     }
 
-    /// egui 에 실은 bare Esc 누름의 수신 노드. 사건 시점 노드가 Esc 를 받는 팝업(선언이 Ignore 가 아니거나 펼침)이면 그
-    /// 팝업이고, 아니면 부모 경로인 창 위젯이다(메인 창 `route_escape` 와 같은 규칙).
-    fn window_escape_node(&self, ctx: &egui::Context) -> WindowNode {
+    /// 단계 4(별도 창): 키 사건 하나의 수신 노드를 사건 시점 노드에서 정한다. 경로 키는 메인 창과 같은 `route_key`
+    /// (`key_nodes::separate_window_receiver`)가 정하고, 지금 경로로 남는 사건은 사건 시점 노드가 받는다. 단계 8 의
+    /// bare Esc 결속(`apply_window_escape`)과 단계 11 창 자체 처리가 이 값을 함께 읽는다. 창 노드(창 위젯과 창 자체
+    /// 처리)가 받으면 참이다. 끊기(`cut_window_segment`) 뒤에 부른다.
+    pub(crate) fn settle_window_key(&mut self, ctx: &egui::Context, key: WindowKey) -> bool {
         let node = match self.window.open_node_value() {
             Some(node) => node,
             None => self.window_key_node(ctx),
         };
-        match node {
-            WindowNode::Popup(iid)
-                if self.instance(iid).is_some_and(|p| {
-                    p.escape_decl() != super::PopupEscape::Ignore || p.expanded()
-                }) =>
-            {
-                node
+        let receiver = match key {
+            WindowKey::Current => node,
+            WindowKey::Path { key, own } => {
+                let popup = node.popup().and_then(|iid| self.instance(iid));
+                match crate::adapters::ui::input::key_nodes::separate_window_receiver(
+                    popup, key, own,
+                ) {
+                    crate::adapters::ui::input::key_route::KeyReceiver::Popup(iid) => {
+                        WindowNode::Popup(iid)
+                    }
+                    _ => WindowNode::Widget,
+                }
             }
-            _ => WindowNode::Widget,
-        }
+        };
+        self.window.key_receiver = Some(receiver);
+        receiver == WindowNode::Widget
     }
 
-    /// 단계 8·11(별도 창): egui 에 실은 bare Esc 누름 하나를 그 수신 노드로 묶고 결과를 적용한다. 수신자가 팝업이면
-    /// 그 누름을 `pending`(egui 입력)에서 빼 그 팝업에 넘기고(메인 창과 같은 넘김 기록), 펼치지 않은 팝업이면 포커스를
-    /// 푼다. 창 위젯이면 egui 입력에 둔다. `escape_held` 는 직전 패스 끝의 Escape 눌림 상태다.
+    /// 단계 8·11(별도 창): egui 에 실은 bare Esc 누름 하나를 그 수신 노드(`settle_window_key`)로 묶고 결과를 적용한다.
+    /// 수신자가 팝업이면 그 누름을 `pending`(egui 입력)에서 빼 그 팝업에 넘기고(메인 창과 같은 넘김 기록), 펼치지 않은
+    /// 팝업이면 포커스를 푼다. 창 위젯이면 egui 입력에 둔다. `escape_held` 는 직전 패스 끝의 Escape 눌림 상태다.
     pub(crate) fn apply_window_escape(
         &mut self,
-        ctx: &egui::Context,
         pending: &mut Vec<egui::Event>,
         escape_held: bool,
     ) {
-        let WindowNode::Popup(iid) = self.window_escape_node(ctx) else {
+        let WindowNode::Popup(iid) = self.window.key_receiver.unwrap_or(WindowNode::Widget) else {
             self.bind_window_key_node(None);
             return;
         };
@@ -203,7 +224,18 @@ impl PopupManager {
             );
             loaded.push(event);
             if bare {
-                self.apply_window_escape(ctx, &mut loaded, held);
+                self.settle_window_key(
+                    ctx,
+                    WindowKey::Path {
+                        key: crate::adapters::ui::input::key_route::RouteKey {
+                            key: Some(egui::Key::Escape),
+                            modifiers: egui::Modifiers::NONE,
+                            super_held: false,
+                        },
+                        own: false,
+                    },
+                );
+                self.apply_window_escape(&mut loaded, held);
             }
         }
         *events = loaded;

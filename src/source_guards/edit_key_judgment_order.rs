@@ -204,7 +204,7 @@ fn a_window_escape_is_applied_after_its_segment_ends() {
     assert_before(
         &bind,
         "Incoming::Escape=>{popups.note_escape_loaded();",
-        "popups.apply_window_escape(ctx,pending,escape_held);",
+        "popups.apply_window_escape(pending,escape_held);",
         signature,
     );
     let feed = body(

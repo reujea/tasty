@@ -6,6 +6,7 @@
 use crate::adapters::ui::fullscreen::StageId;
 use crate::adapters::ui::popup::PopupManager;
 use crate::adapters::ui::popup::frame_keys::{Incoming, InputCuts};
+use crate::adapters::ui::popup::window_segments::WindowKey;
 use crate::gfx::gpu::input_pass::InputPassState;
 use crate::view::main::input_segment::EguiPressSink;
 
@@ -101,14 +102,46 @@ pub(crate) fn incoming_of(
     }
 }
 
+/// 별도 창 키 사건의 단계 4 입력 값. 경로 키는 메인 창과 같은 분류(`key_class::classify_key`)이고, `own` 은 창 자체
+/// 처리가 그 키를 바인딩으로 쓰는지다. 뗌·수식키 단독 누름·IME 는 지금 경로다. 키·IME 가 아니면 `None`.
+pub(crate) fn window_key_of(
+    event: &winit::event::WindowEvent,
+    mods: winit::keyboard::ModifiersState,
+    own: impl FnOnce(&winit::event::KeyEvent) -> bool,
+) -> Option<WindowKey> {
+    use crate::adapters::ui::input::key_class::{KeyClass, KeyEventValue, classify_key};
+    use winit::event::{ElementState, WindowEvent};
+    match event {
+        WindowEvent::KeyboardInput { event: key, .. } => Some(
+            match classify_key(&KeyEventValue {
+                logical: &key.logical_key,
+                physical: key.physical_key,
+                pressed: key.state == ElementState::Pressed,
+                mods,
+            }) {
+                KeyClass::Path(route) => WindowKey::Path {
+                    key: route,
+                    own: own(key),
+                },
+                KeyClass::Current(_) => WindowKey::Current,
+            },
+        ),
+        WindowEvent::Ime(_) => Some(WindowKey::Current),
+        _ => None,
+    }
+}
+
 /// 단계 3~5: 사건(`incoming`)을 egui 입력 큐에 넣기 전에 사건 시점 노드로 끊고, 누름이면 그 자리에서 포커스를 옮긴다.
-/// 누름 좌표는 큐에 남은 마지막 포인터 이동, 없으면 egui 가 아는 마지막 좌표다.
+/// 누름 좌표는 큐에 남은 마지막 포인터 이동, 없으면 egui 가 아는 마지막 좌표다. 키 사건(`key`)이면 그 노드에서 수신
+/// 노드를 정한다(단계 4, `PopupManager::settle_window_key`). 창 노드(창 위젯과 창 자체 처리)가 그 사건을 받으면 참이고,
+/// 키가 아닌 사건도 참이다.
 pub(crate) fn settle_window_input(
     sink: &mut impl EguiPressSink,
     ctx: &egui::Context,
     popups: &mut PopupManager,
     incoming: Incoming,
-) {
+    key: Option<WindowKey>,
+) -> bool {
     let cuts = popups.cut_window_segment(ctx, sink.queued_events(), incoming);
     for _ in 0..cuts {
         sink.cut_queue_here();
@@ -122,6 +155,7 @@ pub(crate) fn settle_window_input(
             popups.press_window_at(ctx, pos);
         }
     }
+    key.is_none_or(|key| popups.settle_window_key(ctx, key))
 }
 
 /// egui 에 실은 사건(`incoming`)의 몫을 묶는다. 키·IME 면 그 사건 시점 노드로 묶는다. bare Esc 면 그 몫을 끝내고(뒤
@@ -138,7 +172,7 @@ pub(crate) fn bind_window_input(
     match incoming {
         Incoming::Escape => {
             popups.note_escape_loaded();
-            popups.apply_window_escape(ctx, pending, escape_held);
+            popups.apply_window_escape(pending, escape_held);
         }
         Incoming::Key => popups.bind_window_key(ctx),
         Incoming::Press => {}
@@ -162,19 +196,26 @@ where
     S: EguiPressSink + crate::view::main::debug_input::EguiKeySink,
 {
     let key = egui::Key::from_name(key_name)?;
-    let bare_escape = pressed
-        && crate::adapters::ui::input::key_route::RouteKey {
-            key: Some(key),
-            modifiers: modifiers.unwrap_or_else(|| sink.held_modifiers()),
-            super_held: sink.super_held(),
-        }
-        .bare_escape();
+    let route = crate::adapters::ui::input::key_route::RouteKey {
+        key: Some(key),
+        modifiers: modifiers.unwrap_or_else(|| sink.held_modifiers()),
+        super_held: sink.super_held(),
+    };
+    let bare_escape = pressed && route.bare_escape();
     let incoming = if bare_escape {
         Incoming::Escape
     } else {
         Incoming::Key
     };
-    settle_window_input(sink, ctx, popups, incoming);
+    let window_key = if pressed {
+        WindowKey::Path {
+            key: route,
+            own: false,
+        }
+    } else {
+        WindowKey::Current
+    };
+    settle_window_input(sink, ctx, popups, incoming, Some(window_key));
     let pushed = crate::view::main::debug_input::push_egui_key(sink, key_name, pressed, modifiers)?;
     let held = sink.escape_held();
     bind_window_input(ctx, popups, incoming, sink.queued_events(), held);

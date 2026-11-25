@@ -420,8 +420,21 @@ impl SettingsView {
             judged,
             !skip_egui && !is_redraw,
             Self::own_event,
+            Self::own_shortcut,
             Self::window_input,
         )
+    }
+
+    /// 창 자체 처리가 이 키 누름을 바인딩으로 쓰는지: 녹화 중이 아닐 때 설정 열기(toggle_settings) 조합이면 그 처리가
+    /// 창을 닫는다(`own_event`). 단계 4 가 이 값을 창 노드의 단축키 후보로 쓴다.
+    fn own_shortcut(&self, event: &winit::event::KeyEvent) -> bool {
+        !self.settings_ui_state.is_recording()
+            && event.state == winit::event::ElementState::Pressed
+            && crate::adapters::ui::input::shortcuts::matches_any_binding(
+                &self.settings.keybindings.toggle_settings,
+                &event.logical_key,
+                self.base.state.modifiers,
+            )
     }
 
     /// 편집 키 판정과 egui를 지난 이벤트의 창 자체 처리.

@@ -367,21 +367,13 @@ fn popup_key_node(
     match node {
         PopupNode::Host(iid) => {
             let p = state.popups.instance(iid)?;
-            let fold = if place.expanded {
-                PopupFold::Expanded
-            } else if p.collapsed() {
-                PopupFold::Collapsed
-            } else {
-                PopupFold::Fits
-            };
-            Some(PopupKeyNode {
-                node,
-                keyboard: p.keyboard(),
-                escape: p.escape_decl(),
-                fold,
-                keymap: host_keymap_receives(p, key, kb),
-                covers: place.covers,
-            })
+            Some(host_popup_key_node(
+                p,
+                key,
+                Some(kb),
+                place.expanded,
+                place.covers,
+            ))
         }
         PopupNode::Plugin(id) => {
             let (keyboard, escape) = state
@@ -405,22 +397,72 @@ fn popup_key_node(
     }
 }
 
+/// host 팝업 인스턴스의 경로 노드. `expanded`·`covers` 는 사건 시점 표시 상태다. `kb` 가 없는 창(별도 창)에는 find
+/// 키맵을 쓰는 팝업(검색 띠)이 없다.
+fn host_popup_key_node(
+    p: &crate::adapters::ui::popup::PopupState,
+    key: RouteKey,
+    kb: Option<&KeybindingSettings>,
+    expanded: bool,
+    covers: bool,
+) -> PopupKeyNode {
+    let fold = if expanded {
+        PopupFold::Expanded
+    } else if p.collapsed() {
+        PopupFold::Collapsed
+    } else {
+        PopupFold::Fits
+    };
+    PopupKeyNode {
+        node: PopupNode::Host(p.instance),
+        keyboard: p.keyboard(),
+        escape: p.escape_decl(),
+        fold,
+        keymap: host_keymap_receives(p, key, kb),
+        covers,
+    }
+}
+
+/// 별도 창(설정·Preset·Plugins) 키 하나의 단계 4 수신자. 노드 목록은 사건 시점 노드가 팝업이면 그 팝업(`popup`), 그
+/// 위에 창 범위 노드(창 위젯과 창 자체 처리)다. 메인 창과 같은 `route_key` 가 정한다: 팝업이 쓰지 않는 키와 Esc 선언이
+/// 넘긴 Esc 는 창 노드가 받는다. `own` 은 이 키가 창 자체 처리의 바인딩(설정 창의 toggle_settings, engine level)에
+/// 맞는지다. 별도 창은 편집 바인딩 없이 팝업을 그린다(`EditBindings::default`).
+pub(crate) fn separate_window_receiver(
+    popup: Option<&crate::adapters::ui::popup::PopupState>,
+    key: RouteKey,
+    own: bool,
+) -> KeyReceiver {
+    let mut path = Vec::with_capacity(2);
+    path.extend(
+        popup.map(|p| KeyNode::Popup(host_popup_key_node(p, key, None, p.expanded(), p.covers()))),
+    );
+    path.push(KeyNode::Scope(ScopeKeyNode {
+        level: KeyLevel::Window,
+        content: ScopeContent::None,
+        attached: Vec::new(),
+    }));
+    let matching: &[KeyLevel] = if own { &[KeyLevel::Engine] } else { &[] };
+    route_key(&path, key, &EditBindings::default(), matching).receiver
+}
+
 /// host 팝업의 활성 노드 키맵에 이 키가 맞는지. 사건 시점에 정해지는 조건(폴더 모드, find 바인딩)만 본다.
 fn host_keymap_receives(
     p: &crate::adapters::ui::popup::PopupState,
     key: RouteKey,
-    kb: &KeybindingSettings,
+    kb: Option<&KeybindingSettings>,
 ) -> bool {
     let Some(egui_key) = key.key else {
         return false;
     };
     if p.id == crate::adapters::ui::search_bar::SEARCH_BAR_POPUP_ID {
-        return crate::adapters::ui::search_bar::find_keymap_receives(
-            &kb.find,
-            egui_key,
-            key.modifiers,
-            key.super_held,
-        );
+        return kb.is_some_and(|kb| {
+            crate::adapters::ui::search_bar::find_keymap_receives(
+                &kb.find,
+                egui_key,
+                key.modifiers,
+                key.super_held,
+            )
+        });
     }
     if p.id == crate::adapters::ui::popup::file_picker::FILE_PICKER_POPUP_ID {
         let folder = crate::adapters::ui::popup::file_picker::instances::picker_of(&p.payload)

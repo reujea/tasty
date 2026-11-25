@@ -193,6 +193,7 @@ impl PluginsView {
             judged,
             to_egui,
             Self::own_event,
+            |_, _| false,
             Self::window_input,
         )
     }
