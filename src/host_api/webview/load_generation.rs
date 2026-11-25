@@ -182,6 +182,9 @@ pub(super) fn chrome_state_after_end(
 /// - 세대가 있을 때: 그 탐색의 ID가 세대인 리다이렉트만 지금 로드다. 그 뒤의 새 시작은 보이던 문서가
 ///   시작한 탐색이다. 탐색 ID를 모르면 지금 로드로 보지 않는다(닫힌 쪽).
 ///
+/// `host_reload`는 취소한 시작이 호스트 `reload()`가 보낸 Reload인지다. 그 Reload는 지금 로드가 아니어도
+/// 그 지목(`Designation::Next`)을 지운다.
+///
 /// 지금 로드면 시작 처리기가 하던 원격 차단 지목 소비를 하고(리다이렉트가 아닐 때), 열린 로드를 닫고
 /// Failed로 끝내며 그 ID를 세대로 둔다. ID를 모르면 거절된 로드의 세대(`REJECTED_LOAD`)를 둔다. 그 완료는 보통의 실패로 처리하면 된다. 지금 로드가 아니면 chrome·
 /// 세대·지목을 그대로 두고 true를 돌려준다. 호출자는 그 완료가 chrome을 바꾸지 않게 건너뛴다.
@@ -193,6 +196,7 @@ pub(super) fn end_cancelled_navigation(
     nav: Option<u64>,
     redirected: bool,
     host_sent: bool,
+    host_reload: bool,
 ) -> bool {
     let current = match (chrome_generation.get(), nav) {
         (None, _) => !redirected && host_sent,
@@ -200,6 +204,11 @@ pub(super) fn end_cancelled_navigation(
         (Some(_), None) => false,
     };
     if !current {
+        if host_reload {
+            // 호스트 `reload()`가 세운 지목은 그 Reload가 취소되면 쓸 곳이 없다. 남기면 관계없는 다음 main
+            // 탐색이 호스트 요청처럼 받아진다.
+            top_level.borrow_mut().drop_next();
+        }
         return true;
     }
     let mut top = top_level.borrow_mut();
@@ -452,7 +461,8 @@ mod tests {
             &top,
             Some(5),
             false,
-            true
+            true,
+            false
         ));
         assert_eq!(nav.get(), NavState::Failed);
         assert_eq!(generation.get(), Some(5));
@@ -485,6 +495,7 @@ mod tests {
             &top,
             Some(6),
             true,
+            false,
             false
         ));
         assert_eq!(nav.get(), NavState::Failed);
@@ -502,6 +513,7 @@ mod tests {
             &generation,
             &top,
             Some(7),
+            false,
             false,
             false
         ));
@@ -526,6 +538,7 @@ mod tests {
             &top,
             Some(4),
             true,
+            false,
             false
         ));
         assert_eq!(nav.get(), NavState::Loading);
@@ -536,6 +549,7 @@ mod tests {
             &generation,
             &top,
             Some(5),
+            false,
             false,
             false
         ));
@@ -609,7 +623,8 @@ mod tests {
             &top,
             Some(16),
             false,
-            host_sent
+            host_sent,
+            false
         ));
         assert_eq!(nav.get(), NavState::Loading);
         assert_eq!(generation.get(), None);
@@ -625,10 +640,75 @@ mod tests {
             &top,
             Some(17),
             false,
-            host_sent
+            host_sent,
+            false
         ));
         assert_eq!(nav.get(), NavState::Failed);
         assert_eq!(generation.get(), Some(17));
+    }
+
+    #[test]
+    fn a_cancelled_host_reload_drops_its_designation() {
+        use super::super::host_document::{
+            HostDocuments, HostLoadHeader, StartDecision, host_document_url,
+        };
+        use tasty_model::html_script::top_level::StartKind;
+        // 보이는 문서 A(로드 1, 탐색 15). 원격 차단 상태에서 호스트 reload()가 지목을 세우고 Reload를 보낸다.
+        for (nav_id, header) in [
+            (Some(16), HostLoadHeader::Unreadable),
+            (None, HostLoadHeader::Absent),
+        ] {
+            let mut docs = HostDocuments::default();
+            let a = host_document_url(1, 1, 1);
+            docs.sent(1, a.clone(), std::sync::Arc::from("a"));
+            let a_load = HostLoadHeader::Load(1);
+            let started = docs.navigation_started(&a, Some(15), StartKind::Other, false, a_load);
+            assert_eq!(started, StartDecision::HostLoad);
+            assert!(docs.respond(&a, true, true, false).is_some());
+            docs.served();
+            docs.committed(Some(15), false);
+            assert!(!docs.navigation_completed(Some(15), true));
+            let nav = Cell::new(NavState::Done);
+            let generation = Cell::new(Some(15));
+            let top = RefCell::new(TopLevelAdmission::default());
+            docs.host_reload(true);
+            top.borrow_mut().designate(Designation::Next);
+            let reload = docs.navigation_started(&a, nav_id, StartKind::Reload, false, header);
+            assert_eq!(reload, StartDecision::Cancel, "{nav_id:?} {header:?}");
+            let host_reload = docs.take_host_reload();
+            assert!(host_reload);
+            assert!(end_cancelled_navigation(
+                &nav,
+                &generation,
+                &top,
+                nav_id,
+                false,
+                false,
+                host_reload
+            ));
+            assert_eq!(nav.get(), NavState::Done);
+            assert_eq!(generation.get(), Some(15));
+            assert!(
+                !next_start_admitted(&top),
+                "{nav_id:?}: 이어진 페이지 탐색은 호스트 예외를 받지 않는다"
+            );
+            assert!(!docs.take_host_reload(), "한 번만 쓴다");
+        }
+        // 호스트 Reload가 아닌 취소는 남은 지목을 지우지 않는다(다시 싣기·load_url의 지목 처리).
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(None);
+        let top = RefCell::new(TopLevelAdmission::default());
+        top.borrow_mut().designate(Designation::Next);
+        assert!(end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(9),
+            false,
+            false,
+            false
+        ));
+        assert!(next_start_admitted(&top));
     }
 
     #[test]
@@ -646,7 +726,8 @@ mod tests {
             &top,
             Some(9),
             false,
-            host_sent
+            host_sent,
+            false
         ));
         assert_eq!(nav.get(), NavState::Loading);
         assert_eq!(generation.get(), None);
@@ -670,7 +751,8 @@ mod tests {
             &top,
             Some(9),
             false,
-            host_sent
+            host_sent,
+            false
         ));
         assert_eq!(nav.get(), NavState::Loading);
         assert_eq!(generation.get(), None);
@@ -691,7 +773,8 @@ mod tests {
             &top,
             Some(9),
             false,
-            host_sent
+            host_sent,
+            false
         ));
         assert_eq!(nav.get(), NavState::Failed);
         assert_eq!(generation.get(), Some(9));
@@ -705,7 +788,8 @@ mod tests {
             &top,
             Some(10),
             false,
-            host_sent
+            host_sent,
+            false
         ));
         assert_eq!(nav.get(), NavState::Loading);
         assert_eq!(generation.get(), None);
@@ -725,7 +809,8 @@ mod tests {
             &top,
             None,
             false,
-            host_sent
+            host_sent,
+            false
         ));
         assert_eq!(nav.get(), NavState::Failed);
         assert_eq!(generation.get(), Some(REJECTED_LOAD));
@@ -746,7 +831,8 @@ mod tests {
             &top,
             None,
             false,
-            host_sent
+            host_sent,
+            false
         ));
         assert_eq!(nav.get(), NavState::Loading);
         assert_eq!(generation.get(), None);
@@ -758,7 +844,8 @@ mod tests {
             &top,
             None,
             true,
-            true
+            true,
+            false
         ));
         assert_eq!(generation.get(), Some(6));
     }

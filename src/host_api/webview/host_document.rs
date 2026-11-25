@@ -211,6 +211,8 @@ pub(super) struct HostDocuments {
     main: Option<Main>,
     /// 시작 전에 취소한 탐색. 그 완료는 chrome 상태를 바꾸지 않는다.
     cancelled: Option<u64>,
+    /// 호스트 `reload()`가 보낸 Reload가 아직 시작하지 않았다.
+    host_reload: bool,
 }
 
 /// 탐색 시작에 대한 판정.
@@ -246,6 +248,16 @@ impl HostDocuments {
         self.entries
             .iter()
             .any(|e| e.load == load && !e.shown && e.nav.is_none() && same_target(&e.url, uri))
+    }
+
+    /// 호스트 `reload()`가 Reload를 보냈는지(true) 또는 다른 호스트 요청이 그것을 대신했는지(false).
+    pub(super) fn host_reload(&mut self, sent: bool) {
+        self.host_reload = sent;
+    }
+
+    /// 시작 전에 취소한 Reload가 호스트 `reload()`가 보낸 것인지. 기록은 한 번만 쓴다.
+    pub(super) fn take_host_reload(&mut self) -> bool {
+        std::mem::take(&mut self.host_reload)
     }
 
     /// 다시 싣기 `Navigate`가 바로 거절됐다. 시작 신호가 오지 않으므로 여기서 지운다.
@@ -288,12 +300,18 @@ impl HostDocuments {
         redirected: bool,
         header: HostLoadHeader,
     ) -> StartDecision {
+        // 시작한 Reload는 호스트 `reload()`가 보낸 Reload의 기록을 소비한다. 취소한 Reload의 기록은 호출자가
+        // `take_host_reload`로 꺼낸다.
+        let reload_start = kind == StartKind::Reload && !redirected;
         if !is_reserved(uri) {
             self.main = Some(Main {
                 nav,
                 url: None,
                 served: false,
             });
+            if reload_start {
+                self.host_reload = false;
+            }
             return StartDecision::NotReserved;
         }
         let found = match (redirected, kind) {
@@ -323,6 +341,9 @@ impl HostDocuments {
         let Some((url, decision)) = found else {
             return StartDecision::Cancel;
         };
+        if reload_start {
+            self.host_reload = false;
+        }
         self.main = Some(Main {
             nav,
             url: Some(url),

@@ -263,7 +263,18 @@ pub(super) fn start(
     unsafe { args.SetCancel(true)? };
     let awaiting = documents.borrow().awaiting_start(latest, &text);
     let host_sent = sent_for_current_load(header, latest, awaiting);
-    if end_cancelled_navigation(chrome.0, chrome.1, top_level, nav, redirected, host_sent) {
+    // 호스트 `reload()`가 보낸 Reload를 취소하면 그 지목을 지운다(`end_cancelled_navigation`).
+    let host_reload =
+        kind == StartKind::Reload && !redirected && documents.borrow_mut().take_host_reload();
+    if end_cancelled_navigation(
+        chrome.0,
+        chrome.1,
+        top_level,
+        nav,
+        redirected,
+        host_sent,
+        host_reload,
+    ) {
         documents.borrow_mut().cancelled(nav);
     }
     Ok(StartDecision::Cancel)

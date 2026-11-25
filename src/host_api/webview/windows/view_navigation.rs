@@ -176,6 +176,7 @@ impl PlatformWebView {
     /// 호스트 출처 로드·이동. 스캔 재시작 상태를 갱신하고 남은 사용자 클릭을 지운다.
     fn host_request(&self, step: Option<HistoryStep>) {
         self.scan_resume.borrow_mut().host_request(step);
+        self.host_documents.borrow_mut().host_reload(false);
         if let Some(route) = &self.host_input {
             route.cancel_click();
         }
@@ -184,6 +185,7 @@ impl PlatformWebView {
     pub fn reload(&self) {
         self.host_request(None);
         self.top_level.borrow_mut().designate(Designation::Next);
+        self.host_documents.borrow_mut().host_reload(true);
         // SAFETY: webview는 클로저가 복제해 갖고 있어 valid, main thread 호출.
         self.send_navigation("Reload", true, None, |wv| unsafe { wv.Reload() });
     }
