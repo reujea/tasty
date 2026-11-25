@@ -325,3 +325,40 @@ fn remaining_values_sample_paints_one_notice_inks_and_measured_body() {
         );
     }
 }
+
+/// remaining values Meta의 OS 줄 칩은 렌더 값 text-on-active를 이름과 스와치로 보인다. text-muted 칩은 없다.
+#[test]
+fn remaining_values_meta_names_the_os_line_ink_text_on_active() {
+    for th in both_themes() {
+        assert_ne!(th.text_on_active(), th.text_muted());
+        let p = paint(|ui| draw_remaining_values(ui, &th));
+        assert!(
+            !p.texts.iter().any(|t| t.text == "text-muted"),
+            "no text-muted chip"
+        );
+        let use_ = p.text("— OS reason line");
+        let chip = p.rect_filled_around(th.surface_raised().to_egui(), use_.rect);
+        assert!(
+            p.texts
+                .iter()
+                .any(|t| t.text == "text-on-active" && chip.contains_rect(t.rect)),
+            "the OS line chip is named text-on-active"
+        );
+        let swatch = p
+            .shapes
+            .iter()
+            .find_map(|s| match s {
+                egui::Shape::Rect(r)
+                    if r.brush.is_none()
+                        && r.rect != chip
+                        && chip.contains_rect(r.rect)
+                        && r.fill != egui::Color32::TRANSPARENT =>
+                {
+                    Some(r.fill)
+                }
+                _ => None,
+            })
+            .expect("swatch in the OS line chip");
+        assert_eq!(swatch, th.text_on_active().to_egui(), "OS line chip swatch");
+    }
+}

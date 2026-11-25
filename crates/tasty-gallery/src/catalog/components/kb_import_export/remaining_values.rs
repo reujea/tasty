@@ -44,7 +44,8 @@ pub fn draw_remaining_values(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "OS text",
-                "own line, mono 11, muted — never in the sentence",
+                "own line, mono 11 · the muted role, which reads text-on-active on \
+                 tint-danger@raised · never in the sentence",
             ),
             (
                 "first / last sentence",
@@ -62,7 +63,11 @@ pub fn draw_remaining_values(ui: &mut egui::Ui, theme: &Theme) {
                 "failure block",
                 theme.accent_danger().to_egui(),
             ),
-            TokenChip::new("text-muted", "OS reason line", theme.text_muted().to_egui()),
+            TokenChip::new(
+                "text-on-active",
+                "OS reason line (the muted role on tint-danger@raised)",
+                theme.text_on_active().to_egui(),
+            ),
             TokenChip::without_color(
                 "settings-content-max-width",
                 "620 — now set once on the settings content column",
