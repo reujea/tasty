@@ -160,7 +160,7 @@ pub fn text(ui: &mut egui::Ui, theme: &Theme) {
         let mut buf = String::new();
         Input::new()
             .placeholder("Placeholder — text-placeholder")
-            .width(theme.toast_max_width.value())
+            .width(theme.field_width_xl.value())
             .show(ui, theme, &mut buf);
     });
 

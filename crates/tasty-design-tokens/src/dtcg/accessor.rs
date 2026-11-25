@@ -56,6 +56,7 @@ pub const SEMANTIC_DIM_TO_THEME_FIELD: &[(&str, &str)] = &[
     ("semantic.field-width-color", "field_width_color"),
     ("semantic.field-width-md", "field_width_md"),
     ("semantic.field-width-lg", "field_width_lg"),
+    ("semantic.field-width-xl", "field_width_xl"),
     // 세부 치수 (semantic)
     ("semantic.status-bar-height", "status_bar_height"),
     ("semantic.toolbar-height", "toolbar_height"),

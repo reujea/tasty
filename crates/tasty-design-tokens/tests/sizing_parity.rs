@@ -45,6 +45,7 @@ fn sizing_value(field: &str) -> f32 {
         "field_width_color" => SIZING.field_width_color.0,
         "field_width_md" => SIZING.field_width_md.0,
         "field_width_lg" => SIZING.field_width_lg.0,
+        "field_width_xl" => SIZING.field_width_xl.0,
         "status_bar_height" => SIZING.status_bar_height.0,
         "toolbar_height" => SIZING.toolbar_height.0,
         "titlebar_height" => SIZING.titlebar_height.0,

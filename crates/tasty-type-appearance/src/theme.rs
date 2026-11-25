@@ -366,6 +366,8 @@ pub struct ThemeSizing {
     pub field_width_md: LogicalPx,
     /// 넓은 입력 폭 (200px).
     pub field_width_lg: LogicalPx,
+    /// 긴 한 줄을 담는 입력 폭 (320px).
+    pub field_width_xl: LogicalPx,
     // ── 세부 치수 ──
     /// 토스트 최대 폭 (320px).
     pub toast_max_width: LogicalPx,
@@ -454,6 +456,7 @@ pub const SIZING: ThemeSizing = ThemeSizing {
     field_width_color: LogicalPx(110.0),
     field_width_md: LogicalPx(160.0),
     field_width_lg: LogicalPx(200.0),
+    field_width_xl: LogicalPx(320.0),
     toast_max_width: LogicalPx(320.0),
     tooltip_max_width: LogicalPx(240.0),
     status_dot_size: LogicalPx(8.0),
@@ -997,6 +1000,7 @@ pub struct Theme {
     pub field_width_color: LogicalPx,
     pub field_width_md: LogicalPx,
     pub field_width_lg: LogicalPx,
+    pub field_width_xl: LogicalPx,
     // ── 세부 치수 ──
     pub toast_max_width: LogicalPx,
     /// 툴팁 버블 최대 폭 (240px, design `--tasty-tooltip-max-width`).
@@ -1185,6 +1189,7 @@ impl Theme {
             field_width_color: zoomed(SIZING.field_width_color),
             field_width_md: zoomed(SIZING.field_width_md),
             field_width_lg: zoomed(SIZING.field_width_lg),
+            field_width_xl: zoomed(SIZING.field_width_xl),
             toast_max_width: zoomed(SIZING.toast_max_width),
             tooltip_max_width: zoomed(SIZING.tooltip_max_width),
             status_dot_size: zoomed(SIZING.status_dot_size),
