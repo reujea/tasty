@@ -2,6 +2,7 @@
 //! 이 탭과 행은 클릭으로 포커스를 요청하지 않으므로 그 포커스는 Tab·Shift+Tab·화살표 이동에서만 생긴다.
 
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 
 /// L1 탭 링을 그리고 탭이 눌렸는지 돌려준다. 링은 탭 안쪽에 그리고 활성 밑줄(`underline` 두께)과
 /// focus-ring-offset 만큼 떨어진다.
@@ -9,14 +10,14 @@ pub(super) fn l1_ring_then_clicked(
     ui: &egui::Ui,
     th: &Theme,
     resp: &egui::Response,
-    underline: f32,
+    underline: LogicalPx,
 ) -> bool {
     if resp.has_focus() {
         tasty_ui_widgets::paint_inset_ring(
             ui.painter(),
             th,
             resp.rect,
-            underline + th.focus_ring_offset.value(),
+            underline + th.focus_ring_offset,
             th.border_focus().to_egui(),
         );
     }
@@ -57,8 +58,8 @@ fn reveal_if_newly_focused(ui: &egui::Ui, th: &Theme, resp: &egui::Response) {
     let key = seen_focus_id();
     let seen = ui.ctx().data(|d| d.get_temp::<egui::Id>(key)) == Some(resp.id);
     if resp.has_focus() && !seen {
-        let reach = tasty_ui_widgets::control_ring_gap(th) + th.focus_ring_width.value();
-        ui.scroll_to_rect(resp.rect.expand(reach), None);
+        let reach = tasty_ui_widgets::control_ring_gap(th) + th.focus_ring_width;
+        ui.scroll_to_rect(resp.rect.expand(reach.value()), None);
         ui.ctx().data_mut(|d| d.insert_temp(key, resp.id));
     } else if !resp.has_focus() && seen {
         ui.ctx().data_mut(|d| d.remove::<egui::Id>(key));

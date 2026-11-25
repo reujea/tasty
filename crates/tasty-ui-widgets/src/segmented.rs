@@ -6,9 +6,16 @@
 //! text-secondary(surface-raised 위 대비 값 text-secondary-raised)다.
 
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 
-/// 알약 사이 간격. 정본 `seg` 묶음의 `gap: 6`이며 대응 토큰이 없다.
-const SEGMENT_GAP: f32 = 6.0;
+/// 알약 사이 기본 배율 간격. 정본 `seg` 묶음의 `gap: 6`이며 대응 토큰이 없다. 알약 높이·padding처럼 UI 배율을
+/// 따르므로 [`segment_gap`]이 배율을 곱한다.
+const SEGMENT_GAP: LogicalPx = LogicalPx(6.0);
+
+/// 지금 UI 배율의 알약 사이 간격.
+pub(crate) fn segment_gap(theme: &Theme) -> LogicalPx {
+    SEGMENT_GAP * theme.ui_zoom
+}
 
 /// 세그먼트 토글. `selected` 가 현재 활성 index, 새로 클릭된 세그먼트 index 를 반환
 /// (변경 없으면 `None`). 묶음은 자기 콘텐츠 폭만큼만 차지한다.
@@ -33,7 +40,7 @@ pub fn segment_row(
 ) -> Option<usize> {
     let mut clicked = None;
     ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = SEGMENT_GAP;
+        ui.spacing_mut().item_spacing.x = segment_gap(theme).value();
         for (i, label) in labels.iter().enumerate() {
             let active = i == selected;
             let resp = segment_chip(ui, theme, label, active, sense);

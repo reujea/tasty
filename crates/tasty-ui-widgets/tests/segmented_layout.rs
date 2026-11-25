@@ -5,9 +5,9 @@ use egui::{Pos2, RawInput, Rect, vec2};
 use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::segmented;
 
-#[test]
-fn each_segment_is_its_own_pill_six_apart() {
-    let th = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0);
+/// `zoom` 배율의 테마로 세 칸 묶음을 한 패스 그리고 알약 상자를 왼쪽부터 돌려준다.
+fn pills_at(zoom: f32) -> (Theme, Vec<egui::epaint::RectShape>) {
+    let th = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, zoom);
     let ctx = egui::Context::default();
     let out = ctx.run(
         RawInput {
@@ -28,6 +28,12 @@ fn each_segment_is_its_own_pill_six_apart() {
             _ => None,
         })
         .collect();
+    (th, pills)
+}
+
+#[test]
+fn each_segment_is_its_own_pill_six_apart() {
+    let (th, pills) = pills_at(1.0);
     assert_eq!(pills.len(), 3, "{pills:?}");
     let h = th.item_height_interactive.value();
     for p in &pills {
@@ -43,5 +49,18 @@ fn each_segment_is_its_own_pill_six_apart() {
     for i in [0, 2] {
         assert_eq!(pills[i].fill, th.surface_raised().to_egui());
         assert_eq!(pills[i].stroke.color, th.border_default().to_egui());
+    }
+}
+
+/// 알약 사이 간격은 알약 높이·padding처럼 UI 배율을 따른다. 배율 1.2에서 6×1.2다(egui가 상자 좌표를 1/16 단위로
+/// 맞추므로 그 반 단위까지 허용한다).
+#[test]
+fn the_pill_gap_follows_the_ui_zoom() {
+    let (th, pills) = pills_at(1.2);
+    assert_eq!(pills.len(), 3, "{pills:?}");
+    assert_eq!(th.item_height_interactive.value(), pills[0].rect.height());
+    for w in pills.windows(2) {
+        let gap = w[1].rect.left() - w[0].rect.right();
+        assert!((gap - 6.0 * 1.2).abs() <= 1.0 / 32.0, "gap {gap}");
     }
 }

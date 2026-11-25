@@ -329,7 +329,7 @@ fn l1_tab(
             ui.painter(),
             theme,
             rect,
-            theme.tab_indicator_width().value() + theme.focus_ring_offset.value(),
+            theme.tab_indicator_width() + theme.focus_ring_offset,
             theme.border_focus().to_egui(),
         );
     }

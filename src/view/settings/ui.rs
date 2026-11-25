@@ -1474,7 +1474,7 @@ fn l1_tab_button(ui: &mut egui::Ui, th: &Theme, label: &str, active: bool) -> bo
             egui::Stroke::new(thickness, th.accent_primary().to_egui()),
         );
     }
-    tab_focus::l1_ring_then_clicked(ui, th, &resp, SETTINGS_TAB_UNDERLINE.value())
+    tab_focus::l1_ring_then_clicked(ui, th, &resp, SETTINGS_TAB_UNDERLINE)
 }
 
 // ── L2 사이드바 뷰 ────────────────────────────────────────────────────────

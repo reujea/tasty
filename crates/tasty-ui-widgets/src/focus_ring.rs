@@ -8,6 +8,7 @@
 //! 그 포커스는 Tab 이동이나 앱의 `request_focus`에서만 생긴다(정본 `:focus-visible`과 같은 범위).
 
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 
 use crate::control::Ground;
 
@@ -21,14 +22,14 @@ pub fn control_ring_color(theme: &Theme, ground: Ground) -> egui::Color32 {
 }
 
 /// 컨트롤 링을 상자에서 띄우는 거리(focus-ring-offset).
-pub fn control_ring_gap(theme: &Theme) -> f32 {
-    theme.focus_ring_offset.value()
+pub fn control_ring_gap(theme: &Theme) -> LogicalPx {
+    theme.focus_ring_offset
 }
 
 /// Switch 링을 트랙에서 띄우는 거리. 정본 Switch.jsx `outline-offset: 2px`(토큰 없음)를 focus-ring-offset의 두 배로
 /// 적는다. 둘 다 UI 배율을 받지 않는 hairline이다.
-pub fn switch_ring_gap(theme: &Theme) -> f32 {
-    theme.focus_ring_offset.value() * 2.0
+pub fn switch_ring_gap(theme: &Theme) -> LogicalPx {
+    theme.focus_ring_offset * 2.0
 }
 
 /// `rect`에서 `gap`만큼 띄운 focus_ring_width 링. 모서리는 상자 반경에 `gap`을 더해 상자 곡선을 따른다.
@@ -37,12 +38,12 @@ pub fn paint_control_ring(
     theme: &Theme,
     rect: egui::Rect,
     radius: f32,
-    gap: f32,
+    gap: LogicalPx,
     color: egui::Color32,
 ) {
     painter.rect_stroke(
-        rect.expand(gap),
-        radius + gap,
+        rect.expand(gap.value()),
+        radius + gap.value(),
         egui::Stroke::new(theme.focus_ring_width.value(), color),
         egui::StrokeKind::Outside,
     );
@@ -53,11 +54,11 @@ pub fn paint_inset_ring(
     painter: &egui::Painter,
     theme: &Theme,
     rect: egui::Rect,
-    inset: f32,
+    inset: LogicalPx,
     color: egui::Color32,
 ) {
     painter.rect_stroke(
-        rect.shrink(inset),
+        rect.shrink(inset.value()),
         0.0,
         egui::Stroke::new(theme.focus_ring_width.value(), color),
         egui::StrokeKind::Inside,
