@@ -42,16 +42,30 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         theme,
         &[
             ("height", "28 control-height"),
-            ("segment pad", "0 space-sm"),
-            ("container", "surface-raised · 1px border-strong"),
-            ("active", "accent-primary fill · text-on-accent"),
-            ("divider", "1px separator (inactive edges)"),
+            ("segment pad", "0 space-md"),
+            (
+                "layout",
+                "one pill per segment · gap 6 · no container · no divider",
+            ),
+            (
+                "active",
+                "accent-primary fill · 1px accent-primary border · text-on-accent",
+            ),
+            (
+                "idle",
+                "surface-raised fill · 1px border-default border · text-secondary",
+            ),
         ],
         &[
             TokenChip::new(
                 "surface-raised",
-                "container",
+                "idle fill",
                 egui::Color32::from(theme.surface_raised()),
+            ),
+            TokenChip::new(
+                "border-default",
+                "idle border",
+                egui::Color32::from(theme.border_default()),
             ),
             TokenChip::new(
                 "accent-primary",
