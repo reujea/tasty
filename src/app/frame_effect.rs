@@ -142,11 +142,15 @@ impl InputEffect {
                 target,
                 window_focused,
             } => {
-                if target.current(&engine.as_ref()) {
+                // 내용을 숨기는 점유(hard lock, 점유 workspace의 멤버) 중에는 강조 해제와 soft 정리를 미룬다. 칠하기와
+                // 링이 hard로 보는 판정과 같다. 점유가 풀린 첫 프레임의 관측이 처리한다.
+                let sid = target.surface_id();
+                if target.current(&engine.as_ref()) && !engine.live.occupancy.is_content_hidden(sid)
+                {
                     if *window_focused {
-                        engine.clear_attention_local(target.surface_id());
+                        engine.clear_attention_local(sid);
                     }
-                    engine.reconcile_soft_occupancy_on_focus(target.surface_id());
+                    engine.reconcile_soft_occupancy_on_focus(sid);
                 }
             }
             Self::LocalMesh { .. } => self.apply_local_mesh(engine, plugins),

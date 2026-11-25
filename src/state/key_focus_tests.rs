@@ -335,6 +335,36 @@ fn hard_occupancy_delays_the_orphan_drop_until_it_ends() {
     );
 }
 
+/// 점유 workspace의 멤버(surface lock 없음)는 칠하기와 링이 hard로 본다. 강조 해제와 soft 정리도 미룬다. 점유 전에는
+/// 같은 장면에서 정리된다.
+#[test]
+fn an_occupied_workspace_member_holds_back_clearing_like_a_hard_lock() {
+    let (mut state, mut session, sid) = scene();
+    session
+        .borrow_mut()
+        .raise_attention(sid, AttentionKind::Completion);
+    orphan_soft(&mut session, sid);
+    session
+        .borrow_mut()
+        .live
+        .occupancy
+        .acquire_workspace(7, &[], &[sid], 41)
+        .expect("workspace");
+    assert!(!session.borrow_mut().live.occupancy.is_hard_occupied(sid));
+    assert!(observe(&mut state, &mut session, true));
+    assert_eq!(
+        attention(&mut session, sid),
+        Some(AttentionKind::Completion),
+        "held back"
+    );
+    assert!(has_soft(&mut session, sid), "held back");
+
+    session.borrow_mut().force_detach(sid).expect("released");
+    assert!(observe(&mut state, &mut session, true));
+    assert_eq!(attention(&mut session, sid), None);
+    assert!(!has_soft(&mut session, sid));
+}
+
 /// mesh에 알리는 값은 점유와 무관하게 키 포커스만 따르고, 값이 바뀔 때 다시 알린다.
 #[test]
 fn mesh_focus_is_told_from_key_focus_on_every_change() {

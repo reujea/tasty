@@ -376,6 +376,7 @@ markdown과 image는 kind 이름과 등록한 플러그인 id를 함께 본다. 
 
 - 키 포커스 surface가 없으면(키를 가진 팝업 아래, attach 대기 선택) 모든 바탕이 unfocus 값이다.
 - OS 창의 활성 여부는 보지 않는다. 비활성 창의 포커스 surface는 focus 값을 유지한다. 강조 해제만 OS 창 활성을 함께 본다.
+- 강조 해제와 고아 soft 점유 정리는 내용을 숨기는 점유(hard lock, 점유 workspace의 멤버) 동안 미뤄지고 점유가 풀린 첫 프레임에 처리된다(`src/app/frame_effect.rs` `FocusObserved`). leaf의 링은 하나다: 응답 대기, 점유, 완료 순이다(`surface_rings`).
 - hard 점유된 surface와 점유 workspace의 멤버는 포커스를 가져도 입력을 받지 않으므로 unfocus 값이다. terminal은 점유 workspace에서도 surface lock을 받으므로 `is_hard_occupied`로 판정할 때와 결과가 같다.
 - 전환은 한 프레임에 끝나고 레이아웃은 변하지 않는다.
 
