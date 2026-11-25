@@ -19,9 +19,11 @@ pub(super) const RESERVED_FILTERS: [&str; 2] = [
     "https://*.tasty-host-document.invalid*",
 ];
 
-/// host가 다시 싣기 요청에 다는 머리글. 값은 그 로드 번호다. 페이지는 top-level 탐색에 머리글을 달 수
-/// 없으므로, 이 머리글이 있는 시작만 호스트가 보낸 다시 싣기로 본다(WebView2 `Navigate`는 탐색 ID를
-/// 돌려주지 않아 호출과 그 `NavigationStarting`을 이을 다른 수단이 없다).
+/// host가 다시 싣기 요청에 다는 머리글. 값은 그 로드 번호다(WebView2 `Navigate`는 탐색 ID를 돌려주지 않아
+/// 호출과 그 `NavigationStarting`을 이을 다른 수단이 없다). 페이지에는 새 탐색 요청에 이 머리글을 다는
+/// 입력이 없다. 그러나 WebView2는 리다이렉트·다시 읽기·이력 이동에서 앞 요청의 머리글을 다시 보내고, 로드
+/// 번호는 문서 주소에도 드러난다. 그래서 판정은 머리글이 있는지가 아니라 그 번호가 지금 호스트 로드 번호와
+/// 같은지다(`sent_for_current_load`).
 pub(super) const HOST_LOAD_HEADER: &str = "X-Tasty-Host-Load";
 
 /// 로드 `load`의 다시 싣기 요청에 다는 머리글 줄(`CreateWebResourceRequest`의 headers).
@@ -50,7 +52,7 @@ impl HostLoadHeader {
     }
 }
 
-/// `HOST_LOAD_HEADER` 값을 로드 번호로 읽는다. 읽지 못하면 None이다(호스트가 보낸 것이 아니다).
+/// `HOST_LOAD_HEADER` 값을 로드 번호로 읽는다. 읽지 못하면 None이다(시작 처리기는 `Unreadable`로 본다).
 pub(super) fn parse_host_load(value: &str) -> Option<u64> {
     value.trim().parse().ok()
 }

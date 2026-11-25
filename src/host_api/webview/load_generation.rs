@@ -530,7 +530,7 @@ mod tests {
         ));
         assert_eq!(nav.get(), NavState::Loading);
         assert_eq!(generation.get(), None);
-        // 같은 구간의, 호스트가 보낸 기록과 맞지 않는 새 탐색도 요청을 끝내지 않는다.
+        // 같은 구간의, 지금 호스트 로드가 보내지 않은 새 탐색도 요청을 끝내지 않는다.
         assert!(end_cancelled_navigation(
             &nav,
             &generation,
