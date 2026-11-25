@@ -364,10 +364,10 @@ pub fn draw_tab_strip_with_focus_look(
     focus_look: Option<usize>,
 ) -> Option<usize> {
     // 디자인 remote_tool.jsx TabBtn: 전체폭 bg-sidebar(mantle), height 35,
-    // padding L8 / TabBtn padding 0 13 / gap 2.
+    // padding L8 / TabBtn padding 0 space-md / gap 2.
     let tab_h = 36.0; // 디자인 TabBtn 35 + borderBottom 1 = 탭바 컨테이너 36
     let pad_l = 8.0; // 디자인 탭바 padding-left
-    let pad_x = 13.0; // 디자인 TabBtn padding 0 13
+    let pad_x = th.spacing_md.value(); // 디자인 TabBtn padding 0 space-md
     let gap = 2.0; // 디자인 탭바 gap
     let font = egui::FontId::proportional(th.font_size_body.value());
 
