@@ -54,6 +54,13 @@ pub mod android {
     pub const TAB_MIN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_96;
 }
 
+pub mod approval {
+    use tasty_type_geometry::length::LogicalPx;
+
+    /// `component.approval-width` → `{primitive.size-480}` = 480px
+    pub const WIDTH: LogicalPx = crate::generated::primitive::SIZE_480;
+}
+
 pub mod attach {
     use tasty_type_geometry::length::LogicalPx;
 
@@ -615,6 +622,9 @@ pub mod explorer {
     /// `component.explorer-state-compact-below` → `{primitive.size-120}` = 120px
     pub const STATE_COMPACT_BELOW: LogicalPx = crate::generated::primitive::SIZE_120;
 
+    /// `component.explorer-state-specimen-row-width` → `{primitive.size-700}` = 700px
+    pub const STATE_SPECIMEN_ROW_WIDTH: LogicalPx = crate::generated::primitive::SIZE_700;
+
     /// `component.explorer-toolbar-compact-below` → `{primitive.size-440}` = 440px
     pub const TOOLBAR_COMPACT_BELOW: LogicalPx = crate::generated::primitive::SIZE_440;
 }
@@ -910,6 +920,9 @@ pub mod image {
 
     /// `component.image-size-input-width` → `{primitive.size-64}` = 64px
     pub const SIZE_INPUT_WIDTH: LogicalPx = crate::generated::primitive::SIZE_64;
+
+    /// `component.image-state-specimen-grid-width` → `{primitive.size-760}` = 760px
+    pub const STATE_SPECIMEN_GRID_WIDTH: LogicalPx = crate::generated::primitive::SIZE_760;
 
     /// `component.image-zoom-font-size` → `{semantic.font-size-caption}` = 11px
     pub const ZOOM_FONT_SIZE: LogicalPx = crate::generated::semantic::FONT_SIZE_CAPTION;
@@ -1521,6 +1534,16 @@ pub mod port {
     pub const STAR_COL_WIDTH: LogicalPx = crate::generated::primitive::SIZE_28;
 }
 
+pub mod ports {
+    use tasty_type_geometry::length::LogicalPx;
+
+    /// `component.ports-window-height` → `{primitive.size-520}` = 520px
+    pub const WINDOW_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_520;
+
+    /// `component.ports-window-width` → `{primitive.size-660}` = 660px
+    pub const WINDOW_WIDTH: LogicalPx = crate::generated::primitive::SIZE_660;
+}
+
 pub mod preset {
     use tasty_type_geometry::length::LogicalPx;
 
@@ -1559,6 +1582,12 @@ pub mod preset {
 
     /// `component.preset-split-divider-width` → `{semantic.selection-edge-width}` = 2px
     pub const SPLIT_DIVIDER_WIDTH: LogicalPx = crate::generated::semantic::SELECTION_EDGE_WIDTH;
+
+    /// `component.preset-window-height` → `{primitive.size-640}` = 640px
+    pub const WINDOW_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_640;
+
+    /// `component.preset-window-width` → `{primitive.size-960}` = 960px
+    pub const WINDOW_WIDTH: LogicalPx = crate::generated::primitive::SIZE_960;
 }
 
 pub mod progress {
@@ -1595,6 +1624,12 @@ pub mod remote {
 
     /// `component.remote-label-col` → `{primitive.size-112}` = 112px
     pub const LABEL_COL: LogicalPx = crate::generated::primitive::SIZE_112;
+
+    /// `component.remote-picker-height` → `{primitive.size-460}` = 460px
+    pub const PICKER_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_460;
+
+    /// `component.remote-picker-width` → `{primitive.size-680}` = 680px
+    pub const PICKER_WIDTH: LogicalPx = crate::generated::primitive::SIZE_680;
 
     /// `component.remote-row-popup-width` → `{primitive.size-360}` = 360px
     pub const ROW_POPUP_WIDTH: LogicalPx = crate::generated::primitive::SIZE_360;

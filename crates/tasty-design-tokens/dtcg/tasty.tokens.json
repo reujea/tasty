@@ -721,6 +721,30 @@
       "$type": "dimension",
       "$value": "700px"
     },
+    "size-520": {
+      "$type": "dimension",
+      "$value": "520px"
+    },
+    "size-640": {
+      "$type": "dimension",
+      "$value": "640px"
+    },
+    "size-660": {
+      "$type": "dimension",
+      "$value": "660px"
+    },
+    "size-680": {
+      "$type": "dimension",
+      "$value": "680px"
+    },
+    "size-960": {
+      "$type": "dimension",
+      "$value": "960px"
+    },
+    "size-760": {
+      "$type": "dimension",
+      "$value": "760px"
+    },
     "size-1100": {
       "$type": "dimension",
       "$value": "1100px"
@@ -4580,6 +4604,14 @@
       "$type": "dimension",
       "$value": "{primitive.size-288}"
     },
+    "explorer-state-specimen-row-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-700}"
+    },
+    "image-state-specimen-grid-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-760}"
+    },
     "tutorial-marker-glow-inner": {
       "$type": "color",
       "$value": "color-mix(in srgb, var(--tasty-accent-primary) 22%, transparent)"
@@ -5866,6 +5898,34 @@
     "settings-window-csd-height": {
       "$type": "dimension",
       "$value": "calc(var(--tasty-settings-window-height) + var(--tasty-titlebar-height))"
+    },
+    "approval-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-480}"
+    },
+    "ports-window-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-660}"
+    },
+    "ports-window-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-520}"
+    },
+    "remote-picker-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-680}"
+    },
+    "remote-picker-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-460}"
+    },
+    "preset-window-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-960}"
+    },
+    "preset-window-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-640}"
     },
     "toast-stack-offset-bottom": {
       "$type": "dimension",

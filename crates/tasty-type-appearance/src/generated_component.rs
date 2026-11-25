@@ -112,6 +112,12 @@ impl crate::theme::Theme {
         self.text_primary()
     }
 
+    /// `component.approval-width` → `{primitive.size-480}` = 480px
+    #[inline]
+    pub fn approval_width(&self) -> LogicalPx {
+        LogicalPx((480.0 * self.ui_zoom).round())
+    }
+
     /// `component.attach-refusal-chip-glyph-size` → `{semantic.avatar-chip-glyph-size}` = 8px
     #[inline]
     pub fn attach_refusal_chip_glyph_size(&self) -> LogicalPx {
@@ -1998,6 +2004,12 @@ impl crate::theme::Theme {
         LogicalPx((120.0 * self.ui_zoom).round())
     }
 
+    /// `component.explorer-state-specimen-row-width` → `{primitive.size-700}` = 700px
+    #[inline]
+    pub fn explorer_state_specimen_row_width(&self) -> LogicalPx {
+        LogicalPx((700.0 * self.ui_zoom).round())
+    }
+
     /// `component.explorer-toolbar-compact-below` → `{primitive.size-440}` = 440px
     #[inline]
     pub fn explorer_toolbar_compact_below(&self) -> LogicalPx {
@@ -2758,6 +2770,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn image_size_input_width(&self) -> LogicalPx {
         LogicalPx((64.0 * self.ui_zoom).round())
+    }
+
+    /// `component.image-state-specimen-grid-width` → `{primitive.size-760}` = 760px
+    #[inline]
+    pub fn image_state_specimen_grid_width(&self) -> LogicalPx {
+        LogicalPx((760.0 * self.ui_zoom).round())
     }
 
     /// `component.image-too-large-fg` → `{semantic.accent-warning-raised}`
@@ -4662,6 +4680,18 @@ impl crate::theme::Theme {
         self.status_dot_idle()
     }
 
+    /// `component.ports-window-height` → `{primitive.size-520}` = 520px
+    #[inline]
+    pub fn ports_window_height(&self) -> LogicalPx {
+        LogicalPx((520.0 * self.ui_zoom).round())
+    }
+
+    /// `component.ports-window-width` → `{primitive.size-660}` = 660px
+    #[inline]
+    pub fn ports_window_width(&self) -> LogicalPx {
+        LogicalPx((660.0 * self.ui_zoom).round())
+    }
+
     /// `component.preset-cfg-draft-fg` → `{semantic.accent-warning-raised}`
     #[inline]
     pub fn preset_cfg_draft_fg(&self) -> HexColor {
@@ -4740,6 +4770,18 @@ impl crate::theme::Theme {
         self.accent_primary_raised()
     }
 
+    /// `component.preset-window-height` → `{primitive.size-640}` = 640px
+    #[inline]
+    pub fn preset_window_height(&self) -> LogicalPx {
+        LogicalPx((640.0 * self.ui_zoom).round())
+    }
+
+    /// `component.preset-window-width` → `{primitive.size-960}` = 960px
+    #[inline]
+    pub fn preset_window_width(&self) -> LogicalPx {
+        LogicalPx((960.0 * self.ui_zoom).round())
+    }
+
     /// `component.progress-fill-bg` → `{semantic.accent-primary}`
     #[inline]
     pub fn progress_fill_bg(&self) -> HexColor {
@@ -4810,6 +4852,18 @@ impl crate::theme::Theme {
     #[inline]
     pub fn remote_label_col(&self) -> LogicalPx {
         LogicalPx((112.0 * self.ui_zoom).round())
+    }
+
+    /// `component.remote-picker-height` → `{primitive.size-460}` = 460px
+    #[inline]
+    pub fn remote_picker_height(&self) -> LogicalPx {
+        LogicalPx((460.0 * self.ui_zoom).round())
+    }
+
+    /// `component.remote-picker-width` → `{primitive.size-680}` = 680px
+    #[inline]
+    pub fn remote_picker_width(&self) -> LogicalPx {
+        LogicalPx((680.0 * self.ui_zoom).round())
     }
 
     /// `component.remote-row-popup-width` → `{primitive.size-360}` = 360px
