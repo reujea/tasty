@@ -49,6 +49,7 @@ pub mod env_isolation;
 
 /// 워크플로의 `on:` 트리거를 구조로 읽는다 — 주석과 트리거 키를 가른다.
 pub mod workflow_triggers;
+pub mod workflow_yaml;
 
 /// 순회 결과에 하한을 적용한다.
 pub mod floored_walk;
