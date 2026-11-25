@@ -643,34 +643,68 @@ fn leaf_under_popup(ui: &mut egui::Ui, theme: &Theme, popup_has_keys: bool) {
     );
 }
 
-/// 시안 popup-focus View `popup-focus-leaf-under-terminal-completed`.
+/// 시안 popup-focus View `popup-focus-leaf-under-terminal-completed`. 시안 `GroundThemes`처럼 Mocha·Latte 바탕마다
+/// 팝업이 키를 가진 칸과 돌려준 칸을 나란히 둔다(좁으면 줄을 바꾼다).
 fn draw_completed_under_popup(ui: &mut egui::Ui, theme: &Theme) {
+    let with_zoom =
+        |base: Theme| Theme::with_colors_and_zoom(base.to_colors(), base.is_light, theme.ui_zoom);
+    let grounds = [
+        ("Mocha", with_zoom(tasty_themes::mocha_fallback())),
+        ("Latte", with_zoom(crate::host_shell::latte_theme())),
+    ];
     cluster(
         ui,
         theme,
         "Completed terminal under a popup in an active OS window",
         |ui| {
             ui.horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing.x = theme.spacing_lg.value();
-                for (caption, popup_has_keys) in [
-                    (
-                        "Popup holds key focus · ring stays, unfocused bed, no cursor",
-                        true,
-                    ),
-                    ("Key focus returns · ring clears, focused bed", false),
-                ] {
-                    ui.vertical(|ui| {
-                        ui.label(
-                            egui::RichText::new(caption)
-                                .size(theme.font_size_caption.value())
-                                .color(theme.text_muted().to_egui()),
-                        );
-                        leaf_under_popup(ui, theme, popup_has_keys);
-                    });
+                ui.spacing_mut().item_spacing =
+                    egui::vec2(theme.spacing_lg.value(), theme.spacing_lg.value());
+                for (label, th) in &grounds {
+                    crate::catalog::spec::wrap_item(ui, |ui| ground_under_popup(ui, th, label));
                 }
             });
         },
     );
+}
+
+/// 시안 `GroundThemes`의 한 테마 바탕: 테마 이름과 두 칸.
+fn ground_under_popup(ui: &mut egui::Ui, th: &Theme, label: &str) {
+    let cap = |text: &str| {
+        egui::RichText::new(text)
+            .font(egui::FontId::monospace(th.font_size_micro.value()))
+            .color(th.text_muted().to_egui())
+    };
+    egui::Frame::new()
+        .fill(th.bg_app().to_egui())
+        .stroke(egui::Stroke::new(
+            th.border_width.value(),
+            th.border_default().to_egui(),
+        ))
+        .corner_radius(th.corner_radius.value())
+        .inner_margin(egui::Margin::same(th.spacing_md.value() as i8))
+        .show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = th.spacing_md.value();
+                ui.label(cap(label));
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = th.spacing_lg.value();
+                    for (caption, popup_has_keys) in [
+                        (
+                            "Popup holds key focus · ring stays, unfocused bed, no cursor",
+                            true,
+                        ),
+                        ("Key focus returns · ring clears, focused bed", false),
+                    ] {
+                        ui.vertical(|ui| {
+                            ui.spacing_mut().item_spacing.y = th.spacing_xs.value();
+                            ui.label(cap(caption));
+                            leaf_under_popup(ui, th, popup_has_keys);
+                        });
+                    }
+                });
+            });
+        });
 }
 
 fn draw_with_marks(ui: &mut egui::Ui, theme: &Theme) {
