@@ -904,7 +904,7 @@ fn the_manager_focus_follows_a_covering_popup_key_node() {
     assert!(w.popups.instance(c).expect("open").covers());
     w.popups.set_instance_focused(a, true);
     assert_eq!(w.popups.host_key_owner().map(|p| p.instance), Some(a));
-    drop(h.key_with(&mut w, egui::Key::X, egui::Modifiers::NONE, None));
+    assert!(!h.key_with(&mut w, egui::Key::X, egui::Modifiers::NONE, None));
     assert_eq!(w.popups.host_key_owner().map(|p| p.instance), Some(c));
 }
 
@@ -919,6 +919,6 @@ fn the_manager_focus_stays_on_an_uncovered_key_node() {
     let a = w.popups.host_key_owner().expect("A focused").instance;
     w.open(B, egui::pos2(300.0, 300.0));
     w.popups.set_instance_focused(a, true);
-    drop(h.key_with(&mut w, egui::Key::X, egui::Modifiers::NONE, None));
+    assert!(!h.key_with(&mut w, egui::Key::X, egui::Modifiers::NONE, None));
     assert_eq!(w.popups.host_key_owner().map(|p| p.instance), Some(a));
 }
