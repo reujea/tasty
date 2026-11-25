@@ -223,12 +223,11 @@ semantic 필드를 그대로 재사용한다(신규 필드 없음). 정본 소�
 
 요약을 숨기는 기준 96×72(`LEAF_SUMMARY_MIN_W`·`LEAF_SUMMARY_MIN_H`)와 아이콘만 표시하는 기준 46(`LEAF_ICON_ONLY_MIN`)도 LogicalPx 상수다. cwd·file의 앞자름과 startup·url의 뒤자름은 `PresetFieldSpec.input`의 Dir/FilePath 여부로 결정하며 kind 이름으로 고정하지 않는다.
 
-## 토큰이 아닌 raw 값 주의
+## remote_tool 헤더·탭 치수
 
-디자인 inline style 에는 토큰이 아닌 raw px 도 섞여 있다 (전사 시 그대로 옮기되 기록):
-- remote_tool 헤더 `gap: 9` — 토큰 아님 (spacing_sm=8 과 1px 차).
-- remote_tool 헤더 title `fontSize: 14` — 토큰 아님 (14 폰트 토큰은 UI 상한 `font_size_max` 뿐 → heading 13 사용, 1px 차).
-- remote_tool TabBtn `height: 35` / 탭바 `padding 0 8` / 탭 `padding 0 13` / `gap 2` — raw.
+정본 `remote_tool.jsx`의 헤더와 탭 줄은 역할 토큰으로 치수를 적는다. 헤더는 위·오른쪽·아래 `space-md`, 왼쪽 `--tasty-remote-pad-x`, 항목 간격 `space-sm`이다. 탭은 높이 `--tasty-remote-tab-height`(35)에 아래 선 1을 더한 36, 탭 줄 왼쪽 `space-sm`, 탭 가로 `space-md`, 탭 사이 `--tasty-remote-tab-gap`이다.
+- 본체 헤더 구역(`draw_header_band`)은 `spacing_md`·`remote_pad_x()`·`spacing_sm`을, 공용 `draw_tab_strip`은 `spacing_md`·`remote_tab_gap()`을 읽는다. 탭 줄 높이 36과 왼쪽 8은 리터럴이다.
+- 헤더 제목은 정본이 `font-size-max`(14)이고 본체는 `font_size_heading`(13)이다(1px 차).
 
 ## banner (banner-02 specimen / banner-03 본체)
 
