@@ -28,16 +28,36 @@ impl WindowNode {
     }
 }
 
-/// 별도 창 키 사건 하나의 단계 4 수신 결과(`PopupManager::settle_window_key`). 몫 결속(`bind_window_key`), bare Esc
-/// 적용(`apply_window_escape`), 창 자체 처리가 이 값을 함께 읽는다.
+/// 별도 창 키 사건 하나의 단계 4 수신 결과(`PopupManager::settle_window_key`). 메인 창의 `KeyReceiver` 와 같이 egui
+/// 수신자(팝업·창 위젯 내용), 창 자체 처리 후보, 버림을 가른다. 단계 6 편집 판정(`window_input::window_edit_target`),
+/// 몫 경계(`cut_window_segment`), 단계 8 적재와 결속(`bind_window_key`·`apply_window_escape`), 단계 11 창 자체
+/// 처리가 이 한 값을 읽는다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum WindowReceiver {
-    /// 팝업이 받는다.
+    /// 팝업이 받는다(egui 수신자, 그 팝업 몫).
     Popup(PopupInstanceId),
-    /// 창 노드(창 위젯 내용과 창 자체 처리의 engine level 후보)가 받는다.
-    Window,
-    /// 아무도 받지 않는다.
+    /// 창 범위 노드의 내용인 창 위젯이 받는다(egui 수신자, 창 위젯 몫). 창 자체 처리도 그 키를 본다.
+    Widget,
+    /// 창 자체 처리의 후보(engine level)가 받는다. egui 에는 싣지 않는다.
+    Own,
+    /// 아무도 받지 않는다. egui 에도 창 자체 처리에도 가지 않는다.
     Nobody,
+}
+
+impl WindowReceiver {
+    /// egui 에 실을 몫의 노드. egui 수신자가 없으면 None 이다.
+    pub(crate) fn egui_node(self) -> Option<WindowNode> {
+        match self {
+            Self::Popup(iid) => Some(WindowNode::Popup(iid)),
+            Self::Widget => Some(WindowNode::Widget),
+            Self::Own | Self::Nobody => None,
+        }
+    }
+
+    /// 단계 11 창 자체 처리가 이 키를 보는지(창 노드가 받았다).
+    pub(crate) fn reaches_window(self) -> bool {
+        matches!(self, Self::Widget | Self::Own)
+    }
 }
 
 /// 별도 창 키 사건 하나의 경로 값(단계 4 입력).
@@ -65,22 +85,14 @@ pub(crate) struct WindowSegments {
     after: VecDeque<Option<WindowNode>>,
     /// 이번 `run` 의 결속 없는 몫 키 주인: `run` 시작 때 노드의 인스턴스(`begin_window_run`).
     run_owner: Option<PopupInstanceId>,
-    /// 마지막 키 사건의 출발 노드와 단계 4 수신 결과(`settle_window_key`). 그 사건의 결속(`bind_window_key`·
+    /// 마지막 키 사건의 단계 4 수신 결과(`settle_window_key`). 그 사건의 결속(`bind_window_key`·
     /// `apply_window_escape`)이 꺼내 쓴다.
-    key_receiver: Option<(WindowNode, WindowReceiver)>,
+    key_receiver: Option<WindowReceiver>,
     /// 마지막 키 사건 경로의 level 집합(`settle_window_key`). 단계 11 더블탭 동작 거르기가 읽는다.
     key_levels: Option<crate::adapters::ui::input::key_level::PathLevels>,
 }
 
 impl WindowSegments {
-    /// 지금 사건을 받는 몫의 노드.
-    fn open_node_value(&self) -> Option<WindowNode> {
-        match self.after.back() {
-            Some(node) => *node,
-            None => self.node,
-        }
-    }
-
     /// 지금 사건을 받는 몫(마지막으로 끊은 뒤 몫, 없으면 지금 그리는 몫)의 노드 칸.
     fn open_node(&mut self) -> &mut Option<WindowNode> {
         match self.after.back_mut() {
@@ -122,17 +134,17 @@ impl PopupManager {
             .map(|(iid, _, _)| iid)
     }
 
-    /// 누름·키(`incoming`)가 egui 입력 큐 `events` 끝에 들어오기 전에 부른다. 사건 시점 노드가 지금 몫의 노드와
-    /// 다르거나 그 사건이 몫을 나눠야 하면 끊는다(메인 창 `MainViewState::cut_key_frame` 과 같은 조건 함수). 끊은 수를
-    /// 돌려준다. 호출자는 egui 입력도 그 자리에서 그 수만큼 끊는다.
+    /// egui 에 실을 누름·키(`incoming`)가 egui 입력 큐 `events` 끝에 들어오기 전에 부른다. 그 사건이 묶일 노드
+    /// (`node`: 키면 단계 4 결과의 egui 수신자 몫 `WindowReceiver::egui_node`, 누름이면 사건 시점 노드)가 지금 몫의
+    /// 노드와 다르거나 그 사건이 몫을 나눠야 하면 끊는다(메인 창 `MainViewState::cut_key_frame` 과 같은 조건 함수). 끊은
+    /// 수를 돌려준다. 호출자는 egui 입력도 그 자리에서 그 수만큼 끊는다.
     pub(crate) fn cut_window_segment(
         &mut self,
-        ctx: &egui::Context,
         events: &[egui::Event],
         incoming: Incoming,
+        node: WindowNode,
     ) -> usize {
-        let focus = self.window_key_node(ctx);
-        self.show_window_focus(focus);
+        let focus = node;
         let mut cuts = 0;
         loop {
             let node = *self.window.open_node();
@@ -157,7 +169,7 @@ impl PopupManager {
 
     /// 관리자 포커스 표시를 사건 시점 노드(`window_key_node`)에 맞춘다. 노드가 팝업이면 그 팝업이 포커스 위치다(덮는
     /// 팝업이 덮인 포커스를 대신한 경우가 여기서 바뀐다). 노드가 창 위젯이면 관리자 포커스를 그대로 둔다(기록이 팝업 밖인
-    /// W1). 키·IME·누름의 끊기 앞과 `run` 앞에 부른다.
+    /// W1). 키·IME·누름 사건 입구 맨 앞(`show_window_key_node`)과 `run` 앞에 부른다.
     fn show_window_focus(&mut self, node: WindowNode) {
         if let WindowNode::Popup(iid) = node
             && self.host_key_owner().map(|p| p.instance) != Some(iid)
@@ -195,13 +207,23 @@ impl PopupManager {
         matches!(self.window.press, Some((_, 0)))
     }
 
-    /// egui 에 실은 키 사건의 몫을 묶는다. 단계 4 결과(`settle_window_key`)의 출발 노드다: 팝업이 받으면 그 팝업,
-    /// 창 노드가 받으면 출발 노드(창 위젯, 또는 engine level 후보를 창 자체 처리가 받는 팝업), 아무도 받지 않으면
-    /// 출발 노드(그 노드가 쓰지 않는 키다)다. 그래서 덮는 팝업 아래 창 위젯은 그 키를 보지 않는다. 출발 노드가 같으면
-    /// 결속도 같으므로 몫 경계는 출발 노드로 끊는다(`cut_window_segment`). 결과가 없으면(시험 대역) 사건 시점 노드다.
+    /// 키·IME·누름 사건 입구 맨 앞: 관리자 포커스 표시를 사건 시점 노드에 맞춘다(`show_window_focus`).
+    pub(crate) fn show_window_key_node(&mut self, ctx: &egui::Context) {
+        let node = self.window_key_node(ctx);
+        self.show_window_focus(node);
+    }
+
+    /// egui 에 실은 키 사건의 몫을 단계 4 결과(`settle_window_key`)의 egui 수신자 몫으로 묶는다: 팝업이 받으면 그 팝업,
+    /// 창 위젯이 받으면 창 위젯이다. egui 수신자가 없는 키는 싣지 않으므로 여기 오지 않는다. 몫 경계도 같은 값으로
+    /// 끊는다(`cut_window_segment`). 결과가 없으면(시험 대역) 지금 몫의 노드다.
     pub(crate) fn bind_window_key(&mut self, ctx: &egui::Context) {
-        let node = match self.window.key_receiver.take() {
-            Some((start, _)) => start,
+        let node = match self
+            .window
+            .key_receiver
+            .take()
+            .and_then(WindowReceiver::egui_node)
+        {
+            Some(node) => node,
             None => match *self.window.open_node() {
                 Some(node) => node,
                 None => self.window_key_node(ctx),
@@ -210,16 +232,16 @@ impl PopupManager {
         self.bind_window_key_node(node.popup().map(PopupNode::Host));
     }
 
-    /// 단계 4(별도 창): 키 사건 하나의 수신 결과를 사건 시점 노드에서 정한다. 경로 키는 메인 창과 같은 `route_key`
-    /// (`key_nodes::separate_window_receiver`)가 정하고, 지금 경로로 남는 사건은 사건 시점 노드가 받는다. 몫 결속
-    /// (`bind_window_key`), bare Esc 적용(`apply_window_escape`), 단계 11 창 자체 처리가 이 값을 함께 읽는다. 창 노드
-    /// (창 위젯과 창 자체 처리)가 받으면 참이다. 끊기(`cut_window_segment`) 뒤에 부른다.
-    pub(crate) fn settle_window_key(&mut self, ctx: &egui::Context, key: WindowKey) -> bool {
+    /// 단계 4(별도 창): 키 사건 하나의 수신 결과를 사건 시점 노드(`window_key_node`)에서 정한다. 경로 키는 메인 창과
+    /// 같은 `route_key`(`key_nodes::separate_window_receiver`)가 정하고, 지금 경로로 남는 사건은 사건 시점 노드가 받는다.
+    /// 끊기(`cut_window_segment`) 앞에 부르고, 끊기·편집 판정·적재·결속·창 자체 처리가 이 값을 함께 읽는다.
+    pub(crate) fn settle_window_key(
+        &mut self,
+        ctx: &egui::Context,
+        key: WindowKey,
+    ) -> WindowReceiver {
         use crate::adapters::ui::input::key_route::KeyReceiver;
-        let node = match self.window.open_node_value() {
-            Some(node) => node,
-            None => self.window_key_node(ctx),
-        };
+        let node = self.window_key_node(ctx);
         self.window.key_levels = Some(
             crate::adapters::ui::input::key_nodes::separate_window_levels(
                 node.popup().and_then(|iid| self.instance(iid)),
@@ -228,7 +250,7 @@ impl PopupManager {
         let receiver = match key {
             WindowKey::Current => match node {
                 WindowNode::Popup(iid) => WindowReceiver::Popup(iid),
-                WindowNode::Widget => WindowReceiver::Window,
+                WindowNode::Widget => WindowReceiver::Widget,
             },
             WindowKey::Path { key, own } => {
                 let popup = node.popup().and_then(|iid| self.instance(iid));
@@ -238,13 +260,14 @@ impl PopupManager {
                     popup, attached, key, own,
                 ) {
                     KeyReceiver::Popup(iid) => WindowReceiver::Popup(iid),
-                    KeyReceiver::Window | KeyReceiver::Shortcut { .. } => WindowReceiver::Window,
+                    KeyReceiver::Window => WindowReceiver::Widget,
+                    KeyReceiver::Shortcut { .. } => WindowReceiver::Own,
                     _ => WindowReceiver::Nobody,
                 }
             }
         };
-        self.window.key_receiver = Some((node, receiver));
-        receiver == WindowReceiver::Window
+        self.window.key_receiver = Some(receiver);
+        receiver
     }
 
     /// 마지막 키 사건 경로의 level 집합(단계 4, `settle_window_key`). 키 사건이 아직 없으면 None 이다.
@@ -256,22 +279,31 @@ impl PopupManager {
 
     /// 단계 8·11(별도 창): egui 에 실은 bare Esc 누름 하나를 그 수신 결과(`settle_window_key`)로 묶고 적용한다.
     /// 수신자가 팝업이면 그 누름을 `pending`(egui 입력)에서 빼 그 팝업에 넘기고(메인 창과 같은 넘김 기록), 메인 창과 같은
-    /// 규칙(`PopupState::escape_releases_focus`)으로 포커스를 푼다. 아니면 출발 노드로 묶어 egui 입력에 둔다(창 위젯이
-    /// 출발 노드면 창 위젯이 받고, 팝업이면 넘기지 않은 Esc 라 그 팝업 본문은 Esc 로 읽지 않는다). `escape_held` 는 직전 패스
-    /// 끝의 Escape 눌림 상태다.
+    /// 규칙(`PopupState::receive_escape`)으로 포커스를 푼다. 창 위젯이면 창 위젯 몫으로 묶어 egui 입력에 둔다(창 위젯이
+    /// 받는다). egui 수신자가 없는 Esc(창 자체 처리 후보·버림)는 싣지 않으므로 여기 오지 않는다. 시험 대역이 실었으면
+    /// `pending` 에서 뺀다. `escape_held` 는 직전 패스 끝의 Escape 눌림 상태다.
     pub(crate) fn apply_window_escape(
         &mut self,
         pending: &mut Vec<egui::Event>,
         escape_held: bool,
     ) {
-        let (start, receiver) = self
+        let receiver = self
             .window
             .key_receiver
             .take()
-            .unwrap_or((WindowNode::Widget, WindowReceiver::Window));
-        let WindowReceiver::Popup(iid) = receiver else {
-            self.bind_window_key_node(start.popup().map(PopupNode::Host));
-            return;
+            .unwrap_or(WindowReceiver::Widget);
+        let iid = match receiver {
+            WindowReceiver::Popup(iid) => iid,
+            WindowReceiver::Widget => {
+                self.bind_window_key_node(None);
+                return;
+            }
+            WindowReceiver::Own | WindowReceiver::Nobody => {
+                if let Some(at) = pending.iter().rposition(super::body_keys::is_escape_press) {
+                    pending.remove(at);
+                }
+                return;
+            }
         };
         self.bind_window_key_node(Some(PopupNode::Host(iid)));
         if self.instance_mut(iid).is_none_or(|p| p.receive_escape()) {

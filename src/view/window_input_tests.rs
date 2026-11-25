@@ -4,7 +4,7 @@
 //! 그린 뒤 팝업을 그린다.
 
 use super::*;
-use crate::adapters::ui::popup::window_segments::WindowKey;
+use crate::adapters::ui::popup::window_segments::{WindowKey, WindowReceiver};
 use crate::adapters::ui::popup::{PopupId, PopupScope, PopupState};
 use crate::gfx::gpu::input_pass::{InputPassHost, run_input_pass};
 use crate::gfx::gpu::text_selection::HeldPastes;
@@ -245,7 +245,7 @@ impl Harness {
         window: &mut impl WindowPopups,
         incoming: Incoming,
         key: Option<WindowKey>,
-    ) -> bool {
+    ) -> Option<WindowReceiver> {
         let ctx = self.ctx.clone();
         settle_window_input(self, &ctx, window.window_popups(), incoming, key)
     }
@@ -253,7 +253,7 @@ impl Harness {
     /// 포인터를 옮기고(끊지 않는 사건) 누른다.
     pub(crate) fn press(&mut self, window: &mut impl WindowPopups, pos: egui::Pos2) {
         self.queue.push(egui::Event::PointerMoved(pos));
-        self.settle(window, Incoming::Press, None);
+        assert_eq!(self.settle(window, Incoming::Press, None), None);
         self.queue.push(button(pos, true));
     }
 
@@ -277,8 +277,8 @@ impl Harness {
         self.key_with(window, key, egui::Modifiers::NONE, text);
     }
 
-    /// `modifiers` 를 실은 키 하나. 글자가 있으면 같은 사건이 글자도 싣는다. 창 노드(창 위젯과 창 자체 처리)가 그 키를
-    /// 받으면 참이다(단계 4).
+    /// `modifiers` 를 실은 키 하나. 제품 입구와 같이 단계 4 결과에 egui 수신자가 있을 때만 egui 큐에 싣는다(글자가
+    /// 있으면 같은 사건이 글자도 싣는다). 창 노드(창 위젯과 창 자체 처리)가 그 키를 받으면 참이다(단계 4).
     pub(crate) fn key_with(
         &mut self,
         window: &mut impl WindowPopups,
@@ -296,7 +296,7 @@ impl Harness {
         } else {
             Incoming::Key
         };
-        let window_receives = self.settle(
+        let receiver = self.settle(
             window,
             incoming,
             Some(WindowKey::Path {
@@ -304,6 +304,10 @@ impl Harness {
                 own: false,
             }),
         );
+        let reaches_window = receiver.is_none_or(WindowReceiver::reaches_window);
+        if receiver.is_some_and(|r| r.egui_node().is_none()) {
+            return reaches_window;
+        }
         self.queue.push(egui::Event::Key {
             key,
             physical_key: None,
@@ -323,7 +327,7 @@ impl Harness {
             &mut self.queue,
             held,
         );
-        window_receives
+        reaches_window
     }
 
     /// 창 자체 처리의 바인딩(engine level)에 맞는 키 하나. 창 노드가 그 키를 받으면 참이다(단계 4).
@@ -346,6 +350,7 @@ impl Harness {
                 own: true,
             }),
         )
+        .is_none_or(WindowReceiver::reaches_window)
     }
 
     fn type_x(&mut self, window: &mut TestWindow) {
@@ -866,21 +871,61 @@ fn a_loaded_debug_escape_goes_to_its_own_node() {
 /// 보류(누름이 먼저 처리되기를 기다림)를 거친다.
 #[test]
 fn a_bare_escape_in_the_unmanaged_quit_window_takes_the_edit_judgement() {
-    assert!(window_edit_target(Some(Incoming::Escape), false));
+    assert!(window_edit_target(Some(Incoming::Escape), None, false));
 }
 
 /// Given 팝업 관리자를 가진 창, When 수식키 없는 Esc 누름, Then 편집 판정을 건너 수신자의 Esc 처리로 간다.
 #[test]
 fn a_bare_escape_in_a_managed_window_skips_the_edit_judgement() {
-    assert!(!window_edit_target(Some(Incoming::Escape), true));
+    assert!(!window_edit_target(
+        Some(Incoming::Escape),
+        Some(WindowReceiver::Widget),
+        true
+    ));
 }
 
 /// Given 팝업 관리자를 가진 창, When Esc 가 아닌 키·누름·기타 사건, Then 편집 판정을 받는다.
 #[test]
 fn a_non_escape_event_in_a_managed_window_takes_the_edit_judgement() {
     for incoming in [Some(Incoming::Key), Some(Incoming::Press), None] {
-        assert!(window_edit_target(incoming, true));
+        assert!(window_edit_target(incoming, None, true));
     }
+}
+
+impl Harness {
+    /// 붙여넣기 키 Ctrl+V 를 단계 4 에 넘긴 뒤 그 키가 편집 판정을 받는지(`window_edit_target`).
+    fn paste_takes_the_edit_judgement(&mut self, window: &mut impl WindowPopups) -> bool {
+        let route = crate::adapters::ui::input::key_route::RouteKey {
+            key: Some(egui::Key::V),
+            modifiers: egui::Modifiers::CTRL,
+            super_held: false,
+        };
+        let key = WindowKey::Path {
+            key: route,
+            own: false,
+        };
+        let receiver = self.settle(window, Incoming::Key, Some(key));
+        window_edit_target(Some(Incoming::Key), receiver, true)
+    }
+}
+
+/// Given 배경 TextEdit w 가 egui 포커스를 가진 채 창을 덮는 팝업(Keys)이 열린 창, When 그 팝업이 쓰지 않는 Ctrl+V 를
+/// 치면, Then 받는 egui 노드가 없어 편집 판정(클립보드 읽기·보류)을 시작하지 않는다.
+#[test]
+fn a_paste_under_a_covering_popup_starts_no_edit_in_the_background_field() {
+    let (mut h, mut w) = covered_widget();
+    assert_eq!(h.ctx.memory(|m| m.focused()), Some(egui::Id::new("w")));
+    assert!(!h.paste_takes_the_edit_judgement(&mut w));
+}
+
+/// Given 팝업이 없고 TextEdit w 가 egui 포커스를 가진 창, When Ctrl+V 를 치면, Then 창 위젯이 받아 편집 판정을 받는다.
+#[test]
+fn a_paste_into_an_uncovered_field_takes_the_edit_judgement() {
+    let mut h = Harness::new();
+    let mut w = TestWindow::new();
+    h.drain(&mut w);
+    focus_field(&mut h, &mut w, "w");
+    assert!(h.paste_takes_the_edit_judgement(&mut w));
 }
 
 /// Given 덮지 않는 팝업 A 위에 창을 덮는 팝업 C 가 열렸는데 관리자 포커스는 A 에 남은 창, When x 를 치면, Then 사건 시점

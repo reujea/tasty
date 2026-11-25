@@ -16,6 +16,7 @@ use super::window_input::{
 use crate::adapters::ui::input::edit_key::EditKey;
 use crate::adapters::ui::input::key_level::PathLevels;
 use crate::adapters::ui::popup::PopupManager;
+use crate::adapters::ui::popup::window_segments::WindowReceiver;
 use crate::double_tap::{DoubleTapDetector, DoubleTapKey};
 
 /// 별도 창의 GPU 와 팝업 관리자. 관리자가 없는 창(종료 확인)은 `None` 이고 노드는 창 위젯 하나다.
@@ -107,16 +108,10 @@ pub(crate) fn judged_window_event<V: View>(
         settle: |view: &mut V, event: &WindowEvent| {
             let mods = view.base_mut().state.modifiers;
             let key = window_key_of(event, mods, |key| (own.keys)(&*view, key));
-            match input(view) {
-                Some((gpu, popups)) => match incoming_of(event, mods) {
-                    Some(incoming) => {
-                        let ctx = gpu.egui_ctx.clone();
-                        settle_window_input(gpu, &ctx, popups, incoming, key)
-                    }
-                    None => true,
-                },
-                None => true,
-            }
+            let (gpu, popups) = input(view)?;
+            let incoming = incoming_of(event, mods)?;
+            let ctx = gpu.egui_ctx.clone();
+            settle_window_input(gpu, &ctx, popups, incoming, key)
         },
         bind: |view: &mut V, event: &WindowEvent| {
             let mods = view.base_mut().state.modifiers;
@@ -147,10 +142,10 @@ pub(crate) fn judged_window_event<V: View>(
         view,
         judged,
         to_egui,
-        |view, event, judged| {
+        |view, event, judged, receiver| {
             let mods = view.base_mut().state.modifiers;
             let routed = input(view).is_some();
-            let edit_target = window_edit_target(incoming_of(event, mods), routed);
+            let edit_target = window_edit_target(incoming_of(event, mods), receiver, routed);
             let base = view.base_mut();
             base.gpu
                 .handle_egui_event_for_window(&base.winit, event, judged, edit_target)
@@ -173,8 +168,9 @@ fn hold_window_input<V: View>(view: &mut V, event: &WindowEvent, input: WindowIn
     base.gpu.hold_window_input(&base.winit, event, handed)
 }
 
-/// 별도 창 단계 3~5(`settle`, 창 노드가 그 사건을 받으면 참), egui 에 실은 키의 몫 결속(`bind`), 단계 11 맨 앞
-/// 더블탭 자리(`taps`, 단계 4 수신 노드가 창 노드인지를 받는다. 사건을 끝내면 그 결과).
+/// 별도 창 단계 3~5(`settle`, 키 사건의 단계 4 수신 결과. 관리자가 없는 창이나 키가 아닌 사건은 None), egui 에 실은
+/// 키의 몫 결속(`bind`), 단계 11 맨 앞 더블탭 자리(`taps`, 단계 4 수신 노드가 창 노드인지를 받는다. 사건을 끝내면 그
+/// 결과).
 struct WindowKeyNode<S, B, T> {
     settle: S,
     bind: B,
@@ -194,10 +190,10 @@ fn window_steps<V, E, G, D, O, S, B, T>(
     node: WindowKeyNode<S, B, T>,
 ) -> JudgedWindowSteps<'_, V, G, D, O, S, B, T>
 where
-    G: FnOnce(&mut V, &E, Option<EditKey>) -> Option<(bool, bool)>,
+    G: FnOnce(&mut V, &E, Option<EditKey>, Option<WindowReceiver>) -> Option<(bool, bool)>,
     D: FnMut(&mut V),
     O: FnOnce(&mut V, E) -> ViewAction,
-    S: FnMut(&mut V, &E) -> bool,
+    S: FnMut(&mut V, &E) -> Option<WindowReceiver>,
     B: FnMut(&mut V, &E),
     T: FnMut(&mut V, &E, bool) -> Option<ViewAction>,
 {
@@ -209,7 +205,7 @@ where
         mark_dirty,
         own: Some(own),
         node,
-        window_receives: true,
+        receiver: None,
     }
 }
 
@@ -222,21 +218,22 @@ struct JudgedWindowSteps<'v, V, G, D, O, S, B, T> {
     mark_dirty: D,
     own: Option<O>,
     node: WindowKeyNode<S, B, T>,
-    /// 단계 4 수신 노드가 창 노드인지(`settle`). 아니면(팝업이 받았다) 창 자체 처리에 가지 않는다.
-    window_receives: bool,
+    /// 키 사건의 단계 4 수신 결과(`settle`). egui 수신자가 없으면 egui 에 싣지 않고, 창 노드가 받지 않으면 창 자체
+    /// 처리에 가지 않는다. None(관리자가 없는 창, 키가 아닌 사건)은 둘 다 간다.
+    receiver: Option<WindowReceiver>,
 }
 
 impl<V, E, G, D, O, S, B, T> KeyEventSteps<E> for JudgedWindowSteps<'_, V, G, D, O, S, B, T>
 where
-    G: FnOnce(&mut V, &E, Option<EditKey>) -> Option<(bool, bool)>,
+    G: FnOnce(&mut V, &E, Option<EditKey>, Option<WindowReceiver>) -> Option<(bool, bool)>,
     D: FnMut(&mut V),
     O: FnOnce(&mut V, E) -> ViewAction,
-    S: FnMut(&mut V, &E) -> bool,
+    S: FnMut(&mut V, &E) -> Option<WindowReceiver>,
     B: FnMut(&mut V, &E),
     T: FnMut(&mut V, &E, bool) -> Option<ViewAction>,
 {
     fn settle_key_node(&mut self, event: &E) {
-        self.window_receives = (self.node.settle)(self.view, event);
+        self.receiver = (self.node.settle)(self.view, event);
     }
 
     fn judge_edit_key(&mut self, _event: &E) -> Option<Option<EditKey>> {
@@ -244,11 +241,11 @@ where
     }
 
     fn feed_egui(&mut self, event: &E, judged: Option<EditKey>) -> Option<(bool, bool)> {
-        if !self.to_egui {
+        if !self.to_egui || self.receiver.is_some_and(|r| r.egui_node().is_none()) {
             return Some((false, false));
         }
         let egui = self.egui.take()?;
-        let fed = egui(self.view, event, judged);
+        let fed = egui(self.view, event, judged, self.receiver);
         match fed {
             Some(_) => (self.node.bind)(self.view, event),
             None => (self.mark_dirty)(self.view),
@@ -265,11 +262,12 @@ where
         if repaint {
             (self.mark_dirty)(self.view);
         }
-        if let Some(action) = (self.node.taps)(self.view, &event, self.window_receives) {
+        let reaches_window = self.receiver.is_none_or(WindowReceiver::reaches_window);
+        if let Some(action) = (self.node.taps)(self.view, &event, reaches_window) {
             return action;
         }
         match self.own.take() {
-            Some(own) if self.window_receives => own(self.view, event),
+            Some(own) if reaches_window => own(self.view, event),
             _ => ViewAction::None,
         }
     }
@@ -293,7 +291,7 @@ mod tests {
             window,
             None,
             to_egui,
-            |window: &mut Window, _, _| {
+            |window: &mut Window, _, _, _| {
                 window.egui += 1;
                 window.steps.push("egui");
                 egui
@@ -306,7 +304,7 @@ mod tests {
             WindowKeyNode {
                 settle: |window: &mut Window, _: &&str| {
                     window.steps.push("settle");
-                    true
+                    None
                 },
                 bind: |window: &mut Window, _: &&str| window.steps.push("bind"),
                 taps: |_: &mut Window, _: &&str, _| None,
@@ -387,7 +385,7 @@ mod tests {
                 self,
                 None,
                 true,
-                |w: &mut PopupWindow, key: &egui::Key, _| {
+                |w: &mut PopupWindow, key: &egui::Key, _, _| {
                     w.h.queued_events().push(egui::Event::Key {
                         key: *key,
                         physical_key: None,
@@ -493,7 +491,7 @@ mod tests {
                 self,
                 None,
                 true,
-                |_: &mut TapWindow, _: &bool, _| Some((false, false)),
+                |_: &mut TapWindow, _: &bool, _, _| Some((false, false)),
                 |_| {},
                 |_, _| ViewAction::None,
                 WindowKeyNode {
@@ -595,5 +593,190 @@ mod tests {
             assert_eq!(window.own, ["alt+c"]);
             assert_eq!((window.dirty, window.egui), (dirty, egui_calls));
         }
+    }
+
+    /// 단계 4 결과로 egui 적재·결속·창 자체 처리를 가르는 별도 창 대역: 관리자, egui 입력 큐, 창 자체 처리가 본 키 수,
+    /// egui 에 실은 키 수.
+    struct RouteWindow {
+        popups: PopupManager,
+        h: crate::view::window_input::tests::Harness,
+        own: u32,
+        loaded: u32,
+    }
+
+    /// 창을 덮는 팝업 선언(설정 창 충돌 질문, 소비 집합 Keys). `escape` 가 있으면 그 Esc 선언, `covers` 가 거짓이면
+    /// 덮지 않는다.
+    fn route_def(
+        escape: Option<crate::adapters::ui::popup::PopupEscape>,
+        covers: bool,
+    ) -> crate::adapters::ui::popup::PopupDef {
+        let mut def = crate::view::settings::ui::keybinding_conflict_def();
+        if let Some(escape) = escape {
+            def.decl.escape = escape;
+        }
+        def.decl.covers_scope = covers;
+        def
+    }
+
+    impl RouteWindow {
+        /// `def` 팝업을 포커스를 주며 연 창. None 이면 팝업이 없다.
+        fn new(def: Option<crate::adapters::ui::popup::PopupDef>) -> Self {
+            let mut popups = PopupManager::new();
+            if let Some(def) = def {
+                popups.register_def(&def, 1.0);
+                let request = crate::intent::OpenRequest::new(
+                    def.id,
+                    crate::adapters::ui::popup::PopupScope::Window,
+                )
+                .at(egui::pos2(500.0, 400.0))
+                .focused();
+                assert!(popups.open_request(&request, true).is_some());
+            }
+            Self {
+                popups,
+                h: crate::view::window_input::tests::Harness::new(),
+                own: 0,
+                loaded: 0,
+            }
+        }
+
+        /// 키 하나(`modifiers`, 창 자체 처리 바인딩에 맞으면 `own`)를 제품 단계(단계 4 → 적재 게이트 → egui 적재 →
+        /// 결속 → 창 자체 처리)로 넘긴다.
+        fn key(&mut self, key: egui::Key, modifiers: egui::Modifiers, own: bool) -> ViewAction {
+            use crate::adapters::ui::popup::frame_keys::Incoming;
+            use crate::adapters::ui::popup::window_segments::WindowKey;
+            use crate::view::main::input_segment::EguiPressSink;
+            let route = crate::adapters::ui::input::key_route::RouteKey {
+                key: Some(key),
+                modifiers,
+                super_held: false,
+            };
+            let incoming = if route.bare_escape() {
+                Incoming::Escape
+            } else {
+                Incoming::Key
+            };
+            let mut steps = window_steps(
+                self,
+                None,
+                true,
+                move |w: &mut RouteWindow, key: &egui::Key, _, _| {
+                    w.loaded += 1;
+                    w.h.queued_events().push(egui::Event::Key {
+                        key: *key,
+                        physical_key: None,
+                        pressed: true,
+                        repeat: false,
+                        modifiers,
+                    });
+                    Some((true, false))
+                },
+                |_| {},
+                |w, _| {
+                    w.own += 1;
+                    ViewAction::Close
+                },
+                WindowKeyNode {
+                    settle: move |w: &mut RouteWindow, _: &egui::Key| {
+                        let ctx = w.h.ctx.clone();
+                        let key = Some(WindowKey::Path { key: route, own });
+                        settle_window_input(&mut w.h, &ctx, &mut w.popups, incoming, key)
+                    },
+                    bind: move |w: &mut RouteWindow, _: &egui::Key| {
+                        let ctx = w.h.ctx.clone();
+                        bind_window_input(
+                            &ctx,
+                            &mut w.popups,
+                            incoming,
+                            w.h.queued_events(),
+                            false,
+                        );
+                    },
+                    taps: |_: &mut RouteWindow, _: &egui::Key, _| None,
+                },
+            );
+            run_key_event(&mut steps, key)
+        }
+
+        /// 지금 몫을 창 위젯이 받는지(`PopupManager::window_widget_takes_keys`).
+        fn widget_takes_keys(&mut self) -> bool {
+            let ctx = self.h.ctx.clone();
+            self.popups.window_widget_takes_keys(&ctx)
+        }
+    }
+
+    /// Given 창을 덮는 팝업(Keys)이 노드, When 그 팝업이 쓰지 않는 Ctrl+X 를 치면, Then 그 키는 egui 에 실리지 않고 창
+    /// 자체 처리에도 가지 않는다.
+    #[test]
+    fn a_key_a_covering_popup_does_not_use_is_not_loaded_into_egui() {
+        let mut window = RouteWindow::new(Some(route_def(None, true)));
+        drop(window.key(egui::Key::X, egui::Modifiers::CTRL, false));
+        assert_eq!((window.loaded, window.own), (0, 0));
+    }
+
+    /// Given 창을 덮는 팝업(Keys)이 노드, When 그 팝업이 쓰는 x 를 치면, Then 그 팝업 몫으로 egui 에 실린다.
+    #[test]
+    fn a_key_a_covering_popup_uses_is_loaded_into_egui() {
+        let mut window = RouteWindow::new(Some(route_def(None, true)));
+        drop(window.key(egui::Key::X, egui::Modifiers::NONE, false));
+        assert_eq!((window.loaded, window.own), (1, 0));
+        assert!(!window.widget_takes_keys());
+    }
+
+    /// Given 창을 덮는 팝업(Esc 선언 Ignore)이 노드, When bare Esc 를 치면, Then 그 Esc 는 위로 올라가 받는 노드가 없고
+    /// egui 원시 입력에 실리지 않는다(위젯 포커스를 바꾸지 않는다).
+    #[test]
+    fn an_escape_an_ignoring_covering_popup_passes_up_is_not_loaded_into_egui() {
+        let ignore = Some(crate::adapters::ui::popup::PopupEscape::Ignore);
+        let mut window = RouteWindow::new(Some(route_def(ignore, true)));
+        drop(window.key(egui::Key::Escape, egui::Modifiers::NONE, false));
+        assert_eq!((window.loaded, window.own), (0, 0));
+        assert!(
+            crate::view::main::input_segment::EguiPressSink::queued_events(&mut window.h)
+                .is_empty()
+        );
+    }
+
+    /// Given 창을 덮지 않는 팝업(Esc 선언 Ignore)이 노드, When bare Esc 를 치면, Then 그 Esc 는 붙은 팝업에서 올라간 Esc 라
+    /// 창 범위 노드의 내용(창 위젯)을 건너뛰고(`key_route::route_escape` 의 붙은 팝업 갈래) 받는 노드가 없다: egui 원시
+    /// 입력에 실리지 않아 창 위젯이 받지 못하고 창 자체 처리에도 가지 않는다.
+    #[test]
+    fn a_bare_escape_an_ignoring_uncovering_popup_passes_up_skips_the_window_content() {
+        let ignore = Some(crate::adapters::ui::popup::PopupEscape::Ignore);
+        let mut window = RouteWindow::new(Some(route_def(ignore, false)));
+        drop(window.key(egui::Key::Escape, egui::Modifiers::NONE, false));
+        assert_eq!((window.loaded, window.own), (0, 0));
+        assert!(
+            crate::view::main::input_segment::EguiPressSink::queued_events(&mut window.h)
+                .is_empty()
+        );
+    }
+
+    /// Given 창을 덮지 않는 팝업(Esc 를 받는 선언)이 노드, When bare Esc 를 치면, Then 그 팝업이 받고 창 위젯 몫이 아니다.
+    #[test]
+    fn a_bare_escape_an_uncovering_popup_takes_stays_off_the_window_widget() {
+        let mut window = RouteWindow::new(Some(route_def(None, false)));
+        drop(window.key(egui::Key::Escape, egui::Modifiers::NONE, false));
+        assert_eq!(window.own, 0);
+        assert!(!window.widget_takes_keys());
+    }
+
+    /// Given 창을 덮는 팝업(Keys)이 노드, When 창 자체 처리 바인딩(engine level toggle_settings) Ctrl+F7 을 치면, Then
+    /// 창 자체 처리가 창을 닫고 그 키는 팝업 몫으로 egui 에 실리지 않는다.
+    #[test]
+    fn an_engine_key_under_a_covering_popup_closes_without_loading_into_egui() {
+        let mut window = RouteWindow::new(Some(route_def(None, true)));
+        let action = window.key(egui::Key::F7, egui::Modifiers::CTRL, true);
+        assert!(matches!(action, ViewAction::Close));
+        assert_eq!((window.loaded, window.own), (0, 1));
+    }
+
+    /// Given 팝업이 없는 창, When 같은 Ctrl+F7 을 치면, Then 창 자체 처리가 창을 닫는다.
+    #[test]
+    fn an_engine_key_without_a_popup_closes_the_window() {
+        let mut window = RouteWindow::new(None);
+        let action = window.key(egui::Key::F7, egui::Modifiers::CTRL, true);
+        assert!(matches!(action, ViewAction::Close));
+        assert_eq!(window.own, 1);
     }
 }
