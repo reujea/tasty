@@ -102,19 +102,16 @@ pub(super) fn host_document_url(surface: u32, view: u64, load: u64) -> String {
 }
 
 /// 주소의 호스트가 예약 호스트인지. scheme은 http·https 모두 본다(로컬 종결 대상을 넓게 잡는다).
-/// 호스트는 URL 파서(WHATWG)로 해석한 뒤 본다. WebView2가 시작 URI를 정규화하듯 백분율 부호화한 점·대문자·
-/// 끝 점은 해석 뒤 같은 호스트다. 원문의 호스트도 따로 보고, 어느 쪽이든 예약이면 예약이다. 해석에 실패한
-/// 주소는 백분율 부호를 풀고 소문자로 바꾼 원문에 예약 접미사가 있으면 예약으로 본다(닫힌 쪽).
+/// URL 파서(WHATWG)가 해석하면 해석한 호스트만 본다. WebView2가 시작 URI를 정규화하듯 백분율 부호화한 점·
+/// 대문자·끝 점은 해석 뒤 같은 호스트이고, 역슬래시는 경로 구분자라 그 뒤는 호스트가 아니다. 해석에 실패한
+/// 주소는 원문의 호스트 후보(`raw_host`)만 백분율 부호를 풀고 소문자로 바꿔 본다(경로·질의는 보지 않는다).
 pub(super) fn is_reserved(uri: &str) -> bool {
-    if raw_host_reserved(uri) {
-        return true;
-    }
     match url::Url::parse(uri) {
         Ok(parsed) => {
             matches!(parsed.scheme(), "http" | "https")
                 && parsed.host_str().is_some_and(reserved_host)
         }
-        Err(_) => percent_decoded_lower(uri).contains(RESERVED_HOST_SUFFIX),
+        Err(_) => raw_host(uri).is_some_and(|host| reserved_host(&percent_decoded_lower(host))),
     }
 }
 
@@ -150,17 +147,17 @@ fn percent_decoded_lower(text: &str) -> String {
     String::from_utf8_lossy(&out).to_ascii_lowercase()
 }
 
-/// 원문 그대로의 호스트가 예약 호스트인지(해석 전 판정).
-fn raw_host_reserved(uri: &str) -> bool {
-    let Some(rest) = uri
-        .strip_prefix("http://")
-        .or_else(|| uri.strip_prefix("https://"))
-    else {
-        return false;
-    };
-    let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+/// URL 파서가 해석하지 못한 http(s) 주소의 호스트 후보. scheme(대소문자 무시) 뒤의 `/`·`\`를 건너뛴 뒤 첫
+/// `/`·`?`·`#`·`\` 앞을 authority로 보고, 그 마지막 `@` 뒤에서 첫 `:` 앞이다. http(s)가 아니면 None이다.
+fn raw_host(uri: &str) -> Option<&str> {
+    let (scheme, rest) = uri.trim().split_once(':')?;
+    if !scheme.eq_ignore_ascii_case("http") && !scheme.eq_ignore_ascii_case("https") {
+        return None;
+    }
+    let rest = rest.trim_start_matches(['/', '\\']);
+    let authority = rest.split(['/', '?', '#', '\\']).next().unwrap_or_default();
     let host = authority.rsplit('@').next().unwrap_or_default();
-    reserved_host(host.split(':').next().unwrap_or_default())
+    Some(host.split(':').next().unwrap_or_default())
 }
 
 /// 거절된 `NavigateToString`을 host 전용 주소로 다시 실을지. 상한을 넘는 문서의 `E_INVALIDARG`이고,

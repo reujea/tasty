@@ -140,6 +140,33 @@ fn reserved_addresses_are_recognised_after_url_normalisation() {
     assert!(host_may_load_url("http://example%2Ecom/1"));
 }
 
+/// 해석한 호스트가 정상인 주소는 원문 어디에 예약 접미사가 있어도 예약이 아니다. 해석에 실패한 주소는
+/// 원문의 호스트 후보만 본다.
+#[test]
+fn only_the_host_decides_a_reserved_address() {
+    for url in [
+        "http://example.com\\@v1-1.tasty-host-document.invalid/1",
+        "http://example.com\\a.tasty-host-document.invalid/1",
+    ] {
+        let parsed = url::Url::parse(url).expect("parses");
+        assert_eq!(parsed.host_str(), Some("example.com"), "{url}");
+        assert!(!is_reserved(url), "{url}");
+        assert!(host_may_load_url(url), "{url}");
+    }
+    let query = "http://example.com:99999/a?next=v1-1%2Etasty-host-document.invalid";
+    assert!(url::Url::parse(query).is_err());
+    assert!(!is_reserved(query));
+    for url in [
+        "http://v1-1%2Etasty-host-document.invalid/1",
+        "http://V1-1.Tasty-Host-Document.INVALID/1",
+        "http://v1-1.tasty-host-document.invalid./1",
+        "HTTP:\\\\v1-1%2Etasty-host-document.invalid:99999/1",
+    ] {
+        assert!(is_reserved(url), "{url}");
+        assert!(!host_may_load_url(url), "{url}");
+    }
+}
+
 /// host가 보낸 문서는 그 main 탐색의 문서 요청에만 응답하고, 성공하면 보이는 문서가 된다.
 #[test]
 fn a_sent_document_answers_its_main_navigation_and_becomes_shown() {
