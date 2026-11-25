@@ -72,8 +72,9 @@ pub(super) fn refuse_load_url(
 }
 
 /// 호스트의 새 로드·이동 요청은 앞 요청을 대신한다. 앞 요청이 세운 원격 허용 지목(`Designation::Next`)과
-/// 호스트 Reload 기록을 지운다. 지목을 세우는 요청(허용한 `load_url`, 이력 이동, `reload`)은 이 뒤에 자기
-/// 지목을 세운다. 세우지 않는 요청(거절한 `load_url`, `load_html`) 뒤에는 지목이 남지 않는다.
+/// 호스트 Reload 기록을 지운다. 지목을 세우는 요청(허용한 `load_url`, 이력이 있는 이력 이동, `reload`)은
+/// 이 뒤에 자기 지목을 세운다. 세우지 않는 요청(거절한 `load_url`, 이력이 없는 이력 이동, `load_html`)
+/// 뒤에는 지목이 남지 않는다.
 pub(super) fn replace_host_request(
     documents: &mut HostDocuments,
     top_level: &mut tasty_model::html_script::top_level::TopLevelAdmission,
