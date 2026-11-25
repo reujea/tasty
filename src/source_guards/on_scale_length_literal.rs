@@ -191,7 +191,6 @@ const AREAS: &[(&str, Option<usize>, &str)] = &[
         // 스케일 밖 값은 이 집계에 포함되지 않는다.
         // 첫 실행 셸 설정 폼 폭 360은 디자인 `ShellSetupFrame`의 `--tasty-size-360`이며 역할 토큰이 없다.
         // 플러그인 추가 프리뷰의 가로 여백 14는 디자인 `--tasty-size-14`이며 역할 토큰이 없다.
-        // 포트 스캐너 열 하한 80·120·140(Tab·Workspace·State) 셋은 popup과 갤러리가 함께 쓰는 ports_table의 표 전용 값이다.
         // 플러그인 Attention 바의 상태 문구 12는 디자인 fontSize 12이며 semantic 토큰이 없다.
         // 공용 상태 화면(state_screen)의 보조 줄 최대 폭 200은 시안 `ExpState` 의 `maxWidth: 200` 이며 역할 토큰이 없다.
         // 스크립트 변경 확인의 좌우 여백 14는 시안 `Padding 12/14` 이며 본체 popup 과 갤러리가 함께 쓴다. 역할 토큰이 없다.
@@ -207,8 +206,7 @@ const AREAS: &[(&str, Option<usize>, &str)] = &[
         // segmented 알약 간격 6(SEGMENT_GAP)은 정본 `seg` 묶음의 `gap: 6`이며 역할 토큰이 없다. 배율은 곱해 따른다.
         // 그래프 뷰의 상세 패널을 하단 시트로 바꾸는 폭 640(GRAPH_NARROW_DETAIL_SHEET)은 size-640과 숫자만 같다.
         // size-640은 PresetView 창 높이의 별칭 대상이고 이 폭의 역할 토큰은 없다.
-        // 포트 스캐너 열 하한 84·76(Port·Proto)은 size-84·size-76이 스케일에 들어와 잡힌다.
-        Some(42),
+        Some(37),
         "공용 위젯",
     ),
     (

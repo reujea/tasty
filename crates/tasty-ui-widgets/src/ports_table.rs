@@ -31,17 +31,16 @@ impl PortsColumn {
         PortsColumn::State,
     ];
 
-    /// 열이 줄어들 수 있는 하한. 고정 열은 이 폭을 그대로 쓴다. Address·Process만 해당 토큰이
-    /// 있다. 나머지는 이 표 전용 값이며 같은 숫자의 다른 역할 토큰으로 대체하지 않는다.
+    /// 열이 줄어들 수 있는 하한. 고정 열은 이 폭을 그대로 쓴다. 열마다 이 표 전용 토큰이 있다.
     pub fn floor(self, theme: &Theme) -> LogicalPx {
         match self {
-            PortsColumn::Port => LogicalPx(84.0),
-            PortsColumn::Proto => LogicalPx(76.0),
+            PortsColumn::Port => theme.port_port_col_width(),
+            PortsColumn::Proto => theme.port_proto_col_width(),
             PortsColumn::Address => theme.port_addr_col_min_width(),
             PortsColumn::Process => theme.port_process_col_min_width(),
-            PortsColumn::Workspace => LogicalPx(120.0),
-            PortsColumn::Tab => LogicalPx(80.0),
-            PortsColumn::State => LogicalPx(140.0),
+            PortsColumn::Workspace => theme.port_workspace_col_width(),
+            PortsColumn::Tab => theme.port_tab_col_width(),
+            PortsColumn::State => theme.port_state_col_width(),
         }
     }
 
