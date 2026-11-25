@@ -27,6 +27,10 @@ fn passkeys_meta_shows_the_raised_unknown_kind_swatch() {
             p.has_text_in("accent-warning", chip),
             "the unknown kind chip is named accent-warning"
         );
+        assert!(
+            p.has_text_in("— unknown kind", chip),
+            "the unknown kind chip reads the design use text in full"
+        );
         assert_eq!(swatch, th.accent_warning_raised().to_egui(), "chip swatch");
     }
 }

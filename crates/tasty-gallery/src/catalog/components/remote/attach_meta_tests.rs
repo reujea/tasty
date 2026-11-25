@@ -21,6 +21,10 @@ fn attach_meta_names_the_inactive_name_ink_text_muted() {
             p.has_text_in("text-muted", chip),
             "the inactive name chip is named text-muted"
         );
+        assert!(
+            p.has_text_in("— inactive name", chip),
+            "the inactive name chip reads the design use text in full"
+        );
         assert_eq!(swatch, th.text_muted().to_egui(), "chip swatch");
         let name = p
             .texts
@@ -56,6 +60,10 @@ fn attach_meta_shows_the_raised_inactive_badge_swatch() {
         assert!(
             p.has_text_in("accent-warning", chip),
             "the inactive badge chip is named accent-warning"
+        );
+        assert!(
+            p.has_text_in("— inactive / profile-missing", chip),
+            "the inactive badge chip reads the design use text in full"
         );
         assert_eq!(swatch, th.accent_warning_raised().to_egui(), "chip swatch");
     }
