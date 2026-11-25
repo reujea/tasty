@@ -88,6 +88,14 @@ jobs:
         shell: pwsh
         run: cargo clippy --workspace --all-targets --no-default-features --locked -- -D warnings
 
+      # debug_assertions가 꺼진 Windows gui 코드의 Clippy다. cfg(all(windows, not(debug_assertions))) 아래 코드의 진단과
+      # Windows에서 debug 빌드에만 호출처가 있는 정의의 미사용 진단은 다른 조합의 Clippy에 보이지 않는다.
+      # target/release를 쓰므로 이 잡의 다른 cargo 스텝(target/debug)의 산출물을 건드리지 않는다. 기준은 -D warnings다.
+      - name: cargo clippy (release)
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        shell: pwsh
+        run: cargo clippy --workspace --all-targets --release --locked -- -D warnings
+
       # Windows 전용 분기와 플랫폼 의존 동작을 검사한다.
       # --no-fail-fast로 한 테스트 바이너리가 실패해도 나머지 결과를 수집한다.
       # GUI 통합 테스트는 데스크톱 세션을 요구하므로 아래에서 대상 패키지를 따로 지정한다.

@@ -87,8 +87,9 @@ cargo check --workspace --release --all-targets
 workspace 전체를, pre-push B.6 이 루트 패키지와 그 의존을 본다(두 범위의 차이는 [ci-gates](ci-gates.md#로컬-훅이-앞당겨-주는-것)). release gui 라이브러리는 pre-push 와 `check-release` 가 본다.
 release headless `--all-targets` 칸은 `check-headless` 의 `cargo clippy (headless, release)` 가 본다
 ([ci-gates](ci-gates.md)). 타깃 옵션 없는 release headless 칸은 lib·bin 만 선택하고 시험·예제에 필요한
-dev-dependency 를 선택하지 않아(예: 루트의 `tokio/test-util`) feature 집합이 다르므로 별도 검사다. 이 칸과
-release gui `--all-targets` 칸은 자동 검사에 포함되지 않으므로 직접 실행한다.
+dev-dependency 를 선택하지 않아(예: 루트의 `tokio/test-util`) feature 집합이 다르므로 별도 검사다. 이 칸은
+자동 검사에 포함되지 않으므로 직접 실행한다. release gui `--all-targets` 칸은 Windows 에서만 `check-windows` 의
+`cargo clippy (release)` 가 보고 Linux·macOS 에서는 자동 검사에 포함되지 않으므로 직접 실행한다.
 
 ## 두 조합이 같게 하는 것
 
