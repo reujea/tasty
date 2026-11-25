@@ -795,13 +795,12 @@ mod tests {
         let top = RefCell::new(TopLevelAdmission::default());
         docs.host_reload(true);
         top.borrow_mut().designate(Designation::Next);
-        // 조회 실패(None)는 본문 판정에서 리다이렉트다. 시작은 취소된다.
-        let redirect = None;
-        let redirected = redirect.unwrap_or(true);
+        // 조회 실패(None)는 본문 판정에서 리다이렉트(true)다. 시작은 취소된다.
+        let redirected = true;
         let absent = HostLoadHeader::Absent;
         let start = docs.navigation_started(&a, Some(16), StartKind::Reload, redirected, absent);
         assert_eq!(start, StartDecision::Cancel);
-        let host_reload = docs.take_cancelled_host_reload(StartKind::Reload, redirect);
+        let host_reload = docs.take_cancelled_host_reload(StartKind::Reload, None);
         assert!(host_reload);
         assert!(end_cancelled_navigation(
             &nav,
