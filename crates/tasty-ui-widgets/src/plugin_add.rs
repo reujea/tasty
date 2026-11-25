@@ -15,7 +15,6 @@ use crate::control::ControlSize;
 use crate::icon_button::{IconButton, IconButtonVariant};
 use crate::input::Input;
 use crate::plugin_avatar::{PluginAvatarSize, plugin_avatar};
-use crate::tokens::STRUCT_GAP_3;
 use crate::tooltip::{Tooltip, tooltip_hover_delay_elapsed};
 
 /// 신뢰 판정 다섯 가지. 상자 톤은 추가가 무엇을 하는지를 나타낸다.
@@ -324,7 +323,7 @@ fn identity(ui: &mut egui::Ui, theme: &Theme, view: &PluginManifestCardView<'_>)
                     false,
                 );
             });
-            ui.add_space(STRUCT_GAP_3.value());
+            ui.add_space(theme.plugins_manifest_meta_gap().value());
             let resp = ui.add(
                 egui::Label::new(
                     egui::RichText::new(id_line(view.id, view.authors))
