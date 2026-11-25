@@ -109,8 +109,12 @@ impl Window {
             .iter()
             .map(|e| match e {
                 RawInputEventWire::PointerButton {
-                    button, pressed, y, ..
-                } => Seen::Button(*button, *pressed, *y),
+                    button,
+                    pressed,
+                    x,
+                    y,
+                    ..
+                } => Seen::Button(*button, *pressed, *x, *y),
                 RawInputEventWire::PointerMoved { x, y } => Seen::Moved(*x, *y),
                 RawInputEventWire::PointerGone => Seen::Gone,
                 _ => Seen::Other,
@@ -119,10 +123,10 @@ impl Window {
     }
 }
 
-/// 입력 큐에 든 사건 하나. 버튼은 (버튼, 누름, 논리 y), 이동은 논리 (x, y)다.
+/// 입력 큐에 든 사건 하나. 버튼은 (버튼, 누름, 논리 x, 논리 y), 이동은 논리 (x, y)다.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum Seen {
-    Button(PointerButtonWire, bool, f32),
+    Button(PointerButtonWire, bool, f32, f32),
     Moved(f32, f32),
     Gone,
     Other,
@@ -145,8 +149,8 @@ fn a_recorded_release_lands_in_the_pressed_leafs_queue() {
             assert_eq!(
                 w.events(side, 1),
                 vec![
-                    Seen::Button(PointerButtonWire::Secondary, true, 10.0),
-                    Seen::Button(PointerButtonWire::Secondary, false, 70.0)
+                    Seen::Button(PointerButtonWire::Secondary, true, 5.0, 10.0),
+                    Seen::Button(PointerButtonWire::Secondary, false, 5.0, 70.0)
                 ],
                 "{side:?} dragging={dragging} above={above}"
             );
@@ -171,7 +175,7 @@ fn unrecorded_events_go_below_and_skip_the_local_mesh_during_a_drag() {
     assert!(w.button(&regions, Some((5.0, 80.0)), (Left, true), false));
     assert_eq!(
         w.events(MeshSide::Attach, 3),
-        vec![Seen::Button(PointerButtonWire::Primary, true, 10.0)]
+        vec![Seen::Button(PointerButtonWire::Primary, true, 5.0, 10.0)]
     );
     assert!(w.events(MeshSide::Local, 1).is_empty());
 }
@@ -241,10 +245,10 @@ fn a_release_without_a_cursor_reaches_the_pressed_leaf_at_its_last_point() {
                 "{side:?} the release is taken"
             );
             let y = moved.map_or(20.0, |(_, y)| y) - 10.0;
-            let mut expected = vec![Seen::Button(PointerButtonWire::Secondary, true, 10.0)];
+            let mut expected = vec![Seen::Button(PointerButtonWire::Secondary, true, 5.0, 10.0)];
             expected.extend(moved.map(|(x, y)| Seen::Moved(x, y - 10.0)));
             expected.extend([
-                Seen::Button(PointerButtonWire::Secondary, false, y),
+                Seen::Button(PointerButtonWire::Secondary, false, 5.0, y),
                 Seen::Moved(GONE_POINT.0, GONE_POINT.1),
                 Seen::Gone,
             ]);
@@ -308,7 +312,7 @@ fn only_a_left_mesh_release_ends_the_window_left_press() {
 
 /// 창 밖 뗌의 좌표는 그 leaf에 좌표를 실어 마지막으로 보낸 사건(이동·누름·뗌)의 좌표다. 로컬 A를 왼쪽·가운데로
 /// 누르고 attach B를 오른쪽으로 누른 뒤 이동하면 이동은 B로 간다. 창 안에서 왼쪽을 떼고 창 밖에서 가운데를 떼면
-/// A의 가운데 뗌은 앞선 왼쪽 뗌 좌표로 가고, 그 뒤 A에 `PointerGone`이 간다.
+/// A의 가운데 뗌은 앞선 왼쪽 뗌 좌표(x·y 둘 다)로 가고, 그 뒤 A에 `PointerGone`이 간다.
 #[test]
 fn a_release_outside_the_window_uses_the_last_point_sent_to_its_leaf() {
     let a = region(1, 10.0, MeshSide::Local);
@@ -324,15 +328,15 @@ fn a_release_outside_the_window_uses_the_last_point_sent_to_its_leaf() {
     ));
     assert!(w.button(&regions, Some((5.0, 80.0)), (Right, true), false));
     w.moved(b, (5.0, 90.0));
-    assert!(w.button(&regions, Some((5.0, 35.0)), (Left, false), false));
+    assert!(w.button(&regions, Some((7.0, 35.0)), (Left, false), false));
     assert!(w.button(&regions, None, (MouseButton::Middle, false), false));
     assert_eq!(
         w.events(MeshSide::Local, 1),
         vec![
-            Seen::Button(PointerButtonWire::Primary, true, 10.0),
-            Seen::Button(PointerButtonWire::Middle, true, 15.0),
-            Seen::Button(PointerButtonWire::Primary, false, 25.0),
-            Seen::Button(PointerButtonWire::Middle, false, 25.0),
+            Seen::Button(PointerButtonWire::Primary, true, 5.0, 10.0),
+            Seen::Button(PointerButtonWire::Middle, true, 5.0, 15.0),
+            Seen::Button(PointerButtonWire::Primary, false, 7.0, 25.0),
+            Seen::Button(PointerButtonWire::Middle, false, 7.0, 25.0),
             Seen::Moved(GONE_POINT.0, GONE_POINT.1),
             Seen::Gone,
         ]
@@ -340,7 +344,7 @@ fn a_release_outside_the_window_uses_the_last_point_sent_to_its_leaf() {
     assert_eq!(
         w.events(MeshSide::Attach, 3),
         vec![
-            Seen::Button(PointerButtonWire::Secondary, true, 10.0),
+            Seen::Button(PointerButtonWire::Secondary, true, 5.0, 10.0),
             Seen::Moved(5.0, 20.0),
         ]
     );
