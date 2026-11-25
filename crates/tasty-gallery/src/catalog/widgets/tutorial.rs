@@ -838,15 +838,64 @@ fn composite_stage_w(available: LogicalPx, theme: &Theme) -> LogicalPx {
         .max(theme.tutorial_step_specimen_min_width())
 }
 
-/// 열이 무대 바닥보다 좁으면 무대를 가로로 스크롤한다. (무대, 꼬리까지 덮는 말풍선) 사각형을 돌려준다.
+/// 열이 무대 바닥보다 좁으면 무대를 가로로 스크롤한다. 스크롤바는 숨기고 더 스크롤할 수 있는 가장자리에
+/// 페이드를 그린다(테마 가이드의 스크롤 표시 규칙). (무대, 꼬리까지 덮는 말풍선) 사각형을 돌려준다.
 fn composite_scroll(ui: &mut egui::Ui, theme: &Theme) -> (egui::Rect, egui::Rect) {
     // 가로 스크롤 안에서는 가용 폭이 무한이므로 열 폭을 스크롤 밖에서 읽는다.
     let w = composite_stage_w(LogicalPx(ui.available_width()), theme);
-    egui::ScrollArea::horizontal()
+    let out = egui::ScrollArea::horizontal()
         .id_salt("tutorial-composite")
+        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
         .drag_to_scroll(false)
-        .show(ui, |ui| composite_stage(ui, theme, w))
-        .inner
+        .show(ui, |ui| composite_stage(ui, theme, w));
+    let (left, right) = fade_edges(
+        LogicalPx(out.state.offset.x),
+        LogicalPx(out.content_size.x),
+        LogicalPx(out.inner_rect.width()),
+    );
+    if left {
+        paint_edge_fade(ui, theme, out.inner_rect, FadeEdge::Left);
+    }
+    if right {
+        paint_edge_fade(ui, theme, out.inner_rect, FadeEdge::Right);
+    }
+    out.inner
+}
+
+/// `(왼쪽 페이드, 오른쪽 페이드)` 판정. 본체 원격 도구의 세로 목록 페이드(`scroll_list_with_fade`)와 같은
+/// 규칙을 가로로 쓴다. 갤러리는 본체 크레이트에 의존하지 않아 같은 꼴을 여기 둔다.
+fn fade_edges(offset: LogicalPx, content: LogicalPx, view: LogicalPx) -> (bool, bool) {
+    // 끝부분의 반올림 오차로 페이드가 남지 않도록 여유를 둔다.
+    const EPS: LogicalPx = LogicalPx(1.0);
+    let max_offset = (content - view).max(LogicalPx(0.0));
+    (offset > EPS, offset < max_offset - EPS)
+}
+
+/// 페이드를 그릴 가장자리.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FadeEdge {
+    Left,
+    Right,
+}
+
+/// 무대 틀 바탕색(bg-panel)에서 투명으로 이어지는 페이드. 길이는 본체 페이드와 같은 spacing-xl이고, 양쪽
+/// 페이드가 겹치지 않도록 보이는 폭의 절반으로 제한한다. Color32는 premultiplied라 TRANSPARENT와 보간한다.
+fn paint_edge_fade(ui: &egui::Ui, theme: &Theme, rect: egui::Rect, edge: FadeEdge) {
+    let len = theme.spacing_xl.min(LogicalPx(rect.width()) * 0.5).value();
+    let (solid_x, clear_x) = match edge {
+        FadeEdge::Left => (rect.left(), rect.left() + len),
+        FadeEdge::Right => (rect.right(), rect.right() - len),
+    };
+    let solid = theme.bg_panel().to_egui();
+    let clear = egui::Color32::TRANSPARENT;
+    let mut mesh = egui::epaint::Mesh::default();
+    mesh.colored_vertex(egui::pos2(solid_x, rect.top()), solid);
+    mesh.colored_vertex(egui::pos2(solid_x, rect.bottom()), solid);
+    mesh.colored_vertex(egui::pos2(clear_x, rect.top()), clear);
+    mesh.colored_vertex(egui::pos2(clear_x, rect.bottom()), clear);
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(2, 1, 3);
+    ui.painter().add(egui::Shape::mesh(mesh));
 }
 
 fn composite_stage(ui: &mut egui::Ui, theme: &Theme, w: LogicalPx) -> (egui::Rect, egui::Rect) {
