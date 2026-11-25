@@ -12,6 +12,14 @@ use tasty_ui_widgets::{
     plugin_uninstall_confirm_bar_height, tag_mono, vspace,
 };
 
+/// Installed·Attention 목록 패널 틀. 정본 목록 상자는 위 여백이 `space-sm` 이고 패널은 그 여백을 첫 행 앞
+/// `vspace(spacing_sm)` 으로 둔다. 그래서 패널 기본 틀의 위 여백만 없앤다(좌우·아래는 기본 그대로).
+pub(super) fn list_panel_frame(ctx: &egui::Context) -> egui::Frame {
+    let mut frame = egui::Frame::side_top_panel(&ctx.style());
+    frame.inner_margin.top = 0;
+    frame
+}
+
 pub(super) fn draw_list_tab(
     ctx: &egui::Context,
     snapshot: &PluginsSnapshot,
@@ -46,6 +54,7 @@ pub(super) fn draw_list_tab(
     egui::SidePanel::left("plugins_list")
         .exact_width(th.plugins_side_panel_width().value())
         .resizable(false)
+        .frame(list_panel_frame(ctx))
         .show(ctx, |ui| {
             vspace(ui, th.spacing_sm);
             if snapshot.plugins.is_empty() {

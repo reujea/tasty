@@ -599,3 +599,30 @@ fn reason_ink_is_raised_and_the_dot_stays_plain_where_latte_separates_them() {
         assert_eq!(sev_color(&th, kind), plain, "{kind:?} dot colour");
     }
 }
+
+/// 목록 패널은 첫 행 위에 `spacing_sm` 만 둔다(정본 목록 상자 위 여백 space-sm). 선택된 첫 행의
+/// surface-active 채움이 그 자리에서 시작한다.
+#[test]
+fn the_attention_list_starts_space_sm_below_the_panel_top() {
+    crate::i18n::init("en");
+    let th = theme::theme();
+    let out = draw_output(entry(AttentionKind::HealthError));
+    let active = th.surface_active().to_egui();
+    let list_w = th.plugins_side_panel_width().value();
+    fn walk(shape: &egui::Shape, fill: egui::Color32, list_w: f32, out: &mut Vec<egui::Rect>) {
+        match shape {
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, fill, list_w, out)),
+            egui::Shape::Rect(r) if r.fill == fill && r.rect.right() <= list_w => out.push(r.rect),
+            _ => {}
+        }
+    }
+    let mut rows = Vec::new();
+    for clipped in &out.shapes {
+        walk(&clipped.shape, active, list_w, &mut rows);
+    }
+    let row = rows.first().copied().expect("선택된 목록 행 채움이 없다");
+    assert!(
+        (row.top() - th.spacing_sm.value()).abs() < 0.5,
+        "목록 첫 행 {row:?} 의 위가 패널 위에서 spacing_sm 이 아니다"
+    );
+}

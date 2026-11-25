@@ -302,3 +302,40 @@ fn command_keycaps_follow_the_snapshot_style() {
     let other = draw(tasty_ui_widgets::PluginKeycapStyle::default());
     assert!(has(&other, "Alt") && !has(&other, "Cmd"), "{other:?}");
 }
+
+/// 목록 패널은 첫 행 위에 `spacing_sm` 만 둔다(정본 목록 상자 위 여백 space-sm). 행 안 이름은 그 행 위에서 다시
+/// `spacing_sm` 아래다.
+#[test]
+fn the_installed_list_starts_space_sm_below_the_panel_top() {
+    crate::i18n::init("en");
+    let th = theme::theme();
+    let snapshot = PluginsSnapshot {
+        plugins: vec![entry()],
+        ..Default::default()
+    };
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(720.0, 480.0));
+    let ctx = egui::Context::default();
+    let mut ui_state = PluginsUiState::default();
+    let mut actions = Vec::new();
+    let mut output = None;
+    for _ in 0..2 {
+        let raw = egui::RawInput {
+            screen_rect: Some(screen),
+            ..Default::default()
+        };
+        output = Some(ctx.run(raw, |ctx| {
+            draw_list_tab(ctx, &snapshot, &mut ui_state, &mut actions);
+        }));
+    }
+    let texts = visible_text_rects(&output.expect("drawn"), screen);
+    let name = texts
+        .iter()
+        .find(|(text, _)| text == "Image viewer")
+        .map(|(_, r)| *r)
+        .expect("목록 행 이름이 없다");
+    let want = th.spacing_sm.value() * 2.0;
+    assert!(
+        (name.top() - screen.top() - want).abs() < 0.5,
+        "목록 첫 행 이름 {name:?} 의 위가 패널 위에서 spacing_sm × 2 = {want} 가 아니다"
+    );
+}
