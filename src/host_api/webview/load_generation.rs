@@ -182,7 +182,7 @@ pub(super) fn chrome_state_after_end(
 /// - 세대가 있을 때: 그 탐색의 ID가 세대인 리다이렉트만 지금 로드다. 그 뒤의 새 시작은 보이던 문서가
 ///   시작한 탐색이다. 탐색 ID를 모르면 지금 로드로 보지 않는다(닫힌 쪽).
 ///
-/// `host_reload`는 취소한 시작이 호스트 `reload()`가 보낸 Reload인지다. 그 Reload는 지금 로드가 아니어도
+/// `host_reload`는 취소한 시작이 호스트 `reload()`가 보낸 Reload일 수 있는지다. 참이면 지금 로드든 아니든
 /// 그 지목(`Designation::Next`)을 지운다.
 ///
 /// 지금 로드면 시작 처리기가 하던 원격 차단 지목 소비를 하고(리다이렉트가 아닐 때), 열린 로드를 닫고
@@ -212,7 +212,8 @@ pub(super) fn end_cancelled_navigation(
         return true;
     }
     let mut top = top_level.borrow_mut();
-    if !redirected {
+    // 리다이렉트 조회가 실패한 호스트 Reload는 여기서 리다이렉트로 오지만 지목은 지운다.
+    if !redirected || host_reload {
         top.drop_next();
     }
     top.end();
@@ -822,6 +823,68 @@ mod tests {
         assert!(!docs.take_cancelled_host_reload(StartKind::Reload, Some(true)));
         assert!(!docs.take_cancelled_host_reload(StartKind::History, None));
         assert!(docs.take_cancelled_host_reload(StartKind::Reload, Some(false)));
+    }
+
+    /// 리다이렉트 조회가 실패한 호스트 Reload의 ID가 지금 세대와 같으면 지금 로드로 끝나고, 그때도 지목을
+    /// 지운다. 지금 로드의 Failed·세대 판정은 그대로다.
+    #[test]
+    fn a_current_cancelled_host_reload_with_an_unreadable_redirect_flag_drops_its_designation() {
+        use super::super::host_document::{
+            HostDocuments, HostLoadHeader, StartDecision, host_document_url,
+        };
+        use tasty_model::html_script::top_level::StartKind;
+        let mut docs = HostDocuments::default();
+        let a = host_document_url(1, 1, 1);
+        docs.sent(1, a.clone(), std::sync::Arc::from("a"));
+        let a_load = HostLoadHeader::Load(1);
+        let started = docs.navigation_started(&a, Some(15), StartKind::Other, false, a_load);
+        assert_eq!(started, StartDecision::HostLoad);
+        assert!(docs.respond(&a, true, true, false).is_some());
+        docs.served();
+        docs.committed(Some(15), false);
+        assert!(!docs.navigation_completed(Some(15), true));
+        let nav = Cell::new(NavState::Done);
+        let generation = Cell::new(Some(15));
+        let top = RefCell::new(TopLevelAdmission::default());
+        docs.host_reload(true);
+        top.borrow_mut().designate(Designation::Next);
+        // 조회 실패는 본문·세대 판정에서 리다이렉트(true)다. ID 15가 지금 세대라 지금 로드다.
+        let redirected = true;
+        let absent = HostLoadHeader::Absent;
+        let start = docs.navigation_started(&a, Some(15), StartKind::Reload, redirected, absent);
+        assert_eq!(start, StartDecision::Cancel);
+        let host_reload = docs.take_cancelled_host_reload(StartKind::Reload, None);
+        assert!(host_reload);
+        assert!(!end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(15),
+            redirected,
+            false,
+            host_reload
+        ));
+        assert_eq!(nav.get(), NavState::Failed);
+        assert_eq!(generation.get(), Some(15));
+        assert!(
+            !next_start_admitted(&top),
+            "다음 main 탐색은 예외를 받지 않는다"
+        );
+        // 호스트 Reload가 아닌 지금 로드의 리다이렉트 취소는 지목을 지우지 않는다(지금대로).
+        let nav = Cell::new(NavState::Loading);
+        let generation = Cell::new(Some(15));
+        top.borrow_mut().designate(Designation::Next);
+        assert!(!end_cancelled_navigation(
+            &nav,
+            &generation,
+            &top,
+            Some(15),
+            true,
+            false,
+            false
+        ));
+        assert_eq!(nav.get(), NavState::Failed);
+        assert!(next_start_admitted(&top));
     }
 
     #[test]
