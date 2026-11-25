@@ -1,6 +1,6 @@
 //! 플러그인 창 표본의 헤더·탭·목록 치수를 그린 도형에서 잰다. 값은 본체 `src/view/plugins/` 와 같은 토큰이다.
 
-use super::{Tab, installed, window};
+use super::{ListWidths, Tab, installed, window, window_with};
 use crate::catalog::components::painted::{Painted, paint};
 use tasty_type_appearance::theme::Theme;
 
@@ -210,5 +210,85 @@ fn list_rows_step_by_the_row_height_plus_plugins_list_row_gap() {
             (step - want).abs() < 0.5,
             "목록 행 간격 {step} 가 행 높이 + plugins_list_row_gap = {want} 가 아니다"
         );
+    }
+}
+
+/// 목록과 상세 사이 구분선(separator 세로선)의 x.
+fn divider_x(th: &Theme, painted: &Painted, frame: egui::Rect) -> f32 {
+    let ink = th.separator.to_egui_premultiplied();
+    painted
+        .shapes
+        .iter()
+        .find_map(|s| match s {
+            egui::Shape::LineSegment { points, stroke }
+                if stroke.color == ink
+                    && points[0].x == points[1].x
+                    && points[0].x > frame.left()
+                    && points[0].x < frame.right() =>
+            {
+                Some(points[0].x)
+            }
+            _ => None,
+        })
+        .expect("목록과 상세 사이 구분선이 없다")
+}
+
+/// Attention 탭은 목록 열을 Attention 폭으로, Installed 탭은 Installed 폭으로 잡는다. 두 토큰이 지금 같은
+/// 240 이라 일부러 다른 폭을 넣어 탭별 분기를 가른다.
+#[test]
+fn the_attention_list_takes_the_attention_width_and_installed_takes_the_list_width() {
+    let th = theme();
+    let widths = ListWidths {
+        installed: 240.0,
+        attention: 300.0,
+    };
+    let cases = [
+        (
+            Tab::Attention {
+                empty: false,
+                selected: 0,
+            },
+            widths.attention,
+        ),
+        (
+            Tab::Attention {
+                empty: true,
+                selected: 0,
+            },
+            widths.attention,
+        ),
+        (
+            Tab::Installed {
+                detail: installed::Detail::Selected(0),
+            },
+            widths.installed,
+        ),
+    ];
+    for (tab, want) in cases {
+        let painted = paint(|ui| window_with(ui, &th, tab, widths));
+        let frame = painted.rect_filled_with(th.bg_panel().to_egui());
+        let list = divider_x(&th, &painted, frame) - frame.left();
+        assert!(
+            (list - want).abs() < 0.5,
+            "목록 열 폭 {list} 가 {want} 가 아니다"
+        );
+        let stage = frame.width() - th.measure_md.value();
+        assert!(
+            (stage - want).abs() < 0.5,
+            "창 폭 {} 가 목록 폭 {want} + measure_md 가 아니다",
+            frame.width()
+        );
+    }
+}
+
+/// 탭별 폭은 본체·정본과 같은 토큰을 읽는다. 두 접근자는 지금 같은 값을 내므로 값이 아니라 이름을 고정한다.
+#[test]
+fn the_list_widths_read_the_installed_and_attention_width_tokens() {
+    let source = include_str!("../plugins_window.rs");
+    for line in [
+        "installed: theme.plugins_list_width().value(),",
+        "attention: theme.plugins_attention_list_width().value(),",
+    ] {
+        assert!(source.contains(line), "ListWidths::of 에 `{line}` 가 없다");
     }
 }

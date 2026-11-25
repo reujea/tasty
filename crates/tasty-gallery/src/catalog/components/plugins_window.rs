@@ -33,14 +33,33 @@ enum Tab {
     Add { preview: bool },
 }
 
-/// 본체 Installed 목록과 같은 너비 접근자를 사용한다. 본체 Attention 목록의 `plugins_attention_list_width` 도
-/// 같은 240 이라 두 탭이 한 폭을 쓴다.
-fn list_w(theme: &Theme) -> f32 {
-    theme.plugins_list_width().value()
+/// 목록 열의 폭. 본체·정본처럼 Installed 목록은 `plugins_list_width`, Attention 목록은
+/// `plugins_attention_list_width` 를 읽는다. 두 토큰은 지금 같은 240 이라 그린 폭만으로는 어느 쪽을
+/// 읽었는지 가를 수 없어, 탭별 폭을 이 값으로 묶어 시험이 서로 다른 폭을 넣어 볼 수 있게 한다.
+#[derive(Clone, Copy)]
+struct ListWidths {
+    installed: f32,
+    attention: f32,
+}
+
+impl ListWidths {
+    fn of(theme: &Theme) -> Self {
+        Self {
+            installed: theme.plugins_list_width().value(),
+            attention: theme.plugins_attention_list_width().value(),
+        }
+    }
+
+    fn for_tab(self, tab: Tab) -> f32 {
+        match tab {
+            Tab::Attention { .. } => self.attention,
+            Tab::Installed { .. } | Tab::Add { .. } => self.installed,
+        }
+    }
 }
 
 /// 예제 창의 크기. 상세 정보를 한눈에 비교하도록 Installed 화면은 더 높게 잡는다.
-fn stage_size(theme: &Theme, tab: Tab) -> egui::Vec2 {
+fn stage_size(theme: &Theme, tab: Tab, widths: ListWidths) -> egui::Vec2 {
     let h = match tab {
         // Attention 액션 바는 Installed 처럼 열 바닥에 붙으므로 사유 detail 이 바 위에 다 들 높이가 필요하다.
         Tab::Installed { .. } | Tab::Attention { empty: false, .. } => theme.measure_xl,
@@ -49,7 +68,7 @@ fn stage_size(theme: &Theme, tab: Tab) -> egui::Vec2 {
         Tab::Add { preview: true } => ADD_VERIFIED_STAGE_H.scaled(theme.ui_zoom),
         _ => theme.measure_sm,
     };
-    egui::vec2(list_w(theme) + theme.measure_md.value(), h.value())
+    egui::vec2(widths.for_tab(tab) + theme.measure_md.value(), h.value())
 }
 
 /// 한 세그먼트 탭의 표시 상태 — 본체 `segment_tab` 의 뒤쪽 인자 4개를 묶은 것.
@@ -328,7 +347,11 @@ fn header(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, tab: Tab) {
 }
 
 fn window(ui: &mut egui::Ui, theme: &Theme, tab: Tab) {
-    let (rect, _) = ui.allocate_exact_size(stage_size(theme, tab), egui::Sense::hover());
+    window_with(ui, theme, tab, ListWidths::of(theme));
+}
+
+fn window_with(ui: &mut egui::Ui, theme: &Theme, tab: Tab, widths: ListWidths) {
+    let (rect, _) = ui.allocate_exact_size(stage_size(theme, tab, widths), egui::Sense::hover());
     ui.painter().rect_filled(
         rect,
         theme.corner_radius.value(),
@@ -343,8 +366,10 @@ fn window(ui: &mut egui::Ui, theme: &Theme, tab: Tab) {
     let body = egui::Rect::from_min_max(egui::pos2(rect.min.x, body_top), rect.max);
 
     let panes = |body: egui::Rect| {
-        let list_rect =
-            egui::Rect::from_min_max(body.min, egui::pos2(body.min.x + list_w(theme), body.max.y));
+        let list_rect = egui::Rect::from_min_max(
+            body.min,
+            egui::pos2(body.min.x + widths.for_tab(tab), body.max.y),
+        );
         let detail_rect = egui::Rect::from_min_max(egui::pos2(list_rect.max.x, body_top), body.max);
         (list_rect, detail_rect)
     };
@@ -387,7 +412,7 @@ pub(super) fn installed_frame(ui: &mut egui::Ui, theme: &Theme) {
     let tab = Tab::Installed {
         detail: installed::Detail::Selected(0),
     };
-    let full = stage_size(theme, tab);
+    let full = stage_size(theme, tab, ListWidths::of(theme));
     let header_h = theme.plugins_header_height().value();
     let crop = egui::vec2(full.x, header_h * 2.0);
     let (rect, _) = ui.allocate_exact_size(crop, egui::Sense::hover());
@@ -628,7 +653,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "list",
-                "폭 `plugins_list_width` · 아바타 32 · 이름 13 + 부제 10 muted",
+                "폭 Installed `plugins_list_width` · Attention `plugins_attention_list_width` · 아바타 32 · 이름 13 + 부제 10 muted",
             ),
             (
                 "builtin",
