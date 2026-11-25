@@ -132,10 +132,28 @@ impl CancelledDecisions {
     }
 }
 
+/// 호스트가 보낸 로드 호출(WebView2 `Navigate`·`NavigateToString`)이 거절됐다. 탐색이 시작되지 않아
+/// 종료 신호가 오지 않으므로 chrome을 여기서 Failed로 끝낸다. `latest`는 마지막에 요청한 호스트 로드의
+/// 번호이고 `rejected`는 거절된 호출의 번호다. 붙잡혔다가 늦게 보낸 앞 요청의 거절은 그 뒤에 요청한
+/// 로드의 상태를 덮지 않는다. chrome을 바꿨으면 true다.
+#[cfg(any(windows, test))]
+pub(super) fn end_rejected_load(
+    nav_state: &std::cell::Cell<NavState>,
+    latest: u64,
+    rejected: u64,
+) -> bool {
+    if latest != rejected {
+        return false;
+    }
+    nav_state.set(NavState::Failed);
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        CancelledDecisions, NavState, SignalOrderLoads, is_current_load, nav_state_after_end,
+        CancelledDecisions, NavState, SignalOrderLoads, end_rejected_load, is_current_load,
+        nav_state_after_end,
     };
 
     /// 세대가 빈 구간의 정책 중단 오류만 Cancel한 수만큼 흡수한다. 다른 오류는 수를 남긴 채 두고,
@@ -285,5 +303,20 @@ mod tests {
             nav_state_after_end(None, None, false),
             Some(NavState::Failed)
         );
+    }
+
+    #[test]
+    fn a_rejected_load_call_fails_the_chrome() {
+        // 호출이 거절되면 시작·종료 신호가 오지 않아 Loading이 남는다(mermaid를 넣은 2MB 넘는 문서).
+        let nav = std::cell::Cell::new(NavState::Loading);
+        assert!(end_rejected_load(&nav, 3, 3));
+        assert_eq!(nav.get(), NavState::Failed);
+    }
+
+    #[test]
+    fn a_late_rejection_of_an_earlier_request_keeps_the_newer_load() {
+        let nav = std::cell::Cell::new(NavState::Loading);
+        assert!(!end_rejected_load(&nav, 4, 3));
+        assert_eq!(nav.get(), NavState::Loading);
     }
 }

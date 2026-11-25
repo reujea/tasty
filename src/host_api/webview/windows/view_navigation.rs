@@ -1,5 +1,6 @@
 //! 탐색 요청·이력 이동과 탐색 상태 조회. 이벤트 처리기는 `PlatformWebView::create`에 있다.
 use super::super::entry_response::windows as entry_adapter;
+use super::super::load_generation::end_rejected_load;
 use super::super::scan_resume::HistoryStep;
 use super::super::{NavState, PendingNavigation};
 use super::PlatformWebView;
@@ -62,10 +63,14 @@ impl PlatformWebView {
 
     /// 로드를 요청하며 chrome을 Loading으로 둔다. 시작 신호 없이 끝나는 로드가 Loading에 남지 않게
     /// chrome 세대를 비워(모름 = 현재) 다음 시작 신호 전의 종료를 이 로드의 것으로 본다.
-    fn begin_load(&self) {
+    /// 돌려주는 번호는 이 호스트 로드의 번호다. 호출이 거절되면 그 번호로 chrome을 끝낸다.
+    fn begin_load(&self) -> u64 {
         self.host_request(None);
         self.nav_state.set(NavState::Loading);
         self.chrome_generation.set(None);
+        let load = self.host_load.get() + 1;
+        self.host_load.set(load);
+        load
     }
 
     pub fn load_url(&self, url: &str) {
@@ -77,11 +82,13 @@ impl PlatformWebView {
             self.nav_state.set(NavState::Failed);
             return;
         }
-        self.begin_load();
+        let load = self.begin_load();
         self.top_level.borrow_mut().designate(Designation::Next);
         let url = HSTRING::from(url);
         // SAFETY: HSTRING은 클로저가 갖고 있어 호출 끝까지 살아있고 Navigate는 main thread 호출.
-        self.send_navigation("Navigate", true, move |wv| unsafe { wv.Navigate(&url) });
+        self.send_navigation("Navigate", true, Some(load), move |wv| unsafe {
+            wv.Navigate(&url)
+        });
     }
 
     pub fn load_html(&self, html: &str) {
@@ -89,21 +96,23 @@ impl PlatformWebView {
             self.nav_state.set(NavState::Failed);
             return;
         }
-        self.begin_load();
+        let load = self.begin_load();
         let html = HSTRING::from(html);
         // SAFETY: HSTRING은 클로저가 갖고 있어 호출 끝까지 살아있고 NavigateToString은 main thread 호출.
-        self.send_navigation("NavigateToString", false, move |wv| unsafe {
+        self.send_navigation("NavigateToString", false, Some(load), move |wv| unsafe {
             wv.NavigateToString(&html)
         });
     }
 
     /// 탐색을 바탕 포커스 문서 생성 스크립트 등록 뒤로 보낸다(`bed_focus`). 그래야 새 문서가 첫 렌더부터
     /// 요청한 값이다. 실패하면 경고하고, `withdraw`면 세운 지목을 거둔다. 남으면 뒤의 페이지 이동이 그
-    /// 지목을 소비한다.
+    /// 지목을 소비한다. `load`는 `begin_load`가 준 호스트 로드 번호다. 거절된 로드는 시작·종료 신호가
+    /// 오지 않으므로 chrome을 Failed로 끝낸다(`end_rejected_load`).
     fn send_navigation(
         &self,
         call: &'static str,
         withdraw: bool,
+        load: Option<u64>,
         navigate: impl FnOnce(
             &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2,
         ) -> windows::core::Result<()>
@@ -111,14 +120,20 @@ impl PlatformWebView {
     ) {
         let webview = self.webview.clone();
         let top_level = self.top_level.clone();
+        let nav_state = self.nav_state.clone();
+        let host_load = self.host_load.clone();
+        let surface_id = self.surface_id;
         self.bed_focus.navigate(
-            self.surface_id,
+            surface_id,
             call,
             Box::new(move || {
                 if let Err(e) = navigate(&webview) {
-                    tracing::warn!("WebView2 {call} failed: {e}");
+                    tracing::warn!("WebView surface {surface_id}: WebView2 {call} failed: {e}");
                     if withdraw {
                         top_level.borrow_mut().withdraw(&Designation::Next);
+                    }
+                    if let Some(load) = load {
+                        end_rejected_load(&nav_state, host_load.get(), load);
                     }
                 }
             }),
@@ -137,7 +152,7 @@ impl PlatformWebView {
         self.host_request(None);
         self.top_level.borrow_mut().designate(Designation::Next);
         // SAFETY: webview는 클로저가 복제해 갖고 있어 valid, main thread 호출.
-        self.send_navigation("Reload", true, |wv| unsafe { wv.Reload() });
+        self.send_navigation("Reload", true, None, |wv| unsafe { wv.Reload() });
     }
 
     pub fn go_back(&self) {
@@ -147,7 +162,7 @@ impl PlatformWebView {
             unsafe { wv.CanGoBack(out) }
         });
         // SAFETY: webview는 클로저가 복제해 갖고 있어 valid, main thread 호출.
-        self.send_navigation("GoBack", true, |wv| unsafe { wv.GoBack() });
+        self.send_navigation("GoBack", true, None, |wv| unsafe { wv.GoBack() });
     }
 
     pub fn go_forward(&self) {
@@ -157,7 +172,7 @@ impl PlatformWebView {
             unsafe { wv.CanGoForward(out) }
         });
         // SAFETY: webview는 클로저가 복제해 갖고 있어 valid, main thread 호출.
-        self.send_navigation("GoForward", true, |wv| unsafe { wv.GoForward() });
+        self.send_navigation("GoForward", true, None, |wv| unsafe { wv.GoForward() });
     }
 
     /// 주소 표시용 탐색 정보. 주소 선택 규칙은 `committed_document_url`이 정한다.

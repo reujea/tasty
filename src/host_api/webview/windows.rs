@@ -66,6 +66,8 @@ pub struct PlatformWebView {
     content_process_ended: Rc<Cell<bool>>,
     /// 마지막에 시작한 main frame 탐색의 NavigationId. chrome 상태는 이 탐색의 종료만 따른다.
     chrome_generation: Rc<Cell<Option<u64>>>,
+    /// 마지막에 요청한 호스트 로드(`load_url`·`load_html`)의 번호. 거절된 호출이 새 로드를 덮지 않게 한다.
+    host_load: Rc<Cell<u64>>,
     /// 원격 차단 여부와 별도로 기록한 탐색 시도 큐(NavigationStarting과 같은 문서 fragment 이동).
     pending_navigations: Rc<RefCell<Vec<PendingNavigation>>>,
     /// html surface의 문서 단위 스크립트 허용. 없으면 JS는 설정값을 그대로 따른다.
@@ -858,6 +860,7 @@ impl PlatformWebView {
                 nav_state,
                 content_process_ended,
                 chrome_generation,
+                host_load: Rc::default(),
                 pending_navigations,
                 script_gate,
                 scan_resume,
