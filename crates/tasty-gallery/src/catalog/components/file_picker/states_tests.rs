@@ -1,17 +1,22 @@
 //! File Picker 상태 표본의 카드마다 로딩·연결 끊김 본문이 그 상태의 앱 키 값인지 본다.
 use super::indicator::NO_PROFILE_STATE_CARDS;
-use super::{FpState, STATE_CARDS, Variant, card};
+use super::{FpState, STATE_CARDS, Variant, card, draw_states};
 use crate::i18n::t;
 
 /// 카드 한 장을 그리고 칠한 글자를 모은다.
 fn painted(v: Variant) -> Vec<String> {
+    painted_with(|ui, theme| card(ui, theme, v))
+}
+
+/// `draw` 를 그리고 칠한 글자를 모은다.
+fn painted_with(draw: impl Fn(&mut egui::Ui, &tasty_type_appearance::theme::Theme)) -> Vec<String> {
     let theme = crate::host_shell::latte_theme();
     let ctx = egui::Context::default();
     let mut texts = Vec::new();
     // 첫 프레임은 폰트가 확정되지 않아 galley 가 비는 경우가 있어 두 번 돈다.
     for _ in 0..2 {
         let full = ctx.run(egui::RawInput::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| card(ui, &theme, v));
+            egui::CentralPanel::default().show(ctx, |ui| draw(ui, &theme));
         });
         texts.clear();
         for clipped in &full.shapes {
@@ -63,13 +68,32 @@ fn assert_body(label: &str, texts: &[String], want: &[&'static str], not: &[&'st
             "{label}: {key} 를 그렸다: {texts:?}"
         );
     }
-    let gallery_only: Vec<&String> = texts
+    assert_no_gallery_only(label, texts);
+}
+
+/// 호스트를 넣던 갤러리 전용 영어 문장(앱 키 없음)의 조각.
+const GALLERY_ONLY: [&str; 3] = ["over SSH", "SSH tunnel", "Loading folder"];
+
+fn assert_no_gallery_only(label: &str, texts: &[String]) {
+    let found: Vec<&String> = texts
         .iter()
-        .filter(|s| {
-            s.contains("over SSH") || s.contains("SSH tunnel") || s.contains("Loading folder")
-        })
+        .filter(|s| GALLERY_ONLY.iter().any(|g| s.contains(g)))
         .collect();
-    assert!(gallery_only.is_empty(), "{label}: {gallery_only:?}");
+    assert!(found.is_empty(), "{label}: {found:?}");
+}
+
+/// 카드별 단언 밖의 자리(빈 폴더·권한 거부·다중 선택 카드, Meta·설명, 빈 호스트 View)까지 표본 전체가
+/// 갤러리 전용 문장을 그리지 않는다.
+#[test]
+fn the_whole_states_specimen_draws_no_gallery_only_sentence() {
+    let texts = painted_with(draw_states);
+    assert!(
+        texts
+            .iter()
+            .any(|s| s == t("filepicker.loading_body_remote")),
+        "the specimen was drawn: {texts:?}"
+    );
+    assert_no_gallery_only("draw_states", &texts);
 }
 
 #[test]
