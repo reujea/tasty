@@ -77,8 +77,10 @@ fn manual_clock_separates_batch_wait_executor_time_and_retry_backoff() {
         "both coalesced requests are in flight"
     );
     gate.open();
+    // 분포 기록은 표본 수·합·최댓값·구간을 차례로 올리므로 단정할 필드가 모두 찰 때까지 기다린다.
     eventually("batch measured", || {
-        handle.stats().batch_execution.samples == 1
+        let b = handle.stats().batch_execution;
+        b.samples == 1 && b.sum_us != 0 && b.max_us != 0 && b.counts.iter().sum::<u64>() == 1
     });
     let stats = handle.stats();
     assert_eq!(
