@@ -1,6 +1,7 @@
 //! 창이 egui 에 실은 누름 가운데 뗌이 오지 않은 키(남는 눌림). 뗌은 짝 누름의 수신자에게 간다: 누름을 egui 에
-//! 실었으면 지금 게이트와 관계없이 egui 로 보내고, 그 누름을 plugin 팝업이 받았으면 그 팝업에도 뗌을 직접 붙인다
-//! (`plugin_popup_key_releases`, 그 팝업이 키 주인이 아니어도). 누름을 egui 에 싣지 않았으면(터미널·egui-mesh 는
+//! 실었으면 지금 게이트와 관계없이 egui 로 보낸다. 그 누름을 받은 plugin 팝업이 지금 수신자가 아니면 뗌은 그 팝업에만
+//! 직접 붙이고(`plugin_popup_key_releases`) egui 로 싣지 않는다(지금 수신자에게 새 입력이 되지 않는다). 누름을 egui 에
+//! 싣지 않았으면(터미널·egui-mesh 는
 //! 누름만 받는다) 뗌도 egui 로 보내지 않는다. OS 포커스 상실과 모달 진입은 뗌 사건을 기다리지 않고 그 자리에서
 //! 남은 눌림을 모두 푼다. Escape 는 Esc 몫의 기록(`PopupManager::note_unfed_escape_release`)이 맡는다.
 
@@ -34,12 +35,13 @@ impl MainViewState {
             return fed;
         }
         let held = self.egui_held_keys.swap_remove(held?);
-        if let Some(id) = held.plugin
-            && plugin != Some(id)
-        {
-            self.plugin_popup_key_releases.push((id, key));
+        match held.plugin {
+            Some(id) if plugin != Some(id) => {
+                self.plugin_popup_key_releases.push((id, key));
+                None
+            }
+            _ => Some(fed.unwrap_or(false)),
         }
-        Some(fed.unwrap_or(false))
     }
 
     /// OS 포커스가 바뀐 창의 남은 눌림. 포커스를 잃으면 egui 에 실은 눌림을 모두 푸는 뗌이다(창의 egui 입력에
