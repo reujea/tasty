@@ -292,8 +292,9 @@ fn the_product_decoder_fills_the_target_shapes() {
     );
 }
 
-/// `file` 에서 `let name` / `let mut name` 으로 시작하는 문장의 줄 번호와 공백을 뺀 문장 전체(괄호 짝을 따라
-/// 문장 끝 `;` 까지). 주석은 뺀다. 타입 명시(`let name: T =`) 같은 꼴도 그대로 문장으로 돌려준다.
+/// `file` 에서 패턴에 `name` 을 묶는 `let` 문장의 줄 번호와 공백을 뺀 문장 전체(괄호 짝을 따라 문장 끝 `;`
+/// 까지). 주석은 뺀다. 패턴은 `let` 부터 깊이 0의 `=`(또는 `;`)까지이므로 `let name`, `let mut name`, 타입 명시
+/// (`let name: T =`), 구조 분해(`let (name, ..) =`), `if let Some(name) =` 같은 꼴을 모두 돌려준다.
 fn bindings_of(file: &str, name: &str) -> Vec<(usize, String)> {
     let raw = std::fs::read_to_string(repo_root().join(file))
         .unwrap_or_else(|e| panic!("{file} 을 읽지 못했다: {e}"))
@@ -308,9 +309,24 @@ fn bindings_of(file: &str, name: &str) -> Vec<(usize, String)> {
         if src[..start].ends_with(is_word) {
             continue;
         }
-        let rest = src[from..].trim_start();
-        let rest = rest.strip_prefix("mut ").map_or(rest, str::trim_start);
-        if !rest.starts_with(name) || rest[name.len()..].starts_with(is_word) {
+        let mut depth = 0i32;
+        let mut pattern_end = src.len();
+        for (i, c) in src[from..].char_indices() {
+            match c {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => depth -= 1,
+                '=' | ';' if depth <= 0 => {
+                    pattern_end = from + i;
+                    break;
+                }
+                _ => {}
+            }
+        }
+        let pattern = &src[from..pattern_end];
+        let binds = pattern.match_indices(name).any(|(i, _)| {
+            !pattern[..i].ends_with(is_word) && !pattern[i + name.len()..].starts_with(is_word)
+        });
+        if !binds {
             continue;
         }
         let mut depth = 0i32;
