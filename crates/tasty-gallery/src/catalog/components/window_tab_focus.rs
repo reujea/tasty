@@ -29,6 +29,9 @@ pub(super) enum FocusLook {
     PluginTab(usize),
 }
 
+/// 포커스 칸 하나가 그리는 창 그림.
+type Frame = fn(&mut egui::Ui, &Theme);
+
 thread_local! {
     static LOOK: Cell<Option<FocusLook>> = const { Cell::new(None) };
 }
@@ -63,7 +66,7 @@ fn draw(ui: &mut egui::Ui, theme: &Theme) {
         ui.with_layout(
             egui::Layout::left_to_right(egui::Align::Min).with_main_wrap(true),
             |ui| {
-                let frames: [(&str, FocusLook, fn(&mut egui::Ui, &Theme)); 6] = [
+                let frames: [(&str, FocusLook, Frame); 6] = [
                     (
                         "settings · L1 tab",
                         FocusLook::L1(0),

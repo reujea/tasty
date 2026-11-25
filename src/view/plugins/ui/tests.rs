@@ -261,7 +261,7 @@ fn tab_rings_the_plugin_segment_tab_one_offset_off_its_box() {
         repeat: false,
         modifiers: egui::Modifiers::default(),
     };
-    let mut frame = |events: Vec<egui::Event>| {
+    let frame = |events: Vec<egui::Event>| {
         let mut cells = Vec::new();
         let out = ctx.run(
             egui::RawInput {
