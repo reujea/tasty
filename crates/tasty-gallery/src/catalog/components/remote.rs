@@ -20,6 +20,8 @@ mod passkeys;
 pub(super) use passkeys::passkeys_frame;
 #[cfg(test)]
 mod attach_meta_tests;
+#[cfg(test)]
+mod passkeys_meta_tests;
 mod segment_rule;
 pub use forms::{draw_generic_passkey_forms, draw_profile_form};
 pub use passkeys::draw_passkeys;

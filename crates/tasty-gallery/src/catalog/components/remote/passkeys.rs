@@ -97,6 +97,11 @@ pub fn draw_passkeys(ui: &mut egui::Ui, theme: &Theme) {
         ],
         &[
             TokenChip::new(
+                "accent-warning",
+                "unknown kind",
+                theme.accent_warning_raised().to_egui(),
+            ),
+            TokenChip::new(
                 "accent-primary",
                 "revealed glyph",
                 theme.accent_primary().to_egui(),
