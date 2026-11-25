@@ -632,8 +632,9 @@ mod tests {
                 move || {
                     seen.lock().unwrap().push(std::thread::current().id());
                     wait_open.recv().expect("gate");
-                    // 훅 없이 풀려 나간다. 이 패닉은 wait_idle 기한 안에 나므로 훅이 출력 잠금을 기다리거나
-                    // backtrace를 찍는 동안 슬롯 반납이 늦어진다. run_caught의 catch_unwind가 잡는 것은 같다.
+                    // 훅 없이 풀려 나간다. 슬롯 반납은 패닉 훅이 끝나야 일어나므로, wait_idle을 시작할 때 훅이
+                    // 아직 출력 잠금을 기다리거나 backtrace를 찍고 있으면 그 지연이 20초 대기 예산을 쓴다.
+                    // run_caught의 catch_unwind가 잡는 것은 같다.
                     std::panic::resume_unwind(Box::new("test builder panic"))
                 },
                 reporter("boom", tx.clone()),
@@ -663,8 +664,9 @@ mod tests {
     fn a_global_hook_job_releases_its_run_token_when_it_panics_or_fails_to_start() {
         let pool = ShellPool::new(1, 0);
         let builders: [Box<dyn FnOnce() -> std::process::Command + Send>; 2] = [
-            // 훅 없이 풀려 나간다. 이 패닉은 holds_by 기한 안에 나므로 훅이 출력 잠금을 기다리거나
-            // backtrace를 찍는 동안 토큰과 슬롯 반납이 늦어진다. run_caught의 catch_unwind가 잡는 것은 같다.
+            // 훅 없이 풀려 나간다. 토큰과 슬롯 반납은 패닉 훅이 끝나야 일어나므로, holds_by 대기를 시작할 때
+            // 훅이 아직 출력 잠금을 기다리거나 backtrace를 찍고 있으면 그 지연이 20초 대기 예산을 쓴다.
+            // run_caught의 catch_unwind가 잡는 것은 같다.
             Box::new(|| std::panic::resume_unwind(Box::new("test builder panic"))),
             Box::new(|| std::process::Command::new("/nonexistent/tasty-test-no-such-program")),
         ];
