@@ -231,10 +231,12 @@ surface의 입력칸(주소·이름), 설정·Preset·Plugins·종료 확인 창
   입구와 메인 창 이벤트 경로에서 판정이 egui-winit 호출보다 앞에 있는지, 보조 창이 공통 흐름
   (`src/view/judged_event.rs`)으로만 egui에 넘기는지를 본다. 조건 분기의 실제 실행과 이 목록 밖의 창은 보지 않는다.
   보조 창의 판정 결과 → 자체 처리 분기는 그 공통 흐름의 시험이 가짜 창으로 동작을 확인한다. 판정이 가져간 이벤트는
-  창 자체 처리에 가지 않는다. 넘긴 키 이벤트는 단계 4 수신 노드가 창 노드일 때만 egui 뒤 자체 처리에 간다(팝업이 받은
-  키, 창을 덮은 팝업이 쓰지 않은 키는 가지 않는다, `key_nodes::separate_window_receiver`). 팝업 관리자를 가진 보조
-  창에서 수식키 없는 Esc 는 편집 판정을 건너 수신자의 Esc 처리로 가고, 종료 확인 창의 Esc 는 편집 판정 보류를 거친다
-  (`window_input::window_edit_target`).
+  창 자체 처리에 가지 않는다. 넘긴 키 이벤트가 어디에 가는지는 단계 4 결과 `WindowReceiver` 하나가 정한다(편집 판정
+  `window_input::window_edit_target`과 `edit_keys::window_key_judgement`, egui 적재와 자체 처리
+  `judged_event::JudgedWindowSteps`). 장면은 `judged_event.rs`의
+  `a_bare_escape_in_the_quit_window_waits_for_the_pass_of_an_unhandled_press`·
+  `a_bare_escape_in_a_managed_window_reaches_its_receiver_without_an_edit_hold`·
+  `a_key_a_covering_popup_does_not_use_is_not_loaded_into_egui` 가 정본이다.
 - 바인딩 출처: 메인 창은 그 창 engine의 설정, 보조 창은 최신 적용 설정(이벤트마다 맞춘다), 부팅 오류 화면은 그 화면에
   들어갈 때의 최신 적용 설정, 셸 경로
   설정 화면은 부팅 설정, 홈 사용 중 화면은 읽은 설정 파일(읽지 못하면 기본값)이다. 설정 창의 편집 초안은 쓰지 않는다.
