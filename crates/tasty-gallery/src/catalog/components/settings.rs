@@ -357,7 +357,8 @@ fn l2_sidebar(ui: &mut egui::Ui, theme: &Theme, mid_h: f32) {
                 });
                 kit::hsep(ui, theme);
                 kit::region_sym(ui, L2_LIST_PAD, L2_LIST_PAD, |ui| {
-                    ui.spacing_mut().item_spacing.y = 0.0;
+                    // 행 사이는 앱 사이드바처럼 테마 egui 스타일의 세로 항목 간격(spacing-xs)이다.
+                    ui.spacing_mut().item_spacing.y = ui.ctx().style().spacing.item_spacing.y;
                     let mut ring = None;
                     for (i, label) in L2_SECTIONS.iter().enumerate() {
                         let rect = l2_item(ui, theme, label, i == L2_SELECTED);
@@ -365,7 +366,7 @@ fn l2_sidebar(ui: &mut egui::Ui, theme: &Theme, mid_h: f32) {
                             ring = Some(rect);
                         }
                     }
-                    // 이 예제의 행은 간격 없이 붙어 있어 링이 이웃 행에 걸치므로 모든 행을 그린 뒤 얹는다.
+                    // 링은 모든 행을 그린 뒤 얹는다(행 간격이 링 폭보다 넓어 앱과 같이 이웃 행에 걸치지 않는다).
                     if let Some(rect) = ring {
                         tasty_ui_widgets::paint_control_ring(
                             ui.painter(),
