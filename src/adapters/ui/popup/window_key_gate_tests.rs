@@ -1513,7 +1513,7 @@ fn apply_intents(
     }
 }
 
-/// M-12b-4 F(모델 §6.3, 결정 J-3). Given 터미널이 포커스이고 알림 목록이 포커스 없이 열려 있을 때, When bare Esc 를
+/// Given 터미널이 포커스이고 알림 목록이 포커스 없이 열려 있을 때, When bare Esc 를
 /// 누르면, Then Esc 는 터미널(PTY)로 가고 창은 그 Esc 를 처리하지 않으며 알림 목록은 열린 채 남는다.
 #[test]
 fn escape_on_the_terminal_goes_to_the_pty_with_notifications_open() {
@@ -1551,7 +1551,7 @@ fn escape_on_the_terminal_goes_to_the_pty_with_notifications_open() {
     );
 }
 
-/// M-12b-4 P. Given 알림 목록이 포커스일 때, When bare Esc 를 누르면, Then 알림 목록(선언 Close)이 그 Esc 를 받아
+/// Given 알림 목록이 포커스일 때, When bare Esc 를 누르면, Then 알림 목록(선언 Close)이 그 Esc 를 받아
 /// 닫힌다.
 #[test]
 fn escape_on_a_focused_notification_closes_it() {

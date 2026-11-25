@@ -1002,7 +1002,7 @@ fn escape_and_confirm(
     )
 }
 
-/// M-P1-3 F: Given 읽기를 끝낸 설정 창 폴더 선택기, When 별도 창 사건 입구로 bare Esc 뒤 확정 버튼 클릭이 오면, Then
+/// Given 읽기를 끝낸 설정 창 폴더 선택기, When 별도 창 사건 입구로 bare Esc 뒤 확정 버튼 클릭이 오면, Then
 /// Esc 몫이 먼저 그려져 선언(`PopupEscape::Close`)대로 중앙 단계가 선택기를 닫고 결과는 취소다. 클릭은 닫힌 선택기에
 /// 가지 않는다.
 #[test]
@@ -1012,7 +1012,7 @@ fn escape_then_confirm_click_cancels_the_chooser() {
     assert!(!open, "선택기가 닫힌다");
 }
 
-/// M-P1-3 P: Given 읽기를 끝낸 설정 창 폴더 선택기, When 확정 버튼 클릭 뒤 bare Esc 가 오면, Then 클릭이 먼저
+/// Given 읽기를 끝낸 설정 창 폴더 선택기, When 확정 버튼 클릭 뒤 bare Esc 가 오면, Then 클릭이 먼저
 /// 그려져 시작 폴더를 확정한다. 뒤의 Esc 는 닫힌 선택기를 취소하지 않는다.
 #[test]
 fn confirm_click_then_escape_picks_the_file() {
@@ -1071,7 +1071,7 @@ fn reasons_chooser(
     out
 }
 
-/// M-P1-2 F: Given 설정 창 선택기, When 별도 창 사건 입구로 bare Esc 가 오면, Then 선언대로 중앙 단계가 닫고 닫기
+/// Given 설정 창 선택기, When 별도 창 사건 입구로 bare Esc 가 오면, Then 선언대로 중앙 단계가 닫고 닫기
 /// 사유는 Escape 다(관측점: `draw_view_local` 이 사유를 버리지 않고 꺼낸 닫기 큐). 결과는 취소다.
 #[test]
 fn escape_closes_the_separate_chooser_with_the_escape_reason() {
@@ -1090,7 +1090,7 @@ fn escape_closes_the_separate_chooser_with_the_escape_reason() {
     );
 }
 
-/// M-P1-2 P: Given 설정 창 선택기, When 취소 버튼을 클릭하면, Then 본문이 끝내 닫기 사유는 Command 다.
+/// Given 설정 창 선택기, When 취소 버튼을 클릭하면, Then 본문이 끝내 닫기 사유는 Command 다.
 #[test]
 fn the_cancel_button_closes_the_separate_chooser_with_the_command_reason() {
     let mut st = opened();
@@ -1123,7 +1123,7 @@ fn conflict_keys(keys: [egui::Key; 2]) -> (Panel, SettingsUiState, String, usize
     (p, st, combo, cuts)
 }
 
-/// M-E1-4 F: Given 키 주인 충돌 질문, When 한 입력 묶음에 bare Esc 뒤 Y 가 오면, Then 별도 창 사건 입구가 Esc 몫 뒤에서
+/// Given 키 주인 충돌 질문, When 한 입력 묶음에 bare Esc 뒤 Y 가 오면, Then 별도 창 사건 입구가 Esc 몫 뒤에서
 /// 끊어(조건 8 뒤 경계) Esc 패스가 질문을 닫고 Y 는 닫힌 질문에 가지 않아 바인딩은 적용되지 않는다. Esc 가 사건 시점에
 /// 질문의 포커스를 풀어도 창을 덮는 질문은 Y 시점에도 노드다(덮인 창 위젯은 포커스 노드가 될 수 없다). 그래서 Y 는
 /// 질문 몫이고 끊는 자리는 Esc 몫 뒤 하나다.
@@ -1136,7 +1136,7 @@ fn escape_then_yes_on_the_conflict_question_applies_nothing() {
     assert!(st.pending_binding.is_none(), "Esc 가 대기를 취소한다");
 }
 
-/// M-E1-4 P: Given 키 주인 충돌 질문, When 한 입력 묶음에 Y 뒤 bare Esc 가 오면, Then Esc 앞에서 끊기든(조건 8 앞 경계)
+/// Given 키 주인 충돌 질문, When 한 입력 묶음에 Y 뒤 bare Esc 가 오면, Then Esc 앞에서 끊기든(조건 8 앞 경계)
 /// 한 패스에 함께 그리든 Y 가 먼저라 바인딩이 적용되고 질문이 닫힌다.
 #[test]
 fn yes_then_escape_on_the_conflict_question_applies_the_binding() {
@@ -1802,7 +1802,7 @@ fn a_press_on_the_save_name_keeps_its_focus() {
     );
 }
 
-/// M-12b-5w F. Given 별도 창(설정 창)에서 읽기를 끝낸 폴더 선택기가 키 주인일 때, When 별도 창 사건 입구로 Alt+Up 을 보낸
+/// Given 별도 창(설정 창)에서 읽기를 끝낸 폴더 선택기가 키 주인일 때, When 별도 창 사건 입구로 Alt+Up 을 보낸
 /// 뒤 확정을 누르면, Then 그 몫이 선택기에 결속돼 폴더 키맵이 부모 폴더로 올라가 부모 폴더를 고른다.
 #[test]
 fn alt_up_in_the_separate_folder_chooser_goes_to_the_parent() {

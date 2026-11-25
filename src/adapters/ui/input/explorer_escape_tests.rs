@@ -85,7 +85,7 @@ fn view(s: &mut Scene) -> &mut crate::adapters::ui::surface::explorer::view::Exp
     s.state.explorer_views.get_mut(s.sid).expect("탐색기 view")
 }
 
-/// T-12b-10(M-12b-8·13 F). Given 기본 설정에서 고른 항목이 없는 탐색기가 포커스이고 알림 목록이 Window 범위에 붙어
+/// T-12b-10. Given 기본 설정에서 고른 항목이 없는 탐색기가 포커스이고 알림 목록이 Window 범위에 붙어
 /// 열려 있을 때, When bare Esc 를 누르면, Then 탐색기는 그 Esc 를 쓰지 않으므로 선택 해제 단축키가 후보가 아니고 Esc 는
 /// 붙은 Window 팝업(알림 목록)이 받는다.
 #[test]
@@ -103,7 +103,7 @@ fn escape_on_an_explorer_with_nothing_selected_reaches_the_attached_window_popup
     );
 }
 
-/// M-12b-8 P. Given 같은 장면에서 탐색기에 고른 항목이 있을 때, When bare Esc 를 누르면, Then 탐색기가 그 Esc 를 쓰므로
+/// Given 같은 장면에서 탐색기에 고른 항목이 있을 때, When bare Esc 를 누르면, Then 탐색기가 그 Esc 를 쓰므로
 /// 단축키 단계(선택 해제)가 받고 알림 목록은 받지 않는다. 실행부도 같은 판정으로 거절하지 않는다.
 #[test]
 fn escape_used_by_explorer_clears_its_selection() {
@@ -127,7 +127,7 @@ fn escape_used_by_explorer_clears_its_selection() {
     );
 }
 
-/// M-12b-11 F. Given 고른 항목이 없는 탐색기가 원격 주소 확인을 기다릴 때, When bare Esc 를 누르면, Then 주소 확인
+/// Given 고른 항목이 없는 탐색기가 원격 주소 확인을 기다릴 때, When bare Esc 를 누르면, Then 주소 확인
 /// 취소(고정 Esc)가 surface level 단축키 후보라 단축키 단계가 받고 알림 목록은 받지 않는다.
 #[test]
 fn escape_cancels_a_pending_explorer_address_check() {

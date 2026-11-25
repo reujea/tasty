@@ -137,7 +137,7 @@ fn escape_through_the_window(
     frame(ctx, state, read, Vec::new());
 }
 
-/// M-P1-1 F: Given 펼치지 않은 키 주인 파일 선택기(경로 메뉴 닫힘), When 창을 거친 수식키 없는 Esc 가 오면, Then
+/// Given 펼치지 않은 키 주인 파일 선택기(경로 메뉴 닫힘), When 창을 거친 수식키 없는 Esc 가 오면, Then
 /// 본문은 Esc 를 읽지 않고 선언(`PopupEscape::Close`)대로 중앙 단계가 닫으며 요청은 취소로 끝난다.
 #[test]
 fn escape_on_the_picker_closes_it_by_its_declaration() {

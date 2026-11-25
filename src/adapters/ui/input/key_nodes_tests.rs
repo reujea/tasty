@@ -243,7 +243,7 @@ fn end_at_latch(
     ended
 }
 
-/// M-N1-1 P: 래치 중 bare Esc 는 단계 11 맨 앞에서 끝나고 래치를 취소한다. 래치가 없으면 그 자리를 지난다.
+/// 래치 중 bare Esc 는 단계 11 맨 앞에서 끝나고 래치를 취소한다. 래치가 없으면 그 자리를 지난다.
 #[test]
 fn escape_during_the_settings_latch_cancels_it() {
     let (mut state, mut session) = scene();
@@ -366,7 +366,7 @@ fn a_text_popup_yields_a_bound_ctrl_escape_and_takes_shift_escape() {
     );
 }
 
-/// M-E0b-1 F(T-Esc-1 반전): 수식키 없는 Esc 는 어느 포커스에서도 경로 키다(`route_escape`). 무대 노드면 무대가 받는다.
+/// T-Esc-1 반전: 수식키 없는 Esc 는 어느 포커스에서도 경로 키다(`route_escape`). 무대 노드면 무대가 받는다.
 #[test]
 fn a_bare_escape_takes_the_key_path() {
     let (mut state, mut session) = scene();
@@ -388,7 +388,7 @@ fn a_bare_escape_takes_the_key_path() {
     );
 }
 
-/// M-E0b-1 P: 수식키 Esc(Shift+Esc)는 bare Esc 가 아니라 보통 키처럼 경로로 오른다. 무대 노드에서는 무대 종료 바인딩이
+/// 수식키 Esc(Shift+Esc)는 bare Esc 가 아니라 보통 키처럼 경로로 오른다. 무대 노드에서는 무대 종료 바인딩이
 /// 아니어서 무대 내용이 받지 않고 engine 단축키 후보도 없다.
 #[test]
 fn a_modified_escape_rises_like_any_key() {
@@ -645,7 +645,7 @@ fn a_forwarded_path_key_is_blocked_only_when_its_surface_is_covered() {
     assert!(received_key_blocked(&state, &read, ForwardedKey::Path, sid));
 }
 
-/// M-E0b-3 F: Given Window 범위에 덮지 않는 알림 목록이 포커스일 때, When 받은 surface 가 bare Esc 를 넘기면, Then 그
+/// Given Window 범위에 덮지 않는 알림 목록이 포커스일 때, When 받은 surface 가 bare Esc 를 넘기면, Then 그
 /// Esc 는 경로 키로 분류되고(지금 게이트를 쓰지 않는다) 받은 surface 가 덮이지 않았으므로 막히지 않는다.
 #[test]
 fn a_forwarded_escape_under_a_focused_notification_reaches_the_received_surface() {
@@ -730,7 +730,7 @@ fn section_sign() -> (Key, KeyCode) {
     (Key::Character("§".into()), KeyCode::IntlBackslash)
 }
 
-/// M-N4-1 F: 덮지 않는 `Keys` 팝업(알림 목록, 오버레이 열림) 포커스에서 egui 키 없는 키는 그 팝업이 쓰지 않아 경로를
+/// 덮지 않는 `Keys` 팝업(알림 목록, 오버레이 열림) 포커스에서 egui 키 없는 키는 그 팝업이 쓰지 않아 경로를
 /// 올라가 Window 단축키가 받는다.
 #[test]
 fn a_key_without_an_egui_key_on_a_popup_rises_to_an_ancestor_binding() {
@@ -746,7 +746,7 @@ fn a_key_without_an_egui_key_on_a_popup_rises_to_an_ancestor_binding() {
     ));
 }
 
-/// M-N4-2 F: `Text` 팝업(검색 띠) 포커스의 egui 키 없는 글자 키는 그 팝업이 받고 egui 에 실린다(egui-winit 이 글자
+/// `Text` 팝업(검색 띠) 포커스의 egui 키 없는 글자 키는 그 팝업이 받고 egui 에 실린다(egui-winit 이 글자
 /// 사건으로 싣는다).
 #[test]
 fn a_text_only_key_on_a_text_popup_types_its_text() {
@@ -759,7 +759,7 @@ fn a_text_only_key_on_a_text_popup_types_its_text() {
     assert_eq!(state.window_feeds_key(decision, false, true), Some(true));
 }
 
-/// M-N4-2 P: 터미널 포커스의 egui 키 없는 글자 키는 그 surface(PTY)가 받고 egui 에 싣지 않는다.
+/// 터미널 포커스의 egui 키 없는 글자 키는 그 surface(PTY)가 받고 egui 에 싣지 않는다.
 #[test]
 fn a_text_only_key_on_the_terminal_reaches_the_pty() {
     let (mut state, mut session) = scene();

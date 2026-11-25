@@ -259,7 +259,7 @@ fn window_pass_keys_are_put_in_every_pass() {
     assert_before(&run, "begin_run(", ".run(raw_input", host);
 }
 
-/// M-N1-2 F: 설정 열기 요청 래치 노드가 받은 키는 단계 6 편집 판정에 가지 않는다. 판정 입구(`judge_edit_key`)가 단계 4
+/// 설정 열기 요청 래치 노드가 받은 키는 단계 6 편집 판정에 가지 않는다. 판정 입구(`judge_edit_key`)가 단계 4
 /// 수신자를 plugin·창 판정보다 먼저 읽는다. 단계 6 은 GPU 가 있는 `MainView` 라 시험 대역이 없어 순서를 본다.
 #[test]
 fn an_edit_key_during_the_settings_latch_is_not_judged() {

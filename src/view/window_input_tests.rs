@@ -362,7 +362,7 @@ fn focus_field(h: &mut Harness, w: &mut TestWindow, field: &str) {
     );
 }
 
-/// M-W2a-1 F: Given 팝업 A 의 a1 이 egui 포커스를 가진 키 주인, When 한 입력 묶음에 같은 팝업의 a2 를 누르고 바로 x 를
+/// Given 팝업 A 의 a1 이 egui 포커스를 가진 키 주인, When 한 입력 묶음에 같은 팝업의 a2 를 누르고 바로 x 를
 /// 치면, Then x 는 누른 a2 에 들어간다. 누름 뒤 키 앞에서 끊어 누름을 처리한 패스 뒤에 키를 받는다.
 #[test]
 fn a_key_right_after_a_press_on_a_separate_window_popup_reaches_that_popup() {
@@ -379,7 +379,7 @@ fn a_key_right_after_a_press_on_a_separate_window_popup_reaches_that_popup() {
     );
 }
 
-/// M-W2a-1 P, M-W2a-5 P: Given 창 위젯 w 가 egui 포커스를 가졌고 팝업이 열려 있다, When 누름 없이 x 를 치면, Then x 는 창
+/// Given 창 위젯 w 가 egui 포커스를 가졌고 팝업이 열려 있다, When 누름 없이 x 를 치면, Then x 는 창
 /// 위젯에 들어가고 팝업은 그 키를 보지 않는다.
 #[test]
 fn a_key_without_a_press_stays_with_the_separate_window_widget() {
@@ -394,7 +394,7 @@ fn a_key_without_a_press_stays_with_the_separate_window_widget() {
     );
 }
 
-/// M-W2a-2 F: Given 팝업 A 의 a1 이 egui 포커스를 가진 키 주인, When 한 입력 묶음에 팝업 B 의 b 를 누르고 x 를 치면,
+/// Given 팝업 A 의 a1 이 egui 포커스를 가진 키 주인, When 한 입력 묶음에 팝업 B 의 b 를 누르고 x 를 치면,
 /// Then 그 누름이 노드를 B 로 옮겨 x 는 b 에 들어가고 A 는 x 를 보지 않는다.
 #[test]
 fn a_press_on_another_popup_moves_the_key_owner_in_that_pass() {
@@ -415,7 +415,7 @@ fn a_press_on_another_popup_moves_the_key_owner_in_that_pass() {
     );
 }
 
-/// M-W2a-2 P: Given 팝업 A 의 a1 이 egui 포커스를 가진 키 주인, When 한 입력 묶음에 창 위젯 w 를 누르고 x 를 치면, Then
+/// Given 팝업 A 의 a1 이 egui 포커스를 가진 키 주인, When 한 입력 묶음에 창 위젯 w 를 누르고 x 를 치면, Then
 /// 노드는 창 위젯이고 x 는 w 에 들어간다.
 #[test]
 fn a_press_outside_any_popup_leaves_the_window_widget_as_the_node() {
@@ -432,7 +432,7 @@ fn a_press_outside_any_popup_leaves_the_window_widget_as_the_node() {
     );
 }
 
-/// M-W2a-3 F: Given 팝업 B 가 키 주인, When 한 입력 묶음에 B 를 누르고 떼고 수식키 없는 Esc 를 치면, Then 누름 몫과 Esc
+/// Given 팝업 B 가 키 주인, When 한 입력 묶음에 B 를 누르고 떼고 수식키 없는 Esc 를 치면, Then 누름 몫과 Esc
 /// 몫이 나뉘고 Esc 표지는 Esc 몫에 가서 B 가 선언대로 닫힌다.
 #[test]
 fn an_escape_after_a_click_segment_in_a_separate_window_still_reaches_its_owner() {
@@ -446,7 +446,7 @@ fn an_escape_after_a_click_segment_in_a_separate_window_still_reaches_its_owner(
     assert!(w.popups.is_open(A));
 }
 
-/// M-W2a-3 P: Given 팝업 B 가 키 주인, When 수식키 없는 Esc 만 치면, Then B 가 닫힌다.
+/// Given 팝업 B 가 키 주인, When 수식키 없는 Esc 만 치면, Then B 가 닫힌다.
 #[test]
 fn an_escape_alone_in_a_separate_window_reaches_its_owner() {
     let (mut h, mut w) = two_popups();
@@ -456,7 +456,7 @@ fn an_escape_alone_in_a_separate_window_reaches_its_owner() {
     assert!(w.popups.is_open(A));
 }
 
-/// M-W2a-4 F: Given egui 포커스가 없는 창, When 그리기 중에 포커스를 주며 팝업 A 를 열고(설정 충돌 질문) 다음 묶음에 x 를
+/// Given egui 포커스가 없는 창, When 그리기 중에 포커스를 주며 팝업 A 를 열고(설정 충돌 질문) 다음 묶음에 x 를
 /// 치면, Then 포커스 기록이 없으므로 노드는 막 연 A 이고 A 가 x 를 본다.
 #[test]
 fn a_focused_popup_opened_while_drawing_takes_the_next_key() {
@@ -476,7 +476,7 @@ fn a_focused_popup_opened_while_drawing_takes_the_next_key() {
     );
 }
 
-/// M-W2a-4 P: Given 팝업 A 의 a1 에 포커스가 있었고 그 뒤 창 위젯 w 를 눌러 포커스가 팝업을 떠났다, When 다음 묶음에 x 를
+/// Given 팝업 A 의 a1 에 포커스가 있었고 그 뒤 창 위젯 w 를 눌러 포커스가 팝업을 떠났다, When 다음 묶음에 x 를
 /// 치면, Then 노드는 창 위젯이고 x 는 w 에 들어간다.
 #[test]
 fn a_key_after_focus_left_the_popup_stays_with_the_window_widget() {
@@ -492,7 +492,7 @@ fn a_key_after_focus_left_the_popup_stays_with_the_window_widget() {
     );
 }
 
-/// M-W2a-5 F: Given 팝업 A 의 a1 이 egui 포커스를 가진 키 주인, When 한 입력 묶음에 x, 창 위젯 w 누름, y 가 오면, Then
+/// Given 팝업 A 의 a1 이 egui 포커스를 가진 키 주인, When 한 입력 묶음에 x, 창 위젯 w 누름, y 가 오면, Then
 /// x 는 적재 때 A 에 묶인 몫이라 그 몫을 그리는 패스의 키 주인이 A 이고 a1 에 들어간다. y 는 w 에 들어간다. 그 패스 시작의
 /// 노드(누름이 정한 창 위젯)로 덮지 않는다.
 #[test]

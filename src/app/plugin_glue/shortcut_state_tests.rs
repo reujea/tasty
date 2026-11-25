@@ -369,7 +369,7 @@ fn a_key_after_a_bare_escape_on_the_search_bar_runs_its_plugin_global_command() 
     assert_eq!(names(&mut state), ["letter"]);
 }
 
-/// M-E30-1 F: Given 검색 띠 포커스(그 입력칸이 글자 `a` 를 쓴다), When 그 키가 보류됐다가 검색 띠가 닫혀 포커스가
+/// Given 검색 띠 포커스(그 입력칸이 글자 `a` 를 쓴다), When 그 키가 보류됐다가 검색 띠가 닫혀 포커스가
 /// 터미널로 옮긴 뒤 재생되면, Then 재생은 그 입구 처음부터 지나 재생 시점에 다시 정한 값으로 새 노드의 plugin Global
 /// 명령이 돈다. 보류 때 정한 값은 게이트가 닫혀 있어 그 값을 다시 쓰면 명령이 돌지 않는다(대조).
 #[test]
@@ -434,7 +434,7 @@ fn a_stage_keeps_its_exit_key_from_a_plugin_global_command() {
     assert_eq!(names(&mut state), ["glob"], "무대가 쓰지 않는 키");
 }
 
-/// T-Esc-1, M-E0b-7 F: Esc 를 `Ignore`로 선언한 팝업이 포커스면 그 팝업은 Esc 를 받지 않고(J-D (b)), bare Esc 는
+/// T-Esc-1: Esc 를 `Ignore`로 선언한 팝업이 포커스면 그 팝업은 Esc 를 받지 않고, bare Esc 는
 /// `route_escape` 의 부모 경로(창 범위 단축키)로 올라가 plugin 의 Esc 명령이 돈다.
 #[test]
 fn an_ignoring_popup_lets_a_bare_escape_reach_the_plugin_command() {
@@ -460,7 +460,7 @@ fn an_ignoring_popup_lets_a_bare_escape_reach_the_plugin_command() {
 
 /// T-Esc-1: 튜토리얼 말풍선이 키보드를 가지면 bare Esc 는 지금 게이트가 닫아 plugin 의 Esc 명령이 돌지 않는다.
 /// bare Esc 의 게이트는 `route_escape` 결과다. 말풍선 노드는 Esc 수신자(`KeyReceiver::Tutorial`)라 닫힌다. 말풍선
-/// 노드가 Esc 를 끝내지 않는 `key_route::start_node_ends_key` 로 판정하면 열려 갈리는 장면이다(M-E0b-2).
+/// 노드가 Esc 를 끝내지 않는 `key_route::start_node_ends_key` 로 판정하면 열려 갈리는 장면이다.
 #[test]
 fn a_tutorial_keeps_a_bare_escape_from_a_plugin_command() {
     let (mut state, mut session) = scene(B);
@@ -515,7 +515,7 @@ fn a_forwarded_surface_command_runs_on_the_receiving_surface() {
     assert_eq!(ran(&mut state), [("surf_only".to_string(), Some(A))]);
 }
 
-/// T-12b-18 대조(M-12b-19 P): 모델 포커스도 A 면 같은 명령이 A 에서 돈다.
+/// T-12b-18 대조: 모델 포커스도 A 면 같은 명령이 A 에서 돈다.
 #[test]
 fn a_forwarded_surface_command_runs_when_the_focus_is_the_receiving_surface() {
     let (mut state, mut session) = scene(A);

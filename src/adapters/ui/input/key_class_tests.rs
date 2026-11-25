@@ -199,8 +199,8 @@ fn command_c_x_v_are_path_keys() {
     ));
 }
 
-/// M-E0b-9 F: 수식키 없는 Esc 가 사용자 편집 바인딩과 겹쳐도 편집 바인딩 판정보다 앞에서 Esc 경로 키다. 물리 키로만
-/// Escape 인 누름(논리 키를 모르는 배열)도 같은 판정이다(M-E0b-8 의 분류).
+/// 수식키 없는 Esc 가 사용자 편집 바인딩과 겹쳐도 편집 바인딩 판정보다 앞에서 Esc 경로 키다. 물리 키로만
+/// Escape 인 누름(논리 키를 모르는 배열)도 같은 판정이다.
 #[test]
 fn a_bare_escape_bound_as_an_edit_key_takes_the_escape_route() {
     let bare = KeyClass::Path(RouteKey {

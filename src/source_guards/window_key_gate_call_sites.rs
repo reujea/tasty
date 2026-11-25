@@ -122,7 +122,7 @@ fn the_terminal_goes_through_the_window_hold_gate() {
     assert!(mark < note, "뒤 경계 → 적재 결과 순서가 아니다");
 }
 
-/// M-N1-1 F: 설정 열기 요청 래치 노드가 받은 누름은 단계 11 맨 앞(`end_key_at_settings_latch`)에서 끝나 무대·더블탭·
+/// 설정 열기 요청 래치 노드가 받은 누름은 단계 11 맨 앞(`end_key_at_settings_latch`)에서 끝나 무대·더블탭·
 /// Esc·단축키·끝 목적지 단계보다 앞이다. 단계 11 은 GPU 가 있는 `MainView` 라 시험 대역이 없어 부르는 순서를 본다.
 /// 래치 끝 판정 자체(Esc 는 취소, 다른 키는 끝남)는 `key_nodes_tests` 의 상태 시험이 본다.
 #[test]

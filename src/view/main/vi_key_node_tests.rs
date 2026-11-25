@@ -6,7 +6,7 @@ use crate::adapters::ui::popup::PopupInstanceId;
 const VI: u32 = 7;
 const OTHER: u32 = 8;
 
-/// M-N3-1 P. Given vi 복사 모드인 터미널, When 키가 그 터미널에서 끝나면(경로 키의 수신자가 그 surface 이거나 단축키
+/// Given vi 복사 모드인 터미널, When 키가 그 터미널에서 끝나면(경로 키의 수신자가 그 surface 이거나 단축키
 /// 단계의 끝이 그 surface, 지금 경로 키는 오버레이 없이 그 터미널이 포커스), Then vi 복사 모드가 처리한다.
 #[test]
 fn vi_copy_mode_takes_keys_on_its_terminal() {
@@ -28,7 +28,7 @@ fn vi_copy_mode_takes_keys_on_its_terminal() {
     );
 }
 
-/// M-N3-1 F. Given vi 복사 모드인 터미널, When 다른 노드(팝업, 다른 surface, 오버레이가 열린 지금 경로)가 키를 받으면,
+/// Given vi 복사 모드인 터미널, When 다른 노드(팝업, 다른 surface, 오버레이가 열린 지금 경로)가 키를 받으면,
 /// Then vi 복사 모드는 그 키를 받지 않는다.
 #[test]
 fn vi_copy_mode_takes_no_key_while_another_node_has_focus() {
@@ -56,7 +56,7 @@ fn vi_copy_mode_takes_no_key_while_another_node_has_focus() {
     );
 }
 
-/// M-N3-2 F. Given vi 복사 모드의 대상 터미널이 보이지 않게 됐을 때, When 다른 노드가 받는 키가 오더라도, Then 그 키에서
+/// Given vi 복사 모드의 대상 터미널이 보이지 않게 됐을 때, When 다른 노드가 받는 키가 오더라도, Then 그 키에서
 /// vi 복사 모드를 끝낸다(지금 그대로 그 키는 소비한다).
 #[test]
 fn vi_copy_mode_ends_on_the_next_key_once_its_terminal_is_hidden() {

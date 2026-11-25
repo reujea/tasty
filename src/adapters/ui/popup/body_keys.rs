@@ -459,14 +459,14 @@ mod tests {
         lists
     }
 
-    /// M-E0b-5 F: Given 넘긴 bare Esc 와 그 뒤의 넘기지 않은 Esc 누름, When 키 주인 본문이 넘긴 Esc 를 소비한 뒤 거두면,
+    /// Given 넘긴 bare Esc 와 그 뒤의 넘기지 않은 Esc 누름, When 키 주인 본문이 넘긴 Esc 를 소비한 뒤 거두면,
     /// Then 처리된 목록에서는 소비한 누름을 다시 빼지 않아 다른 Esc 가 남고, 원시 목록에서는 넣은 누름만 빠진다.
     #[test]
     fn an_escape_the_body_used_is_not_withdrawn_and_another_escape_stays() {
         withdraw_after(true);
     }
 
-    /// M-E0b-5 P: Given 같은 패스, When 키 주인 본문이 넘긴 Esc 를 쓰지 않고 그린 뒤 거두면, Then 두 목록 모두 넣은
+    /// Given 같은 패스, When 키 주인 본문이 넘긴 Esc 를 쓰지 않고 그린 뒤 거두면, Then 두 목록 모두 넣은
     /// 누름만 빠지고 다른 Esc 는 남는다.
     #[test]
     fn an_unused_escape_is_withdrawn_after_drawing() {

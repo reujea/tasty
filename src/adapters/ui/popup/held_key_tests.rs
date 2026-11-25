@@ -47,7 +47,7 @@ fn close_search_by_shortcut(s: &mut Scene) {
     ));
 }
 
-/// M-N2-1 F: 검색창에서 누른 키의 뗌은 단축키가 포커스를 터미널로 옮긴 뒤에도 egui 로 가 눌림을 푼다.
+/// 검색창에서 누른 키의 뗌은 단축키가 포커스를 터미널로 옮긴 뒤에도 egui 로 가 눌림을 푼다.
 #[test]
 fn a_release_after_a_focus_moving_shortcut_reaches_the_press_receiver() {
     let mut s = open_scene(|_| {});
@@ -62,7 +62,7 @@ fn a_release_after_a_focus_moving_shortcut_reaches_the_press_receiver() {
     assert!(!a_held(&s));
 }
 
-/// M-N2-1 P: 같은 수신자의 뗌은 지금처럼 egui 로 간다.
+/// 같은 수신자의 뗌은 지금처럼 egui 로 간다.
 #[test]
 fn a_release_on_the_same_receiver_is_unchanged() {
     let mut s = open_scene(|_| {});
@@ -105,7 +105,7 @@ fn window_focus(s: &mut Scene, input: &mut WindowInput, focused: bool) {
     drain(s, input);
 }
 
-/// M-N2-2 F: OS 포커스 상실은 합성 짝뗌을 기다리지 않고 egui 의 눌림을 푼다.
+/// OS 포커스 상실은 합성 짝뗌을 기다리지 않고 egui 의 눌림을 푼다.
 #[test]
 fn a_window_focus_loss_leaves_no_held_key_in_the_receiver() {
     let mut s = open_scene(|_| {});
@@ -115,7 +115,7 @@ fn a_window_focus_loss_leaves_no_held_key_in_the_receiver() {
     assert!(!a_held(&s));
 }
 
-/// M-N2-2 P: 포커스를 되찾은 뒤 첫 누름은 검색창이 받고 그 뗌도 짝을 찾는다.
+/// 포커스를 되찾은 뒤 첫 누름은 검색창이 받고 그 뗌도 짝을 찾는다.
 #[test]
 fn the_first_press_after_focus_returns_is_handled() {
     let mut s = open_scene(|_| {});
@@ -138,7 +138,7 @@ fn modal_entry(s: &mut Scene, input: &mut WindowInput) {
     drain(s, input);
 }
 
-/// M-N2-3 F: 모달이 열리기 전에 누른 키는 모달 진입 때 풀린다(모달 중 뗌은 막힌다).
+/// 모달이 열리기 전에 누른 키는 모달 진입 때 풀린다(모달 중 뗌은 막힌다).
 #[test]
 fn a_key_held_before_a_modal_opens_is_released_on_entry() {
     let mut s = open_scene(|_| {});
@@ -148,7 +148,7 @@ fn a_key_held_before_a_modal_opens_is_released_on_entry() {
     assert!(!a_held(&s));
 }
 
-/// M-N2-3 P: 모달이 닫힌 뒤 첫 누름은 검색창이 받고 그 뗌도 짝을 찾는다.
+/// 모달이 닫힌 뒤 첫 누름은 검색창이 받고 그 뗌도 짝을 찾는다.
 #[test]
 fn the_first_press_after_the_modal_closes_is_handled() {
     let mut s = open_scene(|_| {});

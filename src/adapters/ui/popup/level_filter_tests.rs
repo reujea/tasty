@@ -80,7 +80,7 @@ fn an_uncovering_popup_keeps_a_window_double_tap() {
     );
 }
 
-/// [덮지 않는 팝업 포커스 + Window 동작 → 돎] 대조(M-12a-2 P): 경로 밖 level 의 후보가 없는 설정이라 거르기와 무관하게
+/// [덮지 않는 팝업 포커스 + Window 동작 → 돎] 대조: 경로 밖 level 의 후보가 없는 설정이라 거르기와 무관하게
 /// 같은 목록이다.
 #[test]
 fn an_uncovering_popup_keeps_a_window_double_tap_without_an_off_path_candidate() {

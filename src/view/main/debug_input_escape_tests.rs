@@ -114,7 +114,7 @@ fn an_injected_escape_with_the_real_super_held_is_not_a_bare_escape() {
     );
 }
 
-/// M-E0b-6 F: Given 팝업이 없는 터미널 포커스와 수식키 없는 Esc 에 묶은 host 단축키(`toggle_sidebar`), When debug
+/// Given 팝업이 없는 터미널 포커스와 수식키 없는 Esc 에 묶은 host 단축키(`toggle_sidebar`), When debug
 /// 주입으로 수식키 없는 Esc 를 넣으면, Then 그 Esc 의 수신자는 경로의 단축키 단계지만 debug 입구는 egui 전용이라 단계
 /// 11 적용만 거치고 단축키·끝 목적지 단계는 돌지 않는다. 대기 요청이 없고 그 누름은 egui 입력에 남는다.
 #[test]

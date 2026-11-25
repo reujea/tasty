@@ -708,7 +708,7 @@ fn find_before_the_field_has_focus_is_not_taken() {
     assert!(state.popups.is_open(SEARCH_BAR_POPUP_ID));
 }
 
-/// M-12b-23o·23n F. Given 막 연 검색창(입력칸이 아직 egui 포커스를 얻기 전)이고 창이 이번 몫을 검색창에 묶었을
+/// Given 막 연 검색창(입력칸이 아직 egui 포커스를 얻기 전)이고 창이 이번 몫을 검색창에 묶었을
 /// 때(팔레트로 연 뒤 첫 띠 패스), When find(Ctrl+F)를 누르면, Then 결속된 몫의 find 라 검색창이 읽어 쓰고 포커스를
 /// 터미널로 돌린다. 결속되지 않은 첫 몫의 find 는 넘긴다(T-9b-7).
 #[test]

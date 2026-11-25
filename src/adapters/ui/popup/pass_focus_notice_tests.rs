@@ -315,7 +315,7 @@ fn notice_escape(s: &mut Scene, input: &mut WindowInput) {
     );
 }
 
-/// M-E0b-4 F: Given 안내 A·B 가 떠 있고 B 안쪽이 포커스일 때, When bare Esc 가 온 뒤 그리기 전에 안쪽 포커스가 A 로
+/// Given 안내 A·B 가 떠 있고 B 안쪽이 포커스일 때, When bare Esc 가 온 뒤 그리기 전에 안쪽 포커스가 A 로
 /// 옮겨지면, Then 그 Esc 는 사건 시점 출발점 B 의 것이라 B 가 닫히고 A 는 열린 채다(그리기 때 포커스로 다시 고르지
 /// 않는다).
 #[test]
@@ -353,7 +353,7 @@ fn escape_on_notice_b_reaches_b_after_focus_moves_to_a_before_drawing() {
     assert!(notice_of(&s, 1).is_some(), "A 는 열린 채다");
 }
 
-/// M-E0b-4 P: Given 안내 하나의 안쪽이 포커스일 때, When bare Esc 가 오면, Then 그 안내가 닫힌다.
+/// Given 안내 하나의 안쪽이 포커스일 때, When bare Esc 가 오면, Then 그 안내가 닫힌다.
 #[test]
 fn escape_on_a_single_notice_reaches_it() {
     let (mut s, mut l, mut r, mut input) = notice_focused_scene();

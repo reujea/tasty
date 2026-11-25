@@ -31,7 +31,7 @@ fn window_escape(s: &mut super::press_cut::Scene, input: &mut WindowInput) -> bo
     input.escape(&s.ctx, &mut s.state, &engine.read(), true)
 }
 
-/// M-E1-1 F: Given R 검색창이 키 주인일 때, When 한 묶음에 [글자 x, bare Esc]가 오면, Then 노드도 누름도 바뀌지 않았지만
+/// Given R 검색창이 키 주인일 때, When 한 묶음에 [글자 x, bare Esc]가 오면, Then 노드도 누름도 바뀌지 않았지만
 /// Esc 앞에서 끊어 x 몫이 먼저 그려지고 x 는 검색어에 들어간다. Esc 몫이 검색창을 닫는다.
 #[test]
 fn a_letter_then_escape_on_one_popup_cut_before_the_escape() {
@@ -51,7 +51,7 @@ fn a_letter_then_escape_on_one_popup_cut_before_the_escape() {
     );
 }
 
-/// M-E1-1 P: Given R 검색창이 키 주인일 때, When bare Esc 만 오면, Then 끊지 않고 그 Esc 가 검색창을 닫는다.
+/// Given R 검색창이 키 주인일 때, When bare Esc 만 오면, Then 끊지 않고 그 Esc 가 검색창을 닫는다.
 #[test]
 fn an_escape_alone_on_a_popup_closes_it() {
     let mut s = open_scene(|_| {});
@@ -67,7 +67,7 @@ fn an_escape_alone_on_a_popup_closes_it() {
     );
 }
 
-/// M-E1-2 F, M-E1-3 P: Given R 검색창이 키 주인일 때, When 한 묶음에 [bare Esc, 글자 x]가 오고 Esc 가 노드를 옮기지 않으면,
+/// Given R 검색창이 키 주인일 때, When 한 묶음에 [bare Esc, 글자 x]가 오고 Esc 가 노드를 옮기지 않으면,
 /// Then egui 에 실은 Esc 가 그 몫을 끝내 x 앞에서 끊는다.
 #[test]
 fn a_key_after_an_escape_on_the_same_popup_starts_a_new_segment() {
@@ -82,7 +82,7 @@ fn a_key_after_an_escape_on_the_same_popup_starts_a_new_segment() {
     assert_eq!(input.cut_count(), 1, "Esc 뒤 글자는 새 몫이다");
 }
 
-/// M-E1-2 P: Given R 검색창이 키 주인이고 지금 몫이 비었을 때, When bare Esc 가 오면, Then 끊지 않는다.
+/// Given R 검색창이 키 주인이고 지금 몫이 비었을 때, When bare Esc 가 오면, Then 끊지 않는다.
 #[test]
 fn an_escape_into_an_empty_segment_does_not_cut() {
     let mut s = open_scene(|_| {});
@@ -94,7 +94,7 @@ fn an_escape_into_an_empty_segment_does_not_cut() {
     assert_eq!(input.cut_count(), 0, "빈 몫의 Esc 는 끊지 않는다");
 }
 
-/// M-E1-3 F: Given R 터미널이 포커스 노드일 때, When 한 묶음에 [bare Esc, 글자 x]가 오면, Then 둘 다 터미널로 가고
+/// Given R 터미널이 포커스 노드일 때, When 한 묶음에 [bare Esc, 글자 x]가 오면, Then 둘 다 터미널로 가고
 /// egui 큐·결속을 남기지 않으므로 Esc 뒤에서 끊지 않는다.
 #[test]
 fn a_key_after_an_escape_to_the_terminal_shares_its_segment() {
@@ -125,7 +125,7 @@ fn a_key_after_an_escape_to_the_terminal_shares_its_segment() {
     assert_eq!(input.cut_count(), 0, "터미널로 간 Esc 뒤에서 끊지 않는다");
 }
 
-/// M-E0b-7 P: Given 선언 `Close` 인 R 검색창이 포커스 노드일 때, When bare Esc 가 오면, Then 사건 시점 수신자가 그
+/// Given 선언 `Close` 인 R 검색창이 포커스 노드일 때, When bare Esc 가 오면, Then 사건 시점 수신자가 그
 /// 검색창이고(Ignore 가 아니라 건너뛰지 않는다) 창의 Esc 적용이 처리해 그 Esc 가 검색창을 닫는다.
 #[test]
 fn escape_on_a_close_popup_closes_it() {
@@ -169,7 +169,7 @@ fn winit_escape(
     input.winit_escape(&s.ctx, &mut s.state, &engine.read(), logical)
 }
 
-/// M-E0b-8 F: Given R 검색창이 포커스 노드일 때, When 논리 키를 모르는 배열에서 물리 Escape 자리를 수식키 없이 누르면,
+/// Given R 검색창이 포커스 노드일 때, When 논리 키를 모르는 배열에서 물리 Escape 자리를 수식키 없이 누르면,
 /// Then 단계 11 입구도 단계 4 와 같은 판정(논리 키가 없으면 물리 키)으로 그 누름을 bare Esc 로 보아 창이 처리하고 그
 /// Esc 가 검색창을 닫는다.
 #[test]
@@ -191,7 +191,7 @@ fn a_physical_only_escape_closes_the_focused_popup() {
     );
 }
 
-/// M-E0b-8 P: Given R 검색창이 포커스 노드일 때, When 논리 키 Escape 를 수식키 없이 누르면, Then 창이 처리하고 그 Esc 가
+/// Given R 검색창이 포커스 노드일 때, When 논리 키 Escape 를 수식키 없이 누르면, Then 창이 처리하고 그 Esc 가
 /// 검색창을 닫는다.
 #[test]
 fn a_logical_escape_closes_the_focused_popup() {

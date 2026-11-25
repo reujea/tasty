@@ -275,8 +275,8 @@ mod tests {
         assert!(right.pending_ask().is_some());
     }
 
-    /// T-6b-1, M-E0b-7: Given 포커스를 받은 충돌 질문(제품 정의, 선언 Ignore), When 수식키 없는 Esc 가 오면, Then 질문은
-    /// Esc 수신자가 아니고(J-D (b)) 그 Esc 는 부모 경로로 가 egui 에 실리지 않는다. 사건 시점에 포커스가 그대로이고, 그린
+    /// T-6b-1: Given 포커스를 받은 충돌 질문(제품 정의, 선언 Ignore), When 수식키 없는 Esc 가 오면, Then 질문은
+    /// Esc 수신자가 아니고 그 Esc 는 부모 경로로 가 egui 에 실리지 않는다. 사건 시점에 포커스가 그대로이고, 그린
     /// 뒤에도 남은 작업을 취소하지 않고 질문이 열린 채다.
     #[test]
     fn escape_does_nothing_on_the_conflict_question() {
