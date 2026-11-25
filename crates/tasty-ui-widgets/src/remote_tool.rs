@@ -792,38 +792,5 @@ fn filter_link(ui: &mut egui::Ui, th: &Theme, label: &str) -> egui::Response {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn latte() -> Theme {
-        let file = tasty_themes::ThemeFile::parse(tasty_themes::LATTE_TOML_TEXT).expect("latte");
-        let (partial, is_light) = file.to_partial();
-        let mut colors = tasty_themes::mocha_fallback_colors();
-        colors.apply_partial(&partial);
-        Theme::with_colors(colors, is_light.unwrap_or(true))
-    }
-
-    /// 경고 배지 글리프는 base 행에서 accent-warning-glyph, raised 필터 메뉴에서 accent-warning-raised다.
-    /// Mocha는 두 값이 같아 Latte에서 갈리는지 먼저 본다.
-    #[test]
-    fn warn_badge_glyph_ink_follows_its_host() {
-        let latte = latte();
-        assert_ne!(
-            latte.accent_warning_glyph(),
-            latte.accent_warning_raised(),
-            "Latte must separate the two glyph inks"
-        );
-        for th in [tasty_themes::mocha_fallback(), latte] {
-            assert_eq!(
-                warn_badge_glyph_ink(&th, false),
-                th.accent_warning_glyph(),
-                "base row glyph"
-            );
-            assert_eq!(
-                warn_badge_glyph_ink(&th, true),
-                th.accent_warning_raised(),
-                "raised menu glyph"
-            );
-        }
-    }
-}
+#[path = "remote_tool_tests.rs"]
+mod tests;
