@@ -1412,6 +1412,8 @@ impl PopupManager {
     }
 
     /// 열린 팝업의 순번과 화면 영역. 없거나 닫혔으면 None이다. 인스턴스가 여럿이면 맨 위 것이다.
+    // 호출처가 Linux IME 입력 소유, debug IPC, 시험뿐이라 그 밖의 release 빌드에서는 dead code다.
+    #[cfg(any(target_os = "linux", debug_assertions, test))]
     pub fn open_geometry(&self, id: PopupId) -> Option<(u64, egui::Rect)> {
         self.topmost_of(id).map(|p| (p.z_seq, p.popup_rect()))
     }
