@@ -584,6 +584,25 @@ fn covered_widget() -> (Harness, TestWindow) {
     (h, w)
 }
 
+/// Given 창 위젯 w 에 egui 포커스가 남은 채 창을 덮는 팝업 C 가 포커스를 가지고 열렸다, When 누름 없이 x 를 치면,
+/// Then 포커스 기록이 덮인 w 여도 덮인 노드는 노드가 될 수 없으므로 C 가 받고 w 는 그 키를 보지 않는다.
+#[test]
+fn a_key_over_a_covering_popup_does_not_reach_the_widget_holding_the_old_focus() {
+    let (mut h, mut w) = covered_widget();
+    assert_eq!(
+        h.ctx.memory(|m| m.focused()),
+        Some(egui::Id::new("w")),
+        "w keeps the egui focus"
+    );
+    h.type_x(&mut w);
+    let seen = h.drain(&mut w);
+    assert_eq!(w.text("w"), "", "the covered widget gets no text");
+    assert!(
+        seen.iter().flatten().all(|n| *n == "C") && seen.iter().flatten().count() > 0,
+        "only the covering popup sees the key: {seen:?}"
+    );
+}
+
 /// Given 창 위젯 w 위를 덮는 팝업 C 가 포커스를 가지고 열려 있다, When 한 묶음에 덮인 w 자리를 누르고 x 를 치면, Then
 /// 그 누름은 C 의 덮음 막이를 누른 것이라 사건 시점 노드는 C 이고 w 는 그 키를 보지 않는다.
 #[test]

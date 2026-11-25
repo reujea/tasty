@@ -1,6 +1,7 @@
 //! 별도 창(설정·플러그인·프리셋)의 키 주인(W1). 키는 관리자 포커스 인스턴스가 받는다. 단, 직전 `run_egui`가 끝날 때의
 //! egui 포커스 위젯이 그 인스턴스 레이어(등록 자식 포함) 안이거나 포커스 기록이 없을 때만이다. 기록한 포커스가
-//! 인스턴스 밖이면 키 주인이 없고 창 위젯이 키를 받는다.
+//! 인스턴스 밖이면 키 주인이 없고 창 위젯이 키를 받는다. 창을 덮는 팝업이 그 값보다 위에 열려 있으면 기록과 관계없이
+//! 그 팝업이 키 주인이다.
 
 use super::{PopupInstanceId, PopupManager};
 
@@ -27,20 +28,23 @@ impl WindowFocusRecord {
 }
 
 impl PopupManager {
-    /// 이 별도 창 관리자의 키 주인(W1). `record`는 직전 `run_egui` 뒤의 포커스 기록이다.
+    /// 이 별도 창 관리자의 키 주인(W1). `record`는 직전 `run_egui` 뒤의 포커스 기록이다. 기록으로 정한 값보다 위에
+    /// 창을 덮는 팝업이 있으면 그 팝업이다(덮인 창 위젯은 키 주인이 될 수 없다, `window_cover_above`).
     pub(crate) fn window_key_owner(
         &self,
         ctx: &egui::Context,
         record: WindowFocusRecord,
     ) -> Option<PopupInstanceId> {
-        let owner = self.host_key_owner()?;
-        let Some(layer) = record.0 else {
-            return Some(owner.instance);
-        };
-        let inside = std::iter::once(super::draw::area_id_of(owner.id, owner.instance))
-            .chain(super::child_popup_ids::child_layer_ids(ctx, owner.instance))
-            .any(|id| egui::LayerId::new(egui::Order::Foreground, id) == layer);
-        inside.then_some(owner.instance)
+        let recorded = self.host_key_owner().and_then(|owner| {
+            let Some(layer) = record.0 else {
+                return Some(owner.instance);
+            };
+            let inside = std::iter::once(super::draw::area_id_of(owner.id, owner.instance))
+                .chain(super::child_popup_ids::child_layer_ids(ctx, owner.instance))
+                .any(|id| egui::LayerId::new(egui::Order::Foreground, id) == layer);
+            inside.then_some(owner.instance)
+        });
+        self.window_cover_above(recorded).or(recorded)
     }
 }
 

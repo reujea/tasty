@@ -268,9 +268,13 @@ fn keyed_run(
     ctx.run(raw, |ctx| draw(ctx, st))
 }
 
-/// 창 위젯(`outside`)을 그린 뒤 설정 창 관리자의 팝업을 그린다. 충돌 팝업 본문은 `inside`가 그린다. 이 패스에
+/// W1 장면의 팝업: 설정 창 관리자에 더한 덮지 않는 팝업. 덮는 팝업(충돌 질문)은 기록과 관계없이 키 주인이라
+/// (`window_cover_above`) 포커스 기록이 정하는 W1 은 덮지 않는 팝업에서만 갈린다.
+const W1_POPUP: PopupId = "settings_w1_plain";
+
+/// 창 위젯(`outside`)을 그린 뒤 설정 창 관리자의 팝업을 그린다. W1 팝업 본문은 `inside`가 그린다. 이 패스에
 /// 세 번째 인자(키 주인)가 참이었던 팝업 id를 돌려준다.
-fn conflict_pass(
+fn w1_pass(
     ctx: &egui::Context,
     st: &mut SettingsUiState,
     events: Vec<egui::Event>,
@@ -285,7 +289,7 @@ fn conflict_pass(
             if owns_keys {
                 owners.push(cx.id);
             }
-            if cx.id == KEYBINDING_CONFLICT_POPUP_ID {
+            if cx.id == W1_POPUP {
                 inside(ui);
             }
             false
@@ -294,21 +298,27 @@ fn conflict_pass(
     (owners, out)
 }
 
-fn conflict_open() -> SettingsUiState {
+/// 설정 창 관리자에 W1 팝업을 더해 포커스를 주며 연다.
+fn w1_open() -> SettingsUiState {
     let mut st = SettingsUiState::new();
+    st.popups
+        .register(crate::adapters::ui::popup::PopupState::new(
+            W1_POPUP,
+            "w1",
+            egui::vec2(340.0, 120.0),
+            crate::model::popup_kind::PopupScope::Window,
+        ));
     // intent-exempt: 설정 창 자체 관리자의 시험.
-    st.popups.open_centered_focused(
-        KEYBINDING_CONFLICT_POPUP_ID,
-        crate::model::popup_kind::PopupScope::Window,
-    );
+    st.popups
+        .open_centered_focused(W1_POPUP, crate::model::popup_kind::PopupScope::Window);
     st
 }
 
-fn conflict_instance(st: &SettingsUiState) -> PopupInstanceId {
+fn w1_instance(st: &SettingsUiState) -> PopupInstanceId {
     st.popups
         .focused_dismissal_target()
         .map(|(_, iid, _)| iid)
-        .expect("the conflict popup is focused")
+        .expect("the W1 popup is focused")
 }
 
 fn outside_edit(id: egui::Id) -> impl FnMut(&mut egui::Ui) {
@@ -322,10 +332,10 @@ fn focused(ctx: &egui::Context) -> Option<egui::Id> {
     ctx.memory(|m| m.focused())
 }
 
-/// Given 충돌 팝업 + 창 위젯에 포커스, When 같은 패스에 팝업 안을 누르면, Then 그 패스 키는 밖이고 다음 패스부터 팝업이다.
+/// Given W1 팝업 + 창 위젯에 포커스, When 같은 패스에 팝업 안을 누르면, Then 그 패스 키는 밖이고 다음 패스부터 팝업이다.
 #[test]
-fn a_click_into_the_conflict_takes_keys_from_the_next_pass() {
-    let mut st = conflict_open();
+fn a_click_into_the_popup_takes_keys_from_the_next_pass() {
+    let mut st = w1_open();
     let ctx = egui::Context::default();
     let outside_id = egui::Id::new("w1-outside");
     let mut outside = outside_edit(outside_id);
@@ -333,22 +343,10 @@ fn a_click_into_the_conflict_takes_keys_from_the_next_pass() {
         ui.label("inside label");
     };
     // 연 첫 패스는 본문을 칠하지 않는다. 다음 패스 출력에서 글자 자리를 찾는다.
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        vec![],
-        &mut outside,
-        &mut inside,
-    ));
-    let (_, out) = conflict_pass(&ctx, &mut st, vec![], &mut outside, &mut inside);
+    drop(w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside));
+    let (_, out) = w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside);
     ctx.memory_mut(|m| m.request_focus(outside_id));
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        vec![],
-        &mut outside,
-        &mut inside,
-    ));
+    drop(w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside));
     assert_eq!(next_owner(&ctx, &st), None, "the pass starts outside");
     let label = out
         .shapes
@@ -359,7 +357,7 @@ fn a_click_into_the_conflict_takes_keys_from_the_next_pass() {
             }
             _ => None,
         })
-        .expect("the conflict body is painted");
+        .expect("the popup body is painted");
     let click = vec![
         egui::Event::PointerMoved(label),
         egui::Event::PointerButton {
@@ -375,43 +373,31 @@ fn a_click_into_the_conflict_takes_keys_from_the_next_pass() {
             modifiers: egui::Modifiers::NONE,
         },
     ];
-    let (owners, _) = conflict_pass(&ctx, &mut st, click, &mut outside, &mut inside);
+    let (owners, _) = w1_pass(&ctx, &mut st, click, &mut outside, &mut inside);
     assert!(
         owners.is_empty(),
         "the click pass keeps the start owner: {owners:?}"
     );
-    let (owners, _) = conflict_pass(&ctx, &mut st, vec![], &mut outside, &mut inside);
-    assert_eq!(owners, [KEYBINDING_CONFLICT_POPUP_ID]);
+    let (owners, _) = w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside);
+    assert_eq!(owners, [W1_POPUP]);
 }
 
-/// Given 충돌 팝업 + 창 위젯에 포커스, When Tab으로 팝업 안에 들어가면, Then 그 패스 키는 밖이고 다음 패스부터 팝업이다.
+/// Given W1 팝업 + 창 위젯에 포커스, When Tab으로 팝업 안에 들어가면, Then 그 패스 키는 밖이고 다음 패스부터 팝업이다.
 #[test]
-fn tab_into_the_conflict_takes_keys_from_the_next_pass() {
-    let mut st = conflict_open();
+fn tab_into_the_popup_takes_keys_from_the_next_pass() {
+    let mut st = w1_open();
     let ctx = egui::Context::default();
     let outside_id = egui::Id::new("w1-outside");
     let mut outside = outside_edit(outside_id);
     let mut inside = |ui: &mut egui::Ui| {
         drop(ui.button("inside"));
     };
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        vec![],
-        &mut outside,
-        &mut inside,
-    ));
+    drop(w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside));
     ctx.memory_mut(|m| m.request_focus(outside_id));
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        vec![],
-        &mut outside,
-        &mut inside,
-    ));
+    drop(w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside));
     assert_eq!(next_owner(&ctx, &st), None, "the pass starts outside");
     let tab = vec![key_event(egui::Key::Tab, egui::Modifiers::NONE)];
-    let (owners, _) = conflict_pass(&ctx, &mut st, tab, &mut outside, &mut inside);
+    let (owners, _) = w1_pass(&ctx, &mut st, tab, &mut outside, &mut inside);
     assert!(
         owners.is_empty(),
         "the Tab pass keeps the start owner: {owners:?}"
@@ -422,14 +408,14 @@ fn tab_into_the_conflict_takes_keys_from_the_next_pass() {
         Some(egui::Order::Foreground),
         "Tab moved the focus into the popup"
     );
-    let (owners, _) = conflict_pass(&ctx, &mut st, vec![], &mut outside, &mut inside);
-    assert_eq!(owners, [KEYBINDING_CONFLICT_POPUP_ID]);
+    let (owners, _) = w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside);
+    assert_eq!(owners, [W1_POPUP]);
 }
 
-/// Given 키 주인인 충돌 팝업 안 버튼에 포커스, When Tab, Then 포커스가 다음 버튼으로 간다(패스 시작 raw 처리).
+/// Given 키 주인인 W1 팝업 안 버튼에 포커스, When Tab, Then 포커스가 다음 버튼으로 간다(패스 시작 raw 처리).
 #[test]
-fn tab_moves_between_conflict_buttons() {
-    let mut st = conflict_open();
+fn tab_moves_between_popup_buttons() {
+    let mut st = w1_open();
     let ctx = egui::Context::default();
     let mut outside = |_: &mut egui::Ui| {};
     let mut inside = |ui: &mut egui::Ui| {
@@ -437,31 +423,15 @@ fn tab_moves_between_conflict_buttons() {
         drop(ui.button("second"));
     };
     // 연 첫 패스는 본문을 칠하지 않는다. 다음 패스 출력에서 글자 자리를 찾는다.
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        vec![],
-        &mut outside,
-        &mut inside,
-    ));
-    let (_, out) = conflict_pass(&ctx, &mut st, vec![], &mut outside, &mut inside);
+    drop(w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside));
+    let (_, out) = w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside);
     let first = focusable_at_text(&ctx, &out, "first", egui::Order::Foreground);
     let second = focusable_at_text(&ctx, &out, "second", egui::Order::Foreground);
     ctx.memory_mut(|m| m.request_focus(first));
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        vec![],
-        &mut outside,
-        &mut inside,
-    ));
+    drop(w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside));
     let tab = vec![key_event(egui::Key::Tab, egui::Modifiers::NONE)];
-    let (owners, _) = conflict_pass(&ctx, &mut st, tab, &mut outside, &mut inside);
-    assert_eq!(
-        owners,
-        [KEYBINDING_CONFLICT_POPUP_ID],
-        "keys are the popup's"
-    );
+    let (owners, _) = w1_pass(&ctx, &mut st, tab, &mut outside, &mut inside);
+    assert_eq!(owners, [W1_POPUP], "keys are the popup's");
     assert_eq!(focused(&ctx), Some(second));
 }
 
@@ -469,52 +439,34 @@ fn tab_moves_between_conflict_buttons() {
 /// 풀어 기록이 없고 키 주인은 포커스 인스턴스다.
 #[test]
 fn a_vanished_focus_widget_counts_as_no_record() {
-    let mut st = conflict_open();
+    let mut st = w1_open();
     let ctx = egui::Context::default();
     let outside_id = egui::Id::new("w1-outside");
     let mut outside = outside_edit(outside_id);
     let mut none = |_: &mut egui::Ui| {};
     let mut inside = |_: &mut egui::Ui| {};
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        vec![],
-        &mut outside,
-        &mut inside,
-    ));
+    drop(w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside));
     ctx.memory_mut(|m| m.request_focus(outside_id));
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        vec![],
-        &mut outside,
-        &mut inside,
-    ));
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        vec![],
-        &mut outside,
-        &mut inside,
-    ));
+    drop(w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside));
+    drop(w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside));
     assert_eq!(
         next_owner(&ctx, &st),
         None,
         "the drawn widget holds the focus"
     );
-    drop(conflict_pass(&ctx, &mut st, vec![], &mut none, &mut inside));
+    drop(w1_pass(&ctx, &mut st, vec![], &mut none, &mut inside));
     assert_eq!(focused(&ctx), None);
     assert_eq!(WindowFocusRecord::read(&ctx).layer(), None);
-    assert_eq!(next_owner(&ctx, &st), Some(conflict_instance(&st)));
-    let (owners, _) = conflict_pass(&ctx, &mut st, vec![], &mut none, &mut inside);
-    assert_eq!(owners, [KEYBINDING_CONFLICT_POPUP_ID]);
+    assert_eq!(next_owner(&ctx, &st), Some(w1_instance(&st)));
+    let (owners, _) = w1_pass(&ctx, &mut st, vec![], &mut none, &mut inside);
+    assert_eq!(owners, [W1_POPUP]);
 }
 
-/// Given 충돌 팝업 버튼에 포커스, When 아래 방향키, Then `end_pass`가 팝업 밖 입력칸으로 옮긴 포커스를 기록이 읽어
+/// Given W1 팝업 버튼에 포커스, When 아래 방향키, Then `end_pass`가 팝업 밖 입력칸으로 옮긴 포커스를 기록이 읽어
 /// 다음 패스에는 키 주인이 없다.
 #[test]
 fn focus_moved_by_the_pass_end_is_read_next_pass() {
-    let mut st = conflict_open();
+    let mut st = w1_open();
     let ctx = egui::Context::default();
     let outside_id = egui::Id::new("w1-below");
     let mut inside = |ui: &mut egui::Ui| {
@@ -522,19 +474,10 @@ fn focus_moved_by_the_pass_end_is_read_next_pass() {
     };
     let mut nothing = |_: &mut egui::Ui| {};
     // 연 첫 패스는 본문을 칠하지 않는다. 다음 패스 출력에서 글자 자리를 찾는다.
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        vec![],
-        &mut nothing,
-        &mut inside,
-    ));
-    let (_, out) = conflict_pass(&ctx, &mut st, vec![], &mut nothing, &mut inside);
+    drop(w1_pass(&ctx, &mut st, vec![], &mut nothing, &mut inside));
+    let (_, out) = w1_pass(&ctx, &mut st, vec![], &mut nothing, &mut inside);
     let popup = {
-        let p = st
-            .popups
-            .get_mut(KEYBINDING_CONFLICT_POPUP_ID)
-            .expect("registered");
+        let p = st.popups.get_mut(W1_POPUP).expect("registered");
         egui::Rect::from_min_size(p.pos, p.size)
     };
     let button = focusable_at_text(&ctx, &out, "only", egui::Order::Foreground);
@@ -551,50 +494,32 @@ fn focus_moved_by_the_pass_end_is_read_next_pass() {
         ui.put(below, egui::TextEdit::singleline(&mut text).id(outside_id));
     };
     ctx.memory_mut(|m| m.request_focus(button));
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        vec![],
-        &mut outside,
-        &mut inside,
-    ));
-    assert_eq!(next_owner(&ctx, &st), Some(conflict_instance(&st)));
+    drop(w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside));
+    assert_eq!(next_owner(&ctx, &st), Some(w1_instance(&st)));
     let down = vec![key_event(egui::Key::ArrowDown, egui::Modifiers::NONE)];
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        down,
-        &mut outside,
-        &mut inside,
-    ));
+    drop(w1_pass(&ctx, &mut st, down, &mut outside, &mut inside));
     assert_eq!(
         focused(&ctx),
         Some(outside_id),
         "the pass end moved the focus"
     );
     assert!(ctx.viewport(|v| v.prev_pass.widgets.get(outside_id).is_some()));
-    let (owners, _) = conflict_pass(&ctx, &mut st, vec![], &mut outside, &mut inside);
+    let (owners, _) = w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside);
     assert!(owners.is_empty(), "{owners:?}");
 }
 
-/// Given 충돌 팝업 안 첫 위젯에 포커스, When Shift+Tab(안→밖), Then 그 패스 뒤 기록은 아직 안쪽이라 다음 패스는
+/// Given W1 팝업 안 첫 위젯에 포커스, When Shift+Tab(안→밖), Then 그 패스 뒤 기록은 아직 안쪽이라 다음 패스는
 /// 팝업 것이고 그다음 패스부터 밖이다.
 #[test]
-fn shift_tab_out_of_the_conflict_is_one_pass_late() {
-    let mut st = conflict_open();
+fn shift_tab_out_of_the_popup_is_one_pass_late() {
+    let mut st = w1_open();
     let ctx = egui::Context::default();
     let outside_id = egui::Id::new("w1-outside");
     let mut outside = outside_edit(outside_id);
     let mut inside = |ui: &mut egui::Ui| {
         drop(ui.button("first"));
     };
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        vec![],
-        &mut outside,
-        &mut inside,
-    ));
+    drop(w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside));
     let first_inside = ctx.viewport(|v| {
         let widgets = &v.prev_pass.widgets;
         widgets
@@ -606,39 +531,27 @@ fn shift_tab_out_of_the_conflict_is_one_pass_late() {
             .expect("the popup has a focusable widget")
     });
     ctx.memory_mut(|m| m.request_focus(first_inside));
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        vec![],
-        &mut outside,
-        &mut inside,
-    ));
-    assert_eq!(next_owner(&ctx, &st), Some(conflict_instance(&st)));
+    drop(w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside));
+    assert_eq!(next_owner(&ctx, &st), Some(w1_instance(&st)));
     let back = vec![key_event(egui::Key::Tab, egui::Modifiers::SHIFT)];
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        back,
-        &mut outside,
-        &mut inside,
-    ));
+    drop(w1_pass(&ctx, &mut st, back, &mut outside, &mut inside));
     assert_eq!(
         focused(&ctx),
         Some(first_inside),
         "Previous applies next pass"
     );
-    let (owners, _) = conflict_pass(&ctx, &mut st, vec![], &mut outside, &mut inside);
-    assert_eq!(owners, [KEYBINDING_CONFLICT_POPUP_ID]);
+    let (owners, _) = w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside);
+    assert_eq!(owners, [W1_POPUP]);
     assert_ne!(focused(&ctx), Some(first_inside));
-    let (owners, _) = conflict_pass(&ctx, &mut st, vec![], &mut outside, &mut inside);
+    let (owners, _) = w1_pass(&ctx, &mut st, vec![], &mut outside, &mut inside);
     assert!(owners.is_empty(), "{owners:?}");
 }
 
-/// Given 패스 N-1에 창 위젯 레이어에 그린 id, When 패스 N에 같은 id를 충돌 팝업 안에 그리고 포커스가 남으면,
+/// Given 패스 N-1에 창 위젯 레이어에 그린 id, When 패스 N에 같은 id를 W1 팝업 안에 그리고 포커스가 남으면,
 /// Then 기록은 패스 N 레이어(팝업)를 본다. `read_response`는 N-1 레이어를 먼저 돌려준다.
 #[test]
 fn the_record_reads_this_pass_layer_not_the_one_before() {
-    let mut st = conflict_open();
+    let mut st = w1_open();
     let ctx = egui::Context::default();
     let moving = egui::Id::new("w1-moving");
     let mut draw_here = |ui: &mut egui::Ui| {
@@ -646,27 +559,15 @@ fn the_record_reads_this_pass_layer_not_the_one_before() {
         drop(ui.interact(rect, moving, egui::Sense::click()));
     };
     let mut nothing = |_: &mut egui::Ui| {};
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        vec![],
-        &mut draw_here,
-        &mut nothing,
-    ));
+    drop(w1_pass(&ctx, &mut st, vec![], &mut draw_here, &mut nothing));
     ctx.memory_mut(|m| m.request_focus(moving));
-    drop(conflict_pass(
-        &ctx,
-        &mut st,
-        vec![],
-        &mut draw_here,
-        &mut nothing,
-    ));
+    drop(w1_pass(&ctx, &mut st, vec![], &mut draw_here, &mut nothing));
     assert_eq!(next_owner(&ctx, &st), None, "drawn in the window layer");
     let mut draw_inside = |ui: &mut egui::Ui| {
         let rect = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(40.0, 20.0));
         drop(ui.interact(rect, moving, egui::Sense::click()));
     };
-    drop(conflict_pass(
+    drop(w1_pass(
         &ctx,
         &mut st,
         vec![],
@@ -679,7 +580,7 @@ fn the_record_reads_this_pass_layer_not_the_one_before() {
         Some(egui::Order::Background),
         "read_response still answers the pass before"
     );
-    assert_eq!(next_owner(&ctx, &st), Some(conflict_instance(&st)));
+    assert_eq!(next_owner(&ctx, &st), Some(w1_instance(&st)));
 }
 
 // ── 설정 창 전체(`draw_settings_panel`)로 그리는 충돌 질문 장면 ──
@@ -752,7 +653,8 @@ fn panel_pass(
     })
 }
 
-/// 충돌 확인을 열고 L2 사이드바 필터 입력칸에 포커스를 준다. 그 뒤 패스 시작 키 주인은 없다.
+/// 충돌 확인을 열고 L2 사이드바 필터 입력칸에 egui 포커스를 준다. 충돌 질문은 창을 덮으므로 포커스 기록이 밖이어도
+/// 패스 시작 키 주인은 충돌 질문이다(`window_cover_above`).
 fn conflict_with_outside_focus(
     ctx: &egui::Context,
     p: &mut Panel,
@@ -781,57 +683,55 @@ fn conflict_with_outside_focus(
     );
     assert_eq!(
         next_owner(ctx, st),
-        None,
-        "the pass starts at the filter input"
+        Some(conflict_instance(st)),
+        "the covering conflict keeps the keys over the filter focus"
     );
 }
 
-/// Given 충돌 질문 + 패스 시작 포커스가 다른 입력칸, When Esc, Then 팝업은 열린 채이고 입력칸이 Esc를 받는다.
-#[test]
-fn escape_goes_to_the_input_that_holds_focus_over_a_conflict() {
-    let (mut p, mut st) = conflicting_panel();
-    let ctx = egui::Context::default();
-    conflict_with_outside_focus(&ctx, &mut p, &mut st, egui::vec2(2000.0, 1500.0));
-    let esc = keys_input(vec![key_event(egui::Key::Escape, egui::Modifiers::NONE)]);
-    drop(panel_pass(&ctx, &mut p, &mut st, esc));
-    assert_eq!(focused(&ctx), None, "the input took the Esc");
-    drop(panel_pass(&ctx, &mut p, &mut st, screen_input()));
-    assert!(st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID));
-    assert!(st.pending_binding.is_some());
+fn conflict_instance(st: &SettingsUiState) -> PopupInstanceId {
+    st.popups
+        .instances_of(KEYBINDING_CONFLICT_POPUP_ID)
+        .next()
+        .expect("the conflict is open")
+        .instance
 }
 
-/// Given 충돌 질문(`pending_binding` 있음) + 패스 시작 포커스가 밖 입력칸, When Enter 한 패스와 빈 패스, Then 팝업과
-/// 대기 단축키가 남고 draft 단축키는 그대로다.
+/// Given 창을 덮는 충돌 질문 + 직전 패스 egui 포커스가 밖 입력칸, When Esc, Then 덮인 입력칸은 Esc 를 받지 않고
+/// 충돌 질문이 받아 닫히며 대기 단축키는 적용하지 않고 지운다.
 #[test]
-fn conflict_body_gets_no_keys_when_focus_is_outside() {
+fn escape_over_an_outside_input_focus_closes_the_covering_conflict() {
     let (mut p, mut st) = conflicting_panel();
     let ctx = egui::Context::default();
     conflict_with_outside_focus(&ctx, &mut p, &mut st, egui::vec2(2000.0, 1500.0));
     let before = st.draft.as_ref().expect("draft").keybindings.clone();
-    let message = conflict_message_text(
-        st.pending_binding.as_ref().expect("pending"),
-        &p.settings.general,
-    );
-    let enter = keys_input(vec![key_event(egui::Key::Enter, egui::Modifiers::NONE)]);
-    let out = panel_pass(&ctx, &mut p, &mut st, enter);
-    assert_eq!(out.platform_output.num_completed_passes, 1);
-    assert!(
-        out.shapes.iter().any(|c| matches!(
-            &c.shape,
-            egui::epaint::Shape::Text(t) if t.galley.text() == message
-        )),
-        "the conflict body was drawn"
-    );
+    let esc = keys_input(vec![key_event(egui::Key::Escape, egui::Modifiers::NONE)]);
+    drop(panel_pass(&ctx, &mut p, &mut st, esc));
     drop(panel_pass(&ctx, &mut p, &mut st, screen_input()));
-    assert!(st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID));
-    assert!(st.pending_binding.is_some());
+    assert!(!st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID));
+    assert!(st.pending_binding.is_none());
     assert_eq!(st.draft.as_ref().expect("draft").keybindings, before);
 }
 
-/// Given 충돌 질문 + 밖 입력칸 포커스, When 단축키 행 줄 쌓기가 바뀌어 같은 입력으로 다시 그리는 패스, Then 반환 뒤
-/// 기록은 밖 입력칸이고 다음 패스 뒤 팝업과 대기 단축키가 남는다.
+/// Given 창을 덮는 충돌 질문(`pending_binding` 있음) + 직전 패스 egui 포커스가 밖 입력칸, When Enter, Then 충돌 질문이
+/// 그 키를 받아 대기 단축키를 적용하고 닫는다.
 #[test]
-fn a_discarded_pass_keeps_the_explicit_no_owner() {
+fn enter_over_an_outside_input_focus_answers_the_covering_conflict() {
+    let (mut p, mut st) = conflicting_panel();
+    let ctx = egui::Context::default();
+    conflict_with_outside_focus(&ctx, &mut p, &mut st, egui::vec2(2000.0, 1500.0));
+    let combo = st.pending_binding.as_ref().expect("pending").combo.clone();
+    let enter = keys_input(vec![key_event(egui::Key::Enter, egui::Modifiers::NONE)]);
+    drop(panel_pass(&ctx, &mut p, &mut st, enter));
+    drop(panel_pass(&ctx, &mut p, &mut st, screen_input()));
+    assert!(!st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID));
+    assert!(st.pending_binding.is_none());
+    assert!(applied(&st, &combo));
+}
+
+/// Given 충돌 질문 + 밖 입력칸 포커스, When 단축키 행 줄 쌓기가 바뀌어 같은 입력으로 다시 그리는 패스, Then 반환 뒤
+/// 기록은 밖 입력칸이어도 키 주인은 덮는 충돌 질문이고 다음 패스 뒤 팝업과 대기 단축키가 남는다.
+#[test]
+fn a_discarded_pass_keeps_the_covering_conflict_the_owner() {
     let (mut p, mut st) = conflicting_panel();
     let ctx = egui::Context::default();
     // 이 폭에서는 단축키 탭을 처음 그리는 패스에 행이 쌓기로 바뀐다(측정 560 → 2패스, 640 이상 → 1패스).
@@ -851,7 +751,7 @@ fn a_discarded_pass_keeps_the_explicit_no_owner() {
         Some(egui::Order::Background),
         "the record after the return is the outside input"
     );
-    assert_eq!(next_owner(&ctx, &st), None);
+    assert_eq!(next_owner(&ctx, &st), Some(conflict_instance(&st)));
     drop(panel_pass(&ctx, &mut p, &mut st, raw()));
     assert!(st.popups.is_open(KEYBINDING_CONFLICT_POPUP_ID));
     assert!(st.pending_binding.is_some());

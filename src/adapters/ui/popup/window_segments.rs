@@ -77,14 +77,30 @@ impl WindowSegments {
 
 impl PopupManager {
     /// 지금 사건 시점의 별도 창 노드. 아직 그리지 않은 누름이 있으면 그 누름이 정한 노드이고, 없으면 W1 키 주인
-    /// (`window_key_owner`)이다. W1 은 관리자 키 주인이 있고 포커스 기록이 없거나 기록 레이어가 그 인스턴스 안이면 그
-    /// 인스턴스다.
+    /// (`window_key_owner`)이다. 어느 쪽이든 덮인 노드는 노드가 될 수 없다(`window_cover_above`).
     pub(crate) fn window_key_node(&self, ctx: &egui::Context) -> WindowNode {
-        if let Some((node, _)) = self.window.press {
-            return node;
+        match self.window.press {
+            Some((node, _)) => self
+                .window_cover_above(node.popup())
+                .map_or(node, WindowNode::Popup),
+            None => self
+                .window_key_owner(ctx, self.window.record)
+                .map_or(WindowNode::Widget, WindowNode::Popup),
         }
-        self.window_key_owner(ctx, self.window.record)
-            .map_or(WindowNode::Widget, WindowNode::Popup)
+    }
+
+    /// 노드 `node`(None 이면 창 위젯)보다 위(z)에서 창을 덮는 보이는 팝업 가운데 맨 위. 별도 창의 팝업은 모두 Window
+    /// 범위라 덮는 팝업은 창 전체를 덮는다. 사건 시점 노드(`window_key_node`), W1(`window_key_owner`), 포커스 정규화
+    /// (`normalize_window_focus`)가 이 한 규칙을 읽는다.
+    pub(crate) fn window_cover_above(
+        &self,
+        node: Option<PopupInstanceId>,
+    ) -> Option<PopupInstanceId> {
+        let above = node.and_then(|iid| self.instance(iid)).map(|p| p.z_seq);
+        self.covering_nodes()
+            .filter(|(_, _, z)| above.is_none_or(|a| *z > a))
+            .max_by_key(|(_, _, z)| *z)
+            .map(|(iid, _, _)| iid)
     }
 
     /// 누름·키(`incoming`)가 egui 입력 큐 `events` 끝에 들어오기 전에 부른다. 사건 시점 노드가 지금 몫의 노드와
@@ -125,13 +141,8 @@ impl PopupManager {
     /// 위젯이어도) 그 가운데 맨 위가 포커스 위치다. 별도 창의 팝업은 모두 Window 범위다. 키·IME·누름의 끊기 앞과
     /// `run` 앞에 부른다.
     fn normalize_window_focus(&mut self) {
-        let above = self.host_key_owner().map(|p| p.z_seq);
-        let top = self
-            .covering_nodes()
-            .filter(|(_, _, z)| above.is_none_or(|a| *z > a))
-            .max_by_key(|(_, _, z)| *z)
-            .map(|(iid, _, _)| iid);
-        if let Some(iid) = top {
+        let focus = self.host_key_owner().map(|p| p.instance);
+        if let Some(iid) = self.window_cover_above(focus) {
             self.set_instance_focused(iid, true);
         }
     }
