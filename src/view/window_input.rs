@@ -102,6 +102,13 @@ pub(crate) fn incoming_of(
     }
 }
 
+/// 별도 창 사건이 단계 6 편집 판정을 받는지. 팝업 관리자를 가진 창(`routed`)의 수식키 없는 Esc 누름은 편집 바인딩과
+/// 겹쳐도 수신자의 Esc 처리로 간다(메인 창 `Routed::escape` 와 같다). 관리자가 없는 종료 확인 창은 Esc 도 편집 판정
+/// 보류(`EditKeyState::judge`)를 거친다.
+pub(crate) fn window_edit_target(incoming: Option<Incoming>, routed: bool) -> bool {
+    !(routed && incoming == Some(Incoming::Escape))
+}
+
 /// 별도 창 키 사건의 단계 4 입력 값. 경로 키는 메인 창과 같은 분류(`key_class::classify_key`)이고, `own` 은 창 자체
 /// 처리가 그 키를 바인딩으로 쓰는지다. 뗌·수식키 단독 누름·IME 는 지금 경로다. 키·IME 가 아니면 `None`.
 pub(crate) fn window_key_of(

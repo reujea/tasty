@@ -827,3 +827,24 @@ fn a_loaded_debug_escape_goes_to_its_own_node() {
         "the earlier Escape stays in the egui input"
     );
 }
+
+/// Given 팝업 관리자가 없는 종료 확인 창, When 수식키 없는 Esc 누름, Then 편집 판정을 받아 `EditKeyState::judge`
+/// 보류(누름이 먼저 처리되기를 기다림)를 거친다.
+#[test]
+fn a_bare_escape_in_the_unmanaged_quit_window_takes_the_edit_judgement() {
+    assert!(window_edit_target(Some(Incoming::Escape), false));
+}
+
+/// Given 팝업 관리자를 가진 창, When 수식키 없는 Esc 누름, Then 편집 판정을 건너 수신자의 Esc 처리로 간다.
+#[test]
+fn a_bare_escape_in_a_managed_window_skips_the_edit_judgement() {
+    assert!(!window_edit_target(Some(Incoming::Escape), true));
+}
+
+/// Given 팝업 관리자를 가진 창, When Esc 가 아닌 키·누름·기타 사건, Then 편집 판정을 받는다.
+#[test]
+fn a_non_escape_event_in_a_managed_window_takes_the_edit_judgement() {
+    for incoming in [Some(Incoming::Key), Some(Incoming::Press), None] {
+        assert!(window_edit_target(incoming, true));
+    }
+}
