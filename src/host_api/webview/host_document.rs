@@ -1,8 +1,9 @@
 //! host가 실은 HTML을 host 전용 주소로 응답하는 규칙. Windows `NavigateToString`이 상한(2MB)을 넘는
 //! 문서를 거절하면 같은 HTML을 이 주소로 한 번 다시 싣는다(docs/design/systems/webview.md
 //! "Windows 큰 HTML 본문 — host 전용 주소").
-//! 주소는 이름 해석이 되지 않는 예약 호스트를 쓰고, 그 호스트의 요청은 view의 리소스 처리기가 모두
-//! 로컬에서 끝낸다. 이 모듈은 OS와 무관한 판정과 본문 표만 갖는다.
+//! 주소는 이름 해석이 되지 않는 예약 호스트를 쓰고, 그 호스트의 요청은 view의 리소스 처리기가 로컬에서
+//! 응답한다. 응답을 넘기는 `SetResponse`가 실패하면 그 요청은 이름 해석으로 넘어갈 수 있고, `.invalid`라
+//! 해석은 실패한다. 이 모듈은 OS와 무관한 판정과 본문 표만 갖는다.
 
 use std::sync::Arc;
 
