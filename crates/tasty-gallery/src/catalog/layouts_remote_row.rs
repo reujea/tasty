@@ -7,9 +7,9 @@ use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     LoadingPlacement, REMOTE_ROW_POPUP_WIDTH, REMOTE_ROW_USER_BODY_NEXT, REMOTE_ROW_USER_BODY_STAY,
     RemoteRowPopupBody, RemoteRowPopupKind, RemoteRowPopupView, RemoteRowReason, RemoteRowState,
-    RowState, attach_refusal_mark, paint_attach_refusal_chip, paint_loading_overlay,
-    paint_workspace_mirror_chip, paint_workspace_mirror_chip_offline, remote_row_line,
-    remote_row_popup, remote_row_popup_copy,
+    RowState, attach_refusal_avatar_tooltip, attach_refusal_mark, paint_attach_refusal_chip,
+    paint_loading_overlay, paint_workspace_mirror_chip, paint_workspace_mirror_chip_offline,
+    remote_row_line, remote_row_popup, remote_row_popup_copy,
 };
 
 use crate::catalog::icons::{ALERT_TRIANGLE, REMOTE};
@@ -569,32 +569,67 @@ fn draw_last_screen(ui: &mut egui::Ui, theme: &Theme) {
 }
 
 /// 행 무대의 경우: 설명, 상태, 이유 유무, 실행 수.
-const ROWS: [(&str, RemoteRowState, bool); 7] = [
-    ("connected", RemoteRowState::Connected, false),
-    ("connecting", RemoteRowState::Connecting, false),
-    ("reconnecting", RemoteRowState::Reconnecting, false),
+/// 행·레일 표본. 셋째 값은 표지·칩을 그리는 이유이며 시안 `remote-row.jsx`의 두 이유 행과 같다.
+const ROWS: [(&str, RemoteRowState, Option<RemoteRowReason>); 7] = [
+    ("connected", RemoteRowState::Connected, None),
+    ("connecting", RemoteRowState::Connecting, None),
+    ("reconnecting", RemoteRowState::Reconnecting, None),
     (
         "disconnected (last screen kept)",
         RemoteRowState::Disconnected,
-        false,
+        None,
     ),
     (
         "not connected (after a restart)",
         RemoteRowState::NotConnected,
-        false,
+        None,
     ),
-    ("disconnected + reason", RemoteRowState::Disconnected, true),
-    ("not connected + reason", RemoteRowState::NotConnected, true),
+    (
+        "disconnected + reason",
+        RemoteRowState::Disconnected,
+        Some(RemoteRowReason::Occupied),
+    ),
+    (
+        "not connected + reason",
+        RemoteRowState::NotConnected,
+        Some(RemoteRowReason::ProfileMissing),
+    ),
 ];
+
+/// 이유 표본의 프로필 이름. 프로필이 없어진 이유는 시안처럼 옛 이름을 가리킨다.
+fn reason_profile(reason: RemoteRowReason) -> &'static str {
+    if reason == RemoteRowReason::ProfileMissing {
+        "host-old"
+    } else {
+        PROFILE
+    }
+}
+
+/// 행 표지·레일 칩 툴팁. 본체 `sidebar/remote_row.rs::row_tip`처럼 무엇인지, 프로필 → 원격 workspace,
+/// 인자를 채운 이유 문장 순이다. 원격 workspace는 시안처럼 행 이름이다.
+fn reason_tip(lang: &str, reason: RemoteRowReason) -> String {
+    let profile = reason_profile(reason);
+    let arg = if reason.names_profile() {
+        profile
+    } else {
+        NAME
+    };
+    format!(
+        "{}\n{profile} \u{2192} {NAME}\n{}",
+        t_lang(lang, "attach.mirror_workspace"),
+        fill(t_lang(lang, reason.key()), arg)
+    )
+}
 
 fn row(
     ui: &mut egui::Ui,
     theme: &Theme,
     lang: &'static str,
     state: RemoteRowState,
-    warn: bool,
+    reason: Option<RemoteRowReason>,
     active: bool,
-) {
+) -> Option<egui::Rect> {
+    let mut mark = None;
     let row_state = if active {
         RowState::Selected
     } else {
@@ -641,8 +676,9 @@ fn row(
                     );
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if warn {
-                        attach_refusal_mark(ui, theme, t_lang(lang, "remote.row.reason.occupied"));
+                    if let Some(reason) = reason {
+                        let resp = attach_refusal_mark(ui, theme, &reason_tip(lang, reason));
+                        mark = Some(resp.rect);
                     }
                     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                         ui.label(
@@ -670,6 +706,7 @@ fn row(
                 );
             });
         });
+    mark
 }
 
 fn rows(ui: &mut egui::Ui, theme: &Theme, lang: &'static str, active: bool) {
@@ -687,28 +724,30 @@ fn rows(ui: &mut egui::Ui, theme: &Theme, lang: &'static str, active: bool) {
                 .corner_radius(theme.corner_radius.value())
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 0.0;
-                    for (_, state, warn) in ROWS {
-                        row(ui, theme, lang, state, warn, active);
+                    for (_, state, reason) in ROWS {
+                        row(ui, theme, lang, state, reason, active);
                     }
                 });
         },
     );
 }
 
-fn rail(ui: &mut egui::Ui, theme: &Theme) {
+/// 레일 표본을 그리고 이유가 있는 아바타 rect를 돌려준다(시험이 hover 자리로 쓴다).
+fn rail(ui: &mut egui::Ui, theme: &Theme) -> Vec<egui::Rect> {
+    let mut reasoned = Vec::new();
     egui::Frame::new()
         .fill(theme.bg_sidebar().to_egui())
         .corner_radius(theme.corner_radius.value())
         .inner_margin(egui::Margin::same(theme.spacing_sm.value() as i8))
         .show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
-                for (label, state, warn) in ROWS {
+                for (label, state, reason) in ROWS {
                     ui.allocate_ui(
                         egui::vec2(RAIL_CELL_W.value(), AVATAR.value() * 2.0),
                         |ui| {
                             ui.vertical_centered(|ui| {
                                 ui.set_max_width(RAIL_CELL_W.value());
-                                let (avatar, _) = ui.allocate_exact_size(
+                                let (avatar, resp) = ui.allocate_exact_size(
                                     egui::vec2(AVATAR.value(), AVATAR.value()),
                                     egui::Sense::hover(),
                                 );
@@ -734,13 +773,21 @@ fn rail(ui: &mut egui::Ui, theme: &Theme) {
                                 } else {
                                     paint_workspace_mirror_chip_offline(ui, theme, avatar);
                                 }
-                                if warn {
+                                if let Some(reason) = reason {
                                     paint_attach_refusal_chip(
                                         ui,
                                         theme,
                                         avatar,
                                         theme.bg_sidebar().into(),
                                     );
+                                    attach_refusal_avatar_tooltip(
+                                        ui,
+                                        theme,
+                                        &resp,
+                                        &reason_tip("en", reason),
+                                        None,
+                                    );
+                                    reasoned.push(avatar);
                                 }
                                 ui.add(
                                     egui::Label::new(
@@ -757,6 +804,7 @@ fn rail(ui: &mut egui::Ui, theme: &Theme) {
                 }
             });
         });
+    reasoned
 }
 
 fn draw_marks(ui: &mut egui::Ui, theme: &Theme) {
@@ -919,4 +967,126 @@ fn draw_pending(ui: &mut egui::Ui, theme: &Theme) {
         ],
         &[],
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn collect_text(shape: &egui::Shape, out: &mut Vec<String>) {
+        match shape {
+            egui::Shape::Text(text) => out.push(text.galley.text().to_owned()),
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| collect_text(s, out)),
+            _ => {}
+        }
+    }
+
+    fn frame_text(out: &egui::FullOutput) -> String {
+        let mut texts = Vec::new();
+        for clipped in &out.shapes {
+            collect_text(&clipped.shape, &mut texts);
+        }
+        texts.join("\n")
+    }
+
+    /// `draw`가 돌려준 rect 위에 포인터를 툴팁 지연보다 오래 두고, 그 전과 뒤에 그려진 글자를 돌려준다.
+    fn hover_text(
+        draw: impl Fn(&mut egui::Ui, &Theme) -> Vec<egui::Rect>,
+        at: usize,
+    ) -> (String, String) {
+        let theme = tasty_themes::mocha_fallback();
+        let ctx = egui::Context::default();
+        crate::fonts::install(&ctx);
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 800.0));
+        let input = |time: f64, pointer: Option<egui::Pos2>| egui::RawInput {
+            screen_rect: Some(screen),
+            time: Some(time),
+            events: pointer
+                .map(|p| vec![egui::Event::PointerMoved(p)])
+                .unwrap_or_default(),
+            ..Default::default()
+        };
+        let mut target = Vec::new();
+        let run = |raw: egui::RawInput, target: &mut Vec<egui::Rect>| {
+            ctx.run(raw, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| *target = draw(ui, &theme));
+            })
+        };
+        let before = frame_text(&run(input(0.0, None), &mut target));
+        let rect = *target.get(at).expect("drawn target");
+        let delay = theme.tooltip_delay().to_secs_f64();
+        let mut last = run(input(0.1, Some(rect.center())), &mut target);
+        for step in 1..4 {
+            last = run(input(0.2 + delay + step as f64 * 0.1, None), &mut target);
+        }
+        (before, frame_text(&last))
+    }
+
+    /// 툴팁에 있어야 할 세 줄. 이유 문장의 인자는 프로필이 없어진 행은 옛 프로필 이름, 그 밖은 행 이름이다.
+    fn expected_lines(lang: &str, reason: RemoteRowReason) -> [String; 3] {
+        let (profile, arg) = match reason {
+            RemoteRowReason::ProfileMissing => ("host-old", "host-old"),
+            _ => ("host", "tasty-core"),
+        };
+        [
+            t_lang(lang, "attach.mirror_workspace").to_owned(),
+            format!("{profile} \u{2192} tasty-core"),
+            t_lang(lang, reason.key()).replacen("{}", arg, 1),
+        ]
+    }
+
+    fn assert_tip(label: &str, before: &str, after: &str, lang: &str, reason: RemoteRowReason) {
+        let lines = expected_lines(lang, reason);
+        assert!(
+            !before.contains(&lines[2]),
+            "{label}: the reason shows before hover"
+        );
+        for line in &lines {
+            assert!(
+                after.contains(line.as_str()),
+                "{label}: no {line:?} in {after:?}"
+            );
+        }
+        assert!(
+            !after.contains("{}"),
+            "{label}: a template slot is left in {after:?}"
+        );
+    }
+
+    #[test]
+    fn the_row_mark_tooltip_names_the_target_and_fills_the_reason() {
+        let reasons: Vec<_> = ROWS
+            .iter()
+            .filter_map(|(_, s, r)| r.map(|r| (*s, r)))
+            .collect();
+        assert_eq!(reasons.len(), 2, "two reason rows");
+        for lang in langs() {
+            for &(state, reason) in &reasons {
+                let (before, after) = hover_text(
+                    |ui, theme| {
+                        row(ui, theme, lang, state, Some(reason), false)
+                            .into_iter()
+                            .collect()
+                    },
+                    0,
+                );
+                assert_tip(
+                    &format!("row {lang} {reason:?}"),
+                    &before,
+                    &after,
+                    lang,
+                    reason,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_rail_avatar_tooltip_matches_the_row_mark() {
+        let reasons: Vec<_> = ROWS.iter().filter_map(|(_, _, r)| *r).collect();
+        for (i, reason) in reasons.into_iter().enumerate() {
+            let (before, after) = hover_text(rail, i);
+            assert_tip(&format!("rail {reason:?}"), &before, &after, "en", reason);
+        }
+    }
 }
