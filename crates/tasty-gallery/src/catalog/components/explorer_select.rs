@@ -156,8 +156,8 @@ mod tests {
     use super::*;
     use crate::catalog::components::painted::paint;
 
-    /// 커서 링 원천(accent-primary-raised)과 옛 원천(input-border-focus) 값이 갈리는 Latte까지 대조한다.
-    /// Mocha에서는 두 값이 같아 원천을 옛 토큰으로 되돌려도 색으로는 가르지 못한다.
+    /// 커서 링 원천(accent-primary-raised)과 입력 포커스색(input-border-focus) 값이 갈리는 Latte까지 대조한다.
+    /// Mocha에서는 두 값이 같아 원천이 input-border-focus여도 색으로는 가르지 못한다.
     fn themes() -> [(&'static str, Theme); 2] {
         let latte = crate::host_shell::latte_theme();
         assert_ne!(
