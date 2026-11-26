@@ -496,7 +496,9 @@ pub(super) fn detail_name(
     let text = text.into();
     // 본체 표는 열 사이 간격이 0 이라 clip 끝이 곧 Name 칸 끝이다. 간격을 물려받은 갤러리 표는 egui 가 칸 clip
     // 을 간격 쪽으로 조금 넓히므로 칸 끝과 clip 끝 중 앞선 것을 쓴다.
-    let edge = LogicalPx(ui.clip_rect().right().min(ui.max_rect().right()));
+    let clip_end = LogicalPx(ui.clip_rect().right());
+    let cell_end = LogicalPx(ui.max_rect().right());
+    let edge = clip_end.min(cell_end);
     let room = edge - LogicalPx(ui.cursor().left()) - tail;
     let text_w = LogicalPx(
         text.clone()
