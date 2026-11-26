@@ -161,7 +161,7 @@ Done·Failed 전이는 마지막에 시작하거나 요청한 로드의 종료�
 
 web process가 끝나면 backend는 그 사실을 따로 기록하고(`take_content_process_ended`), 동기화 adapter가 다음 동기화에서 꺼낸다. 호스트가 HTML 본문으로 실은 페이지(markdown처럼 주소가 아닌 본문을 `load_html`로 실은 경우)는 마지막으로 실은 본문 기록을 지워 같은 본문을 다시 싣는다. 엔진은 그 로드에서 web process를 새로 띄운다. 이런 페이지는 새로고침 수단이 문서 안에 있고, 플러그인이 같은 본문을 다시 보내도 adapter가 로드를 건너뛰므로 다른 복구 경로가 없다. 주소로 연 페이지와 attach mirror 문서는 사용자가 이동한 위치를 덮지 않도록 다시 싣지 않고 Failed로 둔다. Windows는 렌더러 process 종료만 기록한다. 브라우저 process가 끝난 WebView2는 같은 WebView로 다시 탐색할 수 없기 때문이다. Windows backend는 두 종료 모두에서 창에 그리기를 요청한다(`ProcessFailed` 처리기). 그래서 입력이 없어도 다음 프레임이 바로 와 다시 싣기나 Failed 표시가 일어난다. Linux와 macOS에서는 앱이 입력 없이 쉬고 있으면 다시 싣기가 다음 프레임에 일어난다. 탭 전환처럼 화면을 그리는 조작이 그 프레임을 만든다.
 
-macOS에서 측정한 결과: WKWebView의 web content process를 SIGKILL로 끝내면 `webViewWebContentProcessDidTerminate:` 뒤 다음 동기화에서 같은 본문을 다시 싣고 새 web content process가 떠 로드를 마쳤다. Linux와 Windows의 같은 경로는 측정하지 않았다.
+macOS에서 측정한 결과: WKWebView의 web content process를 SIGKILL로 끝내면 `webViewWebContentProcessDidTerminate:` 뒤 다음 동기화에서 같은 본문을 다시 싣고 새 web content process가 떠 로드를 마쳤다. Windows에서 측정한 결과: 보이는 markdown view의 WebView2 렌더러 process만 끝내면, 그리기 요청이 없던 빌드는 입력 없이 70초가 넘도록 프레임이 없고 WebView2 오류 페이지(`RESULT_CODE_KILLED`)가 남았다. 그리기를 요청하는 빌드는 입력 없이 같은 본문을 다시 실어 종료 뒤 0.1초 안에 로드를 마쳤다(두 번 반복). Linux의 같은 경로는 측정하지 않았다.
 
 HTML 배너는 [값 snapshot과 요청](../../../src/runtime/html_script.rs)을 사용한다. 스크립트 안내의 Allow·Dismiss·Reshow와 원격 콘텐츠 안내·주소 칸 표지의 RemoteAllow·RemoteDismiss·RemoteReshow 요청은 표시 당시 `DocumentRecord`, `SurfaceBinding`, 원 `HtmlScriptState`의 weak identity에 묶이고 한 번만 소비된다. App은 현재 surface와 문서가 일치할 때만 요청을 적용한다. 프레임에서는 배너 렌더 뒤 요청을 적용하고 `finish_redraw` 뒤 같은 호출 흐름에서 native 동기화를 수행하므로, 허용 상태 갱신이 reload보다 먼저다. 문서별 허용 정책은 [HTML Viewer (`com.tasty.html`)](../../surfaces/html/index.md)을 유지한다.
 
