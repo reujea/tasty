@@ -546,10 +546,10 @@ pub(super) fn rail(ui: &mut egui::Ui, theme: &Theme) {
                 ..base
             },
         ),
+        // 앱은 활성 워크스페이스 아바타에 move 칩을 두지 않으므로 네 모서리 표본은 쉬는 아바타다.
         (
-            "all marks",
+            "idle with all four corners",
             Avatar {
-                active: true,
                 notif: true,
                 ring: true,
                 mirror: true,

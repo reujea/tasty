@@ -31,3 +31,14 @@ fn the_loading_tab_samples_draw_no_move_glyph_on_an_active_tab() {
         painted.assert_move_glyphs_outside(&th, &active, name);
     }
 }
+
+/// 레일 아바타 표본(네 모서리 표본 포함)의 move 칩 글리프는 활성 아바타(overlay-active 채움) 밖에 있다.
+#[test]
+fn the_loading_rail_samples_draw_no_move_chip_on_an_active_avatar() {
+    let (_, base) = &mocha_latte()[0];
+    let painted = paint(|ui| super::matrix::rail(ui, base));
+    for (name, th) in mocha_latte() {
+        let active = painted.rects_filled_all(th.overlay_active().to_egui_premultiplied());
+        painted.assert_move_glyphs_outside(&th, &active, name);
+    }
+}
