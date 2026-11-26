@@ -211,9 +211,9 @@ fn alias_settings_family(
     added.extend(push_chosen_first(db, chosen, others, alias));
 }
 
-/// cosmic-text 는 굵기·기울임이 맞는 면이 없는 family 를 대체 글꼴(비례폭일 수 있다)로 넘긴다. 파일에
-/// 없는 굵기·기울임은 같은 원래 이름의 다른 면(설치·묶음 글꼴)을 지정 파일 이름으로 하나 더 등록해
-/// 쓴다. 원래 면은 그대로 두고, 더한 면은 다음 구성에서 지운다.
+/// cosmic-text 는 굵기가 맞는 면이 없는 family 를 대체 글꼴(비례폭일 수 있다)로 넘기고, 기울임 면만
+/// 없으면 굵기가 맞는 면을 기울여 그린다. 파일에 없는 굵기·기울임은 같은 원래 이름의 다른 면(설치·묶음
+/// 글꼴)을 지정 파일 이름으로 하나 더 등록해 쓴다. 원래 면은 그대로 두고, 더한 면은 다음 구성에서 지운다.
 fn borrow_missing_variants(
     db: &mut cosmic_text::fontdb::Database,
     family: &str,
