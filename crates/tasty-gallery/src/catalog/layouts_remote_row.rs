@@ -807,7 +807,18 @@ fn draw_marks(ui: &mut egui::Ui, theme: &Theme) {
                 "rail trying",
                 "the 28 loading ring around the initial; corner chips draw above it",
             ),
-            ("rail TL chip", "the refusal chip on a reason"),
+            (
+                "rail TL chip",
+                "the reason chip — alertTriangle 8 on bg-sidebar",
+            ),
+            (
+                "row order",
+                "after the name, move glyph · reason mark · badge group · gap = row item spacing (space-sm) · badges stay rightmost so counts line up down the list · the mark never replaces a badge",
+            ),
+            (
+                "rail corners",
+                "top-left reason chip (12, alertTriangle 8 on bg-sidebar) · top-right attention dot · bottom-left move chip · bottom-right remote chip · all four can show at once, with no priority rule · same tooltip as the row · not clickable",
+            ),
             (
                 "agent use (N2)",
                 "the row goes to connecting and back; focus stays where it is",
@@ -820,6 +831,11 @@ fn draw_marks(ui: &mut egui::Ui, theme: &Theme) {
                 "attach-refusal-glyph",
                 "reason mark",
                 theme.attach_refusal_glyph().to_egui(),
+            ),
+            TokenChip::without_color("attach-refusal-chip-size", "→ avatar-chip-size 12"),
+            TokenChip::without_color(
+                "attach-refusal-chip-glyph-size",
+                "→ avatar-chip-glyph-size 8",
             ),
             TokenChip::new(
                 "border-control",
@@ -836,7 +852,7 @@ fn draw_marks(ui: &mut egui::Ui, theme: &Theme) {
     note(
         ui,
         theme,
-        "The auto-attach refusal banner does not show on a saved remote row; the popup carries the reason. The row mark and rail chip are the refusal's.",
+        "A failed connection shows no banner or toast. The connection popup shows the reason, which remains available in the row mark and rail chip tooltips.",
     );
     dont(
         ui,
