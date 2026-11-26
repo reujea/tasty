@@ -1120,10 +1120,11 @@ mod tests {
     #[test]
     fn italic_text_uses_the_italic_face_of_the_file() {
         use crate::test_fonts::{TempFont, collection, italic};
-        let file = TempFont::new(&collection(&[
+        let bytes = collection(&[
             D2CODING_REGULAR_TTF.to_vec(),
             italic(D2CODING_REGULAR_TTF.to_vec()),
-        ]));
+        ]);
+        let file = TempFont::new(&bytes);
         let mut config = without_system_fonts(
             cosmic_text::fontdb::Database::new(),
             &with_file(&file.path(), ""),
@@ -1137,7 +1138,17 @@ mod tests {
                 config.custom_faces.contains(&glyph.font_id),
                 "italic {italic}"
             );
-            let face = config.font_system.db().face(glyph.font_id).unwrap();
+            // `custom_faces` 에는 대체 별칭(묶음 D2Coding 등)도 들어 있어, 지정 파일 이름의 면이고
+            // 그 바이트가 이 묶음 파일인지 따로 본다.
+            let db = config.font_system.db();
+            let face = db.face(glyph.font_id).unwrap();
+            assert!(
+                judge::has_family(face, CUSTOM_FILE_FAMILY),
+                "italic {italic}"
+            );
+            let mut from_file = None;
+            db.with_face_data(glyph.font_id, |data, _| from_file = Some(data == bytes));
+            assert_eq!(from_file, Some(true), "italic {italic}");
             assert_eq!((face.index, face.style), (index, style), "italic {italic}");
             assert!(!slanted(&glyph), "italic {italic}");
         }
