@@ -412,7 +412,9 @@ pub fn pages() -> Vec<Page> {
                         spec(
                             "kbd-one-keycap",
                             "One keycap, no palette variant",
-                            Some("the palette converges on Kbd — 16 / 4 / 4 / 10"),
+                            Some(
+                                "Both command palette rows use the shared Kbd keycap. The palette needs no larger cap, so there is only one size to maintain. A 16px cap centers on the text in a 28px row with 6px above and below.",
+                            ),
                             components_settled::draw_one_keycap,
                         ),
                         spec(
