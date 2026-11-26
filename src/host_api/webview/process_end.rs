@@ -55,8 +55,8 @@ mod tests {
     }
 
     /// 복구 표시를 `ended_before`로 둔 채 한 종료를 처리하고 (반환값, 탐색 상태, 복구 표시, record가 받은 값,
-    /// 깨움 수)를 돌려준다. 깨울 때마다 그 시점의 상태가 이미 기록됐는지(Failed, 렌더 process면 복구 표시,
-    /// record 호출)를 본다.
+    /// 깨움 수)를 돌려준다. record와 wake가 불린 시점마다 상태가 이미 기록됐는지(Failed, 렌더 process면
+    /// 복구 표시)를 보고, 깨울 때는 record가 먼저 불렸는지도 본다. 순서는 상태 기록 → 정리 → 깨우기다.
     fn run_from(end: ProcessEnd, ended_before: bool) -> (bool, NavState, bool, Option<bool>, u32) {
         let nav = Cell::new(NavState::Done);
         let ended = Cell::new(ended_before);
@@ -66,7 +66,15 @@ mod tests {
             end,
             &nav,
             &ended,
-            |renderer| recorded.set(Some(renderer)),
+            |renderer| {
+                assert_eq!(nav.get(), NavState::Failed, "정리 전에 Failed를 기록한다");
+                assert_eq!(
+                    ended.get(),
+                    ended_before || end == ProcessEnd::Renderer,
+                    "정리 전에 복구 표시를 기록한다"
+                );
+                recorded.set(Some(renderer));
+            },
             || {
                 assert_eq!(nav.get(), NavState::Failed, "깨우기 전에 Failed를 기록한다");
                 assert_eq!(
