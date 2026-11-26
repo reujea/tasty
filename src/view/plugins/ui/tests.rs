@@ -149,11 +149,19 @@ fn draw_window(
     ui_state: &mut PluginsUiState,
     actions: &mut Vec<PluginsAction>,
 ) -> egui::FullOutput {
+    draw_window_sized(ctx, snapshot, ui_state, actions, egui::vec2(720.0, 480.0))
+}
+
+/// [`draw_window`] 를 `size` 크기 창으로 그린다.
+fn draw_window_sized(
+    ctx: &egui::Context,
+    snapshot: &PluginsSnapshot,
+    ui_state: &mut PluginsUiState,
+    actions: &mut Vec<PluginsAction>,
+    size: egui::Vec2,
+) -> egui::FullOutput {
     let mut raw = egui::RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(
-            egui::Pos2::ZERO,
-            egui::vec2(720.0, 480.0),
-        )),
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
         ..Default::default()
     };
     let owner = ui_state.folder_chooser.key_owner(
@@ -451,5 +459,66 @@ fn the_add_tab_body_starts_space_xl_inside_the_window() {
         left,
         th.spacing_xl.value(),
         "Add 탭 본문의 가장 왼쪽 글자 {text:?} 가 창 왼쪽에서 {left} 떨어져 있다. spacing_xl 이 아니다"
+    );
+}
+
+/// 창이 좁아 본문 열이 `measure_xl` 보다 좁아지면 경로 줄은 창 오른쪽 가장자리에서도 정본 `space-xl` 만큼 들어가
+/// 끝난다. 경로 줄 맨 오른쪽 Verify 버튼 상자의 오른쪽 끝을 잰다.
+#[test]
+fn the_add_tab_body_ends_space_xl_inside_a_narrow_window() {
+    let th = theme::theme().clone();
+    let ctx = egui::Context::default();
+    let snapshot = PluginsSnapshot::default();
+    let mut state = PluginsUiState {
+        active_tab: PluginsTab::Add,
+        ..Default::default()
+    };
+    let mut actions = Vec::new();
+    let width = 400.0;
+    assert!(
+        width - 2.0 * th.spacing_xl.value() < th.measure_xl.value(),
+        "본문 열이 measure_xl 에 닿지 않을 만큼 좁은 창이어야 한다"
+    );
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, 480.0));
+    let mut out = None;
+    for _ in 0..2 {
+        out = Some(draw_window_sized(
+            &ctx,
+            &snapshot,
+            &mut state,
+            &mut actions,
+            screen.size(),
+        ));
+    }
+    let out = out.expect("drawn");
+    // 안내 상자 문장에도 같은 이름이 들어가므로 가장 위(경로 줄)의 것을 고른다.
+    let verify_label = t("plugins.add_confirm_path");
+    let verify = super::text_probe::visible_text_rects(&out, screen)
+        .into_iter()
+        .filter(|(text, _)| text == verify_label)
+        .map(|(_, rect)| rect)
+        .min_by(|a, b| a.top().total_cmp(&b.top()))
+        .unwrap_or_else(|| panic!("{verify_label:?} 버튼 글자가 없다"));
+    fn rects(shape: &egui::Shape, out: &mut Vec<egui::Rect>) {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| rects(s, out)),
+            egui::Shape::Rect(r) => out.push(r.rect),
+            _ => {}
+        }
+    }
+    let mut all = Vec::new();
+    for clipped in &out.shapes {
+        rects(&clipped.shape, &mut all);
+    }
+    let button = all
+        .into_iter()
+        .filter(|r| r.contains_rect(verify) && r.width() < width / 2.0)
+        .min_by(|a, b| a.area().total_cmp(&b.area()))
+        .expect("Verify 버튼 상자가 없다");
+    let inset = width - button.right();
+    assert!(
+        (inset - th.spacing_xl.value()).abs() < 0.5,
+        "Verify 버튼 상자 오른쪽 끝이 창 오른쪽에서 {inset} 떨어져 있다. spacing_xl {} 이 아니다",
+        th.spacing_xl.value()
     );
 }

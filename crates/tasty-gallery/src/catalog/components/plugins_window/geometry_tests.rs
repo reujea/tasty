@@ -354,3 +354,48 @@ fn the_add_tab_body_starts_space_xl_inside_the_window() {
         );
     }
 }
+
+/// 본문 열이 `measure_xl` 보다 좁은 창에서는 경로 줄이 창 오른쪽에서도 본체처럼 정본 `space-xl` 만큼 들어가 끝난다.
+/// 경로 줄 맨 오른쪽 Verify 버튼 상자의 오른쪽 끝을 잰다.
+#[test]
+fn the_add_tab_body_ends_space_xl_inside_a_narrow_window() {
+    let th = theme();
+    let width = 400.0;
+    assert!(
+        width - 2.0 * th.spacing_xl.value() < th.measure_xl.value(),
+        "본문 열이 measure_xl 에 닿지 않을 만큼 좁은 창이어야 한다"
+    );
+    for verified in [false, true] {
+        let mut pane = egui::Rect::NOTHING;
+        let painted = paint(|ui| {
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(width, 480.0), egui::Sense::hover());
+            pane = rect;
+            super::add::form_pane(ui, &th, rect, verified);
+        });
+        let verify = painted
+            .texts_with(crate::i18n::t_lang("en", "plugins.add_confirm_path"))
+            .into_iter()
+            .map(|t| t.rect)
+            .min_by(|a, b| a.top().total_cmp(&b.top()))
+            .expect("Verify 글자가 없다");
+        let button = painted
+            .shapes
+            .iter()
+            .filter_map(|s| match s {
+                egui::Shape::Rect(r)
+                    if r.rect.contains_rect(verify) && r.rect.width() < width / 2.0 =>
+                {
+                    Some(r.rect)
+                }
+                _ => None,
+            })
+            .min_by(|a, b| a.area().total_cmp(&b.area()))
+            .expect("Verify 버튼 상자가 없다");
+        let inset = pane.right() - button.right();
+        assert!(
+            (inset - th.spacing_xl.value()).abs() < 0.5,
+            "Add(verified {verified}): Verify 버튼 상자 오른쪽 끝이 창 오른쪽에서 {inset} 떨어져 있다. spacing_xl {} 이 아니다",
+            th.spacing_xl.value()
+        );
+    }
+}
