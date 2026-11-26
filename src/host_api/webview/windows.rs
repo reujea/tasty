@@ -42,6 +42,7 @@ use super::entry_response::{EntryResponseSource, windows as entry_adapter};
 use super::host_document::{HostDocuments, StartDecision, is_reserved};
 use super::keys::WebViewKeySink;
 use super::load_generation::{chrome_state_after_end, is_current_load};
+use super::process_end::{ProcessEnd, end_process};
 use super::scan_resume::{RequestAction, ScanResume, Start, StartKind};
 use super::script_gate::ScriptGate;
 use super::window_region::{PointerGate, WindowRegion};
@@ -856,39 +857,46 @@ impl PlatformWebView {
                     tracing::warn!(
                         "WebView surface {surface_id}: WebView2 process failed: kind={kind:?}"
                     );
-                    if kind != COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED
-                        && kind != COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED
-                    {
-                        return Ok(());
-                    }
-                    nav_failed.set(NavState::Failed);
-                    let renderer = kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED;
-                    host_document::process_ended(&docs_failed, renderer);
-                    // 렌더 process만 끝났으면 같은 WebView에 다시 탐색해 복구할 수 있다.
-                    // browser process가 끝난 WebView는 다시 만들어야 하므로 표시하지 않는다.
-                    if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED {
-                        ended_failed.set(true);
-                        bed_failed.renderer_ended(surface_id);
-                    }
-                    resume_failed.borrow_mut().clear();
-                    if let Some(gate) = gate_failed.borrow().as_ref() {
-                        gate.failed();
-                    }
-                    if let (Some(js), Some(wv)) = (
-                        gate_failed.borrow().as_ref().and_then(|g| g.finished()),
-                        &sender,
-                    ) {
-                        set_js(wv, js || http_js);
-                    }
-                    // 다시 싣기와 Failed 표시는 다음 동기화에서 일어난다. Windows에는 WebView 폴링이 없어
-                    // 깨우지 않으면 다음 입력까지 WebView2 오류 페이지가 남는다. winit `request_redraw`와
-                    // 같은 요청이다(same_document.rs). parent는 이 view를 만든 winit 창이며 GUI 스레드 호출이다.
-                    if !RedrawWindow(Some(parent), None, None, RDW_INTERNALPAINT).as_bool() {
-                        tracing::warn!(
-                            "WebView surface {surface_id}: RedrawWindow failed; the ended \
-                             process waits for the next frame"
-                        );
-                    }
+                    let end = if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED {
+                        ProcessEnd::Renderer
+                    } else if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED {
+                        ProcessEnd::Browser
+                    } else {
+                        ProcessEnd::Other
+                    };
+                    end_process(
+                        end,
+                        &nav_failed,
+                        &ended_failed,
+                        |renderer| {
+                            host_document::process_ended(&docs_failed, renderer);
+                            if renderer {
+                                bed_failed.renderer_ended(surface_id);
+                            }
+                            resume_failed.borrow_mut().clear();
+                            if let Some(gate) = gate_failed.borrow().as_ref() {
+                                gate.failed();
+                            }
+                            if let (Some(js), Some(wv)) = (
+                                gate_failed.borrow().as_ref().and_then(|g| g.finished()),
+                                &sender,
+                            ) {
+                                set_js(wv, js || http_js);
+                            }
+                        },
+                        // Windows에는 WebView 폴링이 없어 깨우지 않으면 다음 입력까지 WebView2 오류 페이지가
+                        // 남는다. winit `request_redraw`와 같은 요청이다(same_document.rs). parent는 이 view를
+                        // 만든 winit 창이며 GUI 스레드 호출이다.
+                        || {
+                            if !RedrawWindow(Some(parent), None, None, RDW_INTERNALPAINT).as_bool()
+                            {
+                                tracing::warn!(
+                                    "WebView surface {surface_id}: RedrawWindow failed; the ended \
+                                     process waits for the next frame"
+                                );
+                            }
+                        },
+                    );
                     Ok(())
                 },
             ));

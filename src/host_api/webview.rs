@@ -29,6 +29,8 @@ pub(crate) mod overlay_host;
 #[cfg(any(target_os = "macos", test))]
 mod page_mask;
 #[cfg(any(windows, test))]
+mod process_end;
+#[cfg(any(windows, test))]
 mod same_document;
 #[cfg(any(windows, test))]
 mod scan_resume;
