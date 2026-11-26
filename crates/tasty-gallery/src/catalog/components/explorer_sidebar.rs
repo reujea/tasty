@@ -393,11 +393,6 @@ pub fn draw_favorites(ui: &mut egui::Ui, theme: &Theme) {
                 egui::Color32::from(theme.text_placeholder()),
             ),
             TokenChip::new(
-                "glyph-dim",
-                "empty star",
-                egui::Color32::from(theme.glyph_dim()),
-            ),
-            TokenChip::new(
                 "accent-warning-glyph",
                 "filled star at rest",
                 theme.accent_warning_glyph().to_egui(),
@@ -406,6 +401,11 @@ pub fn draw_favorites(ui: &mut egui::Ui, theme: &Theme) {
                 "accent-warning-on-active",
                 "filled star on selected row",
                 theme.accent_warning_on_active().to_egui(),
+            ),
+            TokenChip::new(
+                "glyph-dim",
+                "empty favorites star",
+                egui::Color32::from(theme.glyph_dim()),
             ),
         ],
     );
