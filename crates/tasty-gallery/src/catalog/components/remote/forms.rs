@@ -234,12 +234,6 @@ fn form_card(ui: &mut egui::Ui, theme: &Theme, variant: Variant, width: LogicalP
                                 &["auto", "bash", "zsh", "fish"],
                             );
                         });
-                        hint(
-                            ui,
-                            theme,
-                            crate::i18n::t("remote_tool.shell_auto_hint"),
-                            theme.text_muted().to_egui(),
-                        );
                         form_row(ui, theme, "Passkey", |ui| {
                             full_select(
                                 ui,
@@ -248,6 +242,13 @@ fn form_card(ui: &mut egui::Ui, theme: &Theme, variant: Variant, width: LogicalP
                                 &["(none)", "id_ed25519", "deploy-key"],
                             );
                         });
+                        // 본체 폼처럼 shell=auto 안내는 Passkey 행 뒤, SSH 칸의 끝에 둔다.
+                        hint(
+                            ui,
+                            theme,
+                            crate::i18n::t("remote_tool.shell_auto_hint"),
+                            theme.text_muted().to_egui(),
+                        );
                     }
                 }
                 Variant::PasskeyPath | Variant::PasskeyInline => {
