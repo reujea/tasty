@@ -69,19 +69,65 @@ fn a_list_editor_grows_the_row_to_the_table_row_height() {
     );
 }
 
-/// 배율 1에서 목록 편집 줄의 글리프 가운데는 줄 왼쪽에서 29다(트리 행 아이콘 가운데, tree-row-gap 4 기준).
+/// 목록 편집 줄을 배율 `zoom` 으로 두 프레임 그려(글리프 텍스처가 자리 잡게) (줄, 그린 글리프 사각형) 을 돌려준다.
+fn list_glyph_at(zoom: f32) -> (egui::Rect, egui::Rect) {
+    let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, zoom);
+    let ctx = egui::Context::default();
+    // 글리프는 SVG 그림이다. 로더가 없으면 칠해지지 않는다.
+    egui_extras::install_image_loaders(&ctx);
+    let mut edit = ExplorerNameEdit::new("New folder".into(), 0..10);
+    let mut row = None;
+    let mut glyphs = Vec::new();
+    for _ in 0..2 {
+        let out = ctx.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(ctx, |ui| {
+                    let (r, _, _) = explorer_name_row_in(
+                        ui,
+                        &theme,
+                        ExplorerNameLayout::List,
+                        ExplorerNameOptions::default(),
+                        tasty_icons::FOLDER,
+                        &mut edit,
+                        false,
+                    );
+                    row = Some(r);
+                });
+        });
+        glyphs = out
+            .shapes
+            .into_iter()
+            .filter_map(|c| match c.shape {
+                egui::Shape::Rect(r) if r.brush.is_some() => Some(r.rect),
+                _ => None,
+            })
+            .collect();
+    }
+    let row = row.expect("drawn");
+    assert_eq!(glyphs.len(), 1, "줄 안 글리프가 하나가 아니다: {glyphs:?}");
+    (row, glyphs[0])
+}
+
+/// 목록 편집 줄이 그린 글리프의 가운데는 트리 행 아이콘 가운데(`tree_row_icon_center`)다. 배율 1에서 29.
 #[test]
-fn a_list_editor_glyph_centres_on_the_tree_row_icon_at_zoom_one() {
-    let theme = theme();
-    let (row, field) = rects(ExplorerNameLayout::List);
-    let glyph_center = field.left()
-        - theme.spacing_sm.value()
-        - theme.icon_glyph_size_md.value() * 0.5
-        - row.left();
-    assert!(
-        (glyph_center - 29.0).abs() < 0.5,
-        "글리프 가운데 {glyph_center} 가 29 가 아니다"
-    );
+fn a_list_editor_glyph_centres_on_the_tree_row_icon() {
+    for zoom in [0.85, 1.0, 1.2] {
+        let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, zoom);
+        let (row, glyph) = list_glyph_at(zoom);
+        let center = glyph.center().x - row.left();
+        let want = crate::tree_row_icon_center(&theme);
+        assert!(
+            (center - want).abs() < 0.5,
+            "배율 {zoom}: 그린 글리프 가운데 {center} 가 tree_row_icon_center {want} 가 아니다"
+        );
+        if zoom == 1.0 {
+            assert!(
+                (center - 29.0).abs() < 0.5,
+                "배율 1: 글리프 가운데 {center} 가 29 가 아니다"
+            );
+        }
+    }
 }
 
 #[test]
