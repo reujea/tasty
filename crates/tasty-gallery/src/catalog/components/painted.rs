@@ -1,6 +1,8 @@
 //! 갤러리 표본을 egui로 그려 그려진 도형(글자 색·위치·줄바꿈 폭, 채움 사각형, 글리프 tint)을 모으는
 //! 시험 도우미. 표본 시험이 같은 색 해석을 쓰게 한 곳에 둔다.
 
+use tasty_type_appearance::theme::Theme;
+
 /// 그려진 글자 하나 — 문자열, 위치, 실제로 칠해진 색.
 pub(crate) struct PaintedText {
     pub(crate) text: String,
@@ -115,7 +117,52 @@ fn paint_frames_with(
     }
 }
 
+/// 표본 시험이 두 테마로 그릴 때 쓰는 Mocha·Latte.
+pub(crate) fn mocha_latte() -> [(&'static str, Theme); 2] {
+    [
+        (
+            "mocha",
+            Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0),
+        ),
+        ("latte", crate::host_shell::latte_theme()),
+    ]
+}
+
 impl Painted {
+    /// `th`의 move 글리프 잉크(`move_source_glyph`)로 칠한 글리프 사각형.
+    pub(crate) fn move_glyphs(&self, th: &Theme) -> Vec<egui::Rect> {
+        let tint: egui::Color32 = th.move_source_glyph().into();
+        self.glyphs
+            .iter()
+            .filter(|(_, c)| *c == tint)
+            .map(|(r, _)| *r)
+            .collect()
+    }
+
+    /// `fill`로 채운 사각형 전부(글리프는 빼고).
+    pub(crate) fn rects_filled_all(&self, fill: egui::Color32) -> Vec<egui::Rect> {
+        self.shapes
+            .iter()
+            .filter_map(|s| match s {
+                egui::Shape::Rect(r) if r.brush.is_none() && r.fill == fill => Some(r.rect),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// `th`의 move 글리프가 하나 이상 그려졌고, 활성 칸(`active`, 하나 이상) 어느 것도 그 중심을
+    /// 품지 않는다. 두 대조가 비면 표본이 바뀌어 시험이 아무것도 재지 않는 것이라 실패한다.
+    pub(crate) fn assert_move_glyphs_outside(&self, th: &Theme, active: &[egui::Rect], what: &str) {
+        let glyphs = self.move_glyphs(th);
+        assert!(!glyphs.is_empty(), "{what}: no move glyph was painted");
+        assert!(!active.is_empty(), "{what}: no active cell was painted");
+        for g in &glyphs {
+            assert!(
+                !active.iter().any(|a| a.contains(g.center())),
+                "{what}: a move glyph at {g:?} sits on an active cell"
+            );
+        }
+    }
     pub(crate) fn text(&self, needle: &str) -> &PaintedText {
         self.texts
             .iter()

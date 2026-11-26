@@ -27,6 +27,9 @@ const ROW_STATES: [(RowState, &str); 6] = [
     (RowState::SelectedPress, "selected+press"),
 ];
 
+#[cfg(test)]
+mod move_glyph_tests;
+
 /// 시안 `CountRow`의 표시 내용. 값이 곧 점 색이다.
 #[derive(Clone, Copy)]
 struct CountRow {
@@ -385,7 +388,11 @@ fn draw_narrowest(ui: &mut egui::Ui, theme: &Theme) {
             three_widths(ui, theme, |ui, th, width| {
                 for r in [
                     narrowest(3, RowState::Rest),
-                    narrowest(12, RowState::Selected),
+                    // 앱은 활성 워크스페이스 행에 move 글리프를 두지 않는다.
+                    CountRow {
+                        move_source: false,
+                        ..narrowest(12, RowState::Selected)
+                    },
                     row(LONG_NAME, 0),
                 ] {
                     count_row(ui, th, width, &r);
