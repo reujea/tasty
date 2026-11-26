@@ -5,6 +5,7 @@
 
 use tasty_icons::Icon;
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 
 use crate::input::Input;
 use crate::spinner::Spinner;
@@ -113,17 +114,17 @@ pub fn explorer_name_row_in(
             let pad = theme.spacing_sm.value();
             let (radius, inset, field_right) = match layout {
                 ExplorerNameLayout::Detail { inset, name_width } => {
-                    (0.0, inset, row.left() + name_width)
+                    (0.0, LogicalPx(inset), row.left() + name_width)
                 }
                 _ => (
                     theme.corner_radius_sm.value(),
-                    crate::tree_row::tree_row_icon_center(theme).value() - glyph_size * 0.5,
+                    crate::tree_row::tree_row_icon_center(theme) - theme.icon_glyph_size_md * 0.5,
                     row.right(),
                 ),
             };
             ui.painter()
                 .rect_filled(row, radius, theme.surface_active().to_egui());
-            let inset = inset + options.indent;
+            let inset = inset + LogicalPx(options.indent);
             let caption = options.caption.map(|text| {
                 ui.painter().layout_no_wrap(
                     text.to_owned(),
@@ -140,7 +141,10 @@ pub fn explorer_name_row_in(
             let spinner_slot = options.pending.map_or(0.0, |_| pending_slot(theme));
             let field_right = field_right - spinner_slot;
             let glyph_rect = egui::Rect::from_center_size(
-                egui::pos2(row.left() + inset + glyph_size * 0.5, row.center().y),
+                egui::pos2(
+                    row.left() + inset.value() + glyph_size * 0.5,
+                    row.center().y,
+                ),
                 egui::vec2(glyph_size, glyph_size),
             );
             glyph.image(glyph_size, ink).paint_at(ui, glyph_rect);
