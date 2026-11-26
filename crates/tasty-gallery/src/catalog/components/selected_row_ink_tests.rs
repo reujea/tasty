@@ -1,4 +1,5 @@
-//! 탐색기 사이드바 표본의 선택 행 글리프가 본체처럼 on-active 잉크로 칠해지는지 그린 도형에서 잰다.
+//! 탐색기 사이드바 표본의 행 글리프(폴더·즐겨찾기 별)가 본체처럼 선택 행에서 on-active 잉크로 칠해지는지
+//! 그린 도형에서 잰다.
 
 use super::painted::{Painted, paint};
 use tasty_type_appearance::theme::Theme;
@@ -56,6 +57,28 @@ fn the_explorer_sample_folder_glyph_takes_text_on_active_on_the_selected_row() {
                 tint,
                 tasty_ui_widgets::RowState::Rest.glyph(&th).to_egui(),
                 "{name}: 쉬는 행 폴더 글리프 잉크"
+            );
+        }
+    }
+}
+
+/// 즐겨찾기 별은 선택 행(tasty)에서 accent_warning_on_active, 쉬는 행(screenshots)에서 accent_warning_glyph 다.
+#[test]
+fn the_explorer_sample_favorite_star_takes_accent_warning_on_active_on_the_selected_row() {
+    for (name, th) in themes() {
+        let painted = paint(|ui| super::explorer_sidebar::draw_favorites(ui, &th));
+        for tint in glyphs_before(&painted, "tasty") {
+            assert_eq!(
+                tint,
+                th.accent_warning_on_active().to_egui(),
+                "{name}: 선택 행 즐겨찾기 별 잉크"
+            );
+        }
+        for tint in glyphs_before(&painted, "screenshots") {
+            assert_eq!(
+                tint,
+                th.accent_warning_glyph().to_egui(),
+                "{name}: 쉬는 행 즐겨찾기 별 잉크"
             );
         }
     }

@@ -671,8 +671,14 @@ fn favorites_pin_height(body_h: LogicalPx) -> LogicalPx {
     (LogicalPx((body_h * PIN_RATIO / 4.0).value().round()) * 4.0).max(PIN_MIN)
 }
 
+/// 본체 favorite_row 처럼 별은 쉴 때 accent-warning-glyph, 선택 행에서 accent-warning-on-active 다.
 fn fav_row(ui: &mut egui::Ui, theme: &Theme, label: &str, active: bool) {
-    let star_color = egui::Color32::from(theme.accent_warning());
+    let star_color = if active {
+        theme.accent_warning_on_active()
+    } else {
+        theme.accent_warning_glyph()
+    }
+    .to_egui();
     tree_row(
         ui,
         theme,

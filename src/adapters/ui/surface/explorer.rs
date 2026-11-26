@@ -686,7 +686,8 @@ fn favorites_empty(ui: &mut egui::Ui, theme: &Theme) {
 }
 
 /// 즐겨찾기 한 행. 클릭 → 해당 경로로 이동, 우클릭 → 컨텍스트 메뉴.
-/// 별은 채운 별(STAR_FILL) + accent-warning(골드), 현재 폴더면 surface-active 하이라이트.
+/// 별은 채운 별(STAR_FILL)이고 색이 뜻을 담는 글리프다. 쉴 때 accent-warning-glyph, 현재 폴더면
+/// surface-active 하이라이트 위에서 accent-warning-on-active.
 fn favorite_row(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -695,8 +696,13 @@ fn favorite_row(
     action: &mut Option<ExplorerAction>,
 ) {
     let star = icons::STAR_FILL;
-    let star_color = theme.accent_warning_glyph().to_egui();
     let selected = fav.path == current;
+    let star_color = if selected {
+        theme.accent_warning_on_active()
+    } else {
+        theme.accent_warning_glyph()
+    }
+    .to_egui();
     let resp = tree_row(
         ui,
         theme,
@@ -1811,6 +1817,32 @@ mod tests {
                     super::tree_node(ui, &theme, &mut view, &dir, 0, current, &mut action, None);
                 });
                 assert_eq!(tint, want, "{name} {state} 행: 폴더 글리프 잉크");
+            }
+        }
+    }
+
+    /// 즐겨찾기 별은 선택 행에서 accent_warning_on_active, 쉴 때 accent_warning_glyph 로 칠한다.
+    #[test]
+    fn the_favorite_star_takes_accent_warning_on_active_on_the_selected_row() {
+        let fav = crate::core::explorer_favorites::ExplorerFavorite {
+            label: "tree".into(),
+            path: PathBuf::from("/tasty-test-no-such-dir/tree"),
+        };
+        let other = PathBuf::from("/tasty-test-no-such-dir/other");
+        for (name, theme) in mocha_and_latte() {
+            for (current, want, state) in [
+                (
+                    &fav.path,
+                    theme.accent_warning_on_active().to_egui(),
+                    "선택",
+                ),
+                (&other, theme.accent_warning_glyph().to_egui(), "쉼"),
+            ] {
+                let tint = row_glyph_tint(|ui| {
+                    let mut action = None;
+                    super::favorite_row(ui, &theme, &fav, current, &mut action);
+                });
+                assert_eq!(tint, want, "{name} {state} 행: 즐겨찾기 별 잉크");
             }
         }
     }
