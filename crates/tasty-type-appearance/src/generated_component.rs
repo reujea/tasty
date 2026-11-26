@@ -754,6 +754,12 @@ impl crate::theme::Theme {
         LogicalPx((260.0 * self.ui_zoom).round())
     }
 
+    /// `component.caret-specimen-height` → `calc(1.3077 * var(--tasty-input-font-size))` = 17.000101px
+    #[inline]
+    pub fn caret_specimen_height(&self) -> LogicalPx {
+        LogicalPx(self.input_font_size().value() * 1.3077)
+    }
+
     /// `component.center-state-action-gap` → `{semantic.space-md}` = 12px
     #[inline]
     pub fn center_state_action_gap(&self) -> LogicalPx {
@@ -4602,10 +4608,28 @@ impl crate::theme::Theme {
         self.text_primary()
     }
 
+    /// `component.plugins-add-pad-bottom` → `{primitive.size-22}` = 22px
+    #[inline]
+    pub fn plugins_add_pad_bottom(&self) -> LogicalPx {
+        LogicalPx((22.0 * self.ui_zoom).round())
+    }
+
+    /// `component.plugins-add-pad-y` → `calc(1 * var(--tasty-space-sm) + 1 * var(--tasty-space-md))` = 20px
+    #[inline]
+    pub fn plugins_add_pad_y(&self) -> LogicalPx {
+        LogicalPx(self.spacing_sm.value() * 1.0 + self.spacing_md.value() * 1.0)
+    }
+
     /// `component.plugins-attention-list-width` → `{primitive.size-240}` = 240px
     #[inline]
     pub fn plugins_attention_list_width(&self) -> LogicalPx {
         LogicalPx((240.0 * self.ui_zoom).round())
+    }
+
+    /// `component.plugins-header-divider-height` → `{primitive.size-20}` = 20px
+    #[inline]
+    pub fn plugins_header_divider_height(&self) -> LogicalPx {
+        LogicalPx((20.0 * self.ui_zoom).round())
     }
 
     /// `component.plugins-header-glyph` → `{semantic.accent-decorative}`
@@ -4638,6 +4662,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn plugins_inset(&self) -> LogicalPx {
         LogicalPx((14.0 * self.ui_zoom).round())
+    }
+
+    /// `component.plugins-link-underline-offset` → `{primitive.size-2}` = 2px
+    #[inline]
+    pub fn plugins_link_underline_offset(&self) -> LogicalPx {
+        LogicalPx((2.0 * self.ui_zoom).round())
     }
 
     /// `component.plugins-list-row-gap` → `calc(1 * var(--tasty-space-xs) + 1 * var(--tasty-size-2))` = 6px
@@ -4762,6 +4792,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn port_favorites_row_height(&self) -> LogicalPx {
         self.item_height_tree
+    }
+
+    /// `component.port-favorites-state-min-width` → `{primitive.size-112}` = 112px
+    #[inline]
+    pub fn port_favorites_state_min_width(&self) -> LogicalPx {
+        LogicalPx((112.0 * self.ui_zoom).round())
     }
 
     /// `component.port-port-col-width` → `{primitive.size-84}` = 84px
@@ -5034,6 +5070,12 @@ impl crate::theme::Theme {
         LogicalPx((240.0 * self.ui_zoom).round())
     }
 
+    /// `component.remote-form-specimen-height` → `{component.remote-window-height}` = 460px
+    #[inline]
+    pub fn remote_form_specimen_height(&self) -> LogicalPx {
+        self.remote_window_height()
+    }
+
     /// `component.remote-form-specimen-width` → `{primitive.size-460}` = 460px
     #[inline]
     pub fn remote_form_specimen_width(&self) -> LogicalPx {
@@ -5068,6 +5110,22 @@ impl crate::theme::Theme {
     #[inline]
     pub fn remote_port_field_width(&self) -> LogicalPx {
         LogicalPx((96.0 * self.ui_zoom).round())
+    }
+
+    /// `component.remote-reveal-inset` → `{primitive.size-6}` = 6px
+    #[inline]
+    pub fn remote_reveal_inset(&self) -> LogicalPx {
+        LogicalPx((6.0 * self.ui_zoom).round())
+    }
+
+    /// `component.remote-reveal-pad-right` → `calc(1 * var(--tasty-remote-reveal-inset) + 1 * var(--tasty-icon-button-size-sm) + 1 * var(--tasty-size-2))` = 32px
+    #[inline]
+    pub fn remote_reveal_pad_right(&self) -> LogicalPx {
+        LogicalPx(
+            self.remote_reveal_inset().value() * 1.0
+                + self.icon_button_size_sm().value() * 1.0
+                + LogicalPx((2.0 * self.ui_zoom).round()).value() * 1.0,
+        )
     }
 
     /// `component.remote-row-action-gap` → `{primitive.size-1}` = 1px
@@ -5112,6 +5170,12 @@ impl crate::theme::Theme {
         LogicalPx((480.0 * self.ui_zoom).round())
     }
 
+    /// `component.remote-ssh-line-pad-top` → `{primitive.size-2}` = 2px
+    #[inline]
+    pub fn remote_ssh_line_pad_top(&self) -> LogicalPx {
+        LogicalPx((2.0 * self.ui_zoom).round())
+    }
+
     /// `component.remote-tab-gap` → `{primitive.size-2}` = 2px
     #[inline]
     pub fn remote_tab_gap(&self) -> LogicalPx {
@@ -5122,6 +5186,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn remote_tab_height(&self) -> LogicalPx {
         LogicalPx((35.0 * self.ui_zoom).round())
+    }
+
+    /// `component.remote-type-suggest-width` → `{primitive.size-64}` = 64px
+    #[inline]
+    pub fn remote_type_suggest_width(&self) -> LogicalPx {
+        LogicalPx((64.0 * self.ui_zoom).round())
     }
 
     /// `component.remote-window-height` → `{primitive.size-460}` = 460px
@@ -5194,6 +5264,12 @@ impl crate::theme::Theme {
     #[inline]
     pub fn search_bar_border(&self) -> HexColor {
         self.border_strong()
+    }
+
+    /// `component.segmented-gap` → `{primitive.size-6}` = 6px
+    #[inline]
+    pub fn segmented_gap(&self) -> LogicalPx {
+        LogicalPx((6.0 * self.ui_zoom).round())
     }
 
     /// `component.segtoggle-on-bg` → `{semantic.accent-primary}`

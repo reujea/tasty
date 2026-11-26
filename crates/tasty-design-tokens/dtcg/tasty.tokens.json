@@ -2597,6 +2597,10 @@
       "$type": "dimension",
       "$value": "{primitive.size-260}"
     },
+    "caret-specimen-height": {
+      "$type": "dimension",
+      "$value": "calc(1.3077 * var(--tasty-input-font-size))"
+    },
     "input-bg": {
       "$type": "color",
       "$value": "{semantic.surface-field}"
@@ -4492,6 +4496,10 @@
       "$type": "dimension",
       "$value": "{primitive.size-112}"
     },
+    "port-favorites-state-min-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-112}"
+    },
     "port-star-col-width": {
       "$type": "dimension",
       "$value": "{primitive.size-28}"
@@ -4595,6 +4603,22 @@
     "plugins-manifest-meta-gap": {
       "$type": "dimension",
       "$value": "{primitive.size-3}"
+    },
+    "plugins-header-divider-height": {
+      "$type": "dimension",
+      "$value": "{primitive.size-20}"
+    },
+    "plugins-add-pad-y": {
+      "$type": "dimension",
+      "$value": "calc(1 * var(--tasty-space-sm) + 1 * var(--tasty-space-md))"
+    },
+    "plugins-add-pad-bottom": {
+      "$type": "dimension",
+      "$value": "{primitive.size-22}"
+    },
+    "plugins-link-underline-offset": {
+      "$type": "dimension",
+      "$value": "{primitive.size-2}"
     },
     "plugins-header-glyph": {
       "$type": "color",
@@ -4735,6 +4759,10 @@
     "remote-form-specimen-width": {
       "$type": "dimension",
       "$value": "{primitive.size-460}"
+    },
+    "remote-form-specimen-height": {
+      "$type": "dimension",
+      "$value": "{component.remote-window-height}"
     },
     "git-viewer-specimen-width": {
       "$type": "dimension",
@@ -5039,6 +5067,10 @@
     "remote-port-field-width": {
       "$type": "dimension",
       "$value": "{primitive.size-96}"
+    },
+    "remote-type-suggest-width": {
+      "$type": "dimension",
+      "$value": "{primitive.size-64}"
     },
     "remote-filter-menu-width": {
       "$type": "dimension",
@@ -6082,6 +6114,22 @@
     "remote-row-action-gap": {
       "$type": "dimension",
       "$value": "{primitive.size-1}"
+    },
+    "remote-ssh-line-pad-top": {
+      "$type": "dimension",
+      "$value": "{primitive.size-2}"
+    },
+    "remote-reveal-inset": {
+      "$type": "dimension",
+      "$value": "{primitive.size-6}"
+    },
+    "remote-reveal-pad-right": {
+      "$type": "dimension",
+      "$value": "calc(1 * var(--tasty-remote-reveal-inset) + 1 * var(--tasty-icon-button-size-sm) + 1 * var(--tasty-size-2))"
+    },
+    "segmented-gap": {
+      "$type": "dimension",
+      "$value": "{primitive.size-6}"
     },
     "remote-picker-width": {
       "$type": "dimension",

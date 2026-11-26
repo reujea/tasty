@@ -1517,14 +1517,23 @@ pub mod plugin {
 pub mod plugins {
     use tasty_type_geometry::length::LogicalPx;
 
+    /// `component.plugins-add-pad-bottom` → `{primitive.size-22}` = 22px
+    pub const ADD_PAD_BOTTOM: LogicalPx = crate::generated::primitive::SIZE_22;
+
     /// `component.plugins-attention-list-width` → `{primitive.size-240}` = 240px
     pub const ATTENTION_LIST_WIDTH: LogicalPx = crate::generated::primitive::SIZE_240;
+
+    /// `component.plugins-header-divider-height` → `{primitive.size-20}` = 20px
+    pub const HEADER_DIVIDER_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_20;
 
     /// `component.plugins-header-height` → `{primitive.size-48}` = 48px
     pub const HEADER_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_48;
 
     /// `component.plugins-inset` → `{primitive.size-14}` = 14px
     pub const INSET: LogicalPx = crate::generated::primitive::SIZE_14;
+
+    /// `component.plugins-link-underline-offset` → `{primitive.size-2}` = 2px
+    pub const LINK_UNDERLINE_OFFSET: LogicalPx = crate::generated::primitive::SIZE_2;
 
     /// `component.plugins-manifest-meta-gap` → `{primitive.size-3}` = 3px
     pub const MANIFEST_META_GAP: LogicalPx = crate::generated::primitive::SIZE_3;
@@ -1579,6 +1588,9 @@ pub mod port {
 
     /// `component.port-favorites-row-height` → `{semantic.control-height-tree}` = 22px
     pub const FAVORITES_ROW_HEIGHT: LogicalPx = crate::generated::semantic::CONTROL_HEIGHT_TREE;
+
+    /// `component.port-favorites-state-min-width` → `{primitive.size-112}` = 112px
+    pub const FAVORITES_STATE_MIN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_112;
 
     /// `component.port-port-col-width` → `{primitive.size-84}` = 84px
     pub const PORT_COL_WIDTH: LogicalPx = crate::generated::primitive::SIZE_84;
@@ -1712,6 +1724,9 @@ pub mod remote {
     /// `component.remote-filter-menu-width` → `{primitive.size-240}` = 240px
     pub const FILTER_MENU_WIDTH: LogicalPx = crate::generated::primitive::SIZE_240;
 
+    /// `component.remote-form-specimen-height` → `{component.remote-window-height}` = 460px
+    pub const FORM_SPECIMEN_HEIGHT: LogicalPx = super::remote::WINDOW_HEIGHT;
+
     /// `component.remote-form-specimen-width` → `{primitive.size-460}` = 460px
     pub const FORM_SPECIMEN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_460;
 
@@ -1729,6 +1744,9 @@ pub mod remote {
 
     /// `component.remote-port-field-width` → `{primitive.size-96}` = 96px
     pub const PORT_FIELD_WIDTH: LogicalPx = crate::generated::primitive::SIZE_96;
+
+    /// `component.remote-reveal-inset` → `{primitive.size-6}` = 6px
+    pub const REVEAL_INSET: LogicalPx = crate::generated::primitive::SIZE_6;
 
     /// `component.remote-row-action-gap` → `{primitive.size-1}` = 1px
     pub const ROW_ACTION_GAP: LogicalPx = crate::generated::primitive::SIZE_1;
@@ -1751,11 +1769,17 @@ pub mod remote {
     /// `component.remote-row-specimen-width` → `{primitive.size-480}` = 480px
     pub const ROW_SPECIMEN_WIDTH: LogicalPx = crate::generated::primitive::SIZE_480;
 
+    /// `component.remote-ssh-line-pad-top` → `{primitive.size-2}` = 2px
+    pub const SSH_LINE_PAD_TOP: LogicalPx = crate::generated::primitive::SIZE_2;
+
     /// `component.remote-tab-gap` → `{primitive.size-2}` = 2px
     pub const TAB_GAP: LogicalPx = crate::generated::primitive::SIZE_2;
 
     /// `component.remote-tab-height` → `{primitive.size-35}` = 35px
     pub const TAB_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_35;
+
+    /// `component.remote-type-suggest-width` → `{primitive.size-64}` = 64px
+    pub const TYPE_SUGGEST_WIDTH: LogicalPx = crate::generated::primitive::SIZE_64;
 
     /// `component.remote-window-height` → `{primitive.size-460}` = 460px
     pub const WINDOW_HEIGHT: LogicalPx = crate::generated::primitive::SIZE_460;
@@ -1775,6 +1799,13 @@ pub mod restore {
 
     /// `component.restore-notice-width` → `{component.notice-column-width}` = 360px
     pub const NOTICE_WIDTH: LogicalPx = super::notice::COLUMN_WIDTH;
+}
+
+pub mod segmented {
+    use tasty_type_geometry::length::LogicalPx;
+
+    /// `component.segmented-gap` → `{primitive.size-6}` = 6px
+    pub const GAP: LogicalPx = crate::generated::primitive::SIZE_6;
 }
 
 pub mod select {
