@@ -1,7 +1,7 @@
 //! `gpu` 기능으로 켜는 GPU 글리프 아틀라스.
 //! 캐시 키·페이지 상태·프레임 시계는 장치 없이 시험할 수 있도록 크레이트 루트에 둔다.
 
-use cosmic_text::{Attrs, Buffer, Metrics, Shaping, SwashContent};
+use cosmic_text::{Buffer, Metrics, Shaping, SwashContent};
 use rustc_hash::FxHashMap;
 
 use crate::{AtlasEntry, AtlasPage, FontConfig, FrameClock, GlyphKey, pick_lru_victim};
@@ -336,13 +336,7 @@ impl GlyphAtlas {
             Some(line_height * 2.0),
         );
 
-        let mut attrs = Attrs::new().family(font_config.font_family.as_family());
-        if key.bold {
-            attrs = attrs.weight(cosmic_text::Weight::BOLD);
-        }
-        if key.italic {
-            attrs = attrs.style(cosmic_text::Style::Italic);
-        }
+        let attrs = key.attrs(&font_config.font_family);
 
         let text = key.ch.to_string();
         buffer.set_text(
