@@ -35,7 +35,7 @@ fn the_ports_sample_empty_favorites_star_is_glyph_dim() {
         let tint = star_before(
             &painted,
             &th,
-            crate::i18n::t("port_scanner.favorites_empty"),
+            crate::i18n::t_lang("en", "port_scanner.favorites_empty"),
         );
         assert_eq!(
             tint,
@@ -56,7 +56,7 @@ fn the_explorer_sample_empty_favorites_star_is_glyph_dim() {
         let tint = star_before(
             &painted,
             &th,
-            crate::i18n::t("explorer.sidebar.favorites_empty"),
+            crate::i18n::t_lang("en", "explorer.sidebar.favorites_empty"),
         );
         assert_eq!(
             tint,

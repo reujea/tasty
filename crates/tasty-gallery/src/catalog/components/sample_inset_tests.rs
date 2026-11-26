@@ -116,7 +116,7 @@ fn the_ports_sample_header_pads_its_row_by_space_md() {
     let frame = window_frame(&th, &painted);
     let inner_top = frame.top() + th.border_width.value();
     let label = painted
-        .text(crate::i18n::t("port_scanner.search_placeholder"))
+        .text(crate::i18n::t_lang("en", "port_scanner.search_placeholder"))
         .rect;
     let field = painted
         .shapes
