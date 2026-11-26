@@ -26,6 +26,7 @@ use std::sync::mpsc;
 
 use webview2_com::{Microsoft::Web::WebView2::Win32::*, *};
 use windows::Win32::Foundation::*;
+use windows::Win32::Graphics::Gdi::{RDW_INTERNALPAINT, RedrawWindow};
 use windows::Win32::System::Com::*;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::*;
@@ -878,6 +879,15 @@ impl PlatformWebView {
                         &sender,
                     ) {
                         set_js(wv, js || http_js);
+                    }
+                    // 다시 싣기와 Failed 표시는 다음 동기화에서 일어난다. Windows에는 WebView 폴링이 없어
+                    // 깨우지 않으면 다음 입력까지 WebView2 오류 페이지가 남는다. winit `request_redraw`와
+                    // 같은 요청이다(same_document.rs). parent는 이 view를 만든 winit 창이며 GUI 스레드 호출이다.
+                    if !RedrawWindow(Some(parent), None, None, RDW_INTERNALPAINT).as_bool() {
+                        tracing::warn!(
+                            "WebView surface {surface_id}: RedrawWindow failed; the ended \
+                             process waits for the next frame"
+                        );
                     }
                     Ok(())
                 },
