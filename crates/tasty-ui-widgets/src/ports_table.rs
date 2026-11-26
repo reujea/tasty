@@ -70,15 +70,10 @@ impl PortsColumn {
     }
 }
 
-/// 즐겨찾기 행 오른쪽 상태 칸의 최소 폭. 디자인 `port_scanner.jsx`의 `--tasty-size-112`이며
-/// 역할 토큰이 없다. 토큰처럼 UI 배율을 곱한다.
-pub fn ports_favorite_state_min_width(theme: &Theme) -> LogicalPx {
-    LogicalPx((112.0 * theme.ui_zoom).round())
-}
-
 /// 즐겨찾기 행에서 주소 뒤에 오는 상세와 상태 칸. 행의 남은 폭을 모두 차지한다.
 /// 상세는 주소에서 `spacing_md` 떨어져 왼쪽에 붙고 넘치면 말줄임한다. 상태 점과 라벨은 행
-/// 오른쪽 끝의 최소 폭 칸 안에서 오른쪽에 붙으므로 상세가 길어도 점에 닿지 않는다.
+/// 오른쪽 끝의 최소 폭(`port_favorites_state_min_width`) 칸 안에서 오른쪽에 붙으므로 상세가 길어도 점에
+/// 닿지 않는다.
 /// 상세 라벨과 상태 점의 응답을 차례로 돌려준다.
 pub fn ports_favorite_detail_and_state(
     ui: &mut egui::Ui,
@@ -97,7 +92,7 @@ pub fn ports_favorite_detail_and_state(
         egui::Sense::hover(),
     );
     let state_left =
-        (rect.right() - ports_favorite_state_min_width(theme).value()).max(rect.left());
+        (rect.right() - theme.port_favorites_state_min_width().value()).max(rect.left());
     let detail_left = (rect.left() + theme.spacing_md.value()).min(state_left);
     let detail_rect = egui::Rect::from_x_y_ranges(detail_left..=state_left, rect.y_range());
     let state_rect = egui::Rect::from_x_y_ranges(state_left..=rect.right(), rect.y_range());
@@ -241,7 +236,7 @@ mod favorite_row_tests {
             "node · 48213 · a workspace name long enough to run past the state column",
             320.0,
         );
-        let state_left = row.right() - ports_favorite_state_min_width(&theme(1.0)).value();
+        let state_left = row.right() - theme(1.0).port_favorites_state_min_width().value();
         assert!(
             detail.right() <= state_left,
             "detail {detail:?} runs into the state column at {state_left}"
@@ -255,7 +250,7 @@ mod favorite_row_tests {
 
     #[test]
     fn the_state_column_floor_scales_with_ui_zoom() {
-        assert_eq!(ports_favorite_state_min_width(&theme(1.0)).value(), 112.0);
-        assert_eq!(ports_favorite_state_min_width(&theme(1.2)).value(), 134.0);
+        assert_eq!(theme(1.0).port_favorites_state_min_width().value(), 112.0);
+        assert_eq!(theme(1.2).port_favorites_state_min_width().value(), 134.0);
     }
 }
