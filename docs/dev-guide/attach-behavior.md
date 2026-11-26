@@ -677,7 +677,7 @@ mirror workspace 는 즉시 걷히지 않는다 — 세션이 `SessionState::Rec
   돌아왔으면(엣지, `current_ws_id == row` 로 한정) 즉시, ② 아니어도 `Remote.reconnect`
   의 `ReconnectSlot.next_attempt` 시각이 지났으면. 두 조건 모두 `Remote.active` 게이트를
   공유해 중복 attach 를 막는다. 대기 중에 행이 닫혔으면 `forget_row` 로 스케줄을 정리하고 skip 한다.
-  - **재연결 시간 창**: `ReconnectSlot.started`(끊긴 시각)부터 `[remote_attach] reconnect_timeout_secs`
+  - **재연결 시간 창**: `ReconnectSlot.started`(전송 끝이 확정된 시각이 아니라, 관측 단계가 그 끝을 읽고 처리 단계가 재연결로 분류해 `enter_reconnecting` 이 슬롯을 넣은 시각)부터 `[remote_attach] reconnect_timeout_secs`
     (`AppServices::reconnect_window_secs`, 설정 적용 때 `attach_heartbeat::apply` 가 갱신)가 지나면
     `enter_disconnected` 로 행을 `Disconnected` 로 바꾼다. toast 는 띄우지 않고 행의 연결 팝업이 상태를 보인다.
     `sync_reconnect_timers` 는 다음 시도 시각과 창이 끝나는 시각 중 이른 쪽을 `Tick::Reconnect(row)` 로 예약한다.
