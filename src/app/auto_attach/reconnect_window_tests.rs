@@ -210,3 +210,50 @@ fn a_connection_ready_after_the_window_ran_out_is_not_installed() {
     assert!(app.state.mirror_attempts.connection_snapshot().is_empty());
     assert!(!app.remote.active.contains(&ROW));
 }
+
+/// Given 연결된 저장 행의 전송이 끊김으로 확정된 뒤 앱이 아직 그 끝을 보지 않았다, When 앱이 그 끝을 처리하면,
+/// Then 행은 재연결 중이 되고 재연결 시간은 전송이 끝난 때가 아니라 앱이 끊김을 판정한 그 처리 때부터 센다.
+/// 읽기 실패·원격 EOF·쓰기 실패가 모두 같은 끊김 사유를 올린다는 것은 `tasty-remote` 의 transport 시험이 본다.
+#[test]
+fn the_reconnect_window_starts_when_the_app_judges_the_drop() {
+    if crate::test_support::rerun_alone(
+        module_path!(),
+        "the_reconnect_window_starts_when_the_app_judges_the_drop",
+    ) {
+        return;
+    }
+    let _home = crate::test_support::IsolatedHome::new();
+    let event_loop = event_loop();
+    let mut app = app_with_saved_row(&event_loop, Some(SessionState::Connected));
+    app.ensure_row_token(ROW);
+    assert!(!app.remote.reconnect.contains_key(&ROW), "no window yet");
+    crate::app::attach_client::tests::settle_transport_end(
+        &app.remote.sessions[0],
+        tasty_remote::transport_end::EndReason::Lost,
+    );
+    let ended = Instant::now();
+    // 전송이 끝난 때와 앱이 판정한 때를 가를 수 있게 사이를 둔다.
+    std::thread::sleep(Duration::from_millis(200));
+
+    let before = Instant::now();
+    app.apply_attach_client_output();
+    let after = Instant::now();
+
+    assert_eq!(
+        app.remote.sessions[0].state.phase,
+        SessionState::Reconnecting
+    );
+    let started = app
+        .remote
+        .reconnect
+        .get(&ROW)
+        .expect("the drop opened a reconnect window")
+        .started;
+    assert!(
+        started >= before && started <= after,
+        "the window starts at the app's judgement: {:?} after the end, judged {:?}..{:?} after it",
+        started.saturating_duration_since(ended),
+        before.saturating_duration_since(ended),
+        after.saturating_duration_since(ended)
+    );
+}
