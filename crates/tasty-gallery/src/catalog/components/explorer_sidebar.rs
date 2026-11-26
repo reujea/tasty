@@ -368,7 +368,11 @@ pub fn draw_favorites(ui: &mut egui::Ui, theme: &Theme) {
                 "empty line",
                 "outline star · glyph-dim + \"No favorites yet\" · text-muted",
             ),
-            ("hint", "1 line · text-placeholder"),
+            (
+                "hint",
+                "Wraps at the column’s right edge like the app label (2 lines at 196px) · \
+                 text-placeholder · menu label in text-muted",
+            ),
             ("align", "left, inside 196px column"),
             ("condition", "was: hide section at 0 → now: always show"),
         ],
@@ -739,9 +743,13 @@ fn favorites_empty(ui: &mut egui::Ui, theme: &Theme) {
                 .color(egui::Color32::from(theme.text_placeholder())),
         );
         ui.label(
-            egui::RichText::new("Add to favorites")
-                .size(micro)
-                .color(egui::Color32::from(theme.text_muted())),
+            // 메뉴 이름은 본체 메뉴 줄과 같은 내장 영어 lang 값을 읽는다.
+            egui::RichText::new(crate::i18n::t_lang(
+                "en",
+                "explorer.context_menu.add_to_favorites",
+            ))
+            .size(micro)
+            .color(egui::Color32::from(theme.text_muted())),
         );
         ui.label(
             egui::RichText::new(".")

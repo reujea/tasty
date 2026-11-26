@@ -112,7 +112,6 @@ src/catalog/components/explorer_ops/kinds.rs	—	dag.detail.none,port_scanner.ex
 src/catalog/components/explorer_ops/search.rs	Detail	explorer.view.detail
 src/catalog/components/explorer_ops/search.rs	PDF document	explorer.kind.pdf
 src/catalog/components/explorer_ops/search.rs	—	dag.detail.none,port_scanner.external_dash
-src/catalog/components/explorer_sidebar.rs	Add to favorites	explorer.popup.add_favorite.title
 src/catalog/components/explorer_sidebar.rs	Favorites	explorer.sidebar.favorites,port_scanner.favorites_heading
 src/catalog/components/explorer_sidebar.rs	Files	explorer.sidebar.tree
 src/catalog/components/explorer_sidebar.rs	Go up	explorer.state.read_error_go_up
