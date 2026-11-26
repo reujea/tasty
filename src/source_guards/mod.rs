@@ -772,6 +772,8 @@ mod popup_body_key_gate;
 #[cfg(test)]
 mod press_focus_call_sites;
 #[cfg(test)]
+mod webview_process_failed_wake;
+#[cfg(test)]
 mod webview_reveal_wake_call_site;
 #[cfg(test)]
 mod window_key_gate_call_sites;
