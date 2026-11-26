@@ -55,25 +55,39 @@ fn draw_add_form(
     };
     let scroll_height =
         (ui.available_height() - footer_height - ui.spacing().item_spacing.y).max(0.0);
+    // 정본 본문 좌우 여백 `space-xl` 은 창 가장자리에서 잰다. 패널 기본 틀이 이미 둔 몫을 뺀 나머지를
+    // 스크롤 본문에만 더한다. 액션 바와 스크롤 막대는 패널 틀 자리 그대로다.
+    let pad_x = add_body_pad_x(ui, th);
     // 카드와 신뢰 상자가 같은 폭을 쓰도록 열 폭을 스크롤 영역 밖에서 정한다.
-    let column_width = th.measure_xl.value().min(ui.available_width());
+    let column_width = th
+        .measure_xl
+        .value()
+        .min(ui.available_width() - pad_x * 2.0);
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .max_height(scroll_height)
         .drag_to_scroll(false)
         .show(ui, |ui| {
-            ui.set_width(column_width);
-            ui.spacing_mut().item_spacing.y = th.spacing_lg.value();
-            draw_path_picker(ui, snapshot, ui_state, th);
-            if let Some(error) = &ui_state.add_error {
-                plugin_add_read_error(ui, th, t(error.title_key()), error.reason());
-            } else if let Some(preview) = &ui_state.add_preview {
-                draw_preview(ui, preview, th, actions);
-            } else {
-                let template = t("plugins.add_empty_hint");
-                let (before, after) = template.split_once("{}").unwrap_or((template, ""));
-                plugin_add_empty_hint(ui, th, before, t("plugins.add_confirm_path"), after);
-            }
+            let margin = egui::Margin {
+                left: pad_x as i8,
+                right: pad_x as i8,
+                top: 0,
+                bottom: 0,
+            };
+            egui::Frame::NONE.inner_margin(margin).show(ui, |ui| {
+                ui.set_width(column_width);
+                ui.spacing_mut().item_spacing.y = th.spacing_lg.value();
+                draw_path_picker(ui, snapshot, ui_state, th);
+                if let Some(error) = &ui_state.add_error {
+                    plugin_add_read_error(ui, th, t(error.title_key()), error.reason());
+                } else if let Some(preview) = &ui_state.add_preview {
+                    draw_preview(ui, preview, th, actions);
+                } else {
+                    let template = t("plugins.add_empty_hint");
+                    let (before, after) = template.split_once("{}").unwrap_or((template, ""));
+                    plugin_add_empty_hint(ui, th, before, t("plugins.add_confirm_path"), after);
+                }
+            });
         });
 
     let preview = ui_state.add_preview.clone();
@@ -97,6 +111,12 @@ fn draw_add_form(
     if (footer.cancel || esc_cancels) && !ui_state.add_in_flight {
         reset_add_state(ui_state);
     }
+}
+
+/// 스크롤 본문에 더할 좌우 여백: 정본 `space-xl` 에서 패널 기본 틀의 좌우 몫을 뺀 나머지.
+fn add_body_pad_x(ui: &egui::Ui, th: &theme::Theme) -> f32 {
+    let panel = egui::Frame::central_panel(ui.style()).inner_margin.left;
+    (th.spacing_xl.value() - f32::from(panel)).max(0.0)
 }
 
 /// 추가 버튼이 보낼 동작. 미인증은 사용자의 명시적 선택으로 보낸다.

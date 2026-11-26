@@ -331,3 +331,26 @@ fn the_header_divider_is_plugins_header_divider_height_tall() {
         "헤더 구분선 높이가 plugins_header_divider_height 를 읽지 않는다"
     );
 }
+
+/// Add 탭 본문 글자는 본체처럼 창 왼쪽에서 정본 `space-xl` 만큼 들어가 시작한다.
+#[test]
+fn the_add_tab_body_starts_space_xl_inside_the_window() {
+    let th = theme();
+    for preview in [false, true] {
+        let (painted, frame) = painted_window(&th, Tab::Add { preview });
+        let band = frame.top() + th.plugins_header_height().value();
+        let left = painted
+            .texts
+            .iter()
+            .filter(|t| t.rect.top() >= band && !t.text.trim().is_empty())
+            .map(|t| t.rect.left())
+            .min_by(f32::total_cmp)
+            .expect("Add 탭 본문 글자가 없다");
+        let inset = left - frame.left();
+        assert!(
+            (inset - th.spacing_xl.value()).abs() < 1.0,
+            "Add(preview {preview}): 본문 가장 왼쪽 글자가 창 왼쪽에서 {inset} 떨어져 있다. spacing_xl {} 가 아니다",
+            th.spacing_xl.value()
+        );
+    }
+}

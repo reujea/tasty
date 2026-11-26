@@ -422,3 +422,34 @@ fn the_header_divider_is_plugins_header_divider_height_tall() {
         );
     }
 }
+
+/// Add 탭 본문 글자는 창 왼쪽 가장자리에서 정본 `space-xl` 만큼 들어가 시작한다.
+#[test]
+fn the_add_tab_body_starts_space_xl_inside_the_window() {
+    let th = theme::theme().clone();
+    let ctx = egui::Context::default();
+    let snapshot = PluginsSnapshot::default();
+    let mut state = PluginsUiState {
+        active_tab: PluginsTab::Add,
+        ..Default::default()
+    };
+    let mut actions = Vec::new();
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(720.0, 480.0));
+    let mut texts = Vec::new();
+    for _ in 0..2 {
+        let out = draw_window(&ctx, &snapshot, &mut state, &mut actions);
+        texts = super::text_probe::visible_text_rects(&out, screen);
+    }
+    let band = th.plugins_header_height().value();
+    let (text, left) = texts
+        .iter()
+        .filter(|(t, r)| r.top() >= band && !t.trim().is_empty())
+        .map(|(t, r)| (t.clone(), r.left()))
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .expect("Add 탭 본문 글자가 없다");
+    assert_eq!(
+        left,
+        th.spacing_xl.value(),
+        "Add 탭 본문의 가장 왼쪽 글자 {text:?} 가 창 왼쪽에서 {left} 떨어져 있다. spacing_xl 이 아니다"
+    );
+}

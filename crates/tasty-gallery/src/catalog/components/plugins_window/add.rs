@@ -31,7 +31,11 @@ pub(super) fn form_pane(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, veri
         .rect_filled(rect, 0.0, theme.bg_panel().to_egui());
     let bar_h = ControlSize::Md.height(theme) + theme.spacing_md.value() * 2.0;
     let body = egui::Rect::from_min_max(rect.min, egui::pos2(rect.max.x, rect.max.y - bar_h));
-    let inner = body.shrink(theme.spacing_md.value());
+    // 좌우 여백은 본체 Add 탭처럼 정본 `space-xl` 이다.
+    let inner = body.shrink2(egui::vec2(
+        theme.spacing_xl.value(),
+        theme.spacing_md.value(),
+    ));
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner));
     child.set_max_width(theme.measure_xl.value().min(inner.width()));
     child.spacing_mut().item_spacing.y = theme.spacing_lg.value();
