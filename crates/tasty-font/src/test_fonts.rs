@@ -72,6 +72,16 @@ pub(crate) fn half_units_per_em(mut font: Vec<u8>) -> Vec<u8> {
     font
 }
 
+/// OS/2 fsSelection 의 ITALIC 비트를 켜고 REGULAR 비트를 꺼 기울임 면으로 읽히게 한다. 글자 모양은
+/// 그대로다.
+pub(crate) fn italic(mut font: Vec<u8>) -> Vec<u8> {
+    let (os2, _) = table(&font, b"OS/2");
+    let at = os2 + 62;
+    let flags = u16::from_be_bytes([font[at], font[at + 1]]);
+    font[at..at + 2].copy_from_slice(&((flags | 0x0001) & !0x0040).to_be_bytes());
+    font
+}
+
 /// 글꼴 파일들을 묶음 파일(ttc) 하나로 합친다. 각 면의 표 위치를 파일 처음 기준으로 옮긴다.
 pub(crate) fn collection(fonts: &[Vec<u8>]) -> Vec<u8> {
     let header = 12 + 4 * fonts.len();

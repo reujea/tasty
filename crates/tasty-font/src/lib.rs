@@ -924,24 +924,35 @@ mod tests {
         assert_eq!(config.metrics.cell_height, 21.0);
     }
 
-    /// 그 글자를 그린 면. 칸 값은 이 컴퓨터의 글꼴에 따라 우연히 맞을 수 있어 면으로 단언한다.
-    fn drawn_face(config: &mut FontConfig, text: &str, bold: bool) -> cosmic_text::fontdb::ID {
+    /// 그 글자의 첫 글리프. 아틀라스와 같은 `GlyphKey::attrs` 로 굵기·기울임을 넣는다.
+    fn drawn_glyph(
+        config: &mut FontConfig,
+        text: &str,
+        bold: bool,
+        italic: bool,
+    ) -> cosmic_text::LayoutGlyph {
+        let key = GlyphKey {
+            ch: text.chars().next().expect("글자가 있어야 한다"),
+            bold,
+            italic,
+        };
         let metrics = Metrics::new(14.0, 14.0);
         let mut buffer = Buffer::new(&mut config.font_system, metrics);
-        let mut attrs = Attrs::new().family(config.font_family.as_family());
-        if bold {
-            attrs = attrs.weight(cosmic_text::Weight::BOLD);
-        }
         buffer.set_text(
             &mut config.font_system,
             text,
-            &attrs,
+            &key.attrs(&config.font_family),
             Shaping::Advanced,
             None,
         );
         buffer.shape_until_scroll(&mut config.font_system, false);
         let run = buffer.layout_runs().next().expect("한 줄이 있어야 한다");
-        run.glyphs.first().expect("글리프가 있어야 한다").font_id
+        run.glyphs.first().expect("글리프가 있어야 한다").clone()
+    }
+
+    /// 그 글자를 그린 면. 칸 값은 이 컴퓨터의 글꼴에 따라 우연히 맞을 수 있어 면으로 단언한다.
+    fn drawn_face(config: &mut FontConfig, text: &str, bold: bool) -> cosmic_text::fontdb::ID {
+        drawn_glyph(config, text, bold, false).font_id
     }
 
     fn with_file(path: &str, family: &str) -> FontRequest {
@@ -1054,6 +1065,118 @@ mod tests {
                 "bold {bold}"
             );
         }
+    }
+
+    /// 시스템 글꼴 없이(묶음 D2Coding Regular·Bold 와 `db` 의 면만) 구성한다.
+    fn without_system_fonts(
+        db: cosmic_text::fontdb::Database,
+        request: &FontRequest,
+    ) -> FontConfig {
+        FontConfig::with_db(
+            "en-US".to_string(),
+            db,
+            fallback::TerminalFallback::new(),
+            request,
+        )
+    }
+
+    fn slanted(glyph: &cosmic_text::LayoutGlyph) -> bool {
+        glyph
+            .cache_key_flags
+            .contains(cosmic_text::CacheKeyFlags::FAKE_ITALIC)
+    }
+
+    /// Regular 만 든 파일이고 같은 이름의 기울임 면이 DB 에 없으면, 기울임은 지정 파일의 Regular 면을,
+    /// 굵은 기울임은 빌려 온 같은 원래 이름의 Bold 면을 기울여(`FAKE_ITALIC`) 그린다. cosmic-text 는
+    /// 굵기만 맞으면 기울임 면이 없는 family 를 대체 글꼴로 넘기지 않는다.
+    #[test]
+    fn italic_text_slants_the_file_face_when_no_italic_face_exists() {
+        use crate::test_fonts::TempFont;
+        let file = TempFont::new(D2CODING_REGULAR_TTF);
+        let mut config = without_system_fonts(
+            cosmic_text::fontdb::Database::new(),
+            &with_file(&file.path(), D2CODING_FAMILY),
+        );
+        for (bold, weight) in [
+            (false, cosmic_text::Weight::NORMAL),
+            (true, cosmic_text::Weight::BOLD),
+        ] {
+            let upright = drawn_face(&mut config, "M", bold);
+            let glyph = drawn_glyph(&mut config, "M", bold, true);
+            assert!(config.custom_faces.contains(&glyph.font_id), "bold {bold}");
+            assert_eq!(glyph.font_id, upright, "bold {bold}");
+            let face = config.font_system.db().face(glyph.font_id).unwrap();
+            assert_eq!(
+                (face.weight, face.style),
+                (weight, cosmic_text::Style::Normal),
+                "bold {bold}"
+            );
+            assert!(slanted(&glyph), "bold {bold}");
+        }
+    }
+
+    /// 같은 family 의 Regular(0번)와 기울임(1번)을 든 묶음에서 family 를 비우면, 기울임은 그 파일의
+    /// 1번 면이 기울이지 않고 그린다. 보통 글자는 여전히 고른 0번 면이다.
+    #[test]
+    fn italic_text_uses_the_italic_face_of_the_file() {
+        use crate::test_fonts::{TempFont, collection, italic};
+        let file = TempFont::new(&collection(&[
+            D2CODING_REGULAR_TTF.to_vec(),
+            italic(D2CODING_REGULAR_TTF.to_vec()),
+        ]));
+        let mut config = without_system_fonts(
+            cosmic_text::fontdb::Database::new(),
+            &with_file(&file.path(), ""),
+        );
+        for (italic, index, style) in [
+            (false, 0, cosmic_text::Style::Normal),
+            (true, 1, cosmic_text::Style::Italic),
+        ] {
+            let glyph = drawn_glyph(&mut config, "M", false, italic);
+            assert!(
+                config.custom_faces.contains(&glyph.font_id),
+                "italic {italic}"
+            );
+            let face = config.font_system.db().face(glyph.font_id).unwrap();
+            assert_eq!((face.index, face.style), (index, style), "italic {italic}");
+            assert!(!slanted(&glyph), "italic {italic}");
+        }
+    }
+
+    /// 지정 파일은 Regular 만 들고 같은 원래 이름의 기울임 면이 설치돼 있으면, 기울임은 그 면을 지정
+    /// 파일 이름으로 빌려 기울이지 않고 그린다. 굵게(`bold_text_uses_the_same_family_when_the_file_has_no_bold`)와
+    /// 같은 `borrow_missing_variants` 규칙이다. 굵은 기울임 면은 어디에도 없어, 굵기가 맞는 빌린 Bold 를
+    /// 기울여 그린다.
+    #[test]
+    fn italic_text_borrows_an_installed_italic_face_of_the_same_family() {
+        use crate::test_fonts::{TempFont, italic};
+        let mut db = cosmic_text::fontdb::Database::new();
+        let installed = db.load_font_source(cosmic_text::fontdb::Source::Binary(
+            std::sync::Arc::new(italic(D2CODING_REGULAR_TTF.to_vec())),
+        ))[0];
+        let file = TempFont::new(D2CODING_REGULAR_TTF);
+        let mut config = without_system_fonts(db, &with_file(&file.path(), ""));
+
+        let glyph = drawn_glyph(&mut config, "M", false, true);
+        assert!(config.custom_faces.contains(&glyph.font_id));
+        assert!(!slanted(&glyph));
+        let db = config.font_system.db();
+        let face = db.face(glyph.font_id).unwrap();
+        assert_eq!(face.style, cosmic_text::Style::Italic);
+        let (
+            cosmic_text::fontdb::Source::Binary(drawn),
+            Some(cosmic_text::fontdb::Source::Binary(source)),
+        ) = (&face.source, db.face(installed).map(|face| &face.source))
+        else {
+            panic!("설치된 기울임 면으로 그리지 않았다");
+        };
+        assert!(std::sync::Arc::ptr_eq(drawn, source));
+
+        let bold = drawn_face(&mut config, "M", true);
+        let glyph = drawn_glyph(&mut config, "M", true, true);
+        assert!(config.custom_faces.contains(&glyph.font_id));
+        assert_eq!(glyph.font_id, bold);
+        assert!(slanted(&glyph));
     }
 
     /// 그 글자를 그린 면의 이름.
