@@ -206,14 +206,15 @@ fn name_cell(ui: &mut egui::Ui, th: &Theme, g: MockGlyph, name: &str, query: &st
             tasty_ui_widgets::table_cell_ink(ui, th, th.text_secondary()),
         )
         .paint_at(ui, rect);
-        ui.label(explorer_match_job(
+        let job = explorer_match_job(
             th,
             name,
             query,
             egui::FontId::proportional(th.font_size_body.value()),
             tasty_ui_widgets::table_cell_ink(ui, th, th.table_row_fg()),
             tasty_ui_widgets::in_selected_table_row(ui),
-        ));
+        );
+        detail_name(ui, th, job, 0.0);
     });
 }
 

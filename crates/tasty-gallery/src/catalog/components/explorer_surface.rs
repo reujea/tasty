@@ -108,6 +108,10 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 "28 (Detail) · table-cell-height — the shared Table",
             ),
             (
+                "row name",
+                "ellipsis at its Name cell end or at the pane's clip edge, whichever comes first · room = clip edge − name start",
+            ),
+            (
                 "detail header",
                 "shared Table header — UI font · table-header-font-size 11 · weight medium · caps",
             ),

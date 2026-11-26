@@ -151,10 +151,13 @@ fn row_cell(ui: &mut egui::Ui, th: &Theme, row: &Row, col: usize) {
         let sz = th.icon_glyph_size_md.value();
         let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(sz), egui::Sense::hover());
         g.image(sz, fg).paint_at(ui, rect);
-        ui.label(
+        detail_name(
+            ui,
+            th,
             egui::RichText::new(name)
                 .size(th.font_size_body.value())
                 .color(fg),
+            0.0,
         );
     });
 }

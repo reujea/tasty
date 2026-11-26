@@ -143,14 +143,21 @@ fn cell(ui: &mut egui::Ui, th: &Theme, r: &KindRow, col: usize) {
                     th.text_secondary().to_egui()
                 };
                 r.glyph.image(sz, tint).paint_at(ui, rect);
-                ui.label(
+                let s = th.explorer_link_glyph_size().value();
+                let tail = if r.link {
+                    s + th.spacing_xs.value()
+                } else {
+                    0.0
+                };
+                detail_name(
+                    ui,
+                    th,
                     egui::RichText::new(r.name)
                         .size(th.font_size_body.value())
                         .color(th.table_row_fg().to_egui()),
+                    tail,
                 );
                 if r.link {
-                    ui.spacing_mut().item_spacing.x = th.spacing_xs.value();
-                    let s = th.explorer_link_glyph_size().value();
                     let (rect, _) =
                         ui.allocate_exact_size(egui::Vec2::splat(s), egui::Sense::hover());
                     icons::LINK
@@ -306,4 +313,64 @@ pub fn draw_links(ui: &mut egui::Ui, theme: &Theme) {
             ),
         ],
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::catalog::components::painted::paint;
+
+    /// 좁은 패인에서도 링크 행은 이름을 줄여 꼬리 글리프를 패인 안에 남기고, 이름과 글리프 사이는 space-xs 다
+    /// (본체 `explorer.rs` 의 `detail_view`, `link::tail_width`).
+    #[test]
+    fn a_cut_link_name_keeps_its_tail_glyph_inside_the_pane_after_space_xs() {
+        let theme = tasty_themes::mocha_fallback();
+        let edge = std::cell::Cell::new(0.0);
+        let p = paint(|ui| {
+            let mut pane = ui.new_child(egui::UiBuilder::new().max_rect(ui.max_rect()));
+            let left = pane.max_rect().left();
+            edge.set(left + 70.0);
+            pane.set_clip_rect(egui::Rect::from_x_y_ranges(
+                egui::Rangef::new(left, left + 70.0),
+                ui.clip_rect().y_range(),
+            ));
+            table(&mut pane, &theme, &link_rows(), "kinds_link_probe");
+        });
+        let tail = p
+            .glyphs
+            .iter()
+            .find(|(_, c)| *c == theme.explorer_link_glyph().to_egui())
+            .map(|(r, _)| *r)
+            .expect("a trailing link glyph was painted");
+        assert!(
+            tail.right() <= edge.get() + 0.5,
+            "the tail glyph {tail:?} stays inside the pane edge {}",
+            edge.get()
+        );
+        let name = p
+            .shapes
+            .iter()
+            .find_map(|s| match s {
+                egui::Shape::Text(t)
+                    if t.galley.text() == "projects"
+                        && t.visual_bounding_rect().y_range().contains(tail.center().y) =>
+                {
+                    Some(t)
+                }
+                _ => None,
+            })
+            .expect("the link row name was painted");
+        let last = name
+            .galley
+            .rows
+            .last()
+            .and_then(|r| r.glyphs.last())
+            .map(|g| g.chr);
+        assert_eq!(last, Some('…'), "the link name is cut");
+        let name_end = name.pos.x + name.galley.rect.right();
+        assert!(
+            (tail.left() - name_end - theme.spacing_xs.value()).abs() < 0.5,
+            "space-xs between the name end {name_end} and the tail {tail:?}"
+        );
+    }
 }

@@ -16,6 +16,7 @@ use tasty_ui_widgets::{
 use super::explorer_context_menu::{Mi, render_menu};
 use super::explorer_surface::{nav_button, path_field};
 use super::explorer_toolbar::{seg_toggle, seg_toggle_width};
+use super::explorer_view_cells::detail_name;
 use crate::catalog::icons::{self, MockGlyph};
 use crate::catalog::spec::{StageVariant, TokenChip, meta, note, stage, wrap_item};
 use crate::catalog::{Section, Spec};
@@ -703,10 +704,13 @@ fn cell_text(
                 let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(sz), egui::Sense::hover());
                 g.image(sz, th.text_secondary().to_egui())
                     .paint_at(ui, rect);
-                ui.label(
+                detail_name(
+                    ui,
+                    th,
                     egui::RichText::new(name)
                         .size(th.font_size_body.value())
                         .color(th.table_row_fg().to_egui()),
+                    0.0,
                 );
             });
         }

@@ -481,6 +481,40 @@ pub(super) fn thumb_stand_in(ui: &egui::Ui, theme: &Theme, slot: egui::Rect) {
     );
 }
 
+/// 상세 표 Name 칸의 이름. 본체처럼 이름 시작부터 칸의 clip 끝까지에서 `tail`(이름 뒤 link 글리프와 그 앞
+/// 간격, 없으면 0)을 뺀 폭을 남은 폭으로 두고, 이름이 더 길면 그 폭에서 말줄임한다. 칸 끝보다 패인이 먼저
+/// 끝나면 패인 끝에서 줄인다. 이름 뒤 간격은 꼬리의 `space-xs` 다.
+/// 본체의 같은 규칙은 `src/adapters/ui/surface/explorer.rs` `detail_view` 의 Name 칸(`let room = ui.clip_rect()…`
+/// 부터 `Label::new(job).truncate()` 까지)이다. 본체 바이너리를 갤러리가 부를 수 없어 이 사본을 둔다. 본체 쪽을
+/// 바꾸면 이 함수와 `detail_name_tests::the_helper_cuts_a_name_as_the_app_rule_does` 의 `app_rule` 도 바꾼다.
+pub(super) fn detail_name(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    text: impl Into<egui::WidgetText>,
+    tail: f32,
+) {
+    let text = text.into();
+    // 본체 표는 열 사이 간격이 0 이라 clip 끝이 곧 Name 칸 끝이다. 간격을 물려받은 갤러리 표는 egui 가 칸 clip
+    // 을 간격 쪽으로 조금 넓히므로 칸 끝과 clip 끝 중 앞선 것을 쓴다.
+    let edge = ui.clip_rect().right().min(ui.max_rect().right());
+    let room = edge - ui.cursor().left() - tail;
+    let text_w = text
+        .clone()
+        .into_galley(
+            ui,
+            Some(egui::TextWrapMode::Extend),
+            f32::INFINITY,
+            egui::FontSelection::Default,
+        )
+        .size()
+        .x;
+    let w = text_w.min(room).max(0.0);
+    ui.spacing_mut().item_spacing.x = theme.spacing_xs.value();
+    ui.allocate_ui(egui::vec2(w, theme.font_size_body.value()), |ui| {
+        ui.add(egui::Label::new(text).truncate())
+    });
+}
+
 /// 상세 보기 표. 공용 `Table` 로 그리며 클릭한 행 번호를 돌려준다.
 /// `cut` 행은 본체처럼 이름을 `cut-pending-fg` 이탤릭으로 그린다.
 pub(super) fn detail_table(
@@ -542,7 +576,7 @@ pub(super) fn detail_table(
                         let name = egui::RichText::new(row.name)
                             .size(th.font_size_body.value())
                             .color(egui::Color32::from(name_fg));
-                        ui.label(if row.cut { name.italics() } else { name });
+                        detail_name(ui, th, if row.cut { name.italics() } else { name }, 0.0);
                     });
                 }
                 1 => {
@@ -585,5 +619,241 @@ fn static_row_hover(ui: &mut egui::Ui, theme: &Theme) {
             theme.corner_radius_sm.value(),
             theme.tree_row_bg_hover().to_egui_premultiplied(),
         );
+    }
+}
+
+#[cfg(test)]
+mod detail_name_tests {
+    use super::*;
+    use crate::catalog::components::painted::paint;
+
+    const LONG: &str = "quarterly-report-final-revision-signed.pdf";
+
+    /// 그려진 이름 글자 하나: 화면에 놓인 글자(마지막 글리프 포함)와 사각형.
+    struct Drawn {
+        last: char,
+        rect: egui::Rect,
+    }
+
+    fn drawn(shapes: &[egui::Shape], starts: &str) -> Drawn {
+        shapes
+            .iter()
+            .find_map(|s| match s {
+                egui::Shape::Text(t) if t.galley.text().starts_with(starts) => Some(Drawn {
+                    last: t
+                        .galley
+                        .rows
+                        .last()
+                        .and_then(|r| r.glyphs.last())
+                        .map(|g| g.chr)
+                        .expect("the name has glyphs"),
+                    rect: t.visual_bounding_rect(),
+                }),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("{starts:?} was not painted"))
+    }
+
+    /// `cell_w` 폭 칸 안에 글리프 자리 뒤 `name` 을 그린다. clip 은 칸 왼쪽부터 `clip_w` 폭이다(패인이 먼저 끝나면
+    /// 칸보다 좁고, 열 간격을 물려받은 표 칸처럼 칸보다 조금 넓을 수도 있다). 돌려주는 값은 칸 끝과 clip 끝 중 앞선 쪽.
+    fn name_in_cell(cell_w: f32, clip_w: f32, name: &str, tail: f32) -> (Drawn, f32) {
+        let theme = tasty_themes::mocha_fallback();
+        let edge = std::cell::Cell::new(0.0);
+        let p = paint(|ui| {
+            let left = ui.max_rect().left();
+            let top = ui.max_rect().top();
+            let cell = egui::Rect::from_min_size(
+                egui::pos2(left, top),
+                egui::vec2(cell_w, theme.table_cell_height().value()),
+            );
+            let mut child = ui.new_child(egui::UiBuilder::new().max_rect(cell));
+            let clip = egui::Rect::from_min_size(egui::pos2(left, top), egui::vec2(clip_w, 400.0));
+            child.set_clip_rect(clip);
+            edge.set(clip.right().min(cell.right()));
+            child.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
+                let sz = theme.icon_glyph_size_md.value();
+                ui.allocate_exact_size(egui::Vec2::splat(sz), egui::Sense::hover());
+                detail_name(
+                    ui,
+                    &theme,
+                    egui::RichText::new(name).size(theme.font_size_body.value()),
+                    tail,
+                );
+            });
+        });
+        (drawn(&p.shapes, &name[..5]), edge.get())
+    }
+
+    /// 본체 `detail_view` Name 칸 코드를 옮긴 기준. 본체 표는 열 사이 간격이 0 이라 칸 clip 끝이 곧 칸 끝이다.
+    fn app_rule(ui: &mut egui::Ui, theme: &Theme, job: egui::text::LayoutJob, tail: f32) {
+        let room = ui.clip_rect().right() - ui.cursor().left();
+        let text_w = ui.fonts(|f| f.layout_job(job.clone()).rect.width());
+        let w = text_w.min(room - tail).max(0.0);
+        ui.spacing_mut().item_spacing.x = theme.spacing_xs.value();
+        ui.allocate_ui(egui::vec2(w, theme.font_size_body.value()), |ui| {
+            ui.add(egui::Label::new(job).truncate())
+        });
+    }
+
+    /// 놓인 이름의 글자들(마지막 글리프까지)과 x 범위. 폭이 0 이면 그린 글자가 없을 수 있다.
+    fn placed(shapes: &[egui::Shape]) -> Option<(String, egui::Rangef)> {
+        shapes.iter().find_map(|s| match s {
+            egui::Shape::Text(t) => Some((
+                t.galley
+                    .rows
+                    .iter()
+                    .flat_map(|r| r.glyphs.iter().map(|g| g.chr))
+                    .collect(),
+                egui::Rangef::new(
+                    t.pos.x + t.galley.rect.left(),
+                    t.pos.x + t.galley.rect.right(),
+                ),
+            )),
+            _ => None,
+        })
+    }
+
+    /// 같은 칸·clip·이름·꼬리를 주면 도우미와 본체 규칙이 같은 글자를 같은 자리에 놓는다.
+    #[test]
+    fn the_helper_cuts_a_name_as_the_app_rule_does() {
+        let theme = tasty_themes::mocha_fallback();
+        let link_tail = theme.explorer_link_glyph_size().value() + theme.spacing_xs.value();
+        let job = |th: &Theme, name: &str| {
+            egui::text::LayoutJob::simple_singleline(
+                name.to_owned(),
+                egui::FontId::proportional(th.font_size_body.value()),
+                th.table_row_fg().to_egui(),
+            )
+        };
+        // (칸 폭, 패인 폭, 이름, 꼬리): 칸 끝 먼저, 패인 끝 먼저, 들어감, 링크 꼬리, 칸 시작 앞에서 끝난 패인.
+        let cases = [
+            (140.0, 140.0, LONG, 0.0),
+            (300.0, 90.0, LONG, 0.0),
+            (300.0, 300.0, "report.pdf", 0.0),
+            (300.0, 90.0, LONG, link_tail),
+            (300.0, 10.0, LONG, 0.0),
+        ];
+        for (cell_w, pane_w, name, tail) in cases {
+            let draw = |use_app: bool| {
+                paint(|ui| {
+                    let left = ui.max_rect().left();
+                    let top = ui.max_rect().top();
+                    let cell = egui::Rect::from_min_size(
+                        egui::pos2(left, top),
+                        egui::vec2(cell_w, theme.table_cell_height().value()),
+                    );
+                    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(cell));
+                    child.set_clip_rect(cell.intersect(egui::Rect::from_min_size(
+                        egui::pos2(left, top),
+                        egui::vec2(pane_w, 400.0),
+                    )));
+                    child.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
+                        let sz = theme.icon_glyph_size_md.value();
+                        ui.allocate_exact_size(egui::Vec2::splat(sz), egui::Sense::hover());
+                        if use_app {
+                            app_rule(ui, &theme, job(&theme, name), tail);
+                        } else {
+                            detail_name(ui, &theme, job(&theme, name), tail);
+                        }
+                    });
+                })
+            };
+            let app = placed(&draw(true).shapes);
+            let gallery = placed(&draw(false).shapes);
+            assert!(
+                app.is_some() || pane_w < cell_w,
+                "the app rule painted the name in cell {cell_w}"
+            );
+            assert_eq!(
+                gallery, app,
+                "cell {cell_w}, pane {pane_w}, {name:?}, tail {tail}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_long_name_ends_in_an_ellipsis_at_the_name_cell_end() {
+        let (name, edge) = name_in_cell(140.0, 600.0, LONG, 0.0);
+        assert_eq!(name.last, '…');
+        assert!(
+            name.rect.right() <= edge + 0.5,
+            "{:?} past {edge}",
+            name.rect
+        );
+    }
+
+    /// 칸 clip 이 칸 끝을 조금 넘어도(열 간격) 이름은 칸 끝에서 줄어든다. 본체 표는 간격이 0 이다.
+    #[test]
+    fn a_long_name_ends_at_the_cell_end_when_the_clip_reaches_past_it() {
+        let (name, edge) = name_in_cell(140.0, 143.0, LONG, 0.0);
+        assert_eq!(name.last, '…');
+        assert!(
+            name.rect.right() <= edge + 0.5,
+            "{:?} past {edge}",
+            name.rect
+        );
+    }
+
+    #[test]
+    fn a_long_name_ends_in_an_ellipsis_at_a_pane_edge_before_the_cell_end() {
+        let (name, edge) = name_in_cell(300.0, 90.0, LONG, 0.0);
+        assert_eq!(name.last, '…');
+        assert!(
+            name.rect.right() <= edge + 0.5,
+            "{:?} past {edge}",
+            name.rect
+        );
+    }
+
+    #[test]
+    fn a_name_that_fits_is_drawn_whole() {
+        let (name, edge) = name_in_cell(300.0, 600.0, "report.pdf", 0.0);
+        assert_eq!(name.last, 'f');
+        assert!(name.rect.right() <= edge);
+    }
+
+    #[test]
+    fn a_link_name_leaves_room_for_its_tail_glyph() {
+        let theme = tasty_themes::mocha_fallback();
+        let tail = theme.explorer_link_glyph_size().value() + theme.spacing_xs.value();
+        let (name, edge) = name_in_cell(300.0, 90.0, LONG, tail);
+        assert_eq!(name.last, '…');
+        assert!(
+            name.rect.right() <= edge - tail + 0.5,
+            "the cut name {:?} leaves {tail} before {edge}",
+            name.rect
+        );
+    }
+
+    /// 표본 상세 표에서도 패인 끝에서 이름이 줄어든다.
+    #[test]
+    fn the_sample_detail_table_cuts_a_name_at_the_pane_edge() {
+        let theme = tasty_themes::mocha_fallback();
+        let edge = std::cell::Cell::new(0.0);
+        let p = paint(|ui| {
+            let mut pane = ui.new_child(egui::UiBuilder::new().max_rect(ui.max_rect()));
+            let left = pane.max_rect().left();
+            pane.set_clip_rect(egui::Rect::from_x_y_ranges(
+                egui::Rangef::new(left, left + 80.0),
+                ui.clip_rect().y_range(),
+            ));
+            edge.set(left + 80.0);
+            pane.allocate_ui(egui::vec2(600.0, 400.0), |ui| {
+                detail_table(
+                    ui,
+                    &theme,
+                    DETAIL,
+                    usize::MAX,
+                    LogicalPx(300.0),
+                    "detail_name_probe",
+                    RowParent::Base,
+                );
+            });
+        });
+        let name = drawn(&p.shapes, "mockup");
+        assert_eq!(name.last, '…');
+        assert!(name.rect.right() <= edge.get() + 0.5, "{:?}", name.rect);
     }
 }
