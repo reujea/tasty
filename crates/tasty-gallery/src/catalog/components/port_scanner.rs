@@ -114,7 +114,8 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             |ui| {
                 let bottom = LogicalPx(ui.cursor().top())
                     + kit::border_box_inner(theme, theme.ports_window_height());
-                kit::region_sym(ui, theme.ports_pad_x(), theme.spacing_sm, |ui| {
+                // 헤더 줄 위아래는 본체 헤더처럼 spacing_md 다.
+                kit::region_sym(ui, theme.ports_pad_x(), theme.spacing_md, |ui| {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
                         kit::icon(

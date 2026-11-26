@@ -106,3 +106,61 @@ fn the_remote_sample_detect_spinner_is_remote_detect_spinner_size() {
         "Spinner 한 변 {size} 가 remote_detect_spinner_size {want} 가 아니다"
     );
 }
+
+/// 포트 표본의 헤더 줄은 본체처럼 위아래로 `spacing_md` 를 둔다. 헤더 줄에서 가장 높은 필터 입력 칸이 창 안쪽
+/// 위와 헤더 아래 구분선에서 각각 `spacing_md` 떨어져 있다.
+#[test]
+fn the_ports_sample_header_pads_its_row_by_space_md() {
+    let th = theme();
+    let painted = paint(|ui| super::port_scanner::draw(ui, &th));
+    let frame = window_frame(&th, &painted);
+    let inner_top = frame.top() + th.border_width.value();
+    let label = painted.text("Filter…").rect;
+    let field = painted
+        .shapes
+        .iter()
+        .filter_map(|s| match s {
+            egui::Shape::Rect(r)
+                if r.brush.is_none()
+                    && r.rect.contains_rect(label)
+                    && r.rect.height() < frame.height() / 2.0 =>
+            {
+                Some(r.rect)
+            }
+            _ => None,
+        })
+        .min_by(|a, b| a.area().total_cmp(&b.area()))
+        .expect("헤더 필터 입력 칸이 없다");
+    let pad = th.spacing_md.value();
+    let above = field.top() - inner_top;
+    assert!(
+        (above - pad).abs() < 0.5,
+        "헤더 필터 칸 {field:?} 이 창 안쪽 위에서 {above} 떨어져 있다. spacing_md {pad} 가 아니다"
+    );
+    let separator = painted
+        .shapes
+        .iter()
+        .filter_map(|s| match s {
+            // 선은 굵기 가운데 y 에 그린다. 선의 위 변까지 잰다.
+            egui::Shape::LineSegment { points, stroke }
+                if (points[0].y - points[1].y).abs() < 0.01 && points[0].y >= field.bottom() =>
+            {
+                Some(points[0].y - stroke.width / 2.0)
+            }
+            egui::Shape::Rect(r)
+                if r.rect.height() <= th.border_width.value()
+                    && r.rect.width() > frame.width() / 2.0
+                    && r.rect.top() >= field.bottom() =>
+            {
+                Some(r.rect.top())
+            }
+            _ => None,
+        })
+        .min_by(f32::total_cmp)
+        .expect("헤더 아래 구분선이 없다");
+    let below = separator - field.bottom();
+    assert!(
+        (below - pad).abs() < 0.5,
+        "헤더 필터 칸 {field:?} 아래와 구분선 {separator} 사이 {below} 가 spacing_md {pad} 가 아니다"
+    );
+}
