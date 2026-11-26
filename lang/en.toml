@@ -234,7 +234,7 @@ section = "Attach connections"
 heartbeat_timeout = "Disconnect after"
 heartbeat_timeout_desc = "How long an attach connection can receive nothing from the other side before it disconnects. Saved values apply to new connections, no restart needed. Open connections don't change. The other Tasty uses its own value and may disconnect first. Default 30."
 reconnect_window = "Keep reconnecting for"
-reconnect_window_desc = "How long to keep trying to reconnect, starting when Disconnect after ends the connection. 0 disables automatic reconnecting. This automatic retry does not apply to connections you end yourself. Default 300."
+reconnect_window_desc = "How long to keep trying to reconnect, counted from when Tasty finds the connection dropped: Disconnect after ran out, the other side closed the connection, or a read or write failed. 0 disables automatic reconnecting. This automatic retry does not apply to connections you end yourself. Default 300."
 
 [settings.file_handler]
 coming_soon = "This sub-tab will be available in a future update."

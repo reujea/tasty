@@ -234,7 +234,7 @@ section = "附加连接"
 heartbeat_timeout = "断开前等待时长"
 heartbeat_timeout_desc = "附加连接在未收到对端任何数据时，等待多久后断开。保存的值适用于新连接，无需重启。现有连接不变。对端 Tasty 使用自己的值，可能会先断开。默认值为 30。"
 reconnect_window = "重新连接尝试时长"
-reconnect_window_desc = "从“断开前等待时长”到期导致连接断开时起，持续尝试重新连接的时长。0 禁用自动重新连接。此自动重试不适用于手动断开的连接。默认值 300。"
+reconnect_window_desc = "从 Tasty 判定连接断开时起，持续尝试重新连接的时长。“断开前等待时长”到期、对端关闭连接或读写失败时，判定为断开。0 禁用自动重新连接。此自动重试不适用于手动断开的连接。默认值 300。"
 
 [settings.file_handler]
 coming_soon = "此子标签页将在后续更新中提供。"
