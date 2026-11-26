@@ -21,6 +21,7 @@ use winit::raw_window_handle::{
 use super::keys::WebViewKeySink;
 use super::linux_shape::{self, ShapeState};
 use super::load_generation::SignalOrderLoads;
+use super::process_end::{ProcessEnd, end_process};
 use super::script_gate::{DeferredScan, Response, ScriptGate};
 use super::{NavState, PendingNavigation, WebViewBounds};
 
@@ -366,18 +367,50 @@ impl PlatformWebView {
             let loads = loads.clone();
             let gate = script_gate.clone();
             let remote = remote.clone();
+            let clear_area = xlib.XClearArea;
+            let flush = xlib.XFlush;
+            let wake_display = display;
             webview.connect_web_process_terminated(move |wv, reason| {
                 tracing::warn!(
                     "WebView surface {surface_id}: WebKit web process terminated ({reason:?})"
                 );
-                loads.borrow_mut().terminated();
-                remote.end_top_level();
-                nav.set(NavState::Failed);
-                ended.set(true);
-                gate_step(wv, &gate, &remote, |g| {
-                    g.failed();
-                    g.finished()
-                });
+                // WebKitGTK의 종료 신호는 모두 web process 종료다.
+                end_process(
+                    ProcessEnd::Renderer,
+                    &nav,
+                    &ended,
+                    |_| {
+                        loads.borrow_mut().terminated();
+                        remote.end_top_level();
+                        gate_step(wv, &gate, &remote, |g| {
+                            g.failed();
+                            g.finished()
+                        });
+                    },
+                    // 이 신호는 이벤트 루프 회차 안의 GTK 처리에서 오고, 회차는 그리기를 요청하지 않는다. 깨우지
+                    // 않으면 다음 입력까지 끝난 process의 마지막 그림이 남는다. 부모 창 영역을 다시 노출시키면
+                    // winit X11이 Expose를 RedrawRequested로 넘긴다. 연결은 winit 창의 연결이다.
+                    || {
+                        // SAFETY: wake_display는 생성 때 null을 확인한 X 연결이고 아무도 닫지 않는다. GTK 신호는
+                        // 생성 스레드에서 온다. 부모 창이 이미 없어 난 오류는 GTK 초기화 뒤의 X 오류 처리기가
+                        // 받고 프로세스를 끝내지 않는다. 폭·높이 0은 창 끝까지다.
+                        unsafe {
+                            clear_area(
+                                wake_display,
+                                parent_xid as _,
+                                0,
+                                0,
+                                0,
+                                0,
+                                x11_dl::xlib::True,
+                            );
+                        }
+                        // SAFETY: 같은 연결과 스레드다.
+                        unsafe {
+                            flush(wake_display);
+                        }
+                    },
+                );
             });
         }
         {
