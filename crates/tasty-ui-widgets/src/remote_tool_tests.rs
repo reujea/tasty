@@ -258,17 +258,22 @@ fn the_ssh_header_and_empty_lines_sit_remote_ssh_line_pad_top_lower() {
     }
 }
 
+/// 본체 필터와 같은 lang 키에서 읽은 필터 라벨.
+fn filter_labels() -> ProtocolFilterLabels<'static> {
+    ProtocolFilterLabels {
+        title: tasty_i18n::t("remote_tool.filter_title"),
+        select_all: tasty_i18n::t("remote_tool.filter_select_all"),
+        deselect_all: tasty_i18n::t("remote_tool.filter_deselect_all"),
+        reset: tasty_i18n::t("remote_tool.filter_reset"),
+        apply: tasty_i18n::t("remote_tool.filter_apply"),
+        unknown: tasty_i18n::t("remote_tool.filter_unknown"),
+        unknown_hint: tasty_i18n::t("remote_tool.type_unknown_hint"),
+    }
+}
+
 /// 필터 본문을 두 번 그려 둘째 프레임의 도형을 모은다.
 fn filter_shapes(th: &Theme) -> Vec<egui::Shape> {
-    let labels = ProtocolFilterLabels {
-        title: "Filter by protocol",
-        select_all: "Select all",
-        deselect_all: "Deselect all",
-        reset: "Reset",
-        apply: "Apply",
-        unknown: "unknown",
-        unknown_hint: "hint",
-    };
+    let labels = filter_labels();
     let items = [
         ProtocolFilterItem {
             name: "ssh",
@@ -343,11 +348,13 @@ fn the_filter_menu_rules_are_menu_separator_and_the_dot_stays_separator() {
         }
         let mut ys: Vec<f32> = thin.iter().map(|r| r.rect.center().y).collect();
         ys.sort_by(f32::total_cmp);
-        let title = text_top("FILTER BY PROTOCOL");
+        let labels = filter_labels();
+        // 본문은 제목을 대문자로 그린다.
+        let title = text_top(&labels.title.to_uppercase());
         let first = text_top("ssh");
         let last = text_top("snb");
-        let select_all = text_top("Select all");
-        let reset = text_top("Reset");
+        let select_all = text_top(labels.select_all);
+        let reset = text_top(labels.reset);
         assert!(
             title.bottom() < ys[0] && ys[0] < first.top(),
             "the first rule {} sits under the heading",
