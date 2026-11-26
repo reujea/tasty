@@ -425,7 +425,7 @@ window` (Overlays). 본체 binary 의존 0 — 로컬 mock 데이터로 시각 �
 함수를 호출할 수 없다 — 같은 구조를 rect 기준으로 전사한다. 정본과 본체는 창 크기를 같은 토큰에서
 읽는다(본체 `src/app/modal/plugins.rs` 가 배율 1 Theme 의 `plugins_window_width()`·
 `plugins_window_height()` 로 OS 창을 880×560 으로 연다). 갤러리 무대는 이 창 크기를 쓰지 않고
-목록 폭 + `measure_md`(배율 1에서 640) × 상태별 높이(`measure_sm`·`measure_xl`)로 조립한다 —
+목록 폭 + `measure_md`(배율 1에서 640) × 상태별 높이(`measure_sm`·`measure_xl`, Add 매니페스트 확인 상태는 예제 전용 `ADD_VERIFIED_STAGE_H` 배율 1에서 760)로 조립한다 —
 Installed 세 갈래·Attention·Add 를 한 페이지에 늘어놓고 상태별 상세를 한눈에 비교하는 전시
 크기라서다. 목록 폭은 본체처럼 탭별로 Installed `plugins_list_width`, Attention
 `plugins_attention_list_width`(둘 다 240)를 읽는다(`ListWidths`). (Layouts 의 `1-depth (general shell)` specimen
