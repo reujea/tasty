@@ -53,12 +53,12 @@ Popup은 독립 기능, Banner는 안내와 조치, Toast는 짧은 정보 표�
 - border-radius: **4px** — `banner_radius()`(`--tasty-banner-radius` → 시스템 기본 반경).
 - 높이: **콘텐츠에 따라 가변** — 각 배너 구현체가 자체 결정. 시스템은 "프레임/셸"(`banner_shell`) 과 내부 패딩(좌우 `spacing_md` 12 / 상하 `spacing_sm` 8) 규칙만 정의.
 - host 배너의 본문(제목 + 설명)은 줄 사이를 `banner_text_gap()`(2)로 두고, 앞 글리프는 `banner_glyph_offset()`(1)만큼 내려 제목 줄에 맞춘다.
-- 제목의 디자인 굵기(semibold·600)는 재현하지 않는다. egui UI에 굵은 글꼴을 등록하지 않으므로 제목은 `banner_title_font_size()`(13)와 `banner_fg()`(text-primary)로, 본문은 `banner_body_font_size()`(11)와 `banner_body_fg()`(→ `text_muted_raised`)로 구분한다. Latte에서는 본문과 제목의 글자색이 같아 크기와 굵기로만 구분한다. 디자인이 받아들인 크기·색 근사([디자인 정합 지침 §타이포그래피](design-parity-notes.md#타이포그래피--font-weight-세분화-미지원-letter-spacing--line-height-는-지원된다))이며 HTML 스크립트 차단·자동 attach 거절·크기 동기 실패 배너 모두 같다.
+- 제목의 디자인 굵기(semibold·600)는 재현하지 않는다. egui UI에 굵은 글꼴을 등록하지 않으므로 제목은 `banner_title_font_size()`(13)와 `banner_fg()`(text-primary)로, 본문은 `banner_body_font_size()`(11)와 `banner_body_fg()`(→ `text_muted_raised`)로 구분한다. Latte에서는 본문과 제목의 글자색이 같아 크기와 굵기로만 구분한다. 디자인이 받아들인 크기·색 근사([디자인 정합 지침 §타이포그래피](design-parity-notes.md#타이포그래피--font-weight-세분화-미지원-letter-spacing--line-height-는-지원된다))이며 HTML 스크립트 차단·크기 동기 실패 배너 모두 같다.
 - 배경 / 보더 / 그림자: **Theme 토큰** — `banner_bg()`(→ `surface_raised`/surface0) 배경 + 1px `banner_border()`(→ `border_strong`) 보더 + `shadow_popover()`(= `--tasty-shadow-popover`) 그림자. 본문 색은 `banner_fg()`(→ text_primary), leading 글리프 기본색은 `banner_icon_fg()`(→ text_muted, 심각도 배너는 override), 카운트다운은 `banner_countdown_fg()`(→ text_muted). 하위 스코프 디밍은 `opacity_recessed()`(0.4), 페이드 모션은 없다(`banner_fade()` 는 생성만 되고 소비처가 없다).
 
 ### 본문 줄 수
 
-- Tasty 고정 문구의 배너(자동 attach 거절, 크기 동기화 실패, 마우스 캡처, 셸 통합 누락, HTML 스크립트 차단)는 제목과 본문의 줄 수를 제한하지 않는다. 문구가 길거나 스코프가 좁으면 카드가 늘어난다.
+- Tasty 고정 문구의 배너(크기 동기화 실패, 마우스 캡처, 셸 통합 누락, HTML 스크립트 차단)는 제목과 본문의 줄 수를 제한하지 않는다. 문구가 길거나 스코프가 좁으면 카드가 늘어난다.
 - plugin이 제공한 본문의 줄 수는 min(3, 콘텐츠 높이에 들어가는 줄 수)이다. 넘치면 마지막으로 보이는 줄 끝을 말줄임한다. 매니페스트 `size_hint`로 고정한 높이가 세 줄을 담지 못하면 담기는 줄까지만 보인다. 한 줄도 담지 못해도 한 줄은 그린다. plugin은 배너 콘텐츠를 자기 mesh로 그리므로 호스트가 이 규칙을 강제하지 못한다. 공용 위젯 `tasty_ui_widgets::plugin_banner_body`(상한 `PLUGIN_BANNER_BODY_MAX_ROWS` = 3, 디자인 규칙 상수이며 토큰 없음)를 쓰면 규칙을 따른다.
 - 잘린 plugin 본문의 전문은 호스트가 툴팁으로 보인다. 포인터가 본문 위에 `tooltip_delay()`만큼 머물면 배너 카드 아래 `tooltip_offset()`(4)에, 왼쪽을 본문 왼쪽에 맞춰 공용 Tooltip(`tooltip_max_width` 240)을 그린다. plugin mesh 밖에 그리므로 콘텐츠 영역에 잘리지 않고 포인터를 덮지 않는다. 전달 경로는 [egui-mesh 채널](../../dev-guide/egui-mesh-channel.md#잘린-본문의-툴팁--호스트가-그린다)에 있다.
 - 호스트 채널 밖에서 위젯을 쓰면 위젯이 본문 아래에 툴팁을 띄우고 위로는 띄우지 않는다. 화면 맨 위의 본문에서 위로 띄운 버블이 화면 안으로 당겨지면 포인터를 덮어 hover가 끊기기 때문이다.
