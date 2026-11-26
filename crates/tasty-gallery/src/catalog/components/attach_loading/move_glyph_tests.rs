@@ -69,3 +69,42 @@ fn the_loading_rail_refusal_chip_comes_with_the_not_live_remote_chip() {
         }
     }
 }
+
+/// 점유 링(border-attached 테두리)을 두른 아바타에는 거절 칩도 move 칩도 없다. 링은 "attached ring"
+/// 표본에만 있고 네 모서리 표본에는 없다.
+#[test]
+fn the_loading_rail_attached_ring_is_not_on_the_four_corner_avatar() {
+    let (_, base) = &mocha_latte()[0];
+    let painted = paint(|ui| super::matrix::rail(ui, base));
+    for (name, th) in mocha_latte() {
+        let ring: egui::Color32 = th.border_attached().into();
+        let rings: Vec<egui::Rect> = painted
+            .shapes
+            .iter()
+            .filter_map(|s| match s {
+                egui::Shape::Rect(r) if r.stroke.width > 0.0 && r.stroke.color == ring => {
+                    Some(r.rect)
+                }
+                _ => None,
+            })
+            .collect();
+        assert!(!rings.is_empty(), "{name}: no attached ring was painted");
+        let corners = [
+            th.attach_refusal_glyph().to_egui(),
+            th.move_source_glyph().into(),
+        ];
+        assert!(
+            painted.glyphs.iter().any(|(_, c)| corners.contains(c)),
+            "{name}: no corner chip was painted"
+        );
+        for r in rings {
+            assert!(
+                !painted
+                    .glyphs
+                    .iter()
+                    .any(|(g, c)| corners.contains(c) && r.contains(g.center())),
+                "{name}: the attached ring at {r:?} sits with a corner chip"
+            );
+        }
+    }
+}

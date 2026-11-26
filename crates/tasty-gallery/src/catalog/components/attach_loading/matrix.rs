@@ -550,11 +550,11 @@ pub(super) fn rail(ui: &mut egui::Ui, theme: &Theme) {
             },
         ),
         // 앱은 활성 워크스페이스 아바타에 move 칩을 두지 않으므로 네 모서리 표본은 쉬는 아바타다.
+        // 점유 링은 다른 클라이언트가 잡은 로컬 워크스페이스 표시라 저장 원격 행에는 없다.
         (
             "idle with all four corners",
             Avatar {
                 notif: true,
-                ring: true,
                 mirror: true,
                 offline: true,
                 mv: true,
