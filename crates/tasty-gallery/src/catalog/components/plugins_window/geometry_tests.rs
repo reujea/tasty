@@ -3,6 +3,7 @@
 use super::{ListWidths, Tab, installed, window, window_with};
 use crate::catalog::components::painted::{Painted, paint};
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 
 fn theme() -> Theme {
     Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, 1.0)
@@ -239,8 +240,8 @@ fn divider_x(th: &Theme, painted: &Painted, frame: egui::Rect) -> f32 {
 fn the_attention_list_takes_the_attention_width_and_installed_takes_the_list_width() {
     let th = theme();
     let widths = ListWidths {
-        installed: 240.0,
-        attention: 300.0,
+        installed: LogicalPx(240.0),
+        attention: LogicalPx(300.0),
     };
     let cases = [
         (
@@ -265,6 +266,7 @@ fn the_attention_list_takes_the_attention_width_and_installed_takes_the_list_wid
         ),
     ];
     for (tab, want) in cases {
+        let want = want.value();
         let painted = paint(|ui| window_with(ui, &th, tab, widths));
         let frame = painted.rect_filled_with(th.bg_panel().to_egui());
         let list = divider_x(&th, &painted, frame) - frame.left();
@@ -286,8 +288,8 @@ fn the_attention_list_takes_the_attention_width_and_installed_takes_the_list_wid
 fn the_list_widths_read_the_installed_and_attention_width_tokens() {
     let source = include_str!("../plugins_window.rs");
     for line in [
-        "installed: theme.plugins_list_width().value(),",
-        "attention: theme.plugins_attention_list_width().value(),",
+        "installed: theme.plugins_list_width(),",
+        "attention: theme.plugins_attention_list_width(),",
     ] {
         assert!(source.contains(line), "ListWidths::of 에 `{line}` 가 없다");
     }

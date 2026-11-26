@@ -38,19 +38,19 @@ enum Tab {
 /// 읽었는지 가를 수 없어, 탭별 폭을 이 값으로 묶어 시험이 서로 다른 폭을 넣어 볼 수 있게 한다.
 #[derive(Clone, Copy)]
 struct ListWidths {
-    installed: f32,
-    attention: f32,
+    installed: LogicalPx,
+    attention: LogicalPx,
 }
 
 impl ListWidths {
     fn of(theme: &Theme) -> Self {
         Self {
-            installed: theme.plugins_list_width().value(),
-            attention: theme.plugins_attention_list_width().value(),
+            installed: theme.plugins_list_width(),
+            attention: theme.plugins_attention_list_width(),
         }
     }
 
-    fn for_tab(self, tab: Tab) -> f32 {
+    fn for_tab(self, tab: Tab) -> LogicalPx {
         match tab {
             Tab::Attention { .. } => self.attention,
             Tab::Installed { .. } | Tab::Add { .. } => self.installed,
@@ -68,7 +68,8 @@ fn stage_size(theme: &Theme, tab: Tab, widths: ListWidths) -> egui::Vec2 {
         Tab::Add { preview: true } => ADD_VERIFIED_STAGE_H.scaled(theme.ui_zoom),
         _ => theme.measure_sm,
     };
-    egui::vec2(widths.for_tab(tab) + theme.measure_md.value(), h.value())
+    let w = widths.for_tab(tab) + theme.measure_md;
+    egui::vec2(w.value(), h.value())
 }
 
 /// 한 세그먼트 탭의 표시 상태 — 본체 `segment_tab` 의 뒤쪽 인자 4개를 묶은 것.
@@ -368,7 +369,7 @@ fn window_with(ui: &mut egui::Ui, theme: &Theme, tab: Tab, widths: ListWidths) {
     let panes = |body: egui::Rect| {
         let list_rect = egui::Rect::from_min_max(
             body.min,
-            egui::pos2(body.min.x + widths.for_tab(tab), body.max.y),
+            egui::pos2(body.min.x + widths.for_tab(tab).value(), body.max.y),
         );
         let detail_rect = egui::Rect::from_min_max(egui::pos2(list_rect.max.x, body_top), body.max);
         (list_rect, detail_rect)
