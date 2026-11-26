@@ -281,7 +281,8 @@ mod tests {
 
     /// 원격 탭 세 칸의 정본 캡션과 그 아래 창의 목록 표지: (캡션, add-bar 버튼 글자, 목록 행 이름).
     /// 정본 tasty-page develop 80fa994 overlays-windows/window-tab-focus.jsx의 세 View가 그리는
-    /// `RemoteFrame tab="passkeys"`·`tab="attach"`·`tab="attach"`다.
+    /// `RemoteFrame tab="passkeys"`·`tab="attach"`·`tab="attach"`다. Attach 목록 행은 a42da3c
+    /// parts/overlay-frames.jsx `RemoteFrame`의 네 행이다.
     const CANON_REMOTE_TAB_CELLS: [(&str, &str, &[&str]); 3] = [
         (
             "remote · tab strip",
@@ -291,12 +292,12 @@ mod tests {
         (
             "remote · tab next to the open one",
             "Add attach",
-            &["host", "edge-direct", "legacy-attach"],
+            &["host", "edge-direct", "legacy-attach", "old-attach"],
         ),
         (
             "remote · selected tab",
             "Add attach",
-            &["host", "edge-direct", "legacy-attach"],
+            &["host", "edge-direct", "legacy-attach", "old-attach"],
         ),
     ];
 

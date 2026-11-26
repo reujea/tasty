@@ -8,7 +8,7 @@ use tasty_ui_widgets::{
     ProtocolFilterItem, ProtocolFilterLabels, RemoteRowChip, Spinner, TabStripData, TextWrap,
     draw_local_ssh_section, draw_protocol_filter_body, draw_protocol_filter_button,
     draw_tab_strip_with_focus_look, remote_list_row, remote_row_title, select, selectable_text,
-    warn_badge,
+    warn_badge, warn_badge_width,
 };
 
 use crate::catalog::icons;
@@ -20,6 +20,8 @@ mod passkeys;
 pub(super) use passkeys::passkeys_frame;
 #[cfg(test)]
 mod attach_meta_tests;
+#[cfg(test)]
+mod attach_rows_tests;
 #[cfg(test)]
 mod passkeys_meta_tests;
 mod segment_rule;
@@ -372,6 +374,8 @@ struct Attach {
     tasty: &'static str,
     port: &'static str,
     inactive: bool,
+    /// 참조한 ssh 프로필이 없다. 본체 `attach_status`처럼 이름은 그대로 두고 대상 줄 옆에 배지를 단다.
+    missing: bool,
 }
 
 const ATTACHES: &[Attach] = &[
@@ -383,6 +387,7 @@ const ATTACHES: &[Attach] = &[
         tasty: "tasty",
         port: "auto",
         inactive: false,
+        missing: false,
     },
     Attach {
         name: "edge-direct",
@@ -392,6 +397,7 @@ const ATTACHES: &[Attach] = &[
         tasty: "/opt/tasty/bin/tasty",
         port: "file-unix",
         inactive: false,
+        missing: false,
     },
     Attach {
         name: "legacy-attach",
@@ -401,6 +407,17 @@ const ATTACHES: &[Attach] = &[
         tasty: "tasty",
         port: "subcommand",
         inactive: true,
+        missing: false,
+    },
+    Attach {
+        name: "old-attach",
+        label: "",
+        mode: "profile",
+        target: "→ retired-box",
+        tasty: "tasty",
+        port: "auto",
+        inactive: false,
+        missing: true,
     },
 ];
 
@@ -502,15 +519,33 @@ fn attach_row(ui: &mut egui::Ui, theme: &Theme, a: &Attach) {
         |ui, w| {
             let label = (!a.label.is_empty()).then_some(a.label);
             remote_row_title(ui, theme, a.name, label, a.inactive, &chips, w);
-            selectable_text(
-                ui,
-                a.target,
-                theme.text_muted(),
-                theme.font_size_caption,
-                true,
-                false,
-                TextWrap::Truncate(LogicalPx(w)),
-            );
+            // 본체 attach 행처럼 대상 줄은 배지 폭과 간격을 뺀 만큼에서 말줄임하고 그 뒤에 배지를 둔다.
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = theme.spacing_sm.value();
+                let missing_text = crate::i18n::t("remote_tool.attach_profile_missing");
+                let missing_w = if a.missing {
+                    LogicalPx(warn_badge_width(ui, theme, missing_text)) + theme.spacing_sm
+                } else {
+                    LogicalPx(0.0)
+                };
+                selectable_text(
+                    ui,
+                    a.target,
+                    theme.text_muted(),
+                    theme.font_size_caption,
+                    true,
+                    false,
+                    TextWrap::Truncate((LogicalPx(w) - missing_w).max(LogicalPx(0.0))),
+                );
+                if a.missing {
+                    warn_badge(
+                        ui,
+                        theme,
+                        missing_text,
+                        crate::i18n::t("remote_tool.attach_profile_missing_hint"),
+                    );
+                }
+            });
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = theme.spacing_md.value();
                 kit::caption(ui, theme, &format!("tasty: {}", a.tasty), true);

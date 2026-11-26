@@ -35,10 +35,30 @@ pub(crate) fn paint_first_frame(draw: impl FnMut(&mut egui::Ui)) -> Painted {
     paint_frames(1, draw)
 }
 
-fn paint_frames(frames: usize, mut draw: impl FnMut(&mut egui::Ui)) -> Painted {
+/// 포인터를 `at`에 둔 채 세 프레임을 그려 마지막 프레임의 도형을 모은다. 툴팁은 지연 없이 바로 뜨게
+/// 해 hover 툴팁 글자도 그려진 글자로 모인다.
+pub(crate) fn paint_hovering(at: egui::Pos2, draw: impl FnMut(&mut egui::Ui)) -> Painted {
+    paint_frames_with(3, Some(at), draw)
+}
+
+fn paint_frames(frames: usize, draw: impl FnMut(&mut egui::Ui)) -> Painted {
+    paint_frames_with(frames, None, draw)
+}
+
+fn paint_frames_with(
+    frames: usize,
+    pointer: Option<egui::Pos2>,
+    mut draw: impl FnMut(&mut egui::Ui),
+) -> Painted {
     let ctx = egui::Context::default();
     // 글리프는 SVG 그림이다. 로더가 없으면 글리프가 칠해지지 않는다.
     egui_extras::install_image_loaders(&ctx);
+    if pointer.is_some() {
+        ctx.style_mut(|s| {
+            s.interaction.tooltip_delay = 0.0;
+            s.interaction.show_tooltips_only_when_still = false;
+        });
+    }
     let mut shapes = Vec::new();
     for _ in 0..frames {
         let raw = egui::RawInput {
@@ -46,6 +66,9 @@ fn paint_frames(frames: usize, mut draw: impl FnMut(&mut egui::Ui)) -> Painted {
                 egui::Pos2::ZERO,
                 egui::vec2(900.0, 2400.0),
             )),
+            events: pointer
+                .map(|at| vec![egui::Event::PointerMoved(at)])
+                .unwrap_or_default(),
             ..Default::default()
         };
         let out = ctx.run(raw, |ctx| {
