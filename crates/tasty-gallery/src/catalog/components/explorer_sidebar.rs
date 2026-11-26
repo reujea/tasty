@@ -366,7 +366,7 @@ pub fn draw_favorites(ui: &mut egui::Ui, theme: &Theme) {
             ("caption", "always shown — micro caps, text-muted"),
             (
                 "empty line",
-                "outline star + \"No favorites yet\" · text-muted",
+                "outline star · glyph-dim + \"No favorites yet\" · text-muted",
             ),
             ("hint", "1 line · text-placeholder"),
             ("align", "left, inside 196px column"),
