@@ -67,7 +67,7 @@ fn the_explorer_sample_empty_favorites_star_is_glyph_dim() {
 }
 
 /// 탐색기 표본의 빈 즐겨찾기 안내 줄은 메뉴 이름을 본체 메뉴 줄과 같은 내장 영어 lang 값으로 text_muted 로 그리고,
-/// Meta hint 행은 정본처럼 열 오른쪽 끝에서 감긴다고 적는다.
+/// Meta hint 행은 정본처럼 사이드바의 남은 폭 안에서 감긴다고 적는다.
 #[test]
 fn the_explorer_sample_hint_names_the_menu_label_from_lang() {
     let th = mocha();
@@ -79,5 +79,5 @@ fn the_explorer_sample_hint_names_the_menu_label_from_lang() {
         .find(|t| t.text == label)
         .unwrap_or_else(|| panic!("메뉴 이름 {label:?} 이 안내 줄에 그려지지 않았다"));
     assert_eq!(menu.color, th.text_muted().to_egui(), "메뉴 이름 잉크");
-    painted.text("Wraps at the column’s right edge like the app label (2 lines at 196px)");
+    painted.text("Wraps within the available width of the sidebar");
 }

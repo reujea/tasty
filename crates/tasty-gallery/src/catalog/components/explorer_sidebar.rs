@@ -195,7 +195,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "row visuals",
-                "unchanged (tree row · star row · empty state)",
+                "TreeRow rows · caption, star and empty state as in Sidebar Favorites",
             ),
         ],
         &[
@@ -214,9 +214,14 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                 egui::Color32::from(theme.bg_sidebar()),
             ),
             TokenChip::new(
-                "accent-warning",
-                "filled star",
-                egui::Color32::from(theme.accent_warning()),
+                "accent-warning-glyph",
+                "filled star at rest",
+                theme.accent_warning_glyph().to_egui(),
+            ),
+            TokenChip::new(
+                "accent-warning-on-active",
+                "filled star on selected row",
+                theme.accent_warning_on_active().to_egui(),
             ),
         ],
     );
@@ -370,8 +375,8 @@ pub fn draw_favorites(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "hint",
-                "Wraps at the column’s right edge like the app label (2 lines at 196px) · \
-                 text-placeholder · menu label in text-muted",
+                "Wraps within the available width of the sidebar (line count depends on the font \
+                 and language) · text-placeholder · menu label in text-muted",
             ),
             ("align", "left, inside 196px column"),
             ("condition", "was: hide section at 0 → now: always show"),
@@ -393,9 +398,14 @@ pub fn draw_favorites(ui: &mut egui::Ui, theme: &Theme) {
                 egui::Color32::from(theme.glyph_dim()),
             ),
             TokenChip::new(
-                "accent-warning",
-                "filled star (populated)",
-                egui::Color32::from(theme.accent_warning()),
+                "accent-warning-glyph",
+                "filled star at rest",
+                theme.accent_warning_glyph().to_egui(),
+            ),
+            TokenChip::new(
+                "accent-warning-on-active",
+                "filled star on selected row",
+                theme.accent_warning_on_active().to_egui(),
             ),
         ],
     );
