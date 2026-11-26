@@ -392,3 +392,33 @@ fn a_segment_tab_count_starts_space_sm_after_its_label() {
         );
     }
 }
+
+/// 헤더 구분선은 보더 폭 × 정본 `plugins-header-divider-height` 이고 배율을 따른다.
+#[test]
+fn the_header_divider_is_plugins_header_divider_height_tall() {
+    for zoom in [0.85, 1.0, 1.2] {
+        let th =
+            theme::Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, zoom);
+        let ctx = egui::Context::default();
+        let out = ctx.run(egui::RawInput::default(), |c| {
+            egui::CentralPanel::default().show(c, |ui| draw_header_divider(ui, &th));
+        });
+        let fill = th.separator.to_egui_premultiplied();
+        let divider = out
+            .shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                egui::Shape::Rect(r) if r.fill == fill => Some(r.rect),
+                _ => None,
+            })
+            .expect("헤더 구분선이 없다");
+        assert_eq!(
+            (divider.width(), divider.height()),
+            (
+                th.border_width.value(),
+                th.plugins_header_divider_height().value()
+            ),
+            "배율 {zoom}: 헤더 구분선 {divider:?} 가 border_width × plugins_header_divider_height 가 아니다"
+        );
+    }
+}

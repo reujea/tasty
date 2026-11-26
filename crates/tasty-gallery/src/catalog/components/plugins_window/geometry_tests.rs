@@ -294,3 +294,40 @@ fn the_list_widths_read_the_installed_and_attention_width_tokens() {
         assert!(source.contains(line), "ListWidths::of 에 `{line}` 가 없다");
     }
 }
+
+/// 헤더 구분선은 보더 폭 × `plugins_header_divider_height` 다. 지원 배율에서 옛 합(space-lg + space-xs)과
+/// 값이 같아 그린 도형으로 가를 수 없으므로 토큰 이름도 고정한다.
+#[test]
+fn the_header_divider_is_plugins_header_divider_height_tall() {
+    let th = theme();
+    let (painted, frame) = installed_window(&th);
+    let header = egui::Rect::from_min_size(
+        frame.min,
+        egui::vec2(frame.width(), th.plugins_header_height().value()),
+    );
+    let fill = th.separator.to_egui_premultiplied();
+    let divider = painted
+        .shapes
+        .iter()
+        .find_map(|s| match s {
+            egui::Shape::Rect(r)
+                if r.fill == fill
+                    && header.contains_rect(r.rect)
+                    && r.rect.width() == th.border_width.value() =>
+            {
+                Some(r.rect)
+            }
+            _ => None,
+        })
+        .expect("헤더 구분선이 없다");
+    assert_eq!(
+        divider.height(),
+        th.plugins_header_divider_height().value(),
+        "헤더 구분선 {divider:?} 높이가 plugins_header_divider_height 가 아니다"
+    );
+    let source = include_str!("../plugins_window.rs");
+    assert!(
+        source.contains("let div_h = theme.plugins_header_divider_height().value();"),
+        "헤더 구분선 높이가 plugins_header_divider_height 를 읽지 않는다"
+    );
+}

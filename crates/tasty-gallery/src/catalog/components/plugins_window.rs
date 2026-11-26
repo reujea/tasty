@@ -235,7 +235,8 @@ fn header(ui: &mut egui::Ui, theme: &Theme, rect: egui::Rect, tab: Tab) {
     );
     x += title.size().x + theme.spacing_sm.value();
 
-    let div_h = theme.spacing_lg.value() + theme.spacing_xs.value();
+    // 본체 헤더 구분선과 같은 역할 토큰이다.
+    let div_h = theme.plugins_header_divider_height().value();
     p.rect_filled(
         egui::Rect::from_min_size(
             egui::pos2(x, cy - div_h * 0.5),

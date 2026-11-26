@@ -461,10 +461,11 @@ fn header_frame(ctx: &egui::Context, th: &theme::Theme) -> egui::Frame {
     frame
 }
 
-/// 헤더의 타이틀 ↔ 세그먼트 사이 세로 구분선 (1px × 20px).
+/// 헤더의 타이틀 ↔ 세그먼트 사이 세로 구분선 (보더 폭 × `plugins-header-divider-height`).
 fn draw_header_divider(ui: &mut egui::Ui, th: &theme::Theme) {
     let w = th.border_width.value();
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(w, 20.0), egui::Sense::hover());
+    let h = th.plugins_header_divider_height().value();
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::hover());
     ui.painter()
         .rect_filled(rect, 0.0, th.separator.to_egui_premultiplied());
 }
