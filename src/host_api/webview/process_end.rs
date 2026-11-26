@@ -1,15 +1,15 @@
 //! main frame 문서를 그리던 process가 끝났을 때 처리기가 따르는 순서: 종료 종류별로 상태를 기록한 뒤 창을
 //! 한 번 깨운다. 다시 싣기와 Failed 표시는 다음 동기화에서 일어나므로, 깨움이 상태 기록보다 앞서거나 빠지면
-//! 입력이 올 때까지 엔진 오류 페이지나 끝난 process의 마지막 그림이 남는다. Windows `ProcessFailed`와 Linux
-//! `web-process-terminated` 처리기가 쓴다. 엔진 종류를 이 종류로 바꾸는 일과 깨우기 호출(창에 그리기 요청)은
-//! 처리기 쪽에 있다.
+//! 입력이 올 때까지 엔진 오류 페이지나 끝난 process의 마지막 그림이 남는다. Windows `ProcessFailed`, Linux
+//! `web-process-terminated`, macOS `webViewWebContentProcessDidTerminate:` 처리기가 쓴다. 엔진 종류를 이
+//! 종류로 바꾸는 일과 깨우기 호출(창에 그리기 요청)은 처리기 쪽에 있다.
 
 use std::cell::Cell;
 
 use super::NavState;
 
 /// 끝난 process의 종류.
-// 이유: Linux 처리기는 렌더 process 종료만 만든다. 브라우저·그 밖의 종료는 Windows 처리기와 시험만 만든다.
+// 이유: Linux·macOS 처리기는 렌더 process 종료만 만든다. 브라우저·그 밖의 종료는 Windows 처리기와 시험만 만든다.
 #[cfg_attr(not(any(windows, test)), allow(dead_code))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ProcessEnd {

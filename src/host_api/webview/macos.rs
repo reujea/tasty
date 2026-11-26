@@ -45,6 +45,7 @@ use super::click_gesture::ClickGesture;
 use super::entry_response::EntryResponseSource;
 use super::keys::WebViewKeySink;
 use super::load_generation::CancelledDecisions;
+use super::process_end::{ProcessEnd, end_process};
 use super::script_gate::{Response, ScriptGate};
 use super::{NavState, PendingNavigation, WebViewBounds};
 
@@ -198,16 +199,30 @@ define_class!(
         /// web content process가 끝나면 Linux처럼 게이트 로드를 끝낸다(docs/surfaces/html/index.md, 실 기기 미측정).
         /// 실패 콜백이 뒤따라 와도 finished()는 로드 중이 아닐 때 아무것도 하지 않는다.
         #[unsafe(method(webViewWebContentProcessDidTerminate:))]
-        fn web_content_process_did_terminate(&self, _web_view: &WKWebView) {
+        fn web_content_process_did_terminate(&self, web_view: &WKWebView) {
+            let ivars = self.ivars();
             tracing::warn!(
                 "WebView surface {}: WebKit web content process terminated",
-                self.ivars().surface_id
+                ivars.surface_id
             );
-            self.ivars().nav_state.set(NavState::Failed);
-            self.ivars().content_process_ended.set(true);
-            self.ivars().cancel_pending_decision();
-            self.ivars().gate_failed();
-            self.ivars().gate_finished();
+            end_process(
+                ProcessEnd::Renderer,
+                &ivars.nav_state,
+                &ivars.content_process_ended,
+                |_| {
+                    ivars.cancel_pending_decision();
+                    ivars.gate_failed();
+                    ivars.gate_finished();
+                },
+                // 위임 콜백은 그리기를 요청하지 않는다. 깨우지 않으면 쉬는 창은 다음 입력까지 다시 싣지
+                // 않는다. 부모는 winit 뷰이고, winit은 그 뷰의 drawRect:를 RedrawRequested로 넘긴다.
+                || {
+                    // SAFETY: 위임 콜백은 main thread에서 오고 web_view는 이 호출 동안 살아 있다.
+                    if let Some(parent) = unsafe { web_view.superview() } {
+                        parent.setNeedsDisplay(true);
+                    }
+                },
+            );
         }
 
         /// Only a remote HTTP view answers challenges; other views keep WebKit's handling.
