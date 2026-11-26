@@ -156,44 +156,69 @@ mod tests {
     use super::*;
     use crate::catalog::components::painted::paint;
 
+    /// 커서 링 원천(accent-primary-raised)과 옛 원천(input-border-focus) 값이 갈리는 Latte까지 대조한다.
+    /// Mocha에서는 두 값이 같아 원천을 옛 토큰으로 되돌려도 색으로는 가르지 못한다.
+    fn themes() -> [(&'static str, Theme); 2] {
+        let latte = crate::host_shell::latte_theme();
+        assert_ne!(
+            latte.accent_primary_raised(),
+            latte.input_border_focus(),
+            "Latte keeps the cursor ring source apart from the input focus colour"
+        );
+        [("Mocha", tasty_themes::mocha_fallback()), ("Latte", latte)]
+    }
+
     /// 현재 항목 테두리는 선택 채움 뒤에 그 칸과 같은 사각형으로 그린다(본체 `view/cursor.rs` 의 `frame`).
     #[test]
     fn the_cursor_ring_is_painted_over_the_selected_fill() {
-        let theme = tasty_themes::mocha_fallback();
-        let p = paint(|ui| draw(ui, &theme));
-        let ring_at = p
-            .shapes
-            .iter()
-            .position(|s| {
+        for (name, theme) in themes() {
+            let p = paint(|ui| draw(ui, &theme));
+            let ring_at = p
+                .shapes
+                .iter()
+                .position(|s| {
+                    matches!(s, egui::Shape::Rect(r)
+                        if r.stroke.color == theme.accent_primary_raised().to_egui()
+                            && r.stroke.width == theme.explorer_cursor_ring_width().value())
+                })
+                .unwrap_or_else(|| {
+                    panic!("{name}: the cursor ring was painted in accent-primary-raised")
+                });
+            let egui::Shape::Rect(ring) = &p.shapes[ring_at] else {
+                unreachable!()
+            };
+            let on_ring = |s: &egui::Shape| {
                 matches!(s, egui::Shape::Rect(r)
-                    if r.stroke.color == theme.explorer_cursor_ring().to_egui()
-                        && r.stroke.width == theme.explorer_cursor_ring_width().value())
-            })
-            .expect("the cursor ring was painted");
-        let egui::Shape::Rect(ring) = &p.shapes[ring_at] else {
-            unreachable!()
-        };
-        let on_ring = |s: &egui::Shape| {
-            matches!(s, egui::Shape::Rect(r)
-                if r.fill == theme.surface_active().to_egui() && r.rect == ring.rect)
-        };
-        assert!(
-            p.shapes[..ring_at].iter().any(on_ring),
-            "the ring sits on a selected row fill painted before it"
-        );
-        assert!(
-            !p.shapes[ring_at + 1..].iter().any(on_ring),
-            "no selection fill is painted over the ring"
-        );
+                    if r.fill == theme.surface_active().to_egui() && r.rect == ring.rect)
+            };
+            assert!(
+                p.shapes[..ring_at].iter().any(on_ring),
+                "{name}: the ring sits on a selected row fill painted before it"
+            );
+            assert!(
+                !p.shapes[ring_at + 1..].iter().any(on_ring),
+                "{name}: no selection fill is painted over the ring"
+            );
+        }
     }
 
     /// 칩이 말하는 출처가 링이 실제로 읽는 색이고, 칩 견본도 그 색이다.
     #[test]
     fn the_cursor_ring_chip_names_the_colour_the_ring_reads() {
-        let theme = tasty_themes::mocha_fallback();
-        let p = paint(|ui| draw(ui, &theme));
-        let (_, swatch) = p.token_chip(theme.surface_raised().to_egui(), "→ accent-primary-raised");
-        assert_eq!(swatch, theme.explorer_cursor_ring().to_egui());
-        assert_eq!(swatch, theme.accent_primary_raised().to_egui());
+        for (name, theme) in themes() {
+            let p = paint(|ui| draw(ui, &theme));
+            let (_, swatch) =
+                p.token_chip(theme.surface_raised().to_egui(), "→ accent-primary-raised");
+            assert_eq!(
+                swatch,
+                theme.accent_primary_raised().to_egui(),
+                "{name}: chip swatch"
+            );
+            assert_eq!(
+                theme.explorer_cursor_ring(),
+                theme.accent_primary_raised(),
+                "{name}: the ring token reads accent-primary-raised"
+            );
+        }
     }
 }
