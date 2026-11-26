@@ -1,5 +1,5 @@
 //! Components의 결정 기록 Spec: 키캡 하나, 글리프 크기, 점 가족.
-//! 시안 `components.jsx`의 같은 Spec을 옮긴다. 폐기된 값은 비교용으로 그대로 그린다.
+//! 시안 `components.jsx`의 같은 Spec을 옮긴다. 폐기된 값은 비교용으로 그대로 그린다(키캡은 정착안만 그린다).
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;
@@ -8,13 +8,6 @@ use tasty_ui_widgets::{KbdKey, Spinner, kbd, kbd_parts_width};
 use crate::catalog::icons;
 use crate::catalog::spec::{StageVariant, TokenChip, dont, meta, note, stage};
 use crate::catalog::toast_card::{self, ToastKind};
-
-/// 키캡 비교 패널의 폭.
-const KEYCAP_PANEL_W: LogicalPx = LogicalPx(380.0);
-/// 팔레트가 따로 그리던 키캡의 값. 폐기된 값이며 비교 행에서만 쓴다.
-const DROPPED_CAP_SIZE: LogicalPx = LogicalPx(18.0);
-const DROPPED_CAP_PAD_X: LogicalPx = LogicalPx(5.0);
-const DROPPED_CAP_GAP: LogicalPx = LogicalPx(4.0);
 
 /// 글리프 예제 칸의 높이. 28px 글리프까지 같은 줄에 세운다.
 const GLYPH_SLOT_H: LogicalPx = LogicalPx(34.0);
@@ -35,14 +28,6 @@ fn ec(c: impl Into<egui::Color32>) -> egui::Color32 {
     c.into()
 }
 
-fn caption(ui: &mut egui::Ui, theme: &Theme, s: &str, color: egui::Color32) {
-    ui.label(
-        egui::RichText::new(s)
-            .size(theme.font_size_caption.value())
-            .color(color),
-    );
-}
-
 fn mono_micro(ui: &mut egui::Ui, theme: &Theme, s: &str, color: egui::Color32) {
     ui.label(
         egui::RichText::new(s)
@@ -52,73 +37,11 @@ fn mono_micro(ui: &mut egui::Ui, theme: &Theme, s: &str, color: egui::Color32) {
     );
 }
 
-/// 폐기된 팔레트 키캡 한 벌의 폭. 그리기와 같은 식으로 계산한다.
-fn dropped_caps_width(ui: &egui::Ui, theme: &Theme, keys: &str) -> f32 {
-    let font = egui::FontId::monospace(theme.font_size_caption.value());
-    let caps: Vec<f32> = keys
-        .split('+')
-        .map(|key| {
-            let w = ui.fonts(|f| {
-                f.layout_no_wrap(key.to_string(), font.clone(), ec(theme.kbd_fg()))
-                    .size()
-                    .x
-            });
-            (w + DROPPED_CAP_PAD_X.value() * 2.0).max(DROPPED_CAP_SIZE.value())
-        })
-        .collect();
-    caps.iter().sum::<f32>() + DROPPED_CAP_GAP.value() * caps.len().saturating_sub(1) as f32
-}
-
-/// 폐기된 팔레트 키캡 한 벌. Kbd와 같은 색 토큰을 쓰고 치수만 예전 값이다.
-fn dropped_caps(ui: &mut egui::Ui, theme: &Theme, keys: &str) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = DROPPED_CAP_GAP.value();
-        for key in keys.split('+') {
-            let font = egui::FontId::monospace(theme.font_size_caption.value());
-            let galley = ui
-                .painter()
-                .layout_no_wrap(key.to_string(), font, ec(theme.kbd_fg()));
-            let w =
-                (galley.size().x + DROPPED_CAP_PAD_X.value() * 2.0).max(DROPPED_CAP_SIZE.value());
-            let (rect, _) = ui.allocate_exact_size(
-                egui::vec2(w, DROPPED_CAP_SIZE.value()),
-                egui::Sense::hover(),
-            );
-            let p = ui.painter();
-            let r = theme.corner_radius_sm.value();
-            let depth = theme.kbd_shadow_depth().value();
-            p.rect_filled(
-                rect.translate(egui::vec2(0.0, depth)),
-                r,
-                ec(theme.kbd_border()),
-            );
-            p.rect_filled(rect, r, ec(theme.kbd_bg()));
-            p.rect_stroke(
-                rect,
-                r,
-                egui::Stroke::new(theme.border_width.value(), ec(theme.kbd_border())),
-                egui::StrokeKind::Inside,
-            );
-            p.galley(
-                rect.center() - galley.size() * 0.5,
-                galley,
-                ec(theme.kbd_fg()),
-            );
-        }
-    });
-}
-
-/// 팔레트 행 두 개를 담은 패널. `canonical`이면 공용 Kbd를 쓴다.
-fn keycap_panel(ui: &mut egui::Ui, theme: &Theme, label: &str, canonical: bool) {
+/// 팔레트 행 두 개를 담은 패널. 열 폭을 채우되 `palette_width` 를 넘지 않고, 키캡은 공용 Kbd 다.
+fn keycap_panel(ui: &mut egui::Ui, theme: &Theme) {
+    let width = theme.palette_width().value().min(ui.available_width());
     ui.vertical(|ui| {
-        ui.set_width(KEYCAP_PANEL_W.value());
-        ui.spacing_mut().item_spacing.y = theme.spacing_xs.value();
-        let color = if canonical {
-            theme.accent_success()
-        } else {
-            theme.text_muted_raised()
-        };
-        caption(ui, theme, label, ec(color));
+        ui.set_width(width);
         egui::Frame::new()
             .fill(ec(theme.surface_raised()))
             .stroke(egui::Stroke::new(
@@ -148,44 +71,28 @@ fn keycap_panel(ui: &mut egui::Ui, theme: &Theme, label: &str, canonical: bool) 
                             .color(ec(theme.text_secondary_raised())),
                     );
                     // 오른쪽 정렬 레이아웃은 키 순서까지 뒤집으므로 폭을 먼저 재고 왼쪽부터 그린다.
-                    let keys_w = if canonical {
-                        let parts: Vec<KbdKey<'_>> = keys.split('+').map(KbdKey::Text).collect();
-                        kbd_parts_width(child.ctx(), theme, &parts).value()
-                    } else {
-                        dropped_caps_width(&child, theme, keys)
-                    };
+                    let parts: Vec<KbdKey<'_>> = keys.split('+').map(KbdKey::Text).collect();
+                    let keys_w = kbd_parts_width(child.ctx(), theme, &parts).value();
                     child.add_space((child.available_width() - keys_w).max(0.0));
-                    if canonical {
-                        kbd(&mut child, theme, keys, tasty_ui_widgets::Ground::Panel);
-                    } else {
-                        dropped_caps(&mut child, theme, keys);
-                    }
+                    kbd(&mut child, theme, keys, tasty_ui_widgets::Ground::Panel);
                 }
             });
     });
 }
 
-/// Components › Kbd — 팔레트 전용 키캡을 없애고 Kbd 하나로 맞춘다.
+/// Components › Kbd — 팔레트도 공용 Kbd 하나를 쓴다. 폐기한 팔레트 전용 키캡은 그리지 않는다.
 pub fn draw_one_keycap(ui: &mut egui::Ui, theme: &Theme) {
-    stage(ui, theme, StageVariant::Column, |ui| {
-        keycap_panel(ui, theme, "settled — Kbd (16 / 4 / 4 / 10)", true);
-        keycap_panel(
-            ui,
-            theme,
-            "dropped — palette-only cap (18 / 5 / 4 / 11)",
-            false,
-        );
-    });
+    stage(ui, theme, StageVariant::Solo, |ui| keycap_panel(ui, theme));
     meta(
         ui,
         theme,
         &[
-            ("min side", "16 — kbd-size (was 18)"),
-            ("padding-x", "4 — kbd-padding-x (was 5)"),
-            ("gap", "3 — kbd-gap (was 4)"),
-            ("font", "10 — kbd-font-size (was 11)"),
-            ("bottom edge", "unchanged — kbd-shadow-depth"),
-            ("row", "28px palette row — unchanged, 6px air per side"),
+            ("min side", "16px · kbd-size (was 18px)"),
+            ("padding-x", "4px · kbd-padding-x (was 5px)"),
+            ("gap", "4px · kbd-gap"),
+            ("font", "10px · kbd-font-size (was 11px)"),
+            ("bottom edge", "2px bottom border · kbd-shadow-depth"),
+            ("row", "28px · 6px above and below the cap"),
             ("new tokens", "none"),
         ],
         &[
@@ -201,6 +108,9 @@ pub fn draw_one_keycap(ui: &mut egui::Ui, theme: &Theme) {
         "The switch-number overlay keycap already reads the Kbd tokens, so the palette was the last divergent cap. One keycap in the system now.",
     );
 }
+
+#[cfg(test)]
+mod keycap_tests;
 
 /// Components › Badge · Tag · Kbd — 글자 크기에 있던 글리프 값을 아이콘 크기로 옮긴다.
 pub fn draw_glyph_sizes(ui: &mut egui::Ui, theme: &Theme) {
