@@ -344,3 +344,51 @@ fn the_header_glyph_is_icon_size_md() {
         "헤더 글리프 {glyph:?} 가 icon_glyph_size_md {md} 정사각이 아니다"
     );
 }
+
+/// 세그먼트 탭 하나를 그리고 그 글자 도형(왼쪽 위치, 배치 폭)을 문자열로 돌려준다.
+fn segment_tab_texts(th: &theme::Theme, count: usize) -> Vec<(String, f32, f32)> {
+    let ctx = egui::Context::default();
+    let mut texts = Vec::new();
+    for _ in 0..2 {
+        let out = ctx.run(egui::RawInput::default(), |c| {
+            egui::CentralPanel::default().show(c, |ui| {
+                segment_tab(ui, th, "Installed", Some(count), false, true);
+            });
+        });
+        texts = out
+            .shapes
+            .into_iter()
+            .filter_map(|s| match s.shape {
+                egui::Shape::Text(t) => {
+                    Some((t.galley.text().to_string(), t.pos.x, t.galley.size().x))
+                }
+                _ => None,
+            })
+            .collect();
+    }
+    texts
+}
+
+/// 세그먼트 탭의 개수 글자는 라벨 오른쪽에서 정본 `space-sm` 만큼 떨어져 시작한다.
+#[test]
+fn a_segment_tab_count_starts_space_sm_after_its_label() {
+    for zoom in [0.85, 1.0, 1.2] {
+        let th =
+            theme::Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, zoom);
+        let texts = segment_tab_texts(&th, 7);
+        let find = |needle: &str| {
+            texts
+                .iter()
+                .find(|(t, _, _)| t == needle)
+                .unwrap_or_else(|| panic!("{needle:?} 글자 도형이 없다: {texts:?}"))
+        };
+        let (_, label_x, label_w) = find("Installed");
+        let (_, count_x, _) = find("7");
+        let gap = count_x - (label_x + label_w);
+        assert!(
+            (gap - th.spacing_sm.value()).abs() < 0.01,
+            "배율 {zoom}: 라벨과 개수 사이 {gap} 가 spacing_sm {} 가 아니다",
+            th.spacing_sm.value()
+        );
+    }
+}
