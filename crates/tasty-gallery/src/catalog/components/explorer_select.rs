@@ -132,7 +132,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
         &[
             TokenChip::new(
                 "explorer-cursor-ring",
-                "→ border-focus",
+                "→ accent-primary-raised",
                 theme.explorer_cursor_ring().to_egui(),
             ),
             TokenChip::without_color("explorer-cursor-ring-width", "→ border-width"),
@@ -149,4 +149,51 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             TokenChip::without_color("explorer-autoscroll-zone", "→ size-24"),
         ],
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::catalog::components::painted::paint;
+
+    /// 현재 항목 테두리는 선택 채움 뒤에 그 칸과 같은 사각형으로 그린다(본체 `view/cursor.rs` 의 `frame`).
+    #[test]
+    fn the_cursor_ring_is_painted_over_the_selected_fill() {
+        let theme = tasty_themes::mocha_fallback();
+        let p = paint(|ui| draw(ui, &theme));
+        let ring_at = p
+            .shapes
+            .iter()
+            .position(|s| {
+                matches!(s, egui::Shape::Rect(r)
+                    if r.stroke.color == theme.explorer_cursor_ring().to_egui()
+                        && r.stroke.width == theme.explorer_cursor_ring_width().value())
+            })
+            .expect("the cursor ring was painted");
+        let egui::Shape::Rect(ring) = &p.shapes[ring_at] else {
+            unreachable!()
+        };
+        let on_ring = |s: &egui::Shape| {
+            matches!(s, egui::Shape::Rect(r)
+                if r.fill == theme.surface_active().to_egui() && r.rect == ring.rect)
+        };
+        assert!(
+            p.shapes[..ring_at].iter().any(on_ring),
+            "the ring sits on a selected row fill painted before it"
+        );
+        assert!(
+            !p.shapes[ring_at + 1..].iter().any(on_ring),
+            "no selection fill is painted over the ring"
+        );
+    }
+
+    /// 칩이 말하는 출처가 링이 실제로 읽는 색이고, 칩 견본도 그 색이다.
+    #[test]
+    fn the_cursor_ring_chip_names_the_colour_the_ring_reads() {
+        let theme = tasty_themes::mocha_fallback();
+        let p = paint(|ui| draw(ui, &theme));
+        let (_, swatch) = p.token_chip(theme.surface_raised().to_egui(), "→ accent-primary-raised");
+        assert_eq!(swatch, theme.explorer_cursor_ring().to_egui());
+        assert_eq!(swatch, theme.accent_primary_raised().to_egui());
+    }
 }
