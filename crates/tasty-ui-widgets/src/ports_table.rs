@@ -248,6 +248,62 @@ mod favorite_row_tests {
         assert_eq!(state.right(), row.right());
     }
 
+    /// 상세가 상태 칸 하한 너머까지 긴 행을 그린 뒤 (행 오른쪽 끝, 그린 상세 글자의 오른쪽 끝)을 돌려준다.
+    fn painted_long_detail(width: f32) -> (f32, f32) {
+        let theme = theme(1.0);
+        let detail = "node · 48213 · a workspace name long enough to run past the state column";
+        let ctx = egui::Context::default();
+        let mut row_right = 0.0;
+        let mut text_right = None;
+        for _ in 0..2 {
+            let out = ctx.run(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(width, theme.port_favorites_row_height().value()),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            ui.spacing_mut().item_spacing.x = 0.0;
+                            row_right = ui.cursor().left() + width;
+                            ports_favorite_detail_and_state(
+                                ui,
+                                &theme,
+                                detail,
+                                StatusKind::Running,
+                                "LISTEN",
+                                false,
+                                true,
+                            );
+                        },
+                    );
+                });
+            });
+            text_right = out.shapes.iter().find_map(|c| match &c.shape {
+                egui::Shape::Text(t) if t.galley.job.text.starts_with("node") => {
+                    Some(t.pos.x + t.galley.rect.width())
+                }
+                _ => None,
+            });
+        }
+        (row_right, text_right.expect("the detail text is painted"))
+    }
+
+    /// 상세가 길면 그린 상세 글자는 상태 칸 하한(`port_favorites_state_min_width`, 배율 1에서 112) 왼쪽 경계에서
+    /// 말줄임으로 끝난다. 경계를 넘지 않고, 말줄임이 남기는 한 글자 폭보다 더 앞에서 끝나지도 않는다.
+    #[test]
+    fn a_long_detail_ends_at_the_state_column_floor() {
+        let theme = theme(1.0);
+        let (row_right, text_right) = painted_long_detail(320.0);
+        let floor_left = row_right - theme.port_favorites_state_min_width().value();
+        assert!(
+            text_right <= floor_left,
+            "상세 글자 오른쪽 끝 {text_right} 이 상태 칸 하한 왼쪽 경계 {floor_left} 를 넘는다"
+        );
+        assert!(
+            text_right > floor_left - theme.font_size_caption.value(),
+            "상세 글자 오른쪽 끝 {text_right} 이 상태 칸 하한 왼쪽 경계 {floor_left} 보다 한 글자 넘게 앞에서 끝난다"
+        );
+    }
+
     #[test]
     fn the_state_column_floor_scales_with_ui_zoom() {
         assert_eq!(theme(1.0).port_favorites_state_min_width().value(), 112.0);
