@@ -162,13 +162,13 @@ fn the_icon_center_helper_is_where_the_row_draws_its_icon() {
         let th = theme_at(zoom);
         let d = drawn(&th, 0);
         let drawn_center = d.icon.center().x - d.row.left();
-        let helper = tree_row_icon_center(&th);
+        let helper = tree_row_icon_center(&th).value();
         assert!(
             (drawn_center - helper).abs() < 0.5,
             "배율 {zoom}: 그린 아이콘 가운데 {drawn_center} 와 tree_row_icon_center {helper} 가 다르다"
         );
     }
-    let at_one = tree_row_icon_center(&theme_at(1.0));
+    let at_one = tree_row_icon_center(&theme_at(1.0)).value();
     assert!(
         (at_one - 29.0).abs() < 0.5,
         "배율 1: {at_one} 가 29 가 아니다"

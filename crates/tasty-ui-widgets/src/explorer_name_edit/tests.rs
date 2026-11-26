@@ -62,7 +62,8 @@ fn a_list_editor_grows_the_row_to_the_table_row_height() {
     assert!(theme.table_cell_height().value() > theme.tree_row_height().value());
     assert_eq!(row.height(), theme.table_cell_height().value());
     // 글리프 가운데가 아래 tree_row 아이콘 가운데와 같다. 입력 칸은 글리프 오른쪽 간격 뒤에서 시작한다.
-    let glyph_right = crate::tree_row_icon_center(&theme) + theme.icon_glyph_size_md.value() * 0.5;
+    let glyph_right =
+        crate::tree_row_icon_center(&theme).value() + theme.icon_glyph_size_md.value() * 0.5;
     assert_eq!(
         field.left() - row.left(),
         glyph_right + theme.spacing_sm.value()
@@ -116,7 +117,7 @@ fn a_list_editor_glyph_centres_on_the_tree_row_icon() {
         let theme = Theme::with_colors_and_zoom(tasty_themes::mocha_fallback_colors(), false, zoom);
         let (row, glyph) = list_glyph_at(zoom);
         let center = glyph.center().x - row.left();
-        let want = crate::tree_row_icon_center(&theme);
+        let want = crate::tree_row_icon_center(&theme).value();
         assert!(
             (center - want).abs() < 0.5,
             "배율 {zoom}: 그린 글리프 가운데 {center} 가 tree_row_icon_center {want} 가 아니다"

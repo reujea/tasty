@@ -117,7 +117,7 @@ pub fn explorer_name_row_in(
                 }
                 _ => (
                     theme.corner_radius_sm.value(),
-                    crate::tree_row::tree_row_icon_center(theme) - glyph_size * 0.5,
+                    crate::tree_row::tree_row_icon_center(theme).value() - glyph_size * 0.5,
                     row.right(),
                 ),
             };

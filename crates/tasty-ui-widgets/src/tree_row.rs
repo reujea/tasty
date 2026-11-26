@@ -6,15 +6,16 @@
 //! disabled 상태는 없다. 열 수 없는 항목도 일반 행으로 두고, 여는 쪽이 이유를 알린다.
 
 use tasty_type_appearance::theme::Theme;
+use tasty_type_geometry::length::LogicalPx;
 
 use crate::icon_button::IconPainter;
 
-const CHEVRON_SLOT: f32 = 14.0;
-const ICON_GLYPH: f32 = 14.0;
+const CHEVRON_SLOT: LogicalPx = LogicalPx(14.0);
+const ICON_GLYPH: LogicalPx = LogicalPx(14.0);
 
 /// 깊이 0 행의 왼쪽 끝에서 아이콘 가운데까지의 거리. 같은 목록에 끼는 다른 행이 아이콘을 맞출 때 쓴다.
-pub fn tree_row_icon_center(theme: &Theme) -> f32 {
-    let gap = theme.tree_row_gap().value();
+pub fn tree_row_icon_center(theme: &Theme) -> LogicalPx {
+    let gap = theme.tree_row_gap();
     gap + CHEVRON_SLOT + gap + ICON_GLYPH * 0.5
 }
 
@@ -179,7 +180,7 @@ fn draw(
     let height = theme.tree_row_height().value();
     let pad_l = theme.tree_row_gap().value();
     // 셰브런 칸·글리프·이름·meta 사이 간격(정본 TreeRow 의 gap).
-    let gap = theme.tree_row_gap().value();
+    let gap = theme.tree_row_gap();
     let pad_r = theme.spacing_sm.value();
     let radius = theme.corner_radius_sm.value();
     let body = theme.tree_row_font_size().value();
@@ -220,7 +221,7 @@ fn draw(
 
     let mut x = rect.left() + pad_l + depth as f32 * indent_per_depth;
 
-    let chev_c = egui::pos2(x + CHEVRON_SLOT * 0.5, rect.center().y);
+    let chev_c = egui::pos2(x + (CHEVRON_SLOT * 0.5).value(), rect.center().y);
     if has_children {
         let s = 3.0;
         let pts = if open {
@@ -241,7 +242,7 @@ fn draw(
             egui::Stroke::new(theme.icon_stroke_width.value(), part),
         ));
     }
-    x += CHEVRON_SLOT + gap;
+    x += (CHEVRON_SLOT + gap).value();
 
     if let Some(paint) = icon {
         let icon_color = match state {
@@ -252,11 +253,11 @@ fn draw(
             _ => part,
         };
         let irect = egui::Rect::from_center_size(
-            egui::pos2(x + ICON_GLYPH * 0.5, rect.center().y),
-            egui::vec2(ICON_GLYPH, ICON_GLYPH),
+            egui::pos2(x + (ICON_GLYPH * 0.5).value(), rect.center().y),
+            egui::vec2(ICON_GLYPH.value(), ICON_GLYPH.value()),
         );
         paint(ui, irect, icon_color);
-        x += ICON_GLYPH + gap;
+        x += (ICON_GLYPH + gap).value();
     }
 
     let mut right = rect.right() - pad_r;
@@ -271,7 +272,7 @@ fn draw(
             rect.center().y - g.rect.height() * 0.5,
         );
         ui.painter().galley(pos, g.clone(), meta_fg);
-        right -= g.rect.width() + gap;
+        right -= g.rect.width() + gap.value();
     }
 
     let mut job = crate::explorer_match_job(
