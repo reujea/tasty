@@ -43,28 +43,6 @@ fn hint(ui: &mut egui::Ui, theme: &Theme, text: &str, color: egui::Color32) {
     });
 }
 
-/// 등록되지 않은 형식을 알리는 경고 테두리 배지. 저장은 막지 않는다.
-fn warning_badge(ui: &mut egui::Ui, theme: &Theme, text: &str) {
-    let warn = theme.accent_warning().to_egui();
-    let galley = ui.painter().layout_no_wrap(
-        text.to_owned(),
-        tasty_ui_widgets::label_font(theme.font_size_micro.value()),
-        warn,
-    );
-    let h = theme.badge_size().value();
-    let w = galley.rect.width() + theme.badge_padding_x().value() * 2.0;
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(w, h), egui::Sense::hover());
-    let radius = theme.corner_radius_sm.value();
-    ui.painter().rect_stroke(
-        rect,
-        radius,
-        egui::Stroke::new(theme.border_width.value(), warn),
-        egui::StrokeKind::Inside,
-    );
-    ui.painter()
-        .galley(rect.center() - galley.rect.size() * 0.5, galley, warn);
-}
-
 fn section_label(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.add_space(theme.spacing_xs.value());
     ui.label(
@@ -148,11 +126,13 @@ fn form_card(ui: &mut egui::Ui, theme: &Theme, variant: Variant, width: LogicalP
                             ui,
                             theme,
                             Some(LogicalPx(field_w)),
-                            if generic { "smb" } else { "ssh" },
+                            // 본체가 모르는 형식이라야 안내가 뜬다(ssh·smb·http는 안다). 정본처럼 snb를 둔다.
+                            if generic { "snb" } else { "ssh" },
                             false,
                             false,
                         );
-                        let mut sel = usize::from(generic);
+                        // 정본 Select는 값을 고르지 않아 첫 항목을 보인다.
+                        let mut sel = 0usize;
                         select(
                             ui,
                             theme,
@@ -163,11 +143,14 @@ fn form_card(ui: &mut egui::Ui, theme: &Theme, variant: Variant, width: LogicalP
                             true,
                         );
                     });
+                    // 본체 폼처럼 모르는 형식은 배지가 아니라 입력 칸에 맞춰 들여쓴 경고 캡션으로 알린다.
                     if generic {
-                        ui.horizontal(|ui| {
-                            ui.add_space((LABEL_COL + theme.spacing_md).value());
-                            warning_badge(ui, theme, "Unknown type");
-                        });
+                        hint(
+                            ui,
+                            theme,
+                            crate::i18n::t("remote_tool.type_unknown_hint"),
+                            theme.accent_warning_raised().to_egui(),
+                        );
                     }
                     form_row(ui, theme, "Name", |ui| {
                         kit::field(
@@ -422,16 +405,19 @@ pub fn draw_generic_passkey_forms(ui: &mut egui::Ui, theme: &Theme) {
         &[
             ("generic", "Type · Name · FIELDS · Passkey"),
             ("field row", "[112 key · 1fr value · 28 ✕]"),
-            ("unknown type", "peach badge (saves anyway)"),
+            (
+                "unknown type",
+                "indented hint caption under Type · 11 · accent-warning-raised · wraps (saves anyway)",
+            ),
             ("passkey kind", "path = singleline · inline = 3-row"),
             ("secret", "name-reference only · note always shown"),
             ("footer", "ghost Cancel / primary Save (both forms)"),
         ],
         &[
             TokenChip::new(
-                "accent-warning",
-                "unknown-type / dangling badge",
-                theme.accent_warning().to_egui(),
+                "accent-warning-raised",
+                "unknown-type hint",
+                theme.accent_warning_raised().to_egui(),
             ),
             TokenChip::new(
                 "accent-primary",
@@ -449,6 +435,6 @@ pub fn draw_generic_passkey_forms(ui: &mut egui::Ui, theme: &Theme) {
     spec::note(
         ui,
         theme,
-        "Other states: a dangling passkey reuses the same peach badge (\"passkey missing\"); detecting shows \"detecting…\" / \"detection failed (disabled)\" + Re-detect after a shell=auto save. Secrets live only in passkeys — a profile holds a name reference, never an inline secret.",
+        "Other states: a dangling passkey shows the warning tint badge in the profile row (\"passkey missing\"); detecting shows \"detecting…\" / \"detection failed (disabled)\" + Re-detect after a shell=auto save. Secrets live only in passkeys — a profile holds a name reference, never an inline secret.",
     );
 }

@@ -78,3 +78,67 @@ fn the_ssh_form_draws_the_shell_auto_hint_after_the_passkey_row() {
         }
     }
 }
+
+/// Generic 표본은 본체가 모르는 형식 snb를 두고, 배지 대신 본체 폼과 같은 키
+/// `remote_tool.type_unknown_hint` 문구를 Type 행과 Name 행 사이에 accent-warning-raised 캡션으로
+/// 들여써 그린다. 캡션은 줄바꿈 폭 안에서 감긴다.
+#[test]
+fn the_generic_form_draws_the_unknown_type_hint_caption_under_type() {
+    let hint = crate::i18n::t("remote_tool.type_unknown_hint");
+    let type_label = crate::i18n::t_lang("en", "remote_tool.field_type");
+    let name_label = crate::i18n::t_lang("en", "remote_tool.field_name");
+    for th in themes() {
+        let p = paint(|ui| super::draw_generic_passkey_forms(ui, &th));
+        let hints = all(&p.texts, hint);
+        assert_eq!(hints.len(), 1, "one unknown-type hint (the generic card)");
+        let h = hints[0];
+        assert_eq!(h.color, th.accent_warning_raised().to_egui(), "hint ink");
+        assert!(h.wrap_width.is_finite(), "the hint wraps inside the card");
+        assert!(
+            !p.texts.iter().any(|t| t.text == "Unknown type"),
+            "no unknown type badge"
+        );
+        let snb = p
+            .texts
+            .iter()
+            .find(|t| t.text == "snb")
+            .expect("the generic Type field holds snb");
+        let ty = all(&p.texts, type_label)
+            .into_iter()
+            .find(|t| (t.rect.center().y - snb.rect.center().y).abs() < snb.rect.height())
+            .expect("the Type label on the snb row");
+        let name = all(&p.texts, name_label)
+            .into_iter()
+            .filter(|t| t.rect.top() > ty.rect.bottom())
+            .min_by(|a, b| a.rect.top().total_cmp(&b.rect.top()))
+            .expect("the Name label under Type");
+        assert!(
+            ty.rect.bottom() <= h.rect.top() && h.rect.bottom() <= name.rect.top(),
+            "the hint {:?} sits between Type {:?} and Name {:?}",
+            h.rect,
+            ty.rect,
+            name.rect
+        );
+        assert!(
+            h.rect.left() > ty.rect.right(),
+            "the hint is indented past the label column"
+        );
+    }
+}
+
+/// Generic 표본 Meta는 unknown-type hint 칩을 accent-warning-raised 이름과 스와치로 보인다. Mocha는
+/// 기본 accent-warning과 값이 같아 Latte가 가른다.
+#[test]
+fn the_generic_meta_names_the_unknown_type_hint_accent_warning_raised() {
+    let latte = crate::host_shell::latte_theme();
+    assert_ne!(latte.accent_warning(), latte.accent_warning_raised());
+    for th in themes() {
+        let p = paint(|ui| super::draw_generic_passkey_forms(ui, &th));
+        let (chip, swatch) = p.token_chip(th.surface_raised().to_egui(), "— unknown-type hint");
+        assert!(
+            p.has_text_in("accent-warning-raised", chip),
+            "the chip is named accent-warning-raised"
+        );
+        assert_eq!(swatch, th.accent_warning_raised().to_egui(), "chip swatch");
+    }
+}

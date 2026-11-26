@@ -1336,7 +1336,7 @@ pub fn pages() -> Vec<Page> {
                         spec(
                             "remote-generic-passkey-forms",
                             "Generic & Passkey forms · badges",
-                            Some("key-value fields · Unknown type badge · passkey path / inline"),
+                            Some("key-value fields · unknown-type hint caption · passkey path / inline"),
                             components::remote::draw_generic_passkey_forms,
                         ),
                         spec(
