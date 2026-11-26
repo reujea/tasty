@@ -1,6 +1,8 @@
 //! 페인 탭바의 활성 표시 정적 예제. 응답 대기·완료 제목 색은 Layouts › Attention kinds 에서 보인다.
 
 mod kit_strip;
+#[cfg(test)]
+mod move_glyph_tests;
 
 use tasty_type_appearance::theme::Theme;
 use tasty_type_geometry::length::LogicalPx;

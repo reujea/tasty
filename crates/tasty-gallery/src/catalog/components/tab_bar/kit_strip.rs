@@ -597,11 +597,12 @@ const CLUSTER_ROWS: [(&str, CellCfg); 8] = [
             ..CellCfg::BASE
         },
     ),
+    // 앱은 활성 탭에 move 글리프를 두지 않으므로 move를 단 좁은 탭은 비활성이다.
     (
         "narrow tab — label ellipsises",
         CellCfg {
             label: "quarterly-report-final.html",
-            active: true,
+            active: false,
             hover: false,
             marker: BLOCKED,
             mv: true,

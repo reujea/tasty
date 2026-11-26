@@ -150,6 +150,21 @@ impl Painted {
             .collect()
     }
 
+    /// 활성 탭 칸: 위쪽 표시 막대(tab-indicator)에서 탭 높이만큼 내려온 사각형.
+    pub(crate) fn active_tab_cells(&self, th: &Theme) -> Vec<egui::Rect> {
+        let bar_h = th.tab_indicator_width().value();
+        self.rects_filled_all(th.tab_indicator().into())
+            .into_iter()
+            .filter(|bar| (bar.height() - bar_h).abs() < 0.01)
+            .map(|bar| {
+                egui::Rect::from_min_max(
+                    bar.min,
+                    egui::pos2(bar.max.x, bar.min.y + th.tab_height().value()),
+                )
+            })
+            .collect()
+    }
+
     /// `th`의 move 글리프가 하나 이상 그려졌고, 활성 칸(`active`, 하나 이상) 어느 것도 그 중심을
     /// 품지 않는다. 두 대조가 비면 표본이 바뀌어 시험이 아무것도 재지 않는 것이라 실패한다.
     pub(crate) fn assert_move_glyphs_outside(&self, th: &Theme, active: &[egui::Rect], what: &str) {
