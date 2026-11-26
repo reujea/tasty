@@ -501,7 +501,7 @@ pub fn draw_name_input(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "editor",
-                "Input (28) in the name slot · Detail row stays 28 · List row grows 22 → 28 · Grid: 160 wide, centred under the glyph",
+                "Input (28) in the name slot · Detail row stays 28 · Detail field = Name cell − glyph 16 − space-sm 8 − space-sm 8 at the cell end (140 → 108) · List row grows 22 → 28 · Grid: 160 wide, centred under the glyph",
             ),
             (
                 "defaults",
@@ -512,6 +512,10 @@ pub fn draw_name_input(ui: &mut egui::Ui, theme: &Theme) {
             (
                 "after",
                 "sorted place, selected — only if the user still views that folder",
+            ),
+            (
+                "focus ring, first row",
+                "whole ring shows: drawn over the header's last line, never clipped by the list body",
             ),
             ("write fails", "error Toast + reload"),
         ],
