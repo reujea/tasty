@@ -257,3 +257,127 @@ fn the_ssh_header_and_empty_lines_sit_remote_ssh_line_pad_top_lower() {
         );
     }
 }
+
+/// 필터 본문을 두 번 그려 둘째 프레임의 도형을 모은다.
+fn filter_shapes(th: &Theme) -> Vec<egui::Shape> {
+    let labels = ProtocolFilterLabels {
+        title: "Filter by protocol",
+        select_all: "Select all",
+        deselect_all: "Deselect all",
+        reset: "Reset",
+        apply: "Apply",
+        unknown: "unknown",
+        unknown_hint: "hint",
+    };
+    let items = [
+        ProtocolFilterItem {
+            name: "ssh",
+            unknown: false,
+        },
+        ProtocolFilterItem {
+            name: "snb",
+            unknown: true,
+        },
+    ];
+    let mut draft = HashSet::new();
+    let ctx = egui::Context::default();
+    let mut shapes = Vec::new();
+    for _ in 0..2 {
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(640.0, 480.0),
+            )),
+            ..Default::default()
+        };
+        let out = ctx.run(raw, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                draw_protocol_filter_body(ui, th, &items, &labels, &mut draft);
+            });
+        });
+        shapes.clear();
+        for clipped in out.shapes {
+            flatten(&clipped.shape, &mut shapes);
+        }
+    }
+    shapes
+}
+
+/// 필터 메뉴의 구획선 셋(머리글 아래 · Select all 줄 위 · Reset 줄 위)은 정본처럼 menu-separator
+/// (border-strong)로 칠하고, 일괄 선택 줄의 "·" 장식은 separator 잉크 그대로다. 두 값이 갈려야
+/// 가를 수 있어 먼저 확인한다.
+#[test]
+fn the_filter_menu_rules_are_menu_separator_and_the_dot_stays_separator() {
+    for th in [tasty_themes::mocha_fallback(), latte()] {
+        let rule_ink = th.menu_separator().to_egui();
+        let dot_ink = th.separator.to_egui_premultiplied();
+        assert_ne!(rule_ink, dot_ink, "menu-separator and separator differ");
+        let shapes = filter_shapes(&th);
+        let text_top = |needle: &str| -> egui::Rect {
+            shapes
+                .iter()
+                .find_map(|s| match s {
+                    egui::Shape::Text(t) if t.galley.text() == needle => {
+                        Some(t.visual_bounding_rect())
+                    }
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("{needle:?} was not painted"))
+        };
+        let thin: Vec<&egui::epaint::RectShape> = shapes
+            .iter()
+            .filter_map(|s| match s {
+                egui::Shape::Rect(r)
+                    if r.brush.is_none()
+                        && (r.rect.height() - th.border_width.value()).abs() < 0.01
+                        && r.fill != egui::Color32::TRANSPARENT =>
+                {
+                    Some(r)
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(thin.len(), 3, "three section rules: {thin:?}");
+        for r in &thin {
+            assert_eq!(r.fill, rule_ink, "rule {:?} ink", r.rect);
+        }
+        let mut ys: Vec<f32> = thin.iter().map(|r| r.rect.center().y).collect();
+        ys.sort_by(f32::total_cmp);
+        let title = text_top("FILTER BY PROTOCOL");
+        let first = text_top("ssh");
+        let last = text_top("snb");
+        let select_all = text_top("Select all");
+        let reset = text_top("Reset");
+        assert!(
+            title.bottom() < ys[0] && ys[0] < first.top(),
+            "the first rule {} sits under the heading",
+            ys[0]
+        );
+        assert!(
+            last.bottom() < ys[1] && ys[1] < select_all.top(),
+            "the second rule {} sits above Select all",
+            ys[1]
+        );
+        assert!(
+            select_all.bottom() < ys[2] && ys[2] < reset.top(),
+            "the third rule {} sits above Reset",
+            ys[2]
+        );
+        let dot = shapes
+            .iter()
+            .find_map(|s| match s {
+                egui::Shape::Text(t) if t.galley.text() == "·" => Some(
+                    t.galley
+                        .job
+                        .sections
+                        .first()
+                        .map(|sec| sec.format.color)
+                        .filter(|c| *c != egui::Color32::PLACEHOLDER)
+                        .unwrap_or(t.fallback_color),
+                ),
+                _ => None,
+            })
+            .expect("the bulk row dot");
+        assert_eq!(dot, dot_ink, "the dot ornament keeps separator ink");
+    }
+}

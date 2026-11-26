@@ -678,7 +678,7 @@ pub fn draw_protocol_filter_button(
 /// 팝업 배치·폭([`filter_dropdown_content_width`])과 실제 필터 적용은 호출자가 처리한다.
 ///
 /// 시안 `ProtocolFilter` 처럼 제목 · 목록 · 일괄 선택 · Reset/Apply 네 구획을 위아래
-/// space-sm, 좌우 space-md 여백으로 그리고 구획 사이에 separator 선을 둔다. 구획이 프레임
+/// space-sm, 좌우 space-md 여백으로 그리고 구획 사이에 menu-separator 선을 둔다. 구획이 프레임
 /// 끝까지 닿으므로 호출자는 안쪽 여백이 없는 프레임에 담는다.
 pub fn draw_protocol_filter_body(
     ui: &mut egui::Ui,
@@ -797,14 +797,15 @@ fn filter_section(ui: &mut egui::Ui, th: &Theme, add: impl FnOnce(&mut egui::Ui)
         });
 }
 
-/// 구획 사이의 separator 선. 드롭다운 폭 전체에 걸친다.
+/// 구획 사이의 선. 드롭다운 폭 전체에 걸친다. raised 메뉴 안의 구획선이라 정본처럼 `menu-separator`
+/// (border-strong)를 칠한다. 일괄 선택 줄의 "·" 장식은 선이 아니라 separator 잉크 그대로다.
 fn filter_rule(ui: &mut egui::Ui, th: &Theme) {
     let (rect, _) = ui.allocate_exact_size(
         egui::vec2(ui.available_width(), th.border_width.value()),
         egui::Sense::hover(),
     );
     ui.painter()
-        .rect_filled(rect, 0.0, th.separator.to_egui_premultiplied());
+        .rect_filled(rect, 0.0, th.menu_separator().to_egui());
 }
 
 /// 시안 `rtLinkBtn` — 테두리·배경·여백 없는 accent 캡션 글자 버튼.
