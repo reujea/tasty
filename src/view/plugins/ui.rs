@@ -6,10 +6,6 @@ use crate::i18n::t;
 use crate::theme;
 use tasty_type_geometry::length::LogicalPx;
 
-/// 헤더 아이콘의 기존 크기. Theme 토큰과 별도로 지정하며 ui_scale을 적용하지 않는다.
-/// 값 변경은 디자인 검토가 필요하다(docs/design/systems/theme.md).
-const PLUG_HEADER_GLYPH: LogicalPx = LogicalPx(17.0);
-
 /// semantic 역할을 지정하지 않은 탭 라벨의 primitive 폰트 크기(docs/design/systems/theme.md).
 const SEGMENT_TAB_LABEL_PRIMITIVE_12: LogicalPx = LogicalPx(12.0);
 
@@ -370,8 +366,9 @@ pub fn draw_plugins_panel(
                 ui.horizontal_centered(|ui| {
                     // 디자인 헤더: plug 아이콘 + 타이틀.
                     // 헤더 장식 accent — `plugins-header-glyph` → `accent-decorative`(peach).
+                    // 크기는 정본 `icon-size-md` 다.
                     ui.add(icons::PLUG.image(
-                        PLUG_HEADER_GLYPH.value(),
+                        th.icon_glyph_size_md.value(),
                         egui::Color32::from(th.plugins_header_glyph()),
                     ));
                     hspace(ui, th.spacing_xs);

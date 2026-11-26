@@ -302,3 +302,45 @@ fn tab_rings_the_plugin_segment_tab_one_offset_off_its_box() {
     assert_eq!(rings[0].1, th.border_focus().to_egui());
     assert_eq!(rings[0].0.left(), cells[1].left() - gap);
 }
+
+/// 창 전체를 두 번 그려(글리프 텍스처가 자리 잡게) 헤더 밴드 안에 그린 도형을 모은다.
+fn painted_header() -> (theme::Theme, Vec<egui::Shape>) {
+    let th = theme::theme().clone();
+    let ctx = egui::Context::default();
+    // 글리프는 SVG 그림이다. 로더가 없으면 칠해지지 않는다.
+    egui_extras::install_image_loaders(&ctx);
+    let snapshot = PluginsSnapshot {
+        plugins: vec![plugin("com.example.first"), plugin("com.example.second")],
+        ..Default::default()
+    };
+    let mut state = PluginsUiState::default();
+    let mut actions = Vec::new();
+    let mut shapes = Vec::new();
+    for _ in 0..3 {
+        let out = draw_window(&ctx, &snapshot, &mut state, &mut actions);
+        shapes = out.shapes.into_iter().map(|c| c.shape).collect();
+    }
+    let band = th.plugins_header_height().value();
+    shapes.retain(|s| s.visual_bounding_rect().bottom() <= band);
+    (th, shapes)
+}
+
+/// 헤더 plug 글리프는 정본 `icon-size-md` 크기로 그린다.
+#[test]
+fn the_header_glyph_is_icon_size_md() {
+    let (th, shapes) = painted_header();
+    let glyph = shapes
+        .iter()
+        .filter_map(|s| match s {
+            egui::Shape::Rect(r) if r.brush.is_some() => Some(r.rect),
+            _ => None,
+        })
+        .min_by(|a, b| a.left().total_cmp(&b.left()))
+        .expect("헤더 글리프가 없다");
+    let md = th.icon_glyph_size_md.value();
+    assert_eq!(
+        (glyph.width(), glyph.height()),
+        (md, md),
+        "헤더 글리프 {glyph:?} 가 icon_glyph_size_md {md} 정사각이 아니다"
+    );
+}
