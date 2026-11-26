@@ -39,9 +39,9 @@ fn mono_micro(ui: &mut egui::Ui, theme: &Theme, s: &str, color: egui::Color32) {
 
 /// 팔레트 행 두 개를 담은 패널. 열 폭을 채우되 `palette_width` 를 넘지 않고, 키캡은 공용 Kbd 다.
 fn keycap_panel(ui: &mut egui::Ui, theme: &Theme) {
-    let width = theme.palette_width().value().min(ui.available_width());
+    let width = theme.palette_width().min(LogicalPx(ui.available_width()));
     ui.vertical(|ui| {
-        ui.set_width(width);
+        ui.set_width(width.value());
         egui::Frame::new()
             .fill(ec(theme.surface_raised()))
             .stroke(egui::Stroke::new(
