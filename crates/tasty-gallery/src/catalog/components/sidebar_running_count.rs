@@ -5,9 +5,9 @@
 use tasty_settings::AppearanceSettings;
 use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::{
-    RowParent, RowState, TagVariant, Tooltip, TooltipPlacement, attach_refusal_mark,
-    move_source_glyph_size, paint_move_source_glyph, paint_num_keycap, running_count_column,
-    tag_caps, workspace_attention_badges, workspace_row_body_offset,
+    RowParent, RowState, TagVariant, Tooltip, TooltipPlacement, move_source_glyph_size,
+    paint_move_source_glyph, paint_num_keycap, running_count_column, tag_caps,
+    workspace_attention_badges, workspace_row_body_offset,
 };
 
 use super::sidebar::{self, WsRowSpec, with_zoom};
@@ -41,7 +41,6 @@ struct CountRow {
     keycap: Option<&'static str>,
     needs_input: usize,
     completion: usize,
-    refused: bool,
     move_source: bool,
     mirror: bool,
     subtitle: Option<&'static str>,
@@ -58,7 +57,6 @@ const fn row(name: &'static str, count: usize) -> CountRow {
         keycap: None,
         needs_input: 0,
         completion: 0,
-        refused: false,
         move_source: false,
         mirror: false,
         subtitle: None,
@@ -87,7 +85,6 @@ const fn narrowest(count: usize, state: RowState) -> CountRow {
         state,
         needs_input: 100,
         completion: 100,
-        refused: true,
         move_source: true,
         ..row(LONG_NAME, count)
     }
@@ -137,14 +134,7 @@ fn paint_title_line(ui: &mut egui::Ui, th: &Theme, r: &CountRow) {
     let name_color = r.state.label(th, RowParent::Mantle, th.text_secondary());
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
         let item_gap = (th.spacing_sm.value() - ui.spacing().item_spacing.x).max(0.0);
-        let mut placed = workspace_attention_badges(ui, th, r.needs_input, r.completion);
-        if r.refused {
-            if placed {
-                ui.add_space(item_gap);
-            }
-            attach_refusal_mark(ui, th, "");
-            placed = true;
-        }
+        let placed = workspace_attention_badges(ui, th, r.needs_input, r.completion);
         if r.move_source {
             if placed {
                 ui.add_space(item_gap);
