@@ -670,8 +670,8 @@ pub fn draw_lifetime(ui: &mut egui::Ui, theme: &Theme) {
          action (inline button or ⋯ menu row) has a TTL and closes on its own; a banner that \
          offers one has no TTL and stays until the action or ×. The × is not an action. \
          Host banners with a TTL: shell integration missing (10 s). Without a TTL: mouse \
-         capture (⋯ rows), auto-attach refused, attach size sync, HTML script notice, HTML \
-         mirror size / aggregate.",
+         capture (⋯ rows), attach size sync, HTML script notice, HTML mirror size / \
+         aggregate.",
     );
 }
 
