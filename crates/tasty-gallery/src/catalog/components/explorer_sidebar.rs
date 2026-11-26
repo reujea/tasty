@@ -579,13 +579,15 @@ fn two_region_inner(
                                 depth,
                                 !matches!(fold, Leaf),
                                 matches!(fold, Open),
-                                Some(&|ui, rect, _c| {
-                                    FOLDER
-                                        .image(
-                                            rect.height(),
-                                            egui::Color32::from(theme.text_muted()),
-                                        )
-                                        .paint_at(ui, rect)
+                                // 본체 tree_node 처럼 선택 행 폴더는 행 잉크(text-on-active), 그 밖은
+                                // tree_row 가 넘기는 잉크다.
+                                Some(&|ui, rect, c| {
+                                    let ink = if active {
+                                        theme.text_on_active().to_egui()
+                                    } else {
+                                        c
+                                    };
+                                    FOLDER.image(rect.height(), ink).paint_at(ui, rect)
                                 }),
                                 label,
                                 None,

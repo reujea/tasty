@@ -138,4 +138,6 @@ mod empty_star_tests;
 #[cfg(test)]
 mod sample_inset_tests;
 #[cfg(test)]
+mod selected_row_ink_tests;
+#[cfg(test)]
 mod window_frame_tests;

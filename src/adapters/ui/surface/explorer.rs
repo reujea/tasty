@@ -760,15 +760,20 @@ fn tree_node(
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| dir.to_string_lossy().to_string());
     let folder = icons::FOLDER;
-    let folder_color = theme.text_muted().to_egui();
     let selected = dir == current;
+    // 폴더는 모양 글리프라 선택 행에서는 행 잉크(text-on-active)를 쓴다. tree_row 가 선택 행에 넘기는
+    // 아이콘 잉크는 선택 표지 강조색이라 쓰지 않고, 쉴 때·hover 는 tree_row 가 넘기는 잉크를 쓴다.
+    let selected_ink = theme.text_on_active().to_egui();
     let resp = tree_row(
         ui,
         theme,
         depth,
         has_children,
         open,
-        Some(&|ui, rect, _c| folder.image(rect.height(), folder_color).paint_at(ui, rect)),
+        Some(&|ui, rect, c| {
+            let ink = if selected { selected_ink } else { c };
+            folder.image(rect.height(), ink).paint_at(ui, rect)
+        }),
         &name,
         None,
         selected,
@@ -1743,6 +1748,70 @@ mod tests {
                 theme.glyph_dim().to_egui(),
                 "{name}: 빈 즐겨찾기 별 {rect:?} 의 tint 가 glyph_dim 이 아니다"
             );
+        }
+    }
+
+    /// Mocha 와 Latte 기본 테마.
+    fn mocha_and_latte() -> [(&'static str, super::Theme); 2] {
+        let file = tasty_themes::ThemeFile::parse(tasty_themes::LATTE_TOML_TEXT).expect("latte");
+        let (partial, is_light) = file.to_partial();
+        let mut colors = tasty_themes::mocha_fallback_colors();
+        colors.apply_partial(&partial);
+        let latte = super::Theme::with_colors(colors, is_light.unwrap_or(true));
+        [("mocha", tasty_themes::mocha_fallback()), ("latte", latte)]
+    }
+
+    /// 사이드바 행 하나를 포인터 없이 그리고, 행 안에 칠한 글리프 하나의 tint 를 돌려준다.
+    fn row_glyph_tint(mut draw: impl FnMut(&mut egui::Ui)) -> egui::Color32 {
+        let ctx = egui::Context::default();
+        // 글리프는 SVG 그림이다. 로더가 없으면 칠해지지 않는다.
+        egui_extras::install_image_loaders(&ctx);
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let out = ctx.run(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| draw(ui));
+            });
+            shapes = out.shapes.into_iter().map(|c| c.shape).collect::<Vec<_>>();
+        }
+        let glyphs: Vec<_> = shapes
+            .iter()
+            .filter_map(|s| match s {
+                egui::Shape::Mesh(m) if m.texture_id != egui::TextureId::default() => {
+                    m.vertices.first().map(|v| v.color)
+                }
+                egui::Shape::Rect(r) if r.brush.is_some() => Some(r.fill),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            glyphs.len(),
+            1,
+            "행 안의 글리프가 하나가 아니다: {glyphs:?}"
+        );
+        glyphs[0]
+    }
+
+    /// 트리 폴더 글리프는 선택 행에서 text_on_active, 쉴 때 tree_row 가 넘기는 잉크로 칠한다.
+    #[test]
+    fn the_tree_folder_glyph_takes_text_on_active_on_the_selected_row() {
+        let dir = PathBuf::from("/tasty-test-no-such-dir/tree");
+        let other = PathBuf::from("/tasty-test-no-such-dir/other");
+        for (name, theme) in mocha_and_latte() {
+            for (current, want, state) in [
+                (&dir, theme.text_on_active().to_egui(), "선택"),
+                (
+                    &other,
+                    tasty_ui_widgets::RowState::Rest.glyph(&theme).to_egui(),
+                    "쉼",
+                ),
+            ] {
+                let mut view = super::ExplorerView::new();
+                let tint = row_glyph_tint(|ui| {
+                    let mut action = None;
+                    super::tree_node(ui, &theme, &mut view, &dir, 0, current, &mut action, None);
+                });
+                assert_eq!(tint, want, "{name} {state} 행: 폴더 글리프 잉크");
+            }
         }
     }
 }
