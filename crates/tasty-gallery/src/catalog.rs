@@ -1236,13 +1236,6 @@ pub fn pages() -> Vec<Page> {
                     ],
                 ),
                 single(
-                    "attachrefusal",
-                    "Auto-attach refused",
-                    "Persistent row mark and rail chip, no toast",
-                    Some("alertTriangle on the sidebar row and the rail avatar"),
-                    widgets::attach_refusal::draw,
-                ),
-                single(
                     "attachsizesync",
                     "Attach size sync failed",
                     "Workspace banner · default · retrying · several surfaces",
