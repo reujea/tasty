@@ -463,7 +463,7 @@ fn draw_header(ui: &mut egui::Ui, th: &Theme) -> bool {
         ui.label(
             egui::RichText::new(t("remote_tool.heading"))
                 .color(th.text_primary())
-                .size(th.font_size_heading.value())
+                .size(th.font_size_max.value())
                 .strong(),
         );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -2962,6 +2962,28 @@ mod tests {
         assert!(
             (gap - th.spacing_sm.value()).abs() < 0.5,
             "아이콘 오른쪽 {icon_right} 과 제목 사이 {gap} 가 spacing_sm 이 아니다"
+        );
+    }
+
+    /// 헤더 제목은 정본 `remote_tool.jsx` 처럼 `font_size_max` 로 그린다.
+    #[test]
+    fn the_header_title_is_drawn_at_font_size_max() {
+        let th = theme::theme();
+        let (_, _, shapes) = painted_header();
+        let heading = t("remote_tool.heading");
+        let size = shapes
+            .iter()
+            .find_map(|s| match s {
+                egui::epaint::Shape::Text(t) if t.galley.text() == heading => {
+                    Some(t.galley.job.sections[0].format.font_id.size)
+                }
+                _ => None,
+            })
+            .expect("헤더 제목 글자 도형이 없다");
+        assert_eq!(
+            size,
+            th.font_size_max.value(),
+            "제목 글자 크기 {size} 가 font_size_max 가 아니다"
         );
     }
 }

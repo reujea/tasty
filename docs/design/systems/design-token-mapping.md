@@ -227,7 +227,7 @@ semantic 필드를 그대로 재사용한다(신규 필드 없음). 정본 소�
 
 정본 `remote_tool.jsx`의 헤더와 탭 줄은 역할 토큰으로 치수를 적는다. 헤더는 위·오른쪽·아래 `space-md`, 왼쪽 `--tasty-remote-pad-x`, 항목 간격 `space-sm`이다. 탭은 높이 `--tasty-remote-tab-height`(35)에 아래 선 1을 더한 36, 탭 줄 왼쪽 `space-sm`, 탭 가로 `space-md`, 탭 사이 `--tasty-remote-tab-gap`이다.
 - 본체 헤더 구역(`draw_header_band`)은 `spacing_md`·`remote_pad_x()`·`spacing_sm`을 읽는다. 공용 `draw_tab_strip`은 탭 줄 높이를 `remote_tab_height()` + `border_width`(배율 1에서 36), 탭 줄 왼쪽을 `spacing_sm`, 탭 가로를 `spacing_md`, 탭 사이를 `remote_tab_gap()`에서 읽는다. 높이와 왼쪽은 배율을 따른다(0.85에서 31·7, 1.2에서 43·10).
-- 헤더 제목은 정본이 `font-size-max`(14)이고 본체는 `font_size_heading`(13)이다(1px 차).
+- 헤더 제목은 정본처럼 `font-size-max`(14)이며 본체와 갤러리가 `font_size_max`를 읽는다.
 
 ## banner (banner-02 specimen / banner-03 본체)
 
