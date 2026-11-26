@@ -1591,16 +1591,9 @@ fn draw_favorites_section(
                         let sz = th.icon_glyph_size_sm.value();
                         let (r, _) =
                             ui.allocate_exact_size(egui::vec2(sz, sz), egui::Sense::hover());
-                        // 즐겨찾기 별 아이콘 톤. 대응 토큰 없음 — 같은 아이콘이 두 곳에서
-                        // 서로 다른 값을 쓴다(수렴은 디자인 판단).
-                        const FAV_STAR_ICON_OPACITY: f32 = 0.37;
+                        // 빈 즐겨찾기 별은 탐색기 빈 별과 같은 물러나는 글리프 역할이다.
                         icons::STAR
-                            .image(
-                                sz,
-                                th.text_muted()
-                                    .to_egui()
-                                    .gamma_multiply(FAV_STAR_ICON_OPACITY),
-                            )
+                            .image(sz, th.glyph_dim().to_egui())
                             .paint_at(ui, r);
                         ui.label(
                             egui::RichText::new(props.label_favorites_empty)
@@ -3143,5 +3136,78 @@ mod tests {
             theme.font_size_max.value(),
             "제목 글자 크기 {size} 가 font_size_max 가 아니다"
         );
+    }
+
+    /// 빈 즐겨찾기 안내 줄 앞 별 글리프의 사각형과 tint. 글리프는 SVG 그림이라 로더를 깔고 그린다.
+    fn empty_favorites_star(theme: &Theme) -> (egui::Rect, egui::Color32) {
+        let ctx = egui::Context::default();
+        egui_extras::install_image_loaders(&ctx);
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(720.0, 480.0));
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let full = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(screen),
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default()
+                        .frame(egui::Frame::NONE)
+                        .show(ctx, |ui| {
+                            let view_state = PortScannerViewState::Ready {
+                                rows: &[],
+                                total: 0,
+                                listening: 0,
+                            };
+                            let props = default_props(theme, view_state, "", false);
+                            draw_port_scanner_view(ui, &props);
+                        });
+                },
+            );
+            shapes.clear();
+            for clipped in full.shapes {
+                flatten_shape(clipped.shape, &mut shapes);
+            }
+        }
+        let label = text_shape(
+            &shapes,
+            "No favorites yet — click a star in the list below to pin a port.",
+        );
+        let line = label.visual_bounding_rect();
+        let sz = theme.icon_glyph_size_sm.value();
+        shapes
+            .iter()
+            .filter_map(|s| match s {
+                egui::epaint::Shape::Mesh(m) => {
+                    Some((m.calc_bounds(), m.vertices.first().map(|v| v.color)?))
+                }
+                egui::epaint::Shape::Rect(r) if r.brush.is_some() => Some((r.rect, r.fill)),
+                _ => None,
+            })
+            .find(|(r, _)| {
+                (r.width() - sz).abs() < 0.5
+                    && r.right() <= line.left()
+                    && r.center().y > line.top()
+                    && r.center().y < line.bottom()
+            })
+            .expect("빈 즐겨찾기 안내 앞 별 글리프가 없다")
+    }
+
+    /// 빈 즐겨찾기 별은 투명도 배수 없이 glyph_dim 으로 칠한다(탐색기 빈 별과 같은 역할).
+    #[test]
+    fn the_empty_favorites_star_is_glyph_dim_without_an_opacity_factor() {
+        let file = tasty_themes::ThemeFile::parse(tasty_themes::LATTE_TOML_TEXT).expect("latte");
+        let (partial, is_light) = file.to_partial();
+        let mut colors = tasty_themes::mocha_fallback_colors();
+        colors.apply_partial(&partial);
+        let latte = Theme::with_colors(colors, is_light.unwrap_or(true));
+        for (name, theme) in [("mocha", test_theme()), ("latte", latte)] {
+            let (rect, tint) = empty_favorites_star(&theme);
+            assert_eq!(
+                tint,
+                theme.glyph_dim().to_egui(),
+                "{name}: 빈 즐겨찾기 별 {rect:?} 의 tint 가 glyph_dim 이 아니다"
+            );
+        }
     }
 }

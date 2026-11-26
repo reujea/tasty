@@ -641,17 +641,9 @@ fn favorites_empty(ui: &mut egui::Ui, theme: &Theme) {
         ui.spacing_mut().item_spacing.x = theme.spacing_xs.value();
         let sz = theme.icon_glyph_size_sm.value();
         let (r, _) = ui.allocate_exact_size(egui::vec2(sz, sz), egui::Sense::hover());
-        // 즐겨찾기 별 아이콘 톤. 대응 토큰 없음 — 같은 아이콘이 두 곳에서
-        // 서로 다른 값을 쓴다(수렴은 디자인 판단).
-        const FAV_STAR_ICON_OPACITY: f32 = 0.55;
+        // 빈 즐겨찾기 별은 포트 창 빈 별과 같은 물러나는 글리프 역할이다.
         icons::STAR
-            .image(
-                sz,
-                theme
-                    .text_muted()
-                    .to_egui()
-                    .gamma_multiply(FAV_STAR_ICON_OPACITY),
-            )
+            .image(sz, theme.glyph_dim().to_egui())
             .paint_at(ui, r);
         ui.label(
             egui::RichText::new(t("explorer.sidebar.favorites_empty"))
@@ -1693,6 +1685,64 @@ mod tests {
                     "{label}: 상태줄이 칸 밖에 있거나 잘린다: {rect:?} clip {clip:?}"
                 );
             }
+        }
+    }
+
+    /// 즐겨찾기 빈 상태를 그리고 안내 글자 앞 별 글리프의 사각형과 tint 를 돌려준다.
+    fn favorites_empty_star(theme: &super::Theme) -> (egui::Rect, egui::Color32) {
+        crate::i18n::init("en");
+        let ctx = egui::Context::default();
+        // 글리프는 SVG 그림이다. 로더가 없으면 칠해지지 않는다.
+        egui_extras::install_image_loaders(&ctx);
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let out = ctx.run(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| super::favorites_empty(ui, theme));
+            });
+            shapes = out.shapes.into_iter().map(|c| c.shape).collect::<Vec<_>>();
+        }
+        let label = crate::i18n::t("explorer.sidebar.favorites_empty");
+        let line = shapes
+            .iter()
+            .find_map(|s| match s {
+                egui::Shape::Text(t) if t.galley.text() == label => Some(t.visual_bounding_rect()),
+                _ => None,
+            })
+            .expect("빈 즐겨찾기 안내 글자가 없다");
+        let sz = theme.icon_glyph_size_sm.value();
+        shapes
+            .iter()
+            .filter_map(|s| match s {
+                egui::Shape::Mesh(m) => {
+                    Some((m.calc_bounds(), m.vertices.first().map(|v| v.color)?))
+                }
+                egui::Shape::Rect(r) if r.brush.is_some() => Some((r.rect, r.fill)),
+                _ => None,
+            })
+            .find(|(r, _)| {
+                (r.width() - sz).abs() < 0.5
+                    && r.right() <= line.left()
+                    && r.center().y > line.top()
+                    && r.center().y < line.bottom()
+            })
+            .expect("빈 즐겨찾기 안내 앞 별 글리프가 없다")
+    }
+
+    /// 빈 즐겨찾기 별은 투명도 배수 없이 glyph_dim 으로 칠한다(포트 창 빈 별과 같은 역할).
+    #[test]
+    fn the_empty_favorites_star_is_glyph_dim_without_an_opacity_factor() {
+        let file = tasty_themes::ThemeFile::parse(tasty_themes::LATTE_TOML_TEXT).expect("latte");
+        let (partial, is_light) = file.to_partial();
+        let mut colors = tasty_themes::mocha_fallback_colors();
+        colors.apply_partial(&partial);
+        let latte = super::Theme::with_colors(colors, is_light.unwrap_or(true));
+        for (name, theme) in [("mocha", tasty_themes::mocha_fallback()), ("latte", latte)] {
+            let (rect, tint) = favorites_empty_star(&theme);
+            assert_eq!(
+                tint,
+                theme.glyph_dim().to_egui(),
+                "{name}: 빈 즐겨찾기 별 {rect:?} 의 tint 가 glyph_dim 이 아니다"
+            );
         }
     }
 }

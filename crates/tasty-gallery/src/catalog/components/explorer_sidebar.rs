@@ -384,6 +384,11 @@ pub fn draw_favorites(ui: &mut egui::Ui, theme: &Theme) {
                 egui::Color32::from(theme.text_placeholder()),
             ),
             TokenChip::new(
+                "glyph-dim",
+                "empty star",
+                egui::Color32::from(theme.glyph_dim()),
+            ),
+            TokenChip::new(
                 "accent-warning",
                 "filled star (populated)",
                 egui::Color32::from(theme.accent_warning()),
@@ -715,13 +720,9 @@ fn favorites_empty(ui: &mut egui::Ui, theme: &Theme) {
         ui.spacing_mut().item_spacing.x = theme.spacing_xs.value();
         let sz = theme.icon_glyph_size_sm.value();
         let (r, _) = ui.allocate_exact_size(egui::vec2(sz, sz), egui::Sense::hover());
-        // 즐겨찾기 별 아이콘 톤. 대응 토큰 없음 — 본체와 같은 값을 여기 다시 적는다.
-        const FAV_STAR_ICON_OPACITY: f32 = 0.55;
-        STAR.image(
-            sz,
-            egui::Color32::from(theme.text_muted()).gamma_multiply(FAV_STAR_ICON_OPACITY),
-        )
-        .paint_at(ui, r);
+        // 본체와 같은 빈 즐겨찾기 별 역할(glyph_dim)을 읽는다.
+        STAR.image(sz, egui::Color32::from(theme.glyph_dim()))
+            .paint_at(ui, r);
         ui.label(
             egui::RichText::new("No favorites yet")
                 .size(theme.font_size_caption.value())

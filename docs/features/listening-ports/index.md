@@ -148,7 +148,7 @@ Port / Proto / Address / Process / Workspace / Tab / State.
 - **팝업 프레임**: 660×520 (디자인 원본), headless.
 - **헤더 행**: leading 포트 아이콘 + 제목 "Listening ports" + accent Tag(`{listening} listening` / `scanning…`) + 단일 라인 검색 입력 + 컬럼 chooser 아이콘 버튼 + Refresh 아이콘 버튼(상시 노출) + close(`×`).
 - **필터 행**: 좌측 `Show all (system-wide)`(ko `전체 보기`) 체크박스 — scope 토글 (Tasty ↔ System) + 우측 상태 필터 funnel 버튼.
-- **즐겨찾기 섹션**: 필터 행과 테이블 사이, 항상 노출(높이 제한 — 캡션 22px + 리스트 최대 112px). 좌측 "Favorites"(+개수) / 우측 "system-wide". 0개면 흐린 별(37%) + 안내 문구 1행. 1개 이상이면 행마다 별(항상 on, 클릭 시 제거) · `{addr}:{port}`(mono) · `{process} · {pid}`(+workspace) 또는 "not running" · 우측 상태 배지(LISTEN → running+pulse, 그 외 매칭 → waiting, 매칭 없음 → idle+`NONE`). 5행 초과 시 스크롤.
+- **즐겨찾기 섹션**: 필터 행과 테이블 사이, 항상 노출(높이 제한 — 캡션 22px + 리스트 최대 112px). 좌측 "Favorites"(+개수) / 우측 "system-wide". 0개면 흐린 별(`glyph-dim`, 투명도 배수 없음) + 안내 문구 1행. 1개 이상이면 행마다 별(항상 on, 클릭 시 제거) · `{addr}:{port}`(mono) · `{process} · {pid}`(+workspace) 또는 "not running" · 우측 상태 배지(LISTEN → running+pulse, 그 외 매칭 → waiting, 매칭 없음 → idle+`NONE`). 5행 초과 시 스크롤.
 - **컬럼 chooser 팝업**: 헤더 컬럼 아이콘 버튼 클릭 시 열린다. 컬럼별 체크박스로 표시/숨김 토글. Port 는 잠금(항상 표시). leading fav 컬럼은 chooser 대상이 아니다(항상 표시).
 - **테이블 (leading fav 컬럼 + 최대 7컬럼)**: 별(28px, 헤더 라벨 없음, 클릭 시 즐겨찾기 토글) + Port / Proto / Address / Process / Workspace / Tab / State (chooser 로 숨긴 컬럼은 제외).
   - 각 컬럼 최소폭 보유 — 보이는 컬럼 최소폭 합 > 본문 폭이면 본문이 **가로 스크롤**(말줄임 대신). sticky 헤더는 본문과 수평 동기 이동.

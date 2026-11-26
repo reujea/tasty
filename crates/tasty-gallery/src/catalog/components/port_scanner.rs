@@ -315,7 +315,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "favorites empty",
-                "caption stays · faded star(37%) + hint row",
+                "caption stays · glyph-dim star + hint row",
             ),
             ("columns", "chooser hides cols (Workspace hidden here)"),
             (
@@ -568,16 +568,9 @@ fn draw_favorites_section(ui: &mut egui::Ui, theme: &Theme, favorites: &[Favorit
                             let sz = theme.icon_glyph_size_sm.value();
                             let (r, _) =
                                 ui.allocate_exact_size(egui::vec2(sz, sz), egui::Sense::hover());
-                            // 즐겨찾기 별 아이콘 톤. 대응 토큰 없음 — 본체와 같은 값을 여기 다시 적는다.
-                            const FAV_STAR_ICON_OPACITY: f32 = 0.37;
+                            // 본체와 같은 빈 즐겨찾기 별 역할(glyph_dim)을 읽는다.
                             icons::STAR
-                                .image(
-                                    sz,
-                                    theme
-                                        .text_muted()
-                                        .to_egui()
-                                        .gamma_multiply(FAV_STAR_ICON_OPACITY),
-                                )
+                                .image(sz, theme.glyph_dim().to_egui())
                                 .paint_at(ui, r);
                             ui.label(
                                 egui::RichText::new(crate::i18n::t("port_scanner.favorites_empty"))

@@ -134,6 +134,8 @@ pub mod webview_opaque;
 pub mod window_tab_focus;
 
 #[cfg(test)]
+mod empty_star_tests;
+#[cfg(test)]
 mod sample_inset_tests;
 #[cfg(test)]
 mod window_frame_tests;
