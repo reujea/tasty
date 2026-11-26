@@ -129,3 +129,65 @@ fn the_create_in_folder_field_starts_after_the_indent_at_the_name_cell_start() {
         "the field stays inside the Name cell: field {field:?}, row {row:?}, cell {cell:?}"
     );
 }
+
+/// 포커스를 가진 첫 행 편집 칸의 링이 헤더 아래선 위까지 다 보인다. 본체는 편집 줄을 표 뒤 surface ui
+/// 의 자식에 그려 clip 이 surface 라 링 위 1px 가 헤더 위에 남는다. 링 도형과 그 clip, 헤더 채움 순서를 본다.
+#[test]
+fn a_focused_first_row_field_shows_its_whole_ring_over_the_header() {
+    let theme = tasty_themes::mocha_fallback();
+    let ctx = egui::Context::default();
+    egui_extras::install_image_loaders(&ctx);
+    let mut edit = ExplorerNameEdit::new(t("explorer.new.folder_default").into(), 0..3);
+    let mut shapes = Vec::new();
+    for _ in 0..2 {
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(900.0, 600.0),
+            )),
+            ..Default::default()
+        };
+        let out = ctx.run(raw, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.allocate_ui(egui::vec2(CELL_W.value(), 400.0), |ui| {
+                    framed(ui, &theme, |ui| {
+                        ui.set_width(CELL_W.value());
+                        detail_with_editor(ui, &theme, &mut edit, None);
+                    });
+                });
+            });
+        });
+        shapes = out.shapes;
+    }
+    let bw = theme.border_width.value();
+    let focus = theme.input_border_focus().to_egui();
+    let ring_at = shapes
+        .iter()
+        .position(|c| {
+            matches!(&c.shape, egui::Shape::Rect(r)
+                if r.stroke.color == focus && r.stroke_kind == egui::StrokeKind::Outside)
+        })
+        .expect("the focused field painted its ring");
+    let egui::Shape::Rect(ring) = &shapes[ring_at].shape else {
+        unreachable!()
+    };
+    let clip = shapes[ring_at].clip_rect;
+    let outer = ring.rect.expand(bw);
+    let ring_top = outer.top();
+    assert!(
+        clip.contains_rect(outer),
+        "the ring's clip {clip:?} keeps all four outer lines of {outer:?}"
+    );
+    let header_at = shapes
+        .iter()
+        .position(|c| {
+            matches!(&c.shape, egui::Shape::Rect(r)
+                if r.fill == theme.table_header_bg().to_egui()
+                    && r.rect.y_range().contains(ring_top))
+        })
+        .expect("the header band lies under the ring's top line");
+    assert!(
+        header_at < ring_at,
+        "the ring ({ring_at}) is painted after the header band ({header_at})"
+    );
+}
