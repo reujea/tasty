@@ -496,10 +496,11 @@ pub struct GlyphKey {
     pub italic: bool,
 }
 
+#[cfg(any(feature = "gpu", test))]
 impl GlyphKey {
     /// Attributes the glyph is shaped with: `family`, and the weight and style
     /// of the key. The atlas and the tests draw through this one function.
-    pub fn attrs<'a>(&self, family: &'a FamilyOwned) -> Attrs<'a> {
+    pub(crate) fn attrs<'a>(&self, family: &'a FamilyOwned) -> Attrs<'a> {
         let mut attrs = Attrs::new().family(family.as_family());
         if self.bold {
             attrs = attrs.weight(cosmic_text::Weight::BOLD);
