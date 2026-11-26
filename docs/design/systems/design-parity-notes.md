@@ -42,6 +42,18 @@ egui는 위젯 사이에 `item_spacing`을 추가하므로 명시한 간격과 �
 
 헤더 행의 최소 높이를 디자인 콘텐츠 높이에 맞추고 바깥 보더도 포함해 비교한다. remote_tool의 기록된 보정은 최소 높이 26(콘텐츠 24 + Outside 보더 보정 2)과 탭 높이 36이며 구분선 y는 48.0·84.0이었다. 이 값을 다른 헤더의 기본값으로 사용하지 않는다.
 
+## remote_tool — Attach 목록의 행 높이
+
+공용 `remote_list_row`로 그린 Attach 행은 정본 `RemoteFrame tab="attach"`의 행(78)보다 길어 83.4다. 본체와 갤러리가 같은 함수를 쓰므로 둘 다 그렇다. 행 위아래 여백(space-md), 줄 간격(remote-row-line-gap 2), 글자 크기 토큰은 정본과 같다. 차이는 줄 상자에서 나온다.
+
+| 줄 | 정본(CSS) | egui |
+|---|---|---|
+| 이름 + 칩 | 18.2(heading 13 × line-height-ui 1.4) | 19 |
+| 대상(mono caption) | 15.4(caption 11 × 1.4) | 18.375(`selectable_text`의 텍스트 편집 상자 여백) |
+| tasty/port 캡션 | 15.4 | 18(가로 줄의 최소 높이 `interact_size.y`) |
+
+520×460 기본 프레임의 목록은 머리 48·탭 36·add-bar 42를 뺀 332다. 네 행(333.6)이 1.6 넘쳐 갤러리 Attach 표본에 세로 스크롤바가 생긴다. 목록이 프레임보다 길면 스크롤하는 것은 정본과 같은 동작이다. 정본 프레임 크기와 공용 행 줄 높이는 바꾸지 않는다.
+
 <a id="remote_tool--popup-border-가-stroke-outside--콘텐츠가-1px-위에서-시작"></a>
 
 ## remote_tool — 바깥 보더와 콘텐츠 시작점

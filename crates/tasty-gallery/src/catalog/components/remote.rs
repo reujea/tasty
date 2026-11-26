@@ -155,11 +155,13 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
                     );
                     kit::title(ui, theme, "Remote connections");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        IconButton::new().variant(IconButtonVariant::Ghost).show(
-                            ui,
-                            theme,
-                            &|ui, rect, c| icons::CLOSE.image(rect.height(), c).paint_at(ui, rect),
-                        );
+                        // 정본 RemoteChromeG·본체 머리처럼 닫기는 sm(item_height_tab)이다.
+                        IconButton::new()
+                            .variant(IconButtonVariant::Ghost)
+                            .size(tasty_ui_widgets::ControlSize::Sm)
+                            .show(ui, theme, &|ui, rect, c| {
+                                icons::CLOSE.image(rect.height(), c).paint_at(ui, rect)
+                            });
                     });
                 });
             });
@@ -498,11 +500,13 @@ fn attach_header(ui: &mut egui::Ui, theme: &Theme) {
             );
             kit::title(ui, theme, "Remote connections");
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                IconButton::new().variant(IconButtonVariant::Ghost).show(
-                    ui,
-                    theme,
-                    &|ui, rect, c| icons::CLOSE.image(rect.height(), c).paint_at(ui, rect),
-                );
+                // 정본 RemoteChromeG·본체 머리처럼 닫기는 sm(item_height_tab)이다.
+                IconButton::new()
+                    .variant(IconButtonVariant::Ghost)
+                    .size(tasty_ui_widgets::ControlSize::Sm)
+                    .show(ui, theme, &|ui, rect, c| {
+                        icons::CLOSE.image(rect.height(), c).paint_at(ui, rect)
+                    });
             });
         });
     });

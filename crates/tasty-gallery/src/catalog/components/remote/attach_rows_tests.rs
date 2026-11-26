@@ -112,3 +112,29 @@ fn the_profile_missing_badge_tooltip_reads_the_runtime_hint_key() {
         "hovering the profile missing badge paints the {hint:?} tooltip"
     );
 }
+
+/// 표본 하나를 그리는 함수.
+type DrawFn = fn(&mut egui::Ui, &Theme);
+
+/// 창 머리 띠는 정본 RemoteChromeG처럼 위아래 space-md와 sm 닫기 버튼(item_height_tab) 높이다.
+/// 탭 띠(bg-sidebar 채움)의 위 끝이 창 안쪽 위에서 그만큼 떨어져 있는지 Attach 창과 프로필 창에서 잰다.
+#[test]
+fn the_window_header_is_space_md_around_a_small_close_button() {
+    for th in themes() {
+        let frames: [(&str, DrawFn); 2] =
+            [("attach", super::attach_frame), ("profiles", super::draw)];
+        for (name, frame) in frames {
+            let p = paint(|ui| frame(ui, &th));
+            let tabs = p.rect_filled_with(th.bg_sidebar().to_egui());
+            // 탭 띠를 품는 가장 작은 창(bg-panel) 채움.
+            let panel =
+                p.rect_filled_around(crate::catalog::widgets::dialog::panel_fill(&th), tabs);
+            let header = tabs.top() - (panel.top() + th.border_width.value());
+            let want = th.spacing_md.value() * 2.0 + th.item_height_tab.value();
+            assert!(
+                (header - want).abs() < 0.5,
+                "{name}: header band {header} is not space-md × 2 + item_height_tab = {want}"
+            );
+        }
+    }
+}
