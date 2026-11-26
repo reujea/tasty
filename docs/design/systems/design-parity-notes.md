@@ -44,15 +44,19 @@ egui는 위젯 사이에 `item_spacing`을 추가하므로 명시한 간격과 �
 
 ## remote_tool — Attach 목록의 행 높이
 
-공용 `remote_list_row`로 그린 Attach 행은 정본 `RemoteFrame tab="attach"`의 행(78)보다 길어 83.4다. 본체와 갤러리가 같은 함수를 쓰므로 둘 다 그렇다. 행 위아래 여백(space-md), 줄 간격(remote-row-line-gap 2), 글자 크기 토큰은 정본과 같다. 차이는 줄 상자에서 나온다.
+정본 `RemoteFrame tab="attach"`(a42da3c `vendor/gallery/parts/overlay-frames.jsx` `AttachRow`)의 행은 위아래 space-md 12×2, 줄 간격 remote-row-line-gap 2×2, 아래 구분선 1과 세 줄로 된다. 세 행은 78이다. old-attach 행은 대상 줄에 16 높이 WarnBadge(profile missing)를 함께 두어 그 줄이 16이 되고, 행은 약 78.6이다.
 
-| 줄 | 정본(CSS) | egui |
+갤러리 Attach 기본 표본의 행은 83.375다(줄 상자 합 55.375 + 줄 간격 2×2 + 위아래 space-md 12×2). 행 위아래 여백, 줄 간격, 글자 크기 토큰은 정본과 같다. 차이는 줄 상자에서 나온다. 아래 egui 값은 갤러리 기본 표본에서 잰 것이다.
+
+| 줄 | 정본(CSS) | egui(갤러리 표본) |
 |---|---|---|
 | 이름 + 칩 | 18.2(heading 13 × line-height-ui 1.4) | 19 |
-| 대상(mono caption) | 15.4(caption 11 × 1.4) | 18.375(`selectable_text`의 텍스트 편집 상자 여백) |
-| tasty/port 캡션 | 15.4 | 18(가로 줄의 최소 높이 `interact_size.y`) |
+| 대상(mono caption) | 15.4(caption 11 × 1.4), old-attach는 WarnBadge 16 | 18.375(`selectable_text`의 텍스트 편집 상자 여백) |
+| tasty/port 캡션 | 15.4 | 18(`kit::caption`을 둔 가로 줄의 최소 높이 `interact_size.y`) |
 
-520×460 기본 프레임의 목록은 머리 48·탭 36·add-bar 42를 뺀 332다. 네 행(333.6)이 1.6 넘쳐 갤러리 Attach 표본에 세로 스크롤바가 생긴다. 목록이 프레임보다 길면 스크롤하는 것은 정본과 같은 동작이다. 정본 프레임 크기와 공용 행 줄 높이는 바꾸지 않는다.
+공용 `remote_list_row`는 호출자가 그린 내용의 높이를 따른다. 셋째 줄은 본체가 `selectable_label`(`src/adapters/ui/popup/remote_tool.rs`), 갤러리가 `kit::caption`(`crates/tasty-gallery/src/catalog/components/remote.rs`)으로 그려 서로 다르다. 본체 행 높이는 재지 않았다.
+
+520×460 기본 프레임의 목록 높이는 332다. 프레임 안쪽 높이 458(460 − 테두리 1×2)에서 머리 48, 탭 36, add-bar 42를 뺀 값이다. 네 행 합은 333.5라 목록을 1.5 넘고, 갤러리 Attach 표본에 세로 스크롤바가 생긴다. 캡처에서 정수 픽셀로 찍힌 구분선 간격 84·83은 행 83.375가 반올림된 값이라 이 산식과 맞는다. 정본도 목록이 프레임보다 길면 스크롤한다.
 
 <a id="remote_tool--popup-border-가-stroke-outside--콘텐츠가-1px-위에서-시작"></a>
 
