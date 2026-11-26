@@ -27,6 +27,8 @@ mod forms_tests;
 #[cfg(test)]
 mod passkeys_meta_tests;
 mod segment_rule;
+#[cfg(test)]
+mod type_hint_tests;
 pub use forms::{draw_generic_passkey_forms, draw_profile_form};
 pub use passkeys::draw_passkeys;
 pub use segment_rule::draw_segment_rule;
@@ -837,7 +839,7 @@ fn profile_row(ui: &mut egui::Ui, theme: &Theme, p: &Profile) {
     } else {
         RemoteRowChip::Warn {
             text: p.tag,
-            tooltip: "Unknown type — no core feature or plugin handles it.",
+            tooltip: crate::i18n::t("remote_tool.type_unknown_hint"),
         }
     };
     let ssh = p.tag == "ssh";
@@ -958,7 +960,7 @@ pub fn draw_filter(ui: &mut egui::Ui, theme: &Theme) {
                             reset: "Reset",
                             apply: "Apply",
                             unknown: "unknown",
-                            unknown_hint: "tasty has no dedicated form for this protocol.",
+                            unknown_hint: crate::i18n::t("remote_tool.type_unknown_hint"),
                         },
                         &mut draft,
                     );
