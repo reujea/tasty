@@ -123,18 +123,22 @@ fn decided(probe: &crate::transport::ReaderProbe) -> (Woken, Option<Option<i32>>
     (woken(probe), probe.end_os_error())
 }
 
-/// 상대가 소켓의 끝을 기다리는 상한. 닫히지 않은 소켓에서 멈추지 않기 위한 것이고 '바로'를 재지 않는다.
-/// Windows 는 디스크 지연이 걸리면 OS 동작 전체가 늦어져 5초 안에 끝이 오지 않은 일이 있어 픽스처 읽기
-/// 기한만큼 둔다.
+/// 상대의 소켓 읽기 호출마다 거는 기한이다(관측 전체의 상한이 아니다). `read_frame` 은 헤더와 본문을 따로
+/// 읽고, 정상 프레임이 오면 루프가 다시 읽는다. 닫히지 않은 소켓에서 멈추지 않기 위한 것이고 '바로'를 재지
+/// 않는다. Windows 는 디스크 부하에서 OS 동작 전체가 늦어지므로 픽스처 읽기 기한과 같은 값을 둔다.
 const PEER_END_LIMIT: Duration = FIXTURE_READ_TIMEOUT;
 
-/// 상대가 Detach 프레임 없이 EOF 를 받는다. 그 EOF 가 회수 스레드의 닫기보다 먼저인지는 호출자가 정한다
-/// (전송을 버리기 전에 부르거나 회수 닫기를 막아 둔 채 부른다). 바로 닫았는지는 시간이 아니라 상태로
-/// 본다: 반납 호출이 제 스레드에서 닫았고([`assert_closed_by_this_thread`]) 상대가 Detach 없이 끝을 본다.
+/// 상대가 Detach 프레임 없이 연결의 끝을 받는다. 이 단언은 'Detach 없이 끝났다'만 판정한다. 끝은 같은
+/// 연결의 writer 가 닫아서 올 수도 있으므로 반납이 닫았다는 증거가 아니다. 반납이 제 스레드에서 닫았다는
+/// 판정은 [`assert_closed_by_this_thread`] 와 [`assert_reader_released`] 가 맡는다. 그 끝이 회수 스레드의
+/// 닫기보다 먼저인지는 호출자가 정한다(전송을 버리기 전에 부르거나 회수 닫기를 막아 둔 채 부른다).
+/// 끝으로 치는 것은 `UnexpectedEof`(프레임 경계의 EOF 와 중간에 잘린 프레임의 EOF 모두)와 연결 끊김
+/// (`ConnectionReset`·`ConnectionAborted`)뿐이다. `InvalidData`(잘못된 태그·초과 길이) 등 그 밖의 오류는 실패다.
 fn assert_closed_without_detach(
     peer: &mut std::net::TcpStream,
     probe: &crate::transport::ReaderProbe,
 ) {
+    use std::io::ErrorKind;
     peer.set_read_timeout(Some(PEER_END_LIMIT)).unwrap();
     loop {
         match stream::read_frame(peer) {
@@ -144,17 +148,20 @@ fn assert_closed_without_detach(
                 "peer failure: closed with a Detach (reader finished {})",
                 probe.finished()
             ),
-            Err(error) => {
-                assert!(
-                    !matches!(
-                        error.kind(),
-                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
-                    ),
+            Err(error) => match error.kind() {
+                ErrorKind::UnexpectedEof
+                | ErrorKind::ConnectionReset
+                | ErrorKind::ConnectionAborted => break,
+                ErrorKind::WouldBlock | ErrorKind::TimedOut => panic!(
                     "peer failure: the socket stayed open: {error} (reader finished {})",
                     probe.finished()
-                );
-                break;
-            }
+                ),
+                _ => panic!(
+                    "peer failure: the read failed without an end of the connection: {error} \
+                     (reader finished {})",
+                    probe.finished()
+                ),
+            },
         }
     }
 }
@@ -170,17 +177,25 @@ fn assert_closed_by_this_thread(stamp: &crate::transport::CloseStamp) {
 }
 
 /// 막힌 reader 가 회수 스레드의 닫기 전에 끝났다. 호출자는 전송을 아직 버리지 않았거나 회수 닫기를 막아 둔
-/// 채 부른다. 판정은 reader 가 스스로 남긴 끝 시각으로 한다. 상한은 닫기 뒤 5초와, 첫 recv 직전 시각 +
-/// 픽스처 읽기 기한 중 이른 쪽이라 첫 읽기의 기한 만료로 끝난 reader 는 통과하지 못한다.
-fn assert_reader_released(probe: &crate::transport::ReaderProbe, closed: Instant) {
+/// 채 부른다. 판정은 reader 가 스스로 남긴 끝 시각으로 한다. 상한은 첫 recv 직전 시각 + 픽스처 읽기
+/// 기한이다. 첫 읽기의 기한 만료는 그 뒤에만 일어나므로, 닫기가 깨우지 않아 그 만료로 끝난 reader 는
+/// 통과하지 못한다. `after_close` 를 주면 닫기 뒤 그 시간도 상한에 넣는다(회수 시험의 지연 검출).
+/// 반납 시험은 주지 않아 벽시계로 '바로'를 재지 않는다.
+fn assert_reader_released(
+    probe: &crate::transport::ReaderProbe,
+    closed: Instant,
+    after_close: Option<Duration>,
+) {
     let first_recv = probe
         .first_recv_at()
         .expect("the reader stamps its first recv before it counts the entry");
-    holds_by(closed + Duration::from_secs(10), || probe.finished());
+    let read_limit = first_recv + FIXTURE_READ_TIMEOUT;
+    let bound = after_close.map_or(read_limit, |after| read_limit.min(closed + after));
+    // 끝나지 않던 reader 도 그 기한으로 끝나 끝 시각을 남기도록 상한 뒤까지 기다린다.
+    holds_by(read_limit + Duration::from_secs(10), || probe.finished());
     let Some(ended) = probe.ended_at() else {
         panic!("blocked reader: the close left the reader in recv");
     };
-    let bound = (first_recv + FIXTURE_READ_TIMEOUT).min(closed + Duration::from_secs(5));
     assert!(
         ended < bound,
         "blocked reader: it ended {:?} after the close",
@@ -225,7 +240,7 @@ fn close_locally_run() -> (Woken, Option<Option<i32>>) {
         transport.end.settled(),
         Some(crate::transport_end::EndReason::Lost)
     );
-    assert_reader_released(&probe, closed);
+    assert_reader_released(&probe, closed, None);
     assert_closed_without_detach(&mut peer, &probe);
     let receipt = transport.workers.receipt();
     drop(transport);
@@ -253,7 +268,7 @@ fn failed_install_run() -> (Woken, Option<Option<i32>>) {
     drop(guard);
     assert_closed_by_this_thread(&stamp);
     assert_eq!(end.settled(), Some(crate::transport_end::EndReason::Lost));
-    assert_reader_released(&probe, closed);
+    assert_reader_released(&probe, closed, None);
     assert_closed_without_detach(&mut peer, &probe);
     drop(hold);
     assert_retired(receipt, &probe);
@@ -336,7 +351,7 @@ fn dropped_run() -> (Woken, Option<Option<i32>>) {
     let receipt = transport.workers.receipt();
     let dropped = Instant::now();
     drop(transport);
-    assert_reader_released(&probe, dropped);
+    assert_reader_released(&probe, dropped, Some(Duration::from_secs(5)));
     assert_retired(receipt, &probe);
     decided(&probe)
 }
