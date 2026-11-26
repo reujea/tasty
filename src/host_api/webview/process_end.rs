@@ -46,11 +46,17 @@ pub(super) fn end_process(
 mod tests {
     use super::*;
 
-    /// 한 종료를 처리하고 (반환값, 탐색 상태, 복구 표시, record가 받은 값, 깨움 수)를 돌려준다. 깨울 때마다
-    /// 그 시점의 상태가 이미 기록됐는지(Failed, 렌더 process면 복구 표시, record 호출)를 본다.
+    /// 복구 표시가 없는 상태에서 한 종료를 처리한다(`run_from`).
     fn run(end: ProcessEnd) -> (bool, NavState, bool, Option<bool>, u32) {
+        run_from(end, false)
+    }
+
+    /// 복구 표시를 `ended_before`로 둔 채 한 종료를 처리하고 (반환값, 탐색 상태, 복구 표시, record가 받은 값,
+    /// 깨움 수)를 돌려준다. 깨울 때마다 그 시점의 상태가 이미 기록됐는지(Failed, 렌더 process면 복구 표시,
+    /// record 호출)를 본다.
+    fn run_from(end: ProcessEnd, ended_before: bool) -> (bool, NavState, bool, Option<bool>, u32) {
         let nav = Cell::new(NavState::Done);
-        let ended = Cell::new(false);
+        let ended = Cell::new(ended_before);
         let recorded = Cell::new(None);
         let wakes = Cell::new(0u32);
         let changed = end_process(
@@ -62,7 +68,7 @@ mod tests {
                 assert_eq!(nav.get(), NavState::Failed, "깨우기 전에 Failed를 기록한다");
                 assert_eq!(
                     ended.get(),
-                    end == ProcessEnd::Renderer,
+                    ended_before || end == ProcessEnd::Renderer,
                     "깨우기 전에 복구 표시를 기록한다"
                 );
                 assert!(
@@ -96,6 +102,20 @@ mod tests {
         assert_eq!(
             run(ProcessEnd::Other),
             (false, NavState::Done, false, None, 0)
+        );
+    }
+
+    /// 앞선 렌더 process 종료가 남긴 복구 표시는 동기화가 꺼낼 때까지 남는다. 브라우저 종료나 그 밖의
+    /// 종료가 뒤따라도 지우지 않는다.
+    #[test]
+    fn a_later_browser_or_other_end_keeps_a_pending_recovery_mark() {
+        assert_eq!(
+            run_from(ProcessEnd::Browser, true),
+            (true, NavState::Failed, true, Some(false), 1)
+        );
+        assert_eq!(
+            run_from(ProcessEnd::Other, true),
+            (false, NavState::Done, true, None, 0)
         );
     }
 }
