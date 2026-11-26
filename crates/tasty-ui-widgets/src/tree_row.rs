@@ -11,11 +11,11 @@ use crate::icon_button::IconPainter;
 
 const CHEVRON_SLOT: f32 = 14.0;
 const ICON_GLYPH: f32 = 14.0;
-const GAP: f32 = 6.0;
 
 /// 깊이 0 행의 왼쪽 끝에서 아이콘 가운데까지의 거리. 같은 목록에 끼는 다른 행이 아이콘을 맞출 때 쓴다.
 pub fn tree_row_icon_center(theme: &Theme) -> f32 {
-    theme.tree_row_gap().value() + CHEVRON_SLOT + GAP + ICON_GLYPH * 0.5
+    let gap = theme.tree_row_gap().value();
+    gap + CHEVRON_SLOT + gap + ICON_GLYPH * 0.5
 }
 
 /// 트리 행. `selected` 면 surface-active. 클릭 응답 반환(행 전체 클릭).
@@ -178,6 +178,8 @@ fn draw(
     } = row;
     let height = theme.tree_row_height().value();
     let pad_l = theme.tree_row_gap().value();
+    // 셰브런 칸·글리프·이름·meta 사이 간격(정본 TreeRow 의 gap).
+    let gap = theme.tree_row_gap().value();
     let pad_r = theme.spacing_sm.value();
     let radius = theme.corner_radius_sm.value();
     let body = theme.tree_row_font_size().value();
@@ -239,7 +241,7 @@ fn draw(
             egui::Stroke::new(theme.icon_stroke_width.value(), part),
         ));
     }
-    x += CHEVRON_SLOT + GAP;
+    x += CHEVRON_SLOT + gap;
 
     if let Some(paint) = icon {
         let icon_color = match state {
@@ -254,7 +256,7 @@ fn draw(
             egui::vec2(ICON_GLYPH, ICON_GLYPH),
         );
         paint(ui, irect, icon_color);
-        x += ICON_GLYPH + GAP;
+        x += ICON_GLYPH + gap;
     }
 
     let mut right = rect.right() - pad_r;
@@ -269,7 +271,7 @@ fn draw(
             rect.center().y - g.rect.height() * 0.5,
         );
         ui.painter().galley(pos, g.clone(), meta_fg);
-        right -= g.rect.width() + GAP;
+        right -= g.rect.width() + gap;
     }
 
     let mut job = crate::explorer_match_job(

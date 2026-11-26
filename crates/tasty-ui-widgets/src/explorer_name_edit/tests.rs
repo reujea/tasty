@@ -69,6 +69,21 @@ fn a_list_editor_grows_the_row_to_the_table_row_height() {
     );
 }
 
+/// 배율 1에서 목록 편집 줄의 글리프 가운데는 줄 왼쪽에서 29다(트리 행 아이콘 가운데, tree-row-gap 4 기준).
+#[test]
+fn a_list_editor_glyph_centres_on_the_tree_row_icon_at_zoom_one() {
+    let theme = theme();
+    let (row, field) = rects(ExplorerNameLayout::List);
+    let glyph_center = field.left()
+        - theme.spacing_sm.value()
+        - theme.icon_glyph_size_md.value() * 0.5
+        - row.left();
+    assert!(
+        (glyph_center - 29.0).abs() < 0.5,
+        "글리프 가운데 {glyph_center} 가 29 가 아니다"
+    );
+}
+
 #[test]
 fn a_field_with_the_in_folder_caption_stops_at_the_create_field_width() {
     let theme = theme();
