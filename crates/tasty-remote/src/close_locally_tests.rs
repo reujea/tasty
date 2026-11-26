@@ -123,14 +123,19 @@ fn decided(probe: &crate::transport::ReaderProbe) -> (Woken, Option<Option<i32>>
     (woken(probe), probe.end_os_error())
 }
 
+/// 상대가 소켓의 끝을 기다리는 상한. 닫히지 않은 소켓에서 멈추지 않기 위한 것이고 '바로'를 재지 않는다.
+/// Windows 는 디스크 지연이 걸리면 OS 동작 전체가 늦어져 5초 안에 끝이 오지 않은 일이 있어 픽스처 읽기
+/// 기한만큼 둔다.
+const PEER_END_LIMIT: Duration = FIXTURE_READ_TIMEOUT;
+
 /// 상대가 Detach 프레임 없이 EOF 를 받는다. 그 EOF 가 회수 스레드의 닫기보다 먼저인지는 호출자가 정한다
-/// (전송을 버리기 전에 부르거나 회수 닫기를 막아 둔 채 부른다). 여기 기한은 닫히지 않은 소켓에서 멈추지
-/// 않기 위한 것이다.
+/// (전송을 버리기 전에 부르거나 회수 닫기를 막아 둔 채 부른다). 바로 닫았는지는 시간이 아니라 상태로
+/// 본다: 반납 호출이 제 스레드에서 닫았고([`assert_closed_by_this_thread`]) 상대가 Detach 없이 끝을 본다.
 fn assert_closed_without_detach(
     peer: &mut std::net::TcpStream,
     probe: &crate::transport::ReaderProbe,
 ) {
-    peer.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    peer.set_read_timeout(Some(PEER_END_LIMIT)).unwrap();
     loop {
         match stream::read_frame(peer) {
             Ok(frame) => assert_ne!(
