@@ -1,6 +1,7 @@
 use crate::i18n::t;
 use crate::theme;
 
+use tasty_type_geometry::length::LogicalPx;
 use tasty_ui_widgets::{
     PluginAddBarClicks, PluginAddBarView, PluginAddPickerView, PluginManifestCardView,
     PluginTrustKind, plugin_add_bar, plugin_add_empty_hint, plugin_add_path_picker,
@@ -61,21 +62,20 @@ fn draw_add_form(
     // 카드와 신뢰 상자가 같은 폭을 쓰도록 열 폭을 스크롤 영역 밖에서 정한다.
     let column_width = th
         .measure_xl
-        .value()
-        .min(ui.available_width() - pad_x * 2.0);
+        .min(LogicalPx(ui.available_width()) - pad_x * 2.0);
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .max_height(scroll_height)
         .drag_to_scroll(false)
         .show(ui, |ui| {
             let margin = egui::Margin {
-                left: pad_x as i8,
-                right: pad_x as i8,
+                left: pad_x.value() as i8,
+                right: pad_x.value() as i8,
                 top: 0,
                 bottom: 0,
             };
             egui::Frame::NONE.inner_margin(margin).show(ui, |ui| {
-                ui.set_width(column_width);
+                ui.set_width(column_width.value());
                 ui.spacing_mut().item_spacing.y = th.spacing_lg.value();
                 draw_path_picker(ui, snapshot, ui_state, th);
                 if let Some(error) = &ui_state.add_error {
@@ -114,9 +114,11 @@ fn draw_add_form(
 }
 
 /// 스크롤 본문에 더할 좌우 여백: 정본 `space-xl` 에서 패널 기본 틀의 좌우 몫을 뺀 나머지.
-fn add_body_pad_x(ui: &egui::Ui, th: &theme::Theme) -> f32 {
-    let panel = egui::Frame::central_panel(ui.style()).inner_margin.left;
-    (th.spacing_xl.value() - f32::from(panel)).max(0.0)
+fn add_body_pad_x(ui: &egui::Ui, th: &theme::Theme) -> LogicalPx {
+    let panel = LogicalPx(f32::from(
+        egui::Frame::central_panel(ui.style()).inner_margin.left,
+    ));
+    (th.spacing_xl - panel).max(LogicalPx(0.0))
 }
 
 /// 추가 버튼이 보낼 동작. 미인증은 사용자의 명시적 선택으로 보낸다.
