@@ -694,12 +694,12 @@ mod detail_name_tests {
     }
 
     /// 본체 `detail_view` Name 칸 코드를 옮긴 기준. 본체 표는 열 사이 간격이 0 이라 칸 clip 끝이 곧 칸 끝이다.
-    fn app_rule(ui: &mut egui::Ui, theme: &Theme, job: egui::text::LayoutJob, tail: f32) {
-        let room = ui.clip_rect().right() - ui.cursor().left();
-        let text_w = ui.fonts(|f| f.layout_job(job.clone()).rect.width());
-        let w = text_w.min(room - tail).max(0.0);
+    fn app_rule(ui: &mut egui::Ui, theme: &Theme, job: egui::text::LayoutJob, tail: LogicalPx) {
+        let room = LogicalPx(ui.clip_rect().right()) - LogicalPx(ui.cursor().left());
+        let text_w = LogicalPx(ui.fonts(|f| f.layout_job(job.clone()).rect.width()));
+        let w = text_w.min(room - tail).max(LogicalPx::default());
         ui.spacing_mut().item_spacing.x = theme.spacing_xs.value();
-        ui.allocate_ui(egui::vec2(w, theme.font_size_body.value()), |ui| {
+        ui.allocate_ui(egui::vec2(w.value(), theme.font_size_body.value()), |ui| {
             ui.add(egui::Label::new(job).truncate())
         });
     }
@@ -761,7 +761,7 @@ mod detail_name_tests {
                         let sz = theme.icon_glyph_size_md.value();
                         ui.allocate_exact_size(egui::Vec2::splat(sz), egui::Sense::hover());
                         if use_app {
-                            app_rule(ui, &theme, job(&theme, name), tail.value());
+                            app_rule(ui, &theme, job(&theme, name), tail);
                         } else {
                             detail_name(ui, &theme, job(&theme, name), tail);
                         }
@@ -829,10 +829,10 @@ mod detail_name_tests {
         let theme = tasty_themes::mocha_fallback();
         let tail = theme.explorer_link_glyph_size() + theme.spacing_xs;
         let (name, edge) = name_in_cell(300.0, 90.0, LONG, tail);
-        let tail = tail.value();
+        let edge = LogicalPx(edge);
         assert_eq!(name.last, '…');
         assert!(
-            name.rect.right() <= edge - tail + 0.5,
+            LogicalPx(name.rect.right()) <= edge - tail + LogicalPx(0.5),
             "the cut name {:?} leaves {tail} before {edge}",
             name.rect
         );
