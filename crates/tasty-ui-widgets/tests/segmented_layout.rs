@@ -1,4 +1,4 @@
-//! segmented는 정본 배치(tasty-page overlay-frames.jsx `seg`)대로 칸마다 따로 그린 알약을 6 간격으로 놓는다.
+//! segmented는 정본 배치(tasty-page overlay-frames.jsx `seg`)대로 칸마다 따로 그린 알약을 `segmented-gap` 간격으로 놓는다.
 //! 선택 칸은 accent-primary 채움과 같은 색 테두리, 나머지는 surface-raised 채움과 border-default 테두리다.
 
 use egui::{Pos2, RawInput, Rect, vec2};
@@ -32,7 +32,7 @@ fn pills_at(zoom: f32) -> (Theme, Vec<egui::epaint::RectShape>) {
 }
 
 #[test]
-fn each_segment_is_its_own_pill_six_apart() {
+fn each_segment_is_its_own_pill_segmented_gap_apart() {
     let (th, pills) = pills_at(1.0);
     assert_eq!(pills.len(), 3, "{pills:?}");
     let h = th.item_height_interactive.value();
@@ -42,7 +42,10 @@ fn each_segment_is_its_own_pill_six_apart() {
         assert_eq!(p.stroke_kind, egui::StrokeKind::Inside);
     }
     for w in pills.windows(2) {
-        assert_eq!(w[1].rect.left() - w[0].rect.right(), 6.0);
+        assert_eq!(
+            w[1].rect.left() - w[0].rect.right(),
+            th.segmented_gap().value()
+        );
     }
     let accent = th.accent_primary().to_egui();
     assert_eq!((pills[1].fill, pills[1].stroke.color), (accent, accent));
@@ -52,15 +55,21 @@ fn each_segment_is_its_own_pill_six_apart() {
     }
 }
 
-/// 알약 사이 간격은 알약 높이·padding처럼 UI 배율을 따른다. 배율 1.2에서 6×1.2다(egui가 상자 좌표를 1/16 단위로
-/// 맞추므로 그 반 단위까지 허용한다).
+/// 알약 사이 간격은 정본 `segmented-gap` 을 읽어 알약 높이·padding처럼 UI 배율을 따른다(접근자가 배율 곱을
+/// 반올림한다. egui가 상자 좌표를 1/16 단위로 맞추므로 그 반 단위까지 허용한다).
 #[test]
-fn the_pill_gap_follows_the_ui_zoom() {
-    let (th, pills) = pills_at(1.2);
-    assert_eq!(pills.len(), 3, "{pills:?}");
-    assert_eq!(th.item_height_interactive.value(), pills[0].rect.height());
-    for w in pills.windows(2) {
-        let gap = w[1].rect.left() - w[0].rect.right();
-        assert!((gap - 6.0 * 1.2).abs() <= 1.0 / 32.0, "gap {gap}");
+fn the_pill_gap_is_segmented_gap_at_each_zoom() {
+    for zoom in [0.85, 1.0, 1.2] {
+        let (th, pills) = pills_at(zoom);
+        assert_eq!(pills.len(), 3, "{pills:?}");
+        assert_eq!(th.item_height_interactive.value(), pills[0].rect.height());
+        for w in pills.windows(2) {
+            let gap = w[1].rect.left() - w[0].rect.right();
+            assert!(
+                (gap - th.segmented_gap().value()).abs() <= 1.0 / 32.0,
+                "배율 {zoom}: 알약 사이 {gap} 가 segmented_gap {} 가 아니다",
+                th.segmented_gap().value()
+            );
+        }
     }
 }

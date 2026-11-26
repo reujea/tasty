@@ -45,7 +45,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ("segment pad", "0 space-md"),
             (
                 "layout",
-                "one pill per segment · gap 6 · no container · no divider",
+                "one pill per segment · gap segmented-gap · no container · no divider",
             ),
             (
                 "active",
