@@ -7,6 +7,7 @@ use windows::Win32::System::Com::CoTaskMemFree;
 use windows::core::HSTRING;
 
 use super::super::NavState;
+use super::super::process_end::ProcessEnd;
 use super::super::scan_resume::{Replay, ScanResume};
 use super::super::script_gate::ScriptGate;
 
@@ -99,5 +100,17 @@ pub(super) fn set_js(webview: &ICoreWebView2, enabled: bool) {
             }
             Err(e) => tracing::warn!("WebView2 Settings() failed: {e}"),
         }
+    }
+}
+
+/// `ProcessFailed`의 종류 가운데 main frame 문서를 그리던 process의 종료만 고른다. iframe·GPU·utility process
+/// 종료와 `RENDER_PROCESS_UNRESPONSIVE`는 main frame 로드를 끝내지 않는다.
+pub(super) fn process_end(kind: COREWEBVIEW2_PROCESS_FAILED_KIND) -> ProcessEnd {
+    if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED {
+        ProcessEnd::Renderer
+    } else if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED {
+        ProcessEnd::Browser
+    } else {
+        ProcessEnd::Other
     }
 }

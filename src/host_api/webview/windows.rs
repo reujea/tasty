@@ -36,13 +36,13 @@ use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 #[cfg(test)]
 use self::keyboard::vk_to_winit_key;
 use self::navigation::{
-    complete_requests, replay_navigation, set_js, stop_navigation, webview_source,
+    complete_requests, process_end, replay_navigation, set_js, stop_navigation, webview_source,
 };
 use super::entry_response::{EntryResponseSource, windows as entry_adapter};
 use super::host_document::{HostDocuments, StartDecision, is_reserved};
 use super::keys::WebViewKeySink;
 use super::load_generation::{chrome_state_after_end, is_current_load};
-use super::process_end::{ProcessEnd, end_process};
+use super::process_end::end_process;
 use super::scan_resume::{RequestAction, ScanResume, Start, StartKind};
 use super::script_gate::ScriptGate;
 use super::window_region::{PointerGate, WindowRegion};
@@ -857,15 +857,8 @@ impl PlatformWebView {
                     tracing::warn!(
                         "WebView surface {surface_id}: WebView2 process failed: kind={kind:?}"
                     );
-                    let end = if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED {
-                        ProcessEnd::Renderer
-                    } else if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED {
-                        ProcessEnd::Browser
-                    } else {
-                        ProcessEnd::Other
-                    };
                     end_process(
-                        end,
+                        process_end(kind),
                         &nav_failed,
                         &ended_failed,
                         |renderer| {
