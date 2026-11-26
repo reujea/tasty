@@ -217,7 +217,9 @@ define_class!(
                 // 위임 콜백은 그리기를 요청하지 않는다. 깨우지 않으면 쉬는 창은 다음 입력까지 다시 싣지
                 // 않는다. 부모는 winit 뷰이고, winit은 그 뷰의 drawRect:를 RedrawRequested로 넘긴다.
                 || {
-                    // SAFETY: 위임 콜백은 main thread에서 오고 web_view는 이 호출 동안 살아 있다.
+                    // SAFETY: 위임 콜백은 main thread에서 오고 web_view는 이 호출 동안 살아 있다. 같은
+                    // main thread에서 조회 전에 재진입하거나 계층을 바꾸지 않고 지금 부모를 읽는다. 떼어 낸
+                    // 뷰면 None이고, 반환된 Retained가 그 뒤 부모 수명을 유지한다.
                     if let Some(parent) = unsafe { web_view.superview() } {
                         parent.setNeedsDisplay(true);
                     }
