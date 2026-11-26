@@ -53,7 +53,11 @@ fn the_explorer_sample_empty_favorites_star_is_glyph_dim() {
         ("latte", crate::host_shell::latte_theme()),
     ] {
         let painted = paint(|ui| super::explorer_sidebar::draw_favorites(ui, &th));
-        let tint = star_before(&painted, &th, "No favorites yet");
+        let tint = star_before(
+            &painted,
+            &th,
+            crate::i18n::t("explorer.sidebar.favorites_empty"),
+        );
         assert_eq!(
             tint,
             th.glyph_dim().to_egui(),
