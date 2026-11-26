@@ -7,7 +7,7 @@ use super::search::status_bar;
 use super::*;
 
 /// 시안 폴더 안 만들기 칸 폭(`w={560}`). 숨김 예제 칸은 시안 `w={400}` 라 `NARROW_W` 를 쓴다.
-const CREATE_W: LogicalPx = LogicalPx(560.0);
+pub(super) const CREATE_W: LogicalPx = LogicalPx(560.0);
 
 /// (글리프, 이름, 크기, 수정일, 종류 문구 키(폴더는 빈 칸), 숨김). 종류는 본체 Type 열과 같은 lang 문구다.
 type Row = (
@@ -201,15 +201,16 @@ pub fn draw_create_in_folder(ui: &mut egui::Ui, theme: &Theme) {
                 let left = ui.max_rect().left();
                 let width = ui.available_width();
                 let tint = DropTintSlot::reserve(ui.painter());
+                let name_cell = std::cell::Cell::new(None);
                 detail_columns_table(
                     ui,
                     th,
                     CREATE_ROWS,
                     "gallery_exp_create_in",
-                    |ui, th, r, col| {
-                        if let Some(r) = r {
-                            row_cell(ui, th, r, col);
-                        }
+                    |ui, th, r, col| match r {
+                        Some(r) => row_cell(ui, th, r, col),
+                        None if col == 0 => name_cell.set(Some(ui.max_rect())),
+                        None => {}
                     },
                 );
                 status_bar(ui, th, &t_fmt("explorer.status.items", "5"));
@@ -225,19 +226,21 @@ pub fn draw_create_in_folder(ui: &mut egui::Ui, theme: &Theme) {
                 tint.fill(ui.ctx(), th, row(2.0), radius);
                 paint_drop_ring(ui.painter(), th, row(2.0), radius);
                 let caption = t_fmt("explorer.create.in_folder", "mockup-exports");
+                let Some(name_cell) = name_cell.get() else {
+                    return;
+                };
                 IN_FOLDER.with(|cell| {
                     let mut slot = cell.borrow_mut();
                     let edit = slot.get_or_insert_with(|| {
                         ExplorerNameEdit::new(t("explorer.new.file_default").into(), 0..8)
                     });
-                    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(row(3.0)));
+                    let (row, layout) =
+                        detail_edit_slot(egui::Rangef::new(left, left + width), th, name_cell);
+                    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(row));
                     explorer_name_row_in(
                         &mut child,
                         th,
-                        ExplorerNameLayout::Detail {
-                            inset: DETAIL_INSET.value(),
-                            name_width: width - explorer_detail_tail_width(false, th),
-                        },
+                        layout,
                         ExplorerNameOptions {
                             field_id: None,
                             indent: th.explorer_create_indent().value(),

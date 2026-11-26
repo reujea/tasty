@@ -9,8 +9,8 @@ use tasty_ui_widgets::{
     CenterState, ExplorerCommand, ExplorerCommandLabels, ExplorerCommandsView, ExplorerDetailHeads,
     ExplorerFindBar, ExplorerFindLabels, ExplorerFindStatus, ExplorerNameEdit, ExplorerNameLayout,
     ExplorerToggle, Table, TableSortDir, explorer_commands, explorer_commands_width,
-    explorer_detail_columns, explorer_detail_tail_width, explorer_find_bar, explorer_match_job,
-    explorer_name_error, explorer_name_row, tree_row,
+    explorer_detail_columns, explorer_find_bar, explorer_match_job, explorer_name_error,
+    explorer_name_row, tree_row,
 };
 
 use super::explorer_context_menu::{Mi, render_menu};
@@ -22,6 +22,8 @@ use crate::catalog::{Section, Spec};
 use crate::i18n::{t, t_count, t_fmt, t_fmt2};
 
 mod drop_on_bed;
+#[cfg(test)]
+mod edit_slot_tests;
 mod hidden_create;
 mod kinds;
 mod search;
@@ -40,8 +42,6 @@ const GRID_W: LogicalPx = LogicalPx(300.0);
 /// 시안 Grid 칸 폭(`width: 80`)과 그 칸이 시작하는 왼쪽 여백(`paddingLeft: 48`).
 const GRID_CELL_W: LogicalPx = LogicalPx(80.0);
 const GRID_LEFT: LogicalPx = LogicalPx(48.0);
-/// 시안 상세 행 왼쪽 여백(`padding: 0 10px`).
-const DETAIL_INSET: LogicalPx = LogicalPx(10.0);
 /// 시안 이름 입력 예제 칸 높이(`height: 172`).
 const EDIT_CELL_H: LogicalPx = LogicalPx(172.0);
 /// 시안 오류 예제 사이 간격(`gap: 44`)과 마지막 상자 아래 여백(`marginBottom: 32`).
@@ -583,30 +583,33 @@ fn detail_with_editor(
 ) {
     let mut rows: Vec<Option<usize>> = vec![None];
     rows.extend((0..DETAIL_ROWS.len()).map(Some));
-    let top = ui.cursor().top();
-    let left = ui.max_rect().left();
-    let width = ui.available_width();
+    let band = ui.available_rect_before_wrap().x_range();
+    let name_cell = std::cell::Cell::new(None);
     detail_columns_table(
         ui,
         theme,
         &rows,
         "gallery_exp_ops_detail",
         |ui, th, row, col| {
-            let Some(i) = row else { return };
+            let Some(i) = row else {
+                if col == 0 {
+                    name_cell.set(Some(ui.max_rect()));
+                }
+                return;
+            };
             let (g, name, size, date, kind) = DETAIL_ROWS[*i];
             cell_text(ui, th, col, g, name, size, date, kind);
         },
     );
-    let row_h = theme.table_cell_height().value();
-    let rect = egui::Rect::from_min_size(egui::pos2(left, top + row_h), egui::vec2(width, row_h));
-    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+    let Some(name_cell) = name_cell.get() else {
+        return;
+    };
+    let (row, layout) = detail_edit_slot(band, theme, name_cell);
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(row));
     let (_, field, _) = explorer_name_row(
         &mut child,
         theme,
-        ExplorerNameLayout::Detail {
-            inset: DETAIL_INSET.value(),
-            name_width: width - explorer_detail_tail_width(false, theme),
-        },
+        layout,
         icons::FOLDER,
         edit,
         error.is_some(),
@@ -614,6 +617,43 @@ fn detail_with_editor(
     if let Some(text) = error {
         explorer_name_error(ui, theme, field, text);
     }
+}
+
+/// 본체처럼 표가 비워 둔 행의 Name 칸에서 편집 줄 자리와 배치를 정한다. 글리프 여백은 칸 시작, 칸 끝은
+/// Name 칸 끝이다(본체 `explorer/create.rs` 의 `Slot::Detail`). 줄은 `band`(표를 그리기 전 폭, 표의 행 띠와
+/// 같은 폭)다. 본체는 Name 칸 하한으로 넘친 표를 패인 clip 이 자르지만 갤러리 칸에는 그 clip 이 없다.
+fn detail_edit_slot(
+    band: egui::Rangef,
+    theme: &Theme,
+    name_cell: egui::Rect,
+) -> (egui::Rect, ExplorerNameLayout) {
+    let row = egui::Rect::from_x_y_ranges(
+        band,
+        egui::Rangef::point(name_cell.center().y).expand(theme.table_cell_height().value() * 0.5),
+    );
+    let layout = ExplorerNameLayout::Detail {
+        inset: name_cell.left() - row.left(),
+        name_width: name_cell.right() - row.left(),
+    };
+    (row, layout)
+}
+
+/// 표 없이 그리는 편집 줄이 겹쳐 놓일 Name 칸. 같은 폭의 상세 표를 보이지 않는 자식에 배치해 그 칸을 읽고,
+/// 세로는 지금 커서 자리 한 행으로 둔다.
+fn detail_name_cell_here(ui: &mut egui::Ui, theme: &Theme, id: &str) -> egui::Rect {
+    let cell = std::cell::Cell::new(None);
+    let mut probe = ui.new_child(egui::UiBuilder::new().max_rect(ui.max_rect()).invisible());
+    detail_columns_table(&mut probe, theme, &[()], id, |ui, _, _, col| {
+        if col == 0 {
+            cell.set(Some(ui.max_rect().x_range()));
+        }
+    });
+    let x = cell.get().unwrap_or(ui.max_rect().x_range());
+    let top = ui.cursor().top();
+    egui::Rect::from_x_y_ranges(
+        x,
+        egui::Rangef::new(top, top + theme.table_cell_height().value()),
+    )
 }
 
 fn heads(folder: Option<&str>) -> ExplorerDetailHeads<'_, usize> {
@@ -710,18 +750,10 @@ pub fn draw_name_errors(ui: &mut egui::Ui, theme: &Theme) {
                         initial_selection: None,
                     };
                     framed(ui, th, |ui| {
-                        let (_, field, _) = explorer_name_row(
-                            ui,
-                            th,
-                            ExplorerNameLayout::Detail {
-                                inset: DETAIL_INSET.value(),
-                                name_width: ui.available_width()
-                                    - explorer_detail_tail_width(false, th),
-                            },
-                            icons::FOLDER,
-                            &mut edit,
-                            true,
-                        );
+                        let name_cell = detail_name_cell_here(ui, th, value);
+                        let (_, layout) = detail_edit_slot(ui.max_rect().x_range(), th, name_cell);
+                        let (_, field, _) =
+                            explorer_name_row(ui, th, layout, icons::FOLDER, &mut edit, true);
                         explorer_name_error(ui, th, field, &error);
                     });
                 }
