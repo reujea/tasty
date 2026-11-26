@@ -500,8 +500,8 @@ pub fn draw_local_ssh_section(
     );
     vspace(ui, th.spacing_sm);
 
-    // 헤더와 빈 상태 줄은 위 size-2 · 아래 space-xs 여백을 둔다.
-    vspace(ui, STRUCT_GAP_2);
+    // 헤더와 빈 상태 줄은 위 `remote-ssh-line-pad-top` · 아래 space-xs 여백을 둔다.
+    vspace(ui, th.remote_ssh_line_pad_top());
     ssh_inset(ui, th, |ui| {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = th.spacing_sm.value();
@@ -530,7 +530,7 @@ pub fn draw_local_ssh_section(
     vspace(ui, th.spacing_xs);
 
     if data.hosts.is_empty() {
-        vspace(ui, STRUCT_GAP_2);
+        vspace(ui, th.remote_ssh_line_pad_top());
         // 비어 있는 이유를 표시하되 설정 부재를 경고색으로 표현하지 않는다.
         ssh_inset(ui, th, |ui| {
             selectable_text(

@@ -135,3 +135,17 @@ fn painted_warn_badge_glyphs_read_their_host_ink() {
         );
     }
 }
+
+/// SSH 설정 구역의 머리 줄과 빈 상태 줄은 위로 정본 `remote-ssh-line-pad-top` 여백을 둔다. 지원 배율에서 옛 값
+/// (STRUCT_GAP_2)과 같아 그린 도형으로 가를 수 없으므로 두 자리가 읽는 토큰 이름을 고정한다.
+#[test]
+fn the_ssh_header_and_empty_lines_read_remote_ssh_line_pad_top() {
+    let source = include_str!("remote_tool.rs");
+    assert_eq!(
+        source
+            .matches("vspace(ui, th.remote_ssh_line_pad_top());")
+            .count(),
+        2,
+        "머리 줄과 빈 상태 줄의 위 여백이 remote_ssh_line_pad_top 을 읽지 않는다"
+    );
+}
