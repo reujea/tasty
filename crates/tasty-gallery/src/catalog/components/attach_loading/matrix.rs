@@ -539,9 +539,12 @@ pub(super) fn rail(ui: &mut egui::Ui, theme: &Theme) {
             },
         ),
         ("move", Avatar { mv: true, ..base }),
+        // 거절 칩은 연결되지 않은 저장 원격 행에만 나오므로 연결 안 됨 mirror 칩과 함께 그린다.
         (
-            "refused",
+            "remote refused",
             Avatar {
+                mirror: true,
+                offline: true,
                 refused: true,
                 ..base
             },
@@ -553,6 +556,7 @@ pub(super) fn rail(ui: &mut egui::Ui, theme: &Theme) {
                 notif: true,
                 ring: true,
                 mirror: true,
+                offline: true,
                 mv: true,
                 refused: true,
                 ..base

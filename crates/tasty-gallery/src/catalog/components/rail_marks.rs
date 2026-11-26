@@ -5,7 +5,8 @@ use tasty_type_appearance::theme::Theme;
 use tasty_ui_widgets::{
     LoadingPlacement, RailDot, num_keycap, paint_attach_refusal_chip, paint_dashed_outline,
     paint_loading_overlay, paint_move_source_chip, paint_num_keycap, paint_rail_category_line,
-    paint_rail_dot, paint_rail_flat_divider, paint_workspace_mirror_chip, rail_flat_divider_size,
+    paint_rail_dot, paint_rail_flat_divider, paint_workspace_mirror_chip,
+    paint_workspace_mirror_chip_offline, rail_flat_divider_size,
 };
 
 use crate::catalog::spec::{self, StageVariant, TokenChip};
@@ -27,6 +28,8 @@ pub(crate) struct Avatar {
     pub(crate) notif: bool,
     pub(crate) ring: bool,
     pub(crate) mirror: bool,
+    /// mirror 칩을 연결되지 않은 저장 원격 행의 꼴(border-control 테두리, glyph-dim 글리프)로 그린다.
+    pub(crate) offline: bool,
     /// 왼쪽 아래 move 칩.
     pub(crate) mv: bool,
     /// 왼쪽 위 attach 거절 칩.
@@ -55,6 +58,7 @@ impl Avatar {
         notif: false,
         ring: false,
         mirror: false,
+        offline: false,
         mv: false,
         refused: false,
         loading: false,
@@ -175,7 +179,11 @@ pub(crate) fn paint_avatar(ui: &mut egui::Ui, t: &Theme, rect: egui::Rect, a: Av
         paint_attach_refusal_chip(ui, t, rect, bed);
     }
     if a.mirror {
-        paint_workspace_mirror_chip(ui, t, rect);
+        if a.offline {
+            paint_workspace_mirror_chip_offline(ui, t, rect);
+        } else {
+            paint_workspace_mirror_chip(ui, t, rect);
+        }
     }
     if let Some(digit) = a.keycap {
         paint_num_keycap(ui.painter(), t, rect.center(), digit, a.active, 1.0);
