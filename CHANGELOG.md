@@ -17,6 +17,8 @@
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-11-26
+
 ### Added
 
 - **IPC `surface.read_since_scan_mark` 응답에 연속성 키와 출처 정보 `text_origins`가 실린다.** 기존 `text`·`surface_id`는 그대로이고, 로컬 터미널이면 `surface.read_since_mark`와 같은 `stream`·`cursor`·`next_cursor`·`raw_bytes`·`retention_start`·`retention_end`·`skipped`를 늘 싣는다. `skipped`는 스캐너 커서가 읽지 않은 사이 보존 한도로 잃은 원문 바이트다. `text_origins`는 `{ranges, gaps}`로, `ranges`가 반환한 `text`의 UTF-8 바이트 범위마다 `normal`·`redraw`(OS 크기 적용 뒤 재그리기)·`mixed`·`unknown`을 빈틈없이 알리고, `gaps`가 폭 0 표시(`trimmed`: 앞이 잘림, `redraw_removed`: `strip_ansi`가 지운 escape에 재그리기 바이트가 있었음)를 알린다. 분류는 출력이 들어올 때 정한다. attach mirror 터미널, 출처를 하나도 정할 수 없는 읽기, 항목이 4096개를 넘는 읽기에서는 `text_origins`가 빠진다. 로컬 터미널이 없는 surface는 전처럼 두 키만 답한다.
