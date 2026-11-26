@@ -208,7 +208,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "glyph",
-                "alertTriangle 16 · attach-sync-glyph → accent-warning (same as refusal)",
+                "alertTriangle 16 · attach-sync-glyph → accent-warning",
             ),
             ("title", "banner-title 13 · semibold · never truncated"),
             (
@@ -225,7 +225,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme) {
             ),
             (
                 "body lines",
-                "Tasty-owned banner copy (refusal · size sync · mouse capture · HTML script) never clamps — the card grows · plugin-supplied body clamps at 3 lines, then ellipsis + full text in the tooltip",
+                "Tasty-owned banner copy (size sync · mouse capture · HTML script) never clamps — the card grows · plugin-supplied body clamps at 3 lines, then ellipsis + full text in the tooltip",
             ),
             (
                 "plugin body rows",
@@ -295,8 +295,8 @@ fn draw_body_lines(ui: &mut egui::Ui, theme: &Theme) {
         theme,
         "Banner body lines",
         Some(
-            "Tasty-owned banner copy (refusal \u{b7} size sync \u{b7} mouse capture \u{b7} HTML \
-             script) never clamps \u{2014} the card grows. Plugin-supplied body text clamps at \
+            "Tasty-owned banner copy (size sync \u{b7} mouse capture \u{b7} HTML script) \
+             never clamps \u{2014} the card grows. Plugin-supplied body text clamps at \
              min(3, rows that fit the content height), then ellipsis; the host shows the full \
              text in a tooltip below the banner card.",
         ),
