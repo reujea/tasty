@@ -353,10 +353,10 @@ pub(super) fn tabs(ui: &mut egui::Ui, theme: &Theme) {
                 );
             });
         }
+        // 앱은 활성 탭에 move 글리프를 두지 않으므로 move를 단 좁은 탭은 비활성이다.
         pair(ui, th, "narrow 120 · long title", |ui, on| {
             let cfg = CellCfg {
                 label: "remote-attach-build-farm-eu",
-                active: true,
                 busy: true,
                 mv: true,
                 loading: on,

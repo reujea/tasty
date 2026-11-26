@@ -1,6 +1,8 @@
 //! Shared attach loading parts from the design loading gallery.
 
 mod matrix;
+#[cfg(test)]
+mod move_glyph_tests;
 mod surface;
 
 use crate::catalog::spec::{self, StageVariant, stage};
