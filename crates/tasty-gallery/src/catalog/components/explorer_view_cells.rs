@@ -491,26 +491,27 @@ pub(super) fn detail_name(
     ui: &mut egui::Ui,
     theme: &Theme,
     text: impl Into<egui::WidgetText>,
-    tail: f32,
+    tail: LogicalPx,
 ) {
     let text = text.into();
     // 본체 표는 열 사이 간격이 0 이라 clip 끝이 곧 Name 칸 끝이다. 간격을 물려받은 갤러리 표는 egui 가 칸 clip
     // 을 간격 쪽으로 조금 넓히므로 칸 끝과 clip 끝 중 앞선 것을 쓴다.
-    let edge = ui.clip_rect().right().min(ui.max_rect().right());
-    let room = edge - ui.cursor().left() - tail;
-    let text_w = text
-        .clone()
-        .into_galley(
-            ui,
-            Some(egui::TextWrapMode::Extend),
-            f32::INFINITY,
-            egui::FontSelection::Default,
-        )
-        .size()
-        .x;
-    let w = text_w.min(room).max(0.0);
+    let edge = LogicalPx(ui.clip_rect().right().min(ui.max_rect().right()));
+    let room = edge - LogicalPx(ui.cursor().left()) - tail;
+    let text_w = LogicalPx(
+        text.clone()
+            .into_galley(
+                ui,
+                Some(egui::TextWrapMode::Extend),
+                f32::INFINITY,
+                egui::FontSelection::Default,
+            )
+            .size()
+            .x,
+    );
+    let w = text_w.min(room).max(LogicalPx::default());
     ui.spacing_mut().item_spacing.x = theme.spacing_xs.value();
-    ui.allocate_ui(egui::vec2(w, theme.font_size_body.value()), |ui| {
+    ui.allocate_ui(egui::vec2(w.value(), theme.font_size_body.value()), |ui| {
         ui.add(egui::Label::new(text).truncate())
     });
 }
@@ -576,7 +577,12 @@ pub(super) fn detail_table(
                         let name = egui::RichText::new(row.name)
                             .size(th.font_size_body.value())
                             .color(egui::Color32::from(name_fg));
-                        detail_name(ui, th, if row.cut { name.italics() } else { name }, 0.0);
+                        detail_name(
+                            ui,
+                            th,
+                            if row.cut { name.italics() } else { name },
+                            LogicalPx::default(),
+                        );
                     });
                 }
                 1 => {
@@ -656,7 +662,7 @@ mod detail_name_tests {
 
     /// `cell_w` 폭 칸 안에 글리프 자리 뒤 `name` 을 그린다. clip 은 칸 왼쪽부터 `clip_w` 폭이다(패인이 먼저 끝나면
     /// 칸보다 좁고, 열 간격을 물려받은 표 칸처럼 칸보다 조금 넓을 수도 있다). 돌려주는 값은 칸 끝과 clip 끝 중 앞선 쪽.
-    fn name_in_cell(cell_w: f32, clip_w: f32, name: &str, tail: f32) -> (Drawn, f32) {
+    fn name_in_cell(cell_w: f32, clip_w: f32, name: &str, tail: LogicalPx) -> (Drawn, f32) {
         let theme = tasty_themes::mocha_fallback();
         let edge = std::cell::Cell::new(0.0);
         let p = paint(|ui| {
@@ -718,7 +724,7 @@ mod detail_name_tests {
     #[test]
     fn the_helper_cuts_a_name_as_the_app_rule_does() {
         let theme = tasty_themes::mocha_fallback();
-        let link_tail = theme.explorer_link_glyph_size().value() + theme.spacing_xs.value();
+        let link_tail = theme.explorer_link_glyph_size() + theme.spacing_xs;
         let job = |th: &Theme, name: &str| {
             egui::text::LayoutJob::simple_singleline(
                 name.to_owned(),
@@ -728,11 +734,11 @@ mod detail_name_tests {
         };
         // (칸 폭, 패인 폭, 이름, 꼬리): 칸 끝 먼저, 패인 끝 먼저, 들어감, 링크 꼬리, 칸 시작 앞에서 끝난 패인.
         let cases = [
-            (140.0, 140.0, LONG, 0.0),
-            (300.0, 90.0, LONG, 0.0),
-            (300.0, 300.0, "report.pdf", 0.0),
+            (140.0, 140.0, LONG, LogicalPx::default()),
+            (300.0, 90.0, LONG, LogicalPx::default()),
+            (300.0, 300.0, "report.pdf", LogicalPx::default()),
             (300.0, 90.0, LONG, link_tail),
-            (300.0, 10.0, LONG, 0.0),
+            (300.0, 10.0, LONG, LogicalPx::default()),
         ];
         for (cell_w, pane_w, name, tail) in cases {
             let draw = |use_app: bool| {
@@ -753,7 +759,7 @@ mod detail_name_tests {
                         let sz = theme.icon_glyph_size_md.value();
                         ui.allocate_exact_size(egui::Vec2::splat(sz), egui::Sense::hover());
                         if use_app {
-                            app_rule(ui, &theme, job(&theme, name), tail);
+                            app_rule(ui, &theme, job(&theme, name), tail.value());
                         } else {
                             detail_name(ui, &theme, job(&theme, name), tail);
                         }
@@ -767,15 +773,17 @@ mod detail_name_tests {
                 "the app rule painted the name in cell {cell_w}"
             );
             assert_eq!(
-                gallery, app,
-                "cell {cell_w}, pane {pane_w}, {name:?}, tail {tail}"
+                gallery,
+                app,
+                "cell {cell_w}, pane {pane_w}, {name:?}, tail {}",
+                tail.value()
             );
         }
     }
 
     #[test]
     fn a_long_name_ends_in_an_ellipsis_at_the_name_cell_end() {
-        let (name, edge) = name_in_cell(140.0, 600.0, LONG, 0.0);
+        let (name, edge) = name_in_cell(140.0, 600.0, LONG, LogicalPx::default());
         assert_eq!(name.last, '…');
         assert!(
             name.rect.right() <= edge + 0.5,
@@ -787,7 +795,7 @@ mod detail_name_tests {
     /// 칸 clip 이 칸 끝을 조금 넘어도(열 간격) 이름은 칸 끝에서 줄어든다. 본체 표는 간격이 0 이다.
     #[test]
     fn a_long_name_ends_at_the_cell_end_when_the_clip_reaches_past_it() {
-        let (name, edge) = name_in_cell(140.0, 143.0, LONG, 0.0);
+        let (name, edge) = name_in_cell(140.0, 143.0, LONG, LogicalPx::default());
         assert_eq!(name.last, '…');
         assert!(
             name.rect.right() <= edge + 0.5,
@@ -798,7 +806,7 @@ mod detail_name_tests {
 
     #[test]
     fn a_long_name_ends_in_an_ellipsis_at_a_pane_edge_before_the_cell_end() {
-        let (name, edge) = name_in_cell(300.0, 90.0, LONG, 0.0);
+        let (name, edge) = name_in_cell(300.0, 90.0, LONG, LogicalPx::default());
         assert_eq!(name.last, '…');
         assert!(
             name.rect.right() <= edge + 0.5,
@@ -809,7 +817,7 @@ mod detail_name_tests {
 
     #[test]
     fn a_name_that_fits_is_drawn_whole() {
-        let (name, edge) = name_in_cell(300.0, 600.0, "report.pdf", 0.0);
+        let (name, edge) = name_in_cell(300.0, 600.0, "report.pdf", LogicalPx::default());
         assert_eq!(name.last, 'f');
         assert!(name.rect.right() <= edge);
     }
@@ -817,8 +825,9 @@ mod detail_name_tests {
     #[test]
     fn a_link_name_leaves_room_for_its_tail_glyph() {
         let theme = tasty_themes::mocha_fallback();
-        let tail = theme.explorer_link_glyph_size().value() + theme.spacing_xs.value();
+        let tail = theme.explorer_link_glyph_size() + theme.spacing_xs;
         let (name, edge) = name_in_cell(300.0, 90.0, LONG, tail);
+        let tail = tail.value();
         assert_eq!(name.last, '…');
         assert!(
             name.rect.right() <= edge - tail + 0.5,

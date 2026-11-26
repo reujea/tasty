@@ -710,7 +710,7 @@ fn cell_text(
                     egui::RichText::new(name)
                         .size(th.font_size_body.value())
                         .color(th.table_row_fg().to_egui()),
-                    0.0,
+                    LogicalPx::default(),
                 );
             });
         }

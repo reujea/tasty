@@ -143,11 +143,10 @@ fn cell(ui: &mut egui::Ui, th: &Theme, r: &KindRow, col: usize) {
                     th.text_secondary().to_egui()
                 };
                 r.glyph.image(sz, tint).paint_at(ui, rect);
-                let s = th.explorer_link_glyph_size().value();
                 let tail = if r.link {
-                    s + th.spacing_xs.value()
+                    th.explorer_link_glyph_size() + th.spacing_xs
                 } else {
-                    0.0
+                    LogicalPx::default()
                 };
                 detail_name(
                     ui,
@@ -158,6 +157,7 @@ fn cell(ui: &mut egui::Ui, th: &Theme, r: &KindRow, col: usize) {
                     tail,
                 );
                 if r.link {
+                    let s = th.explorer_link_glyph_size().value();
                     let (rect, _) =
                         ui.allocate_exact_size(egui::Vec2::splat(s), egui::Sense::hover());
                     icons::LINK

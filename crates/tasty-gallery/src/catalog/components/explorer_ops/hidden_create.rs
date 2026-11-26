@@ -157,7 +157,7 @@ fn row_cell(ui: &mut egui::Ui, th: &Theme, row: &Row, col: usize) {
             egui::RichText::new(name)
                 .size(th.font_size_body.value())
                 .color(fg),
-            0.0,
+            LogicalPx::default(),
         );
     });
 }
